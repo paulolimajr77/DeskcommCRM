@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureTenantForUser } from "@/lib/auth/provision";
 import { decidirConviteDoSignup } from "@/lib/auth/convite-no-signup";
 import { acessoFoiRevogado } from "@/lib/auth/vinculo-revogado";
+import { modoDeCadastro } from "@/lib/auth/politica-de-cadastro";
 import { organizationNameSchema } from "@/lib/auth/schemas";
 import { audit } from "@/lib/audit";
 import { authRateLimited, AUTH_LIMITS } from "@/lib/auth/rate-limit";
@@ -20,6 +21,7 @@ export type RecoverOrganizationResult =
         | "validation_error"
         | "rate_limited"
         | "invite_pending"
+        | "somente_convite"
         | "provision_failed"
         | "access_revoked";
     };
@@ -98,6 +100,20 @@ export async function recoverOrganization(name: string): Promise<RecoverOrganiza
       metadata: { motivo: decisao.tipo === "convite" ? "convite_pendente" : decisao.motivo },
     });
     return { ok: false, error: "invite_pending" };
+  }
+
+  // A QUARTA PORTA, e ela não estava no desenho original — apareceu medindo.
+  // Esta action também provisiona organização, então numa instalação em
+  // `so_convite` ela seria a saída de emergência que reabre o que as outras
+  // três fecharam: bastaria criar a conta por qualquer via, chegar sem vínculo,
+  // e pedir a recuperação. Fechar só a tela de cadastro seria outro capacho.
+  if ((await modoDeCadastro()) === "so_convite") {
+    void audit({
+      action: "auth.signup_provision_recusado",
+      actorUserId: authUser.id,
+      metadata: { motivo: "somente_convite" },
+    });
+    return { ok: false, error: "somente_convite" };
   }
 
   if (await authRateLimited("org_recovery", authUser.id, AUTH_LIMITS.org_recovery)) {

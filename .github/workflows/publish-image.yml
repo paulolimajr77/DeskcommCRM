@@ -14,7 +14,10 @@ name: Publicar imagem Docker (GHCR)
 on:
   push:
     tags: ["v*"]
-    branches: ["main"]
+    # `vps/pljr-combinada` é a linha de produção do FORK — ver o cabeçalho da
+    # guarda `a-tag-veio-da-main`. No upstream esta linha não existe e a branch
+    # nem é conhecida, então o gatilho continua sendo só a `main`.
+    branches: ["main", "vps/pljr-combinada"]
   # NÃO acrescente `release: types: [published]` aqui. Ele já esteve, e o efeito
   # foi medido na v1.3.0: `gh release create` empurra a tag E publica a release,
   # então o MESMO commit foi construído DUAS vezes, com 5 minutos de diferença.
@@ -81,8 +84,25 @@ jobs:
             echo "não é push de tag (${GITHUB_REF_TYPE}) — nada a conferir"
             exit 0
           fi
-          estado=$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${GITHUB_SHA}" --jq .status)
-          echo "compare main...${GITHUB_SHA} → ${estado}"
+          # O tronco confiável depende de ONDE isto roda. No upstream é a
+          # `main`: publicar de fora dela entregaria, ao parque inteiro de
+          # clientes, código que nunca passou pelo CI — e o `agent.sh` oferece a
+          # maior tag `v*` a toda VPS instalada, sem olhar procedência.
+          #
+          # No fork do Paulo o parque é UMA VPS, a dele, e o tronco que passa
+          # pelos gates antes de virar imagem é a `vps/pljr-combinada`. A guarda
+          # não é afrouxada: ela continua exigindo que a tag esteja contida num
+          # tronco — só reconhece qual é o tronco daqui.
+          troncos="main"
+          case "${GITHUB_REPOSITORY}" in
+            paulolimajr77/*) troncos="main vps/pljr-combinada" ;;
+          esac
+          estado="fora"
+          for t in $troncos; do
+            e=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${t}...${GITHUB_SHA}" --jq .status 2>/dev/null || echo indisponivel)
+            echo "compare ${t}...${GITHUB_SHA} → ${e}"
+            case "$e" in identical|behind) estado="$e"; break ;; esac
+          done
           # `identical` = a tag é o topo da main; `behind` = está atrás dela, ou
           # seja, contida. `ahead` e `diverged` são commit que a main não tem.
           case "$estado" in

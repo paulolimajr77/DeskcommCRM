@@ -5983,6 +5983,7 @@ export const DICIONARIO: Traducoes = {
   //  e repetir é erro de compilação. É assim que o dicionário impede duas
   //  traduções da mesma frase divergirem.)
   "Devolver acesso": { es: "Devolver el acceso" },
+  "Acesso devolvido.": { es: "Acceso devuelto." },
   "Informe seu nome": { es: "Escribe tu nombre" },
   "Você já tem uma conta com este e-mail": {
     es: "Ya tienes una cuenta con este correo",

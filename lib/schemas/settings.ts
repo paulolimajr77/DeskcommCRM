@@ -8,6 +8,8 @@
  */
 import { z } from "zod";
 
+import { fusoValido } from "@/lib/tempo/fusos";
+
 import { ehHexValido } from "@/lib/branding/rampa";
 import { IDIOMAS } from "@/lib/i18n/idiomas";
 import { MOEDAS_SERVIDAS } from "@/lib/money";
@@ -63,7 +65,12 @@ export const SEM_PREFERENCIA_DE_IDIOMA = "auto";
 export const profileSchema = z.object({
   full_name: z.string().min(1).max(120).nullable().optional(),
   locale: z.enum([...LOCALES, SEM_PREFERENCIA_DE_IDIOMA]),
-  timezone: z.string().min(1).max(64),
+  // `.refine(fusoValido)` e não só `min(1)`: era texto livre, e um fuso que o
+  // `Intl` recusa (um acento, um nome inventado) salvava sem reclamar e depois
+  // derrubava a avaliação de janela no worker, horas mais tarde, longe da tela
+  // que o causou. É a MESMA defesa que `availabilityScheduleSchema` já tinha —
+  // faltava aqui. Ver o cabeçalho de `lib/tempo/fusos.ts`.
+  timezone: z.string().min(1).max(64).refine(fusoValido, "fuso horário inválido"),
   avatar_url: z
     .string()
     .url()
@@ -90,7 +97,12 @@ export const tenantSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal("").transform(() => null)),
-  timezone: z.string().min(1).max(64),
+  // `.refine(fusoValido)` e não só `min(1)`: era texto livre, e um fuso que o
+  // `Intl` recusa (um acento, um nome inventado) salvava sem reclamar e depois
+  // derrubava a avaliação de janela no worker, horas mais tarde, longe da tela
+  // que o causou. É a MESMA defesa que `availabilityScheduleSchema` já tinha —
+  // faltava aqui. Ver o cabeçalho de `lib/tempo/fusos.ts`.
+  timezone: z.string().min(1).max(64).refine(fusoValido, "fuso horário inválido"),
   locale: z.enum(LOCALES),
   currency: z.enum(MOEDAS),
   media_retention_days: z.coerce.number().int().min(30).max(3650),

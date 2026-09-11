@@ -212,15 +212,16 @@ export function janelaDoPeriodo(dias: number, agora: Date): { de: Date; ate: Dat
 /**
  * Fuso do navegador é entrada externa e vai para dentro de uma função SQL que
  * levanta exceção com nome inválido. Recusar aqui é mais barato que 500 lá.
+ *
+ * ⚠️ REEXPORTAÇÃO, não implementação. Este arquivo tinha uma SEGUNDA cópia da
+ * função — igual em comportamento, mas uma cópia — enquanto `lib/tempo/fusos.ts`
+ * já era a canônica usada por outros oito pontos. Duas implementações da mesma
+ * pergunta divergem no dia em que uma delas ganhar um caso a mais, e a que
+ * ficar para trás é justamente a que ninguém lembra que existe.
+ *
+ * O reexport fica para não quebrar quem importa daqui (a rota de relatórios).
  */
-export function fusoValido(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { fusoValido } from "@/lib/tempo/fusos";
 
 export function montarRelatorio(
   bruto: RelatorioBruto,

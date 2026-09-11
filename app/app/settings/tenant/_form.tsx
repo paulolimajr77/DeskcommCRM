@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { updateTenant } from "@/app/actions/settings/updateTenant";
 import { useT } from "@/hooks/i18n/useT";
+import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 import { MOEDAS_SERVIDAS, simboloDaMoeda, type MoedaServida } from "@/lib/money";
 import { tenantSchema, type Locale, type TenantInput } from "@/lib/schemas/settings";
 
@@ -22,14 +23,9 @@ interface Props {
   initial: TenantInput;
 }
 
-const TIMEZONES = [
-  "America/Sao_Paulo",
-  "America/Manaus",
-  "America/Belem",
-  "America/Recife",
-  "America/Fortaleza",
-  "UTC",
-];
+// A lista de fusos vive em `lib/tempo/fusos.ts` — ver o cabeçalho de lá.
+// Esta tela tinha a própria cópia de 6 entradas, e quem escolhia Cuiabá ou
+// Rio Branco no onboarding encontrava este campo EM BRANCO.
 
 export function TenantForm({ initial }: Props) {
   const t = useT();
@@ -108,9 +104,9 @@ export function TenantForm({ initial }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIMEZONES.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz}
+                {FUSOS_OFERECIDOS.map((f) => (
+                  <SelectItem key={f.codigo} value={f.codigo}>
+                    {t(f.rotulo)}
                   </SelectItem>
                 ))}
               </SelectContent>

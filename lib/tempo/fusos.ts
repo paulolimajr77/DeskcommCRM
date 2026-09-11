@@ -24,27 +24,69 @@
  */
 
 /**
- * Fusos oferecidos, agrupados pelo que este público usa.
+ * Fusos oferecidos — a lista ÚNICA de toda tela que pergunta "onde você está".
+ *
+ * ─── A divergência que isto encerra, medida em 2026-09-11 ──────────────────
+ *
+ * Havia QUATRO listas, e nenhuma sabia das outras:
+ *
+ * | onde                                   | quantos | o que faltava                 |
+ * |----------------------------------------|---------|-------------------------------|
+ * | aqui (`FUSOS_OFERECIDOS`)              |      14 | Cuiabá, Rio Branco, Europa/EUA|
+ * | `app/onboarding/welcome/_form.tsx`     |      12 | os 7 hispano-americanos       |
+ * | `app/app/settings/tenant/_form.tsx`    |       6 | tudo, menos 5 do Brasil + UTC |
+ * | `app/app/settings/profile/_form.tsx`   |       6 | idem, copiada da anterior     |
+ *
+ * O efeito não era estético. Quem escolhia **Cuiabá** no onboarding — onde ela
+ * era oferecida — e depois abria Configurações › Organização encontrava o campo
+ * **em branco**: o `Select` não tem item para um valor que a lista dele não
+ * contém. A pessoa não conseguia nem confirmar o próprio fuso, e ao tocar no
+ * campo era obrigada a escolher um errado. Mato Grosso e Acre não são
+ * exóticos — são UTC−4, uma hora de diferença em toda janela de envio, todo
+ * lembrete e toda oferta de horário.
+ *
+ * E as três cópias usavam vocabulários diferentes para a MESMA pergunta: o
+ * onboarding dizia "Cuiabá e Mato Grosso", as configurações mostravam
+ * `America/Cuiaba` cru — o identificador é do sistema, o que a pessoa
+ * reconhece é a cidade.
+ *
+ * ─── O que a lista contém, e por que não encolheu ─────────────────────────
+ *
+ * A UNIÃO das quatro, nunca a interseção: tirar um fuso que alguma tela já
+ * oferecia deixaria órfão o valor de quem o escolheu, com o mesmo campo em
+ * branco que este trabalho existe para fechar.
  *
  * Não é a lista IANA inteira (são centenas). Faltar um é um pedido de uma
  * linha; oferecer trezentos faz o operador procurar o dele numa lista que não
  * termina — e a busca é justamente onde ele digita errado.
+ *
+ * ⚠️ O rótulo é para HUMANO e o código é para máquina. Quem acrescentar uma
+ * linha aqui escreve a cidade que a pessoa reconhece, não o identificador.
  */
 export const FUSOS_OFERECIDOS: { codigo: string; rotulo: string }[] = [
-  { codigo: "America/Asuncion", rotulo: "Assunção (Paraguai)" },
+  // Brasil primeiro: é o público que instala.
+  { codigo: "America/Sao_Paulo", rotulo: "São Paulo, Rio, Brasília, Sul e Sudeste (Brasil)" },
+  { codigo: "America/Recife", rotulo: "Recife, Salvador e Nordeste (Brasil)" },
+  { codigo: "America/Fortaleza", rotulo: "Fortaleza e Ceará (Brasil)" },
+  { codigo: "America/Belem", rotulo: "Belém e Pará (Brasil)" },
+  { codigo: "America/Manaus", rotulo: "Manaus e Amazonas (Brasil)" },
+  { codigo: "America/Cuiaba", rotulo: "Cuiabá e Mato Grosso (Brasil)" },
+  { codigo: "America/Rio_Branco", rotulo: "Rio Branco e Acre (Brasil)" },
+  // Vizinhos de língua espanhola — o produto atende em espanhol.
   { codigo: "America/Argentina/Buenos_Aires", rotulo: "Buenos Aires (Argentina)" },
   { codigo: "America/Montevideo", rotulo: "Montevidéu (Uruguai)" },
+  { codigo: "America/Asuncion", rotulo: "Assunção (Paraguai)" },
   { codigo: "America/Santiago", rotulo: "Santiago (Chile)" },
   { codigo: "America/La_Paz", rotulo: "La Paz (Bolívia)" },
   { codigo: "America/Lima", rotulo: "Lima (Peru)" },
   { codigo: "America/Bogota", rotulo: "Bogotá (Colômbia)" },
   { codigo: "America/Mexico_City", rotulo: "Cidade do México (México)" },
-  { codigo: "America/Sao_Paulo", rotulo: "São Paulo (Brasil)" },
-  { codigo: "America/Manaus", rotulo: "Manaus (Brasil)" },
-  { codigo: "America/Belem", rotulo: "Belém (Brasil)" },
-  { codigo: "America/Recife", rotulo: "Recife (Brasil)" },
-  { codigo: "America/Fortaleza", rotulo: "Fortaleza (Brasil)" },
-  { codigo: "UTC", rotulo: "UTC" },
+  // Fora da América Latina: vieram do onboarding, e quem opera de fora existe.
+  { codigo: "Europe/Lisbon", rotulo: "Lisboa (Portugal)" },
+  { codigo: "Europe/Madrid", rotulo: "Madri (Espanha)" },
+  { codigo: "America/New_York", rotulo: "Nova York (Estados Unidos)" },
+  { codigo: "America/Los_Angeles", rotulo: "Los Angeles (Estados Unidos)" },
+  { codigo: "UTC", rotulo: "Outro (horário universal — UTC)" },
 ];
 
 /**

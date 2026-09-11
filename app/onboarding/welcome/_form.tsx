@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useT } from "@/hooks/i18n/useT";
+import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 
 import { acceptWelcome } from "@/app/actions/onboarding/acceptWelcome";
 import { Button } from "@/components/ui/button";
@@ -16,25 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/**
- * Cidade, não identificador de fuso. A lista mostrava "America/Bahia" e
- * "America/Fortaleza" e esperava que a pessoa soubesse em qual delas mora — o
- * identificador é do sistema, o que ela reconhece é a cidade.
- */
-const FUSOS: { id: string; cidade: string }[] = [
-  { id: "America/Sao_Paulo", cidade: "São Paulo, Rio, Brasília, Sul e Sudeste" },
-  { id: "America/Recife", cidade: "Recife, Salvador, Fortaleza e Nordeste" },
-  { id: "America/Belem", cidade: "Belém e Pará" },
-  { id: "America/Manaus", cidade: "Manaus e Amazonas" },
-  { id: "America/Cuiaba", cidade: "Cuiabá e Mato Grosso" },
-  { id: "America/Rio_Branco", cidade: "Rio Branco e Acre" },
-  { id: "America/Argentina/Buenos_Aires", cidade: "Buenos Aires" },
-  { id: "Europe/Lisbon", cidade: "Lisboa" },
-  { id: "Europe/Madrid", cidade: "Madri" },
-  { id: "America/New_York", cidade: "Nova York" },
-  { id: "America/Los_Angeles", cidade: "Los Angeles" },
-  { id: "UTC", cidade: "Outro (horário universal)" },
-];
+// A lista de fusos vive em `lib/tempo/fusos.ts`. Ela nasceu AQUI — esta tela
+// era a única que falava por cidade em vez de identificador, e a única que
+// oferecia Cuiabá e Rio Branco. O vocabulário desta lista venceu; o que mudou
+// é que agora as outras três telas leem a mesma.
 
 export function WelcomeForm({ defaultOrgName }: { defaultOrgName: string }) {
   const t = useT();
@@ -107,9 +93,9 @@ export function WelcomeForm({ defaultOrgName }: { defaultOrgName: string }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {FUSOS.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {t(f.cidade)}
+            {FUSOS_OFERECIDOS.map((f) => (
+              <SelectItem key={f.codigo} value={f.codigo}>
+                {t(f.rotulo)}
               </SelectItem>
             ))}
           </SelectContent>

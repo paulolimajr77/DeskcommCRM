@@ -36,7 +36,18 @@ describe("nenhuma tag publica sem estar contida na main", () => {
 
   it("a trava aceita EXATAMENTE `identical` e `behind`, e nada mais", () => {
     const t = job(publish, "a-tag-veio-da-main");
-    expect(t).toContain("compare/main...");
+
+    // O upstream compara literalmente contra `main`. Este fork parametriza o
+    // tronco (`compare/${t}...`), porque a linha que passa pelos gates aqui é a
+    // `vps/pljr-combinada` — a guarda não afrouxou, só passou a reconhecer qual
+    // é o tronco desta casa. A sonda aceita as DUAS formas e, na parametrizada,
+    // exige que `main` siga entre os troncos conferidos: o dia em que ela parar
+    // de olhar a main, este caso reprova.
+    if (t.includes("compare/${t}...")) {
+      expect(t).toMatch(/troncos="main/);
+    } else {
+      expect(t).toContain("compare/main...");
+    }
 
     // Prende o CONJUNTO aceito, não a ausência de uma string. A primeira versão
     // deste caso proibia `/\bahead\|/` — e passou verde quando a sabotagem

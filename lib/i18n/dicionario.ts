@@ -5978,6 +5978,22 @@ export const DICIONARIO: Traducoes = {
   "Não deu para salvar. Tente de novo em instantes.": {
     es: "No se pudo guardar. Inténtalo de nuevo en unos instantes.",
   },
+  // ── Revogação reversível (2026-09-10) ─────────────────────────────────────
+  // ("Revogado" e "Seu nome" já existem mais acima — a chave é o próprio texto,
+  //  e repetir é erro de compilação. É assim que o dicionário impede duas
+  //  traduções da mesma frase divergirem.)
+  "Devolver acesso": { es: "Devolver el acceso" },
+  "Informe seu nome": { es: "Escribe tu nombre" },
+  "Você já tem uma conta com este e-mail": {
+    es: "Ya tienes una cuenta con este correo",
+  },
+  "Entre com ela para aceitar o convite — não é preciso criar outra.": {
+    es: "Entra con ella para aceptar la invitación — no hace falta crear otra.",
+  },
+  "Entrar e aceitar o convite": { es: "Entrar y aceptar la invitación" },
+  "Recebeu um convite novo? Abra o link que chegou no seu e-mail — ele funciona mesmo com esta tela aberta, e devolve o seu acesso.": {
+    es: "¿Recibiste una invitación nueva? Abre el enlace que llegó a tu correo — funciona incluso con esta pantalla abierta, y te devuelve el acceso.",
+  },
   "Já tem conta?": { es: "¿Ya tienes cuenta?" },
   "Email ou senha incorretos.": { es: "Correo o contraseña incorrectos." },
   "Erro inesperado. Tente novamente.": { es: "Error inesperado. Intenta de nuevo." },

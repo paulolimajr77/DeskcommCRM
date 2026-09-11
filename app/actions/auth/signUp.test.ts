@@ -156,7 +156,14 @@ describe("signUp — instalação que só aceita convidados", () => {
 
     const { signUp } = await import("./signUp");
     const res = await signUp(
-      { email: dados.email, password: dados.password, password_confirm: dados.password_confirm },
+      {
+        // O convite agora pede o nome — quem entra convidado pula o onboarding
+        // e ficava sem nome para sempre.
+        full_name: "Convidada da Silva",
+        email: dados.email,
+        password: dados.password,
+        password_confirm: dados.password_confirm,
+      },
       token,
     );
 

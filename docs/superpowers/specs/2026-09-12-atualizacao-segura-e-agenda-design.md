@@ -261,6 +261,49 @@ funcionalidade não a contorna.
 
 ---
 
+### B.6 Remarcar depois de enviar deixa o cliente com o horário errado
+
+**Medido no código, 2026-09-12.** A pergunta era: o cliente recebeu "Sua reunião
+está marcada para 24/09 às 09:30"; alguém remarca para 25/09. O sistema manda de
+novo, corrige, ou fica calado? **Fica calado** — e pior, tranca quem tentaria
+corrigir à mão.
+
+A cadeia inteira, medida peça por peça:
+
+| Peça | O que faz | Medido em |
+|---|---|---|
+| gatilho de remarcar | sobe `revision`, zera `confirmation_next_at`. **Não toca em `meeting_delivery`** | `…0224_presenca_e_recuperacao.sql:63-66` |
+| gatilho de enfileirar entrega | só enfileira quando o estado é `waiting_for_link`. Depois de enviar o estado é `sent` → **sai sem fazer nada** | `…0226_meet_e_entrega_transacional.sql:270` |
+| `fn_meet_action('deliver')` | com a mesma conversa e o mesmo atendimento e estado `sent`, **devolve `false`** e não reenfileira | `…0226…sql:407` |
+| a tela | `alreadyAuthorized` fica `true` → botão **desabilitado**, escrito *"Link já enviado"* | `components/agenda/MeetDoCompromisso.tsx:40-42,158-166` |
+
+Nenhuma varredura cobre o buraco: `fn_appointment_confirmation_sweep` só age
+**depois** que o compromisso termina, e o que ela cria é um aviso interno na
+Central — nunca uma mensagem ao cliente (`baseline.sql:20236-20256`).
+
+**O que JÁ funciona, e não precisa de conserto:** se a remarcação acontece
+**antes** de o trabalhador enviar, a mensagem sai com o horário **novo**. O texto
+não é congelado no momento de autorizar — é montado na hora do envio, de um
+`select a.starts_at` fresco (`lib/agent-engine/agent/meet-delivery.ts:66-110`).
+Só o caso "já saiu" é que fica órfão.
+
+**O tamanho do estrago:** o cliente tem no WhatsApp uma data que não existe mais,
+o operador vê um botão que diz *"Link já enviado"*, e nada na tela informa que o
+horário enviado não é o horário marcado. A pessoa aparece no dia errado.
+
+**O conserto proposto** (mesma decisão do dono do produto que B.4 pede):
+remarcar um compromisso cujo link **já foi enviado** volta o estado da entrega
+para `waiting_for_link` com geração nova, o gatilho reenfileira sozinho, e o
+cliente recebe a correção com o horário novo. É uma linha no gatilho de
+remarcação, guardada por `starts_at` ter mudado de fato — nunca por qualquer
+`update` na linha, senão uma edição de título reenvia link.
+
+**O que decidir:** reenviar automático, ou só **destravar o botão** e deixar a
+correção na mão de quem remarcou? O automático não deixa cliente para trás; o
+manual não surpreende ninguém com mensagem que não pediu.
+
+---
+
 ## PARTE C — Uma correção que apareceu no caminho
 
 ### C.1 O observador de risco aborta a cada passada
@@ -295,19 +338,74 @@ coluna. É decisão de produto, não de código.
 
 ---
 
+## Quanto a atualização passa a custar — medido
+
+**11 atualizações reais desta instalação**, do registro `system_update_runs`
+(`dispatched_at` → `finished_at`, que é o relógio do operador: do clique ao fim):
+
+| | segundos |
+|---|---|
+| mais rápida (v1.17.9 → .10) | 100,2 |
+| mediana das 11 | **308,0** |
+| média das 11 | 398,9 |
+| mais lenta (v1.17.13 → .14) | 885,4 |
+
+O modo seguro acrescenta **16,3s** (parar 10,3s + subir 6,0s, medidos). Sobre a
+mediana isso é **+5,3%**; sobre a média, +4,1%.
+
+**A comparação que decide não é essa, é esta:** a variação natural entre duas
+atualizações da mesma instalação foi de **785 segundos** (100,2 → 885,4). Os
+16,3s do modo seguro são **2% dessa variação** — ficam abaixo do ruído que já
+existe. Em troca, os travamentos caem de 113 para 0, que é o que apagou as
+regras de isolamento e esvaziou o funil.
+
+Uma ressalva honesta sobre o número: as 11 rodadas terminaram todas em
+`success`, e pelo menos uma delas (12/09 15:36, 669,7s) é justamente uma das que
+apagou regra e **mesmo assim reportou sucesso**. O tempo medido é o tempo de uma
+atualização que pode ter destruído coisa — não o de uma atualização correta.
+
+---
+
+## A conferência das regras contra o Supabase hospedado — medido
+
+A dúvida era se a conferência das 92 regras funcionaria numa instalação que usa
+o Supabase na nuvem em vez do banco local. Duas coisas foram medidas:
+
+**1. A conexão não é local.** `url_do_schema()` devolve o que está no `.env`
+(`SUPABASE_DB_ADMIN_URL`, e na falta dela `SUPABASE_DB_URL`) —
+`hostgator-setup-kit/_common.sh:416-418`. Não há endereço fixo no script. Quem
+instalou apontando para a nuvem já conferiria contra a nuvem.
+
+**2. Ler `pg_policy` não exige privilégio nenhum.** Era o risco real: no Supabase
+hospedado a conexão **não é de superusuário**. Medido num Postgres 17
+descartável — papel sem superusuário, que não é dono da tabela e não tem grant
+nenhum nela:
+
+```console
+$ psql -U semnada -c "select current_user, rolsuper from pg_roles where rolname=current_user"
+semnada|f
+$ psql -U semnada -c "select p.polname, c.relname from pg_policy p join pg_class c ..."
+t_select|t                      ← vê a regra
+$ psql -U semnada -c "select count(*) from public.t"
+ERROR:  permission denied for table t     ← e NÃO pode ler a tabela
+```
+
+O controle é a última linha: o mesmo papel que enxerga a regra é barrado na
+tabela. A visibilidade do catálogo não vem de privilégio, então a conferência
+não depende dele.
+
+---
+
 ## O que esta spec NÃO mediu
 
-⚠️ Esta seção tinha **seis** itens e cinco deles já estavam medidos em outras
-partes do documento quando o dono do produto a leu — a lista tinha envelhecido
-dentro da própria spec que denuncia afirmação envelhecida. Corrigida: ficou o
-que é verdade.
+⚠️ Esta seção já teve **seis** itens e depois **três**, e em ambas as vezes
+encolheu porque o que estava nela era mensurável — bastava medir. Ficou **um**,
+e ele é o único que esta máquina não alcança.
 
-- **O que acontece ao remarcar depois de enviar a mensagem.** O cliente recebeu
-  "marcado para 24/09 às 09:30"; alguém remarca. Manda de novo? Corrige? Fica
-  calado? Não medi se a entrega transacional tem noção de mensagem superada.
-- **Quanto tempo a atualização passa a levar no total.** As partes estão
-  medidas (parar 10,3s, subir 6,0s, e zero travamentos contra 113), mas não
-  medi o tempo de ponta a ponta nos dois modos para poder afirmar que compensa.
-- **Se a conferência das 92 regras funciona contra o Supabase hospedado.** Ela
-  não depende de parar nada, e por isso deve funcionar — mas "deve" não é
-  medido, e esta instalação é local.
+- **Se o container consegue FALAR com um Supabase hospedado.** O privilégio está
+  medido acima; a rede, não. Conexão direta do Supabase hospedado é IPv6, e o
+  `psql` roda dentro de um container Docker — se a VPS do cliente não tiver IPv6,
+  a conferência (e o `baseline.sql` inteiro, que usa a mesma conexão) falha
+  antes de chegar ao banco. Isto não é defeito que a conferência introduz: é
+  condição que já vale para toda a etapa de banco do `update.sh`. Medir exige uma
+  instalação apontando para a nuvem, e esta aponta para o banco local.

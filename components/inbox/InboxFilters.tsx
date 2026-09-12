@@ -114,10 +114,16 @@ export function InboxFilters({ value, onChange }: Props) {
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle"
               aria-hidden
             />
+            {/* "última mensagem", e não "mensagem": a busca alcança apenas
+                `conversations.last_message_preview` — a ÚLTIMA mensagem, truncada em 200
+                caracteres (`lib/channels/zernio/ingest.ts:271`). Medido numa conversa real
+                de 32 mensagens: buscar o que o cliente pediu na 3ª devolve ZERO. Alcançar o
+                histórico é projeto próprio (índice trigram + retenção + LGPD); até lá, a
+                tela não promete o que o backend não faz. */}
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t("Buscar por nome, telefone ou mensagem…")}
+              placeholder={t("Buscar por nome, telefone ou última mensagem…")}
               className="h-9 rounded-full border-transparent bg-surface-elevated pl-9 text-sm shadow-none focus-visible:border-border focus-visible:bg-background"
               aria-label={t("Buscar conversas")}
             />

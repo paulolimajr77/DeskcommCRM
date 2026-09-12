@@ -167,6 +167,100 @@ if [ -f supabase/baseline.sql ]; then
   else
     c_grn "✓ banco atualizado (e conversas reorganizadas, se havia bagunça)."
   fi
+
+  # ── O LOG DO BANCO FICA GUARDADO ──────────────────────────────────────────
+  #
+  # Ele era descartado: `raw` servia só para o filtro acima e morria com a
+  # função. O que o agente guarda em `system_update_runs.log_tail` é a CAUDA da
+  # atualização — Docker e reinício —, e o banco acontece antes disso.
+  #
+  # Medido em 2026-09-12, numa instalação real: duas regras de isolamento
+  # sumiram durante uma atualização, o funil ficou vazio para todo mundo, e não
+  # houve como saber por quê — a evidência tinha sido jogada fora. A única coisa
+  # que restou foi a hipótese.
+  printf '%s\n' "$raw" > "$PROJECT_DIR/.deskcomm-banco.log" 2>/dev/null || true
+
+  # ── E AS REGRAS DE ISOLAMENTO SÃO CONFERIDAS ──────────────────────────────
+  #
+  # ## Por que isto existe
+  #
+  # O baseline aplica cada regra como APAGAR e depois CRIAR — é o único jeito
+  # portável, porque o Postgres não tem `create or replace policy`. E esta
+  # atualização roda SEM parar em erro, de propósito, para um clone bagunçado
+  # conseguir se curar.
+  #
+  # As duas coisas juntas têm um desfecho ruim: se o "criar" falha, o "apagar"
+  # já valeu. A regra some, a atualização segue e reporta SUCESSO. Com a regra
+  # de leitura ausente e a segurança por linha ligada, o Postgres nega tudo —
+  # sem erro, sem aviso. A tela mostra uma lista vazia, que é indistinguível de
+  # "não há nada aqui".
+  #
+  # Medido: o dono de uma instalação descobriu horas depois, pelo funil vazio, e
+  # não pela atualização que tinha acabado de dizer "concluída com sucesso".
+  #
+  # ## A régua, e por que não é "toda regra que o arquivo cria"
+  #
+  # O baseline CRIA e depois APAGA a mesma regra de propósito em vários pontos —
+  # é assim que uma regra antiga vira três novas (`conversations_agent_write`
+  # virou insert/update/delete). Contar toda criação daria falso positivo em
+  # cima de decisão deliberada, e falso positivo derruba a confiança no aviso
+  # inteiro. Vale a ÚLTIMA operação de cada regra no arquivo: quem termina
+  # criada é esperada; quem termina apagada, não.
+  esperadas="$(awk '
+    match($0, /drop policy if exists "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/) {
+      linha = substr($0, RSTART, RLENGTH); acao = "drop"
+    }
+    match($0, /create policy "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/) {
+      linha = substr($0, RSTART, RLENGTH); acao = "create"
+    }
+    acao != "" {
+      gsub(/.*policy (if exists )?"?/, "", linha); gsub(/"? on public\./, "|", linha)
+      estado[linha] = acao; acao = ""
+    }
+    END { for (k in estado) if (estado[k] == "create") print k }
+  ' supabase/baseline.sql | sort -u)"
+
+  existentes="$(docker run --rm -i postgres:17-alpine psql "$(url_do_schema)" -t -A -F'|' -c \
+    "select p.polname, c.relname from pg_policy p join pg_class c on c.oid=p.polrelid
+       join pg_namespace n on n.oid=c.relnamespace where n.nspname='public';" 2>/dev/null | sort -u)"
+
+  faltando="$(comm -23 <(printf '%s\n' "$esperadas") <(printf '%s\n' "$existentes") || true)"
+
+  if [ -n "$faltando" ]; then
+    # Uma segunda passada, e ela costuma bastar.
+    #
+    # O que está MEDIDO: na instalação onde isto foi visto, o mesmo arquivo foi
+    # reaplicado depois e passou **sem um único erro** — as regras voltaram. Ou
+    # seja, a falha não é do arquivo nem de permissão, senão repetir não
+    # resolveria.
+    #
+    # O que NÃO está medido: POR QUE falhou da primeira vez. O log daquele
+    # momento tinha sido descartado (é o que o conserto acima passa a guardar),
+    # então a causa é desconhecida — e fica desconhecida aqui, sem palpite.
+    #
+    # Repetir é barato, é seguro (o arquivo é idempotente) e resolveu o caso
+    # real. Reconstruir cada regra à mão dentro deste script seria uma segunda
+    # cópia das 92 declarações, que divergiria da primeira.
+    c_ylw "⚠ Faltaram regras de isolamento. Tentando aplicar o banco mais uma vez…"
+    docker run --rm -i -v "$PROJECT_DIR/supabase/baseline.sql:/b.sql:ro" \
+      postgres:17-alpine psql "$(url_do_schema)" -f /b.sql >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true
+
+    existentes="$(docker run --rm -i postgres:17-alpine psql "$(url_do_schema)" -t -A -F'|' -c \
+      "select p.polname, c.relname from pg_policy p join pg_class c on c.oid=p.polrelid
+         join pg_namespace n on n.oid=c.relnamespace where n.nspname='public';" 2>/dev/null | sort -u)"
+    faltando="$(comm -23 <(printf '%s\n' "$esperadas") <(printf '%s\n' "$existentes") || true)"
+  fi
+
+  if [ -n "$faltando" ]; then
+    c_red "⛔ REGRAS DE ISOLAMENTO AUSENTES — NÃO use o sistema até resolver."
+    c_red "   Sem elas o banco NEGA a leitura em silêncio: telas aparecem VAZIAS,"
+    c_red "   sem erro nenhum, e isso é indistinguível de 'não há dados'."
+    printf '%s\n' "$faltando" | sed 's/|/ na tabela /; s/^/   • /' | head -20
+    c_ylw "   O log do banco está em .deskcomm-banco.log — mande-o para o suporte."
+    c_ylw "   Para voltar ao estado anterior: bash restore.sh"
+  else
+    c_grn "✓ regras de isolamento conferidas ($(printf '%s\n' "$esperadas" | grep -c . ) declaradas, todas no lugar)."
+  fi
 else
   c_ylw "⚠ supabase/baseline.sql não encontrado — pulei a parte do banco."
 fi

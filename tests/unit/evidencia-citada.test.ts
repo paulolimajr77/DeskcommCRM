@@ -167,9 +167,6 @@ const LEGADO = new Set([
   "HANDOFF.md",
   "docs/superpowers/plans/2026-07-21-onda0-fundacao-midia.md",
   "docs/superpowers/plans/2026-07-24-harness-fase2-skills.md",
-  "loop/checkpoints/G2-report.md",
-  "loop/checkpoints/G4-report.md",
-  "loop/checkpoints/G5-report.md",
 ]);
 
 /**
@@ -205,6 +202,22 @@ function refsNormalizadas(doc: string): string[] {
         // o guarda aceitaria a citação e depois não acharia o arquivo — mudei um
         // lado e o outro não acompanhou, que é o defeito desta wave inteira.
         if (SUBPASTAS.has(limpa.split("/")[0]!)) return path.posix.join("evidence", limpa);
+        // Subpasta do PRÓPRIO documento: markdown resolve link relativo contra a
+        // pasta de quem cita, e um documento fora da raiz cita assim. Sem este
+        // caso o guarda procurava `atendechat-inbox/x.jpg` na RAIZ do repo e
+        // reprovava documento correto — as imagens estavam em git o tempo todo,
+        // em `docs/research/atendechat-inbox/`. É o mesmo defeito que o caso de
+        // `docs/handoffs` acima ja tinha consertado para outro caminho.
+        const noProprioDoc = path.posix.join(dir, limpa);
+        // SÓ quando o caminho pela RAIZ não existe: preserva o comportamento de
+        // todo documento que já citava pela raiz, e resolve apenas o caso novo.
+        if (
+          dir !== "." &&
+          !fs.existsSync(path.join(RAIZ, limpa)) &&
+          fs.existsSync(path.join(RAIZ, noProprioDoc))
+        ) {
+          return noProprioDoc;
+        }
         // Caminho próprio (fora de evidence/): respeita como está.
         return limpa;
       }),

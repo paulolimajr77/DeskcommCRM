@@ -94,9 +94,23 @@ scheduler **e** `supabase-rest`, `realtime`, `studio`. Medido: **zero
 travamentos**. Custo: ~16s a mais, e o CRM fora do ar durante o banco.
 
 **Caminho 2 — instalação com Supabase hospedado.** Não há o que parar do lado do
-Supabase. Aqui vale a transação única (A.4) para tolerar o erro benigno, **mais
-a peça que converge**: ao fim, conferir as 92 regras e **recriar exatamente as
-que faltam** — não reaplicar o arquivo inteiro.
+Supabase, e **a parada fica de fora por decisão do dono do produto**: *"a
+manutenção é pra quem usa local"*.
+
+⚠️ **O que essa decisão deixa descoberto, escrito para ninguém descobrir depois:**
+o instalador padrão do produto **cria o banco na nuvem da Supabase**
+(`install.sh:1083`, via Management API). A instalação que originou esta spec é a
+exceção — Supabase local, montado fora do nosso compose. Quem segue o caminho
+padrão continua exposto à perda de regra.
+
+**O que vale para os dois, e é o que impede o silêncio:** a **conferência** (A.6,
+passo 4) não depende de parar nada. Ela não evita a perda — mas transforma
+"a atualização diz que deu certo e o funil fica vazio por horas" em "a
+atualização reprova e diz qual regra falta". Foi o silêncio, não a perda, que
+custou o dia.
+
+E a peça que **converge**: recriar exatamente as que faltam, nunca reaplicar o
+arquivo inteiro.
 
 **Por que recriar as que faltam, e não reaplicar tudo:** medido nesta
 instalação, reaplicar **não converge**. A segunda passada devolveu
@@ -171,27 +185,28 @@ abre com o primeiro contato da lista marca compromisso no nome de outra pessoa �
 defeito que já aconteceu nesta instalação e foi consertado em 2026-09-12 (o
 cliente ficava herdado da abertura anterior).
 
-### B.2 Campo de anotações
+### B.2 Observações do compromisso
 
-**Medido:** a coluna `calendar_appointments.notes` **já existe**, e a API já a
-aceita — `app/api/v1/agenda/agendamentos/route.ts:84`, `z.string().max(2000)`,
-no POST **e** no PATCH.
+**Decidido pelo dono do produto:** é **uma observação por compromisso**, escrita
+por quem está marcando — o que precisa lembrar para aquela call, aquela reunião.
+**Não** é histórico de várias anotações de várias pessoas.
 
-**Ou seja: não há migration, não há rota nova.** Falta apenas o campo na tela de
-marcação e a exibição no detalhe do compromisso.
+⚠️ Registrado porque eu propus o contrário e estava errado: cheguei a desenhar
+uma tabela `appointment_notes` espelhando `conversation_notes` (com autor e
+data). Ele corrigiu — *"o agendamento é individual"*. A tabela nova resolveria um
+problema que ninguém tem, e custaria migration, rota e tela.
 
-**Medido, e decide a escolha da coluna:** `lib/agenda/google/evento.ts:330` manda
-para o Google **apenas `description`**. `notes` **não** viaja.
+**Medido:** `calendar_appointments.notes` existe (`text`) e a API já a aceita —
+`app/api/v1/agenda/agendamentos/route.ts:84`, `z.string().max(2000)`, no POST
+**e** no PATCH.
 
-Isso vira uma pergunta de produto, não de código: a anotação é **interna da
-equipe** (fica em `notes`, invisível no Google) ou **parte do compromisso** (vai
-em `description`, e o cliente convidado a lê no convite)?
+**Ou seja: zero banco, zero rota. Só tela** — o campo no painel de marcação e a
+exibição no detalhe do compromisso.
 
-A spec propõe **`notes`, interna** — anotação de atendimento costuma conter o
-que não se diz ao cliente ("desconfio que vai pedir desconto"). Mandar isso ao
-Google, num evento que pode ter o cliente como convidado, é vazamento com cara
-de recurso. Se a intenção for a outra, é decisão do dono do produto e muda a
-coluna, não o desenho.
+**E ela fica interna, sem decisão adicional a tomar:** medido em
+`lib/agenda/google/evento.ts:330`, o que viaja para o convite do Google é
+`description`. `notes` **não** viaja. O comportamento que ele pediu já é o
+comportamento da coluna.
 
 ### B.3 O e-mail do convidado vem preenchido
 

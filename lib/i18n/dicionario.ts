@@ -379,6 +379,10 @@ export const DICIONARIO: Traducoes = {
   Buscar: { es: "Buscar" },
 
   // ─── Inbox: filtros e lista ───
+  "Nenhuma conversa com esses filtros": { es: "Ninguna conversación con esos filtros" },
+  "Ativos:": { es: "Activos:" },
+  "Busca": { es: "Búsqueda" },
+  "Etiqueta": { es: "Etiqueta" },
   "Buscar por nome, telefone ou última mensagem…": {
     es: "Buscar por nombre, teléfono o último mensaje…",
   },

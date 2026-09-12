@@ -144,6 +144,12 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
     [tab, searchParams, router, pathname],
   );
 
+  // Desliga só os AUXILIARES e mantém a aba: a aba é onde a pessoa está, e
+  // limpá-la junto a tiraria do lugar sem ela ter pedido.
+  const limparFiltrosAuxiliares = useCallback(() => {
+    setFilterValue({ tab, search: "", onlyUnread: false });
+  }, [tab, setFilterValue]);
+
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -410,6 +416,7 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
             selectedId={selectedId}
             onSelect={handleSelect}
             onVisibleChange={handleVisibleChange}
+            onLimparFiltros={limparFiltrosAuxiliares}
           />
         </div>
       </div>

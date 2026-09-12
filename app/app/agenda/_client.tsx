@@ -448,6 +448,20 @@ export function AgendaClient({
             // não usado reapareceria na PRÓXIMA marcação, que é de outro
             // cliente — convite para a pessoa errada, sem ninguém ter pedido.
             setEmailConvidado("");
+            // E o próprio cliente, que é o pior dos quatro a sobrar: medido numa
+            // instalação real em 2026-09-12, "Novo agendamento" abriu com um
+            // contato JÁ selecionado, herdado de uma abertura anterior feita a
+            // partir da conversa dele (`onContext` preenche os dois). Quem não
+            // reparasse marcaria o compromisso no nome de outra pessoa — e o
+            // campo parece preenchido de propósito, então não há o que estranhar.
+            //
+            // É exatamente o raciocínio do comentário acima, aplicado a três
+            // campos e esquecido nestes dois. Vazio é um estado legítimo aqui
+            // ("Compromisso pessoal, sem cliente"), e vir vazio é o degrau
+            // seguro: um campo em branco a pessoa vê; um campo com o cliente
+            // errado, não.
+            setContactId("");
+            setConversationId("");
           }
         }}
       >

@@ -652,12 +652,32 @@ export function PainelDeMarcacao({
             `data-testid` para a lista poder ser MEDIDA, e não só vista. O
             `overflow-y-auto` aqui sempre esteve certo e era INERTE: um
             `overflow-y-auto` cujo pai tem altura `auto` não rola, porque o filho
-            cresce e `scrollHeight === clientHeight`. Quem fecha a cadeia é o
-            `_client.tsx`, que dá teto ao Sheet.
+            cresce e `scrollHeight === clientHeight`.
+
+            ## Por que o teto mora AQUI, e não mais na cadeia de alturas
+
+            Este comentário dizia "quem fecha a cadeia é o `_client.tsx`, que dá
+            teto ao Sheet". Era verdade e virou o defeito seguinte: para a janela
+            parar de CORTAR os botões em tela baixa, o teto do Sheet foi removido
+            — e a lista, sem pai com altura, voltou a crescer sem fim. Medido numa
+            instalação real em 2026-09-12: um tipo de 45 minutos rendeu treze
+            horários e uma janela que não cabia na tela. Trocamos "corta" por
+            "estica", que é o mesmo erro pelo avesso.
+
+            `lg:max-h` resolve sem cadeia: `max-height` + `overflow-y-auto` rola
+            por conta própria, sem depender de o pai ter altura definida — que é
+            a condição frágil que já falhou nos dois sentidos. Abaixo de `lg` não
+            há teto de propósito: ali quem rola é o diálogo inteiro, e dois
+            roladores aninhados no celular prendem o dedo no de dentro.
+
+            O teto é `vh` e não pixel porque o inimigo é a ALTURA DA JANELA, não
+            a quantidade de horários: em 1366×768 sobram ~520px reais, e um teto
+            fixo escolhido num monitor grande volta a cortar exatamente onde o
+            defeito original aparecia.
           */}
           <div
             data-testid="lista-de-horarios"
-            className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+            className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1 lg:max-h-[60vh]"
           >
             {doDia.map((h) => (
               <button

@@ -34,6 +34,37 @@ dc_files() {
   fi
 }
 
+# ── QUEM FALA COM O BANCO E PODE SER PARADO ──────────────────────────────────
+#
+# O `update.sh` aplica o `baseline.sql`, que APAGA e RECRIA cada regra de
+# isolamento — é o único jeito portável, porque o Postgres não tem
+# `create or replace policy`. Com tráfego vivo isso vira disputa de trava, e
+# quando o CRIAR trava o APAGAR já valeu: a regra some, o banco passa a negar a
+# leitura em silêncio, e a tela fica VAZIA sem um erro sequer.
+#
+# Medido numa instalação real, no mesmo dia e com o mesmo arquivo:
+#   tudo de pé ................................ 113 travamentos
+#   CRM parado ................................  60 travamentos
+#   CRM + rest + realtime + studio parados ....   0 travamentos
+#
+# ⚠️ O realtime NÃO se chama `supabase-realtime`. Na instalação real o nome é
+# `realtime-dev.supabase-realtime`, e um padrão ancorado em `^supabase-` deixa
+# de pé justamente quem mais reage a mudança de estrutura. O ponto é escapado
+# porque em expressão regular ele casaria com qualquer caractere.
+#
+# ⚠️ O banco e o auth ficam DE PÉ de propósito: é no banco que o DDL roda, e
+# derrubar o auth deslogaria quem está na tela sem necessidade.
+#
+# ⚠️ Nada de varredura larga. Uma VPS hospeda outros sistemas (medido numa real:
+# um CRM imobiliário e dois WordPress). A lista é explícita, e é só a nossa.
+#
+# Vazio quando o Supabase é HOSPEDADO — lá não há o que parar, e é por isso que
+# a conferência das regras, que não depende de parar nada, é a peça portável.
+supabase_local_containers() {
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -E \
+    '^(supabase-rest|supabase-studio|realtime-dev\.supabase-realtime)$' || true
+}
+
 # ── A rede externa por onde o proxy de fora alcança o app ────────────────────
 # O nome que o docker compose dá ao projeto quando ninguém passa -p: basename do
 # diretório, minúsculo, só [a-z0-9_-] — E com os `_`/`-` do INÍCIO aparados

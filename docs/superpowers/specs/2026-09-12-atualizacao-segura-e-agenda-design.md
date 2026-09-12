@@ -225,8 +225,20 @@ que alguém digitou é o mesmo defeito do cliente herdado, pelo avesso.
 mesmo que entrega o link do Google Meet. Ele já resolve fila, canal, fronteira
 de atendimento e autorização.
 
-**Proposta:** reusar essa entrega para mandar os dados do compromisso (data,
-hora, tipo, local e, quando houver, o link) na conversa do cliente.
+**Proposta:** reusar essa entrega para mandar os dados do compromisso.
+
+**O molde já existe, medido** — `lib/agent-engine/agent/meet-delivery.ts:168`:
+
+```ts
+meetingDeliveryBody(startsAt, timeZone, url, idioma)
+// "Sua reunião está marcada para 24/09/26 09:30 (America/Sao_Paulo).
+//  Link do Google Meet: …"
+```
+
+Ele já resolve o que costuma dar errado: formata no **fuso do compromisso** (não
+no do servidor) e traduz para o **idioma do contato** (não o de quem marcou).
+A mensagem do compromisso é uma variação disso — mesma função, sem o link quando
+não houver, e com o tipo e o local no lugar dele.
 
 **Restrição herdada, e ela não é negociável:** a entrega exige **atendimento
 aberto** naquela conversa. Foi exatamente essa regra que recusou o envio do link
@@ -249,22 +261,53 @@ funcionalidade não a contorna.
 
 ---
 
+## PARTE C — Uma correção que apareceu no caminho
+
+### C.1 O observador de risco aborta a cada passada
+
+**Medido no log de produção, 2026-09-12:**
+
+```
+[risk-watcher] org falhou — new row for relation "crm_lead_risk_states"
+violates check constraint "crm_lead_risk_states_since_no_passado"
+```
+
+A regra do banco é `check (since <= detected_at)`.
+
+**A causa, medida:** `lib/leads/risk-worker.ts:106` grava com **upsert**
+(`onConflict: "lead_id"`) e **omite `detected_at` de propósito** — o comentário
+ali explica que o default `now()` do banco é o relógio certo, e que preencher do
+processo produzia `since > detected_at`.
+
+O comentário está certo para o **INSERT**. Mas num **UPDATE o default não se
+aplica**: a linha mantém o `detected_at` da primeira vez que aquele negócio
+entrou em risco. Enquanto isso `since` avança. Cedo ou tarde `since` ultrapassa
+um `detected_at` congelado no passado — e a constraint recusa.
+
+**Consequência medida:** a mensagem diz *"o worker INTEIRO abortava"*. Ou seja,
+não é uma linha que falha: é o observador de risco parando para a organização
+toda, a cada passada.
+
+**Conserto:** o `detected_at` precisa acompanhar o `since` no UPDATE — ou a
+constraint precisa admitir que ele é o instante da PRIMEIRA detecção, e não da
+última. As duas leituras são defensáveis, e a escolha muda o significado da
+coluna. É decisão de produto, não de código.
+
+---
+
 ## O que esta spec NÃO mediu
 
-- **Se o modo manutenção cabe no desenho atual do app.** A Parte A assume que dá
-  para congelar as telas com um aviso; não medi onde isso mora nem se há
-  mecanismo pronto. Pode exigir uma rota e um estado novos.
-- **Quanto tempo a atualização passa a levar.** Parar tudo remove a disputa, mas
-  acrescenta o tempo de parar e subir. A hipótese é que compense; **não está
-  medido**.
-- **O impacto de parar `supabase-rest` numa instalação que usa o Supabase
-  hospedado.** Esta instalação roda Supabase local em Docker. Quem usa o serviço
-  na nuvem não tem esses contêineres, e a Parte A precisa de um caminho
-  alternativo — provavelmente pausar só os nossos e aceitar a disputa residual.
-- **Se `notes` aparece no evento do Google.** A coluna existe e a API aceita;
-  não medi se a sincronização a leva.
-- **Como o texto do compromisso fica no WhatsApp.** Formato, fuso e o que
-  acontece quando o compromisso é remarcado depois de enviado.
-- **O `crm_lead_risk_states_since_no_passado`** — apareceu no log de produção
-  como violação de constraint (`[risk-watcher] org falhou`) e não foi
-  investigado. Não é desta spec, mas está aqui para não se perder.
+⚠️ Esta seção tinha **seis** itens e cinco deles já estavam medidos em outras
+partes do documento quando o dono do produto a leu — a lista tinha envelhecido
+dentro da própria spec que denuncia afirmação envelhecida. Corrigida: ficou o
+que é verdade.
+
+- **O que acontece ao remarcar depois de enviar a mensagem.** O cliente recebeu
+  "marcado para 24/09 às 09:30"; alguém remarca. Manda de novo? Corrige? Fica
+  calado? Não medi se a entrega transacional tem noção de mensagem superada.
+- **Quanto tempo a atualização passa a levar no total.** As partes estão
+  medidas (parar 10,3s, subir 6,0s, e zero travamentos contra 113), mas não
+  medi o tempo de ponta a ponta nos dois modos para poder afirmar que compensa.
+- **Se a conferência das 92 regras funciona contra o Supabase hospedado.** Ela
+  não depende de parar nada, e por isso deve funcionar — mas "deve" não é
+  medido, e esta instalação é local.

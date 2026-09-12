@@ -62,10 +62,14 @@ describe("o update.sh guarda a evidência e confere o resultado", () => {
     expect(UPDATE).toMatch(/c_red "⛔ REGRAS DE ISOLAMENTO AUSENTES/);
   });
 
-  it("tenta de novo UMA vez antes de gritar — a falha medida era circunstancial", () => {
-    // Reaplicado depois, sem o banco sob carga, o mesmo arquivo passou sem um
-    // erro. Uma segunda passada é mais barata e mais segura do que reconstruir
-    // cada regra à mão dentro do script.
+  it("tenta de novo UMA vez antes de gritar", () => {
+    // MEDIDO: reaplicado depois, o mesmo arquivo passou sem um único erro e as
+    // regras voltaram — logo a falha não é do arquivo nem de permissão, senão
+    // repetir não resolveria.
+    //
+    // NÃO MEDIDO: por que falhou da primeira vez. O log daquele momento tinha
+    // sido descartado. A causa fica desconhecida, e fica escrita como
+    // desconhecida — palpite em comentário vira fato para quem lê depois.
     expect(UPDATE).toMatch(/Tentando aplicar o banco mais uma vez/);
   });
 });

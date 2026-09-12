@@ -227,11 +227,20 @@ if [ -f supabase/baseline.sql ]; then
   faltando="$(comm -23 <(printf '%s\n' "$esperadas") <(printf '%s\n' "$existentes") || true)"
 
   if [ -n "$faltando" ]; then
-    # Uma segunda passada, e ela costuma bastar: a falha medida foi
-    # CIRCUNSTANCIAL (o banco estava sob carga e não deu a tabela por um
-    # instante), não um defeito do arquivo — reaplicado depois, sem carga, ele
-    # passou sem um erro. Tentar de novo é mais barato e mais seguro do que
-    # reconstruir cada regra à mão aqui.
+    # Uma segunda passada, e ela costuma bastar.
+    #
+    # O que está MEDIDO: na instalação onde isto foi visto, o mesmo arquivo foi
+    # reaplicado depois e passou **sem um único erro** — as regras voltaram. Ou
+    # seja, a falha não é do arquivo nem de permissão, senão repetir não
+    # resolveria.
+    #
+    # O que NÃO está medido: POR QUE falhou da primeira vez. O log daquele
+    # momento tinha sido descartado (é o que o conserto acima passa a guardar),
+    # então a causa é desconhecida — e fica desconhecida aqui, sem palpite.
+    #
+    # Repetir é barato, é seguro (o arquivo é idempotente) e resolveu o caso
+    # real. Reconstruir cada regra à mão dentro deste script seria uma segunda
+    # cópia das 92 declarações, que divergiria da primeira.
     c_ylw "⚠ Faltaram regras de isolamento. Tentando aplicar o banco mais uma vez…"
     docker run --rm -i -v "$PROJECT_DIR/supabase/baseline.sql:/b.sql:ro" \
       postgres:17-alpine psql "$(url_do_schema)" -f /b.sql >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true

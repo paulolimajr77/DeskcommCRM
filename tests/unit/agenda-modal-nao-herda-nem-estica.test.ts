@@ -97,10 +97,18 @@ describe("a lista de horários rola em vez de esticar a janela", () => {
     expect(classes).toMatch(/lg:max-h-/);
   });
 
-  it("o teto é relativo à JANELA, não um número de pixels", () => {
-    // O inimigo é a altura da tela, não a quantidade de horários. Um teto fixo
-    // escolhido num monitor grande volta a cortar em 1366×768, que é onde o
-    // defeito original apareceu.
-    expect(classes).toMatch(/max-h-\[\d+vh\]/);
+  it("o teto tem parte relativa à JANELA — senão volta a cortar em tela baixa", () => {
+    // Um teto só em pixel, escolhido num monitor grande, corta em 1366×768 —
+    // que é exatamente onde o defeito original apareceu.
+    expect(classes).toMatch(/\d+vh/);
+  });
+
+  it("⛔ e tem parte em PIXEL — senão em tela alta o teto não é teto", () => {
+    // Medido na prova de tela: `60vh` sozinho fez a barra de rolagem aparecer
+    // (o mecanismo estava certo) e ainda assim rendeu ~570px de lista numa
+    // janela de ~950px. O relato foi "scroll de horas ainda gigante". Rolar não
+    // era o objetivo; caber era. O erro não estava no mecanismo, estava no
+    // NÚMERO — e nenhum gate mede número: só a tela mostra.
+    expect(classes).toMatch(/\d+px/);
   });
 });

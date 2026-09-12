@@ -258,6 +258,13 @@ funcionalidade não a contorna.
 - [ ] E-mail digitado à mão **não** é sobrescrito ao trocar de cliente
 - [ ] Compartilhar por WhatsApp chega na conversa, com atendimento aberto
 - [ ] Sem atendimento aberto, o botão está **desabilitado e explicado**
+- [ ] Remarcar um compromisso já enviado faz o cliente receber a **correção**,
+      com o horário novo e uma frase que diz que mudou
+- [ ] Arrastar o compromisso várias vezes seguidas manda **uma** mensagem só
+- [ ] Editar só o título **não** manda nada
+- [ ] O botão deixa de ficar preso em "Link já enviado": vira "Enviar de novo",
+      com confirmação
+- [ ] Clique duplo em "Enviar link ao cliente" continua mandando **uma** vez
 
 ---
 
@@ -291,16 +298,62 @@ Só o caso "já saiu" é que fica órfão.
 o operador vê um botão que diz *"Link já enviado"*, e nada na tela informa que o
 horário enviado não é o horário marcado. A pessoa aparece no dia errado.
 
-**O conserto proposto** (mesma decisão do dono do produto que B.4 pede):
-remarcar um compromisso cujo link **já foi enviado** volta o estado da entrega
-para `waiting_for_link` com geração nova, o gatilho reenfileira sozinho, e o
-cliente recebe a correção com o horário novo. É uma linha no gatilho de
-remarcação, guardada por `starts_at` ter mudado de fato — nunca por qualquer
-`update` na linha, senão uma edição de título reenvia link.
+**A decisão do dono do produto: os DOIS.** O sistema corrige sozinho, **e** quem
+opera continua podendo mandar de novo pela tela. Não são a mesma coisa: o
+automático cobre quem remarcou e foi embora; o manual cobre o caso em que a
+correção automática não saiu (atendimento mudou, cliente bloqueado, canal fora)
+e alguém precisa agir.
 
-**O que decidir:** reenviar automático, ou só **destravar o botão** e deixar a
-correção na mão de quem remarcou? O automático não deixa cliente para trás; o
-manual não surpreende ninguém com mensagem que não pediu.
+#### B.6.1 A correção automática
+
+Quando `starts_at` **ou** `time_zone` mudarem num compromisso cujo link já foi
+enviado, a entrega volta ao estado "aguardando link" com geração nova,
+preservando o atendimento, o canal e **quem autorizou** o envio original. O
+gatilho que já existe reenfileira sozinho.
+
+**Por que só esses dois campos:** são os únicos que entram no texto da mensagem
+(`meetingDeliveryBody(startsAt, timeZone, url, idioma)`). Guardar por "qualquer
+`update` na linha" faria uma edição de título reenviar link ao cliente.
+
+**As proteções são as que já existem — medidas, não inventadas:**
+
+| Situação | O que acontece | Por quê |
+|---|---|---|
+| o atendimento mudou de dono | **não envia**, abre aviso na Central | `fn_meet_boundary_current` é reconferido no envio |
+| quem autorizou não é mais o responsável | **não envia** | a vigência exige `authorized_by.id = owner_user_id` |
+| quem autorizou perdeu o papel | **não envia** | o papel é reconferido no envio, não no clique |
+| contato anonimizado ou bloqueado | **não envia** | já está na checagem de vigência |
+| compromisso cancelado | **não envia** | o gatilho de enfileirar mata o job |
+| a entrega anterior ficou órfã | **não atrapalha** | `current_intent` impede o job velho de escrever estado |
+
+**Antirrepetição:** arrastar o compromisso cinco vezes na grade não pode virar
+cinco mensagens. A correção entra na fila com **2 minutos** de espera; uma
+remarcação nova dentro da janela substitui a anterior (a geração muda, e o job
+velho reprova na vigência e se cancela sozinho). Só a última sai. Os 2 minutos
+são escolha minha, não medição — o critério foi "maior que um arrasto
+atrapalhado, menor que a paciência de quem espera confirmação".
+
+**O texto precisa dizer que é correção.** Hoje a frase é *"Sua reunião está
+marcada para…"*, e recebê-la duas vezes com datas diferentes e sem explicação é
+pior que o silêncio. A correção usa frase própria: diz que **mudou**, e diz o
+horário novo.
+
+#### B.6.2 O botão destravado
+
+O botão para de ficar preso em *"Link já enviado"*. Ele vira **"Enviar de
+novo"**, e leva confirmação antes de disparar.
+
+**Por que uma ação NOVA e não reaproveitar a de enviar:** hoje `fn_meet_action`
+devolve `false` quando o estado é `sent`, e esse `false` **é a proteção contra
+clique duplo** — é ele que impede a mesma mensagem de sair duas vezes por um
+clique nervoso. Se eu simplesmente deixar o botão habilitado e mudar esse
+`false`, ganho o reenvio e perco a proteção. Então o reenvio explícito é uma
+terceira ação (`resend`), irmã de `retry` e `deliver`, com rota própria no mesmo
+molde das duas que já existem — e a de `deliver` continua devolvendo `false`
+para clique repetido, como hoje.
+
+Sem atendimento aberto na conversa, o botão fica **desabilitado e explicado** —
+mesma regra de B.4.
 
 ---
 

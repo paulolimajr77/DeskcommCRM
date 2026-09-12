@@ -18,6 +18,7 @@ import { HistoricoDaAgenda } from "@/components/agenda/HistoricoDaAgenda";
 import type { Agendamento, HorarioLivre, VisaoDaAgenda } from "@/components/agenda/tipos";
 import { EmptyAgenda } from "@/components/empty";
 import { rotuloDoLocal } from "@/lib/agenda/locais";
+import { ancoraAoFecharPainel } from "@/lib/agenda/ancora-depois-de-marcar";
 import { Button } from "@/components/ui/button";
 import { PainelDeMarcacao } from "@/components/agenda/PainelDeMarcacao";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -96,6 +97,9 @@ export function AgendaClient({
   const localeDaData = useLocaleDeData();
   const t = useT();
   const [marcando, setMarcando] = React.useState(false);
+  // O compromisso criado NESTA abertura do painel. Serve para levar a grade até
+  // ele quando o painel fechar por qualquer caminho — ver `ancoraAoFecharPainel`.
+  const [marcadoEm, setMarcadoEm] = React.useState<string | null>(null);
   const [contactId,setContactId]=React.useState("");
   const [conversationId,setConversationId]=React.useState("");
   const onContext=React.useCallback((contact:string,conversation:string)=>{setContactId(contact);setConversationId(conversation);setMarcando(true);},[]);
@@ -462,6 +466,16 @@ export function AgendaClient({
             // errado, não.
             setContactId("");
             setConversationId("");
+            // ⛔ E LEVAR A GRADE ATÉ O QUE ACABOU DE NASCER.
+            //
+            // "Ver na agenda" já fazia isto; fechar no X, clicar fora ou apertar
+            // Esc, não — e a grade ficava na semana em que estava, sem o
+            // compromisso recém-criado, que quase sempre é de outra semana.
+            // ⚠️ O relato que puxou isto NÃO se confirmou (ver o módulo). O que
+            // sustenta é a simetria com o caso do botão, esse sim relatado.
+            const destino = ancoraAoFecharPainel(marcadoEm, startOfDay);
+            if (destino) setAncora(destino);
+            setMarcadoEm(null);
           }
         }}
       >
@@ -675,6 +689,8 @@ export function AgendaClient({
                     })
                     .then((r) => {
                       setEmailConvidado("");
+                      // Guardado para o fechamento saber para onde levar a grade.
+                      setMarcadoEm(instante);
                       return r;
                     });
                 }}

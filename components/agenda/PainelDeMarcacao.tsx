@@ -670,14 +670,26 @@ export function PainelDeMarcacao({
             há teto de propósito: ali quem rola é o diálogo inteiro, e dois
             roladores aninhados no celular prendem o dedo no de dentro.
 
-            O teto é `vh` e não pixel porque o inimigo é a ALTURA DA JANELA, não
-            a quantidade de horários: em 1366×768 sobram ~520px reais, e um teto
-            fixo escolhido num monitor grande volta a cortar exatamente onde o
-            defeito original aparecia.
+            O teto tem DUAS partes, e cada uma cobre o que a outra não cobre:
+
+            - `42vh` para a janela BAIXA — em 1366×768 sobram ~520px reais, e um
+              teto em pixel escolhido num monitor grande volta a cortar
+              exatamente onde o defeito original aparecia;
+            - `380px` para a janela ALTA — sem ele, numa tela de 1440px de altura
+              a lista teria 600px de teto, o que não é teto nenhum: a janela
+              volta a ficar maior que o calendário ao lado, que é o que se está
+              tentando evitar.
+
+            ⚠️ A primeira tentativa foi `60vh` sozinho, e ela FALHOU na prova de
+            tela: a barra de rolagem apareceu — o mecanismo estava certo —, mas
+            numa janela de ~950px isso ainda dava 570px de lista, e o relato foi
+            "scroll de horas ainda gigante". Rolar não era o objetivo; caber era.
+            Fica escrito porque o erro não foi o mecanismo, foi o NÚMERO — e é o
+            tipo de coisa que nenhum gate mede e só a tela mostra.
           */}
           <div
             data-testid="lista-de-horarios"
-            className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1 lg:max-h-[60vh]"
+            className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1 lg:max-h-[min(42vh,380px)]"
           >
             {doDia.map((h) => (
               <button

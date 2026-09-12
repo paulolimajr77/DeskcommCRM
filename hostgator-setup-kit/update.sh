@@ -247,23 +247,54 @@ if [ -f supabase/baseline.sql ]; then
   faltando="$(comm -23 <(printf '%s\n' "$esperadas") <(printf '%s\n' "$existentes") || true)"
 
   if [ -n "$faltando" ]; then
-    # Uma segunda passada, e ela costuma bastar.
+    # ── RECRIAR AS QUE FALTAM, NUNCA REAPLICAR O ARQUIVO ─────────────────────
     #
-    # O que está MEDIDO: na instalação onde isto foi visto, o mesmo arquivo foi
-    # reaplicado depois e passou **sem um único erro** — as regras voltaram. Ou
-    # seja, a falha não é do arquivo nem de permissão, senão repetir não
-    # resolveria.
+    # ⚠️ Isto corrige o que este script fazia antes: reaplicar o baseline inteiro
+    # e conferir de novo. Aquilo era o que eu tinha feito no servidor, e a
+    # medição mostrou que NÃO FECHA — reaplicar não converge. A segunda passada
+    # devolveu `conversations_select` e levou embora `conversations_agent_insert`;
+    # a terceira trocou o conjunto outra vez. Cada passada sorteia, porque cada
+    # passada é a mesma corrida de APAGAR e CRIAR 92 vezes.
     #
-    # O que NÃO está medido: POR QUE falhou da primeira vez. O log daquele
-    # momento tinha sido descartado (é o que o conserto acima passa a guardar),
-    # então a causa é desconhecida — e fica desconhecida aqui, sem palpite.
+    # Recriar só o que falta é um punhado de comandos rápidos, com muito menos
+    # superfície para travar. E roda com os serviços ainda PARADOS, que é a
+    # única janela sem disputa.
     #
-    # Repetir é barato, é seguro (o arquivo é idempotente) e resolveu o caso
-    # real. Reconstruir cada regra à mão dentro deste script seria uma segunda
-    # cópia das 92 declarações, que divergiria da primeira.
-    c_ylw "⚠ Faltaram regras de isolamento. Tentando aplicar o banco mais uma vez…"
-    docker run --rm -i -v "$PROJECT_DIR/supabase/baseline.sql:/b.sql:ro" \
-      postgres:17-alpine psql "$(url_do_schema)" -f /b.sql >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true
+    # E não é uma segunda cópia das 92 declarações: o comando sai do PRÓPRIO
+    # `baseline.sql`, recortado dele. Nada aqui sabe o que uma regra diz.
+    c_ylw "⚠ Faltaram regras de isolamento. Recriando exatamente as que faltam…"
+    faltam_arq="$PROJECT_DIR/.deskcomm-regras-faltando.txt"
+    printf '%s\n' "$faltando" > "$faltam_arq"
+
+    # A régua junta o comando INTEIRO — uma regra real ocupa várias linhas, e
+    # recortar só a primeira produziria SQL sem predicado e sem `;`, que falha
+    # deixando a impressão de que tentou. E vale a ÚLTIMA operação de cada
+    # regra: quem o arquivo cria e depois apaga de propósito não é recriada.
+    # /!\ O arquivo do que falta entra como PRIMEIRO ARQUIVO do awk, e nao por
+    # `-v`. MEDIDO: `awk -v var=valor` processa sequencias de escape no valor,
+    # entao um caminho do Windows (C:\Users\...) perde as barras e o awk le um
+    # arquivo que nao existe — devolvendo vazio, EM SILENCIO, como se nada
+    # faltasse. Numa VPS Linux nao doeria; o teste pegou antes de virar aposta.
+    recria="$(awk '
+      NR == FNR { sub(/[ \t\r]+$/, "", $0); if ($0 != "") quero[$0] = 1; next }
+      /create policy|drop policy if exists/ { buf = ""; coletando = 1 }
+      coletando { buf = buf $0 "\n" }
+      coletando && /;[ \t]*$/ {
+        coletando = 0
+        if (match(buf, /drop policy if exists "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/)) { k = substr(buf, RSTART, RLENGTH); acao = "drop" }
+        else if (match(buf, /create policy "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/)) { k = substr(buf, RSTART, RLENGTH); acao = "create" }
+        else next
+        gsub(/.*policy (if exists )?"?/, "", k); gsub(/"? on public\./, "|", k)
+        estado[k] = acao; if (acao == "create") texto[k] = buf
+      }
+      END { for (k in quero) if (estado[k] == "create") printf "%s", texto[k] }
+    ' "$faltam_arq" supabase/baseline.sql)"
+
+    if [ -n "$recria" ]; then
+      printf '%s\n' "$recria" | docker run --rm -i postgres:17-alpine \
+        psql "$(url_do_schema)" >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true
+    fi
+    rm -f "$faltam_arq"
 
     existentes="$(docker run --rm -i postgres:17-alpine psql "$(url_do_schema)" -t -A -F'|' -c \
       "select p.polname, c.relname from pg_policy p join pg_class c on c.oid=p.polrelid

@@ -62,15 +62,42 @@ describe("o update.sh guarda a evidência e confere o resultado", () => {
     expect(UPDATE).toMatch(/c_red "⛔ REGRAS DE ISOLAMENTO AUSENTES/);
   });
 
-  it("tenta de novo UMA vez antes de gritar", () => {
-    // MEDIDO: reaplicado depois, o mesmo arquivo passou sem um único erro e as
-    // regras voltaram — logo a falha não é do arquivo nem de permissão, senão
-    // repetir não resolveria.
+  it("⛔ NÃO reaplica o arquivo inteiro — isso não converge", () => {
+    // ⚠️ ESTE CASO MUDOU DE LADO, e o motivo importa mais que a asserção.
     //
-    // NÃO MEDIDO: por que falhou da primeira vez. O log daquele momento tinha
-    // sido descartado. A causa fica desconhecida, e fica escrita como
-    // desconhecida — palpite em comentário vira fato para quem lê depois.
-    expect(UPDATE).toMatch(/Tentando aplicar o banco mais uma vez/);
+    // Ele cobrava o contrário: "tenta de novo UMA vez antes de gritar". A
+    // justificativa era medida e verdadeira até onde ia — reaplicado depois, o
+    // mesmo arquivo passou sem um único erro e as regras voltaram.
+    //
+    // O que faltava medir era se reaplicar CONVERGE. Não converge: a segunda
+    // passada devolveu `conversations_select` e levou embora
+    // `conversations_agent_insert`; a terceira trocou o conjunto outra vez.
+    // Cada passada sorteia, porque cada passada é a mesma corrida de APAGAR e
+    // CRIAR 92 vezes que causou o problema.
+    //
+    // "Funcionou uma vez" não é "resolve". Uma medição a mais virou o oposto.
+    expect(UPDATE).not.toMatch(/Tentando aplicar o banco mais uma vez/);
+    expect(UPDATE).toMatch(/Recriando exatamente as que faltam/);
+  });
+
+  it("⛔ e PARA quando ainda falta — não devolve o CRM ao ar quebrado", () => {
+    // Antes o bloco vermelho era impresso e o script seguia para o passo que
+    // sobe o app. O CRM voltava sem regra de isolamento, com tela vazia para
+    // todo mundo, e o vermelho já tinha rolado para fora da tela.
+    const bloco = UPDATE.slice(UPDATE.indexOf("REGRAS DE ISOLAMENTO AUSENTES"));
+    expect(bloco.slice(0, 1200)).toMatch(/REGRAS_FALTANDO="\$faltando"/);
+    expect(bloco.slice(0, 1200)).toMatch(/\bexit 1\b/);
+  });
+
+  it("⛔ para quem fala com o banco ANTES de aplicar, e pendura o trap", () => {
+    // A conferência tem de acontecer com os serviços ainda parados: é a única
+    // janela sem disputa. E o trap é o que impede um erro no meio de deixar a
+    // instalação pela metade.
+    const pausa = UPDATE.indexOf("pausar_o_que_fala_com_o_banco");
+    const aplica = UPDATE.indexOf("psql \"$(url_do_schema)\" -f /b.sql");
+    expect(pausa).toBeGreaterThan(-1);
+    expect(aplica).toBeGreaterThan(pausa);
+    expect(UPDATE).toMatch(/trap restaurar_servicos EXIT/);
   });
 });
 
@@ -152,5 +179,131 @@ describe.skipIf(!temAwk)("a régua: vale a ÚLTIMA operação de cada regra", ()
 
   it("CONTROLE: sem regra nenhuma, devolve vazio", () => {
     expect(esperadas(`select 1;`)).toEqual([]);
+  });
+});
+
+/**
+ * Extrai o awk que RECRIA as regras que faltam — a régua de verdade, tirada do
+ * próprio script, nunca uma cópia. Se alguém mexer nela, é a mexida que é
+ * medida.
+ */
+function programaAwkRecria(): string {
+  // Crase e não aspas: a âncora termina numa aspa simples, e escapá-la dentro
+  // de uma string de aspas simples é o tipo de linha que se quebra em silêncio
+  // na primeira edição.
+  const abre = "recria=\"$(awk '";
+  const i = UPDATE.indexOf(abre);
+  const j = UPDATE.indexOf(`' "$faltam_arq" supabase/baseline.sql`, i);
+  return UPDATE.slice(i + abre.length, j);
+}
+
+/**
+ * Recriar as que faltam — nunca reaplicar o arquivo inteiro.
+ *
+ * A versão anterior deste script mandava reaplicar o `baseline.sql` e conferir
+ * de novo. Era o que eu tinha feito no servidor, e a medição mostrou que não
+ * fecha: reaplicar NÃO CONVERGE. A segunda passada devolveu
+ * `conversations_select` e levou embora `conversations_agent_insert`; a
+ * terceira trocou o conjunto outra vez. Cada passada sorteia, porque cada
+ * passada é a mesma corrida de APAGAR e CRIAR 92 vezes.
+ */
+describe.skipIf(!temAwk)("recriar o que falta: o comando INTEIRO, nunca o nome", () => {
+  function recria(sql: string, faltantes: string[]): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "recria-"));
+    const b = path.join(dir, "b.sql");
+    const f = path.join(dir, "faltam.txt");
+    fs.writeFileSync(b, sql, "utf8");
+    fs.writeFileSync(f, faltantes.join("\n") + "\n", "utf8");
+    try {
+      // Dois arquivos, na ordem que o `NR == FNR` espera: o que falta primeiro,
+      // o baseline depois. Nada de `-v`: ele processa escapes no valor e come
+      // as barras de um caminho do Windows.
+      return execFileSync("awk", [programaAwkRecria(), f, b], { encoding: "utf8" });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("GUARDA DE VACUIDADE: o programa foi mesmo encontrado no script", () => {
+    // Sem este caso, um `indexOf` que devolvesse -1 faria o programa sair vazio,
+    // o awk não imprimir nada, e TODO caso que espera vazio passar por acidente
+    // — inclusive a sabotagem, que é a prova mais importante do arquivo.
+    expect(programaAwkRecria()).toMatch(/create policy/);
+    expect(programaAwkRecria().length).toBeGreaterThan(100);
+  });
+
+  it("devolve o comando completo da regra que falta", () => {
+    const saida = recria(`create policy "x_select" on public.x for select using (true);\n`, [
+      "x_select|x",
+    ]);
+    expect(saida).toMatch(/create policy "x_select" on public\.x for select using \(true\);/);
+  });
+
+  it("⛔ comando de VÁRIAS LINHAS vem inteiro — senão o SQL sai quebrado", () => {
+    // As regras reais do baseline ocupam várias linhas. Recriar só a primeira
+    // produziria um comando sem `;` e sem predicado — pior que não recriar,
+    // porque falharia deixando a impressão de que tentou.
+    const saida = recria(
+      `create policy "y_all" on public.y\n  for all\n  using (fn_user_org_ids() @> array[organization_id]);\n`,
+      ["y_all|y"],
+    );
+    expect(saida).toMatch(/for all/);
+    expect(saida).toMatch(/fn_user_org_ids/);
+    expect(saida.trim().endsWith(";")).toBe(true);
+  });
+
+  it("⛔ NÃO devolve regra que o arquivo apaga depois — é decisão deliberada", () => {
+    const saida = recria(
+      `create policy "velha" on public.z for all using (true);\n` +
+        `drop policy if exists "velha" on public.z;\n`,
+      ["velha|z"],
+    );
+    expect(saida.trim()).toBe("");
+  });
+
+  it("devolve SÓ o que foi pedido, nunca o arquivo inteiro", () => {
+    const saida = recria(
+      `create policy "a1" on public.a for select using (true);\n` +
+        `create policy "b1" on public.b for select using (true);\n`,
+      ["a1|a"],
+    );
+    expect(saida).toMatch(/a1/);
+    expect(saida).not.toMatch(/b1/);
+  });
+
+  it("⛔ SABOTAGEM: regra que o arquivo não declara NÃO é inventada", () => {
+    // A metade que importa da sabotagem. Se a regra não está no baseline, ela
+    // não é fabricada — `REGRAS_FALTANDO` continua preenchida e o CRM não volta
+    // ao ar (provado no caso 7 do teste de shell).
+    const saida = recria(`create policy "existe" on public.a for select using (true);\n`, [
+      "sumida|b",
+    ]);
+    expect(saida.trim()).toBe("");
+  });
+
+  it("CONTROLE: nada faltando devolve vazio", () => {
+    expect(recria(`create policy "a1" on public.a for select using (true);\n`, []).trim()).toBe("");
+  });
+
+  it("CONTROLE VIVO: contra o baseline REAL, recria uma regra de verdade", () => {
+    // Os casos acima usam SQL de brinquedo. Este roda contra o arquivo que o
+    // cliente aplica de fato — e é ele que pega uma régua que só funciona no
+    // exemplo. A regra escolhida não é aleatória: `crm_leads_select` é uma das
+    // duas que sumiram no incidente e deixaram o funil vazio.
+    const baseline = path.join(RAIZ, "supabase", "baseline.sql");
+    expect(fs.readFileSync(baseline, "utf8")).toMatch(/create policy "crm_leads_select"/);
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "recria-real-"));
+    const f = path.join(dir, "faltam.txt");
+    fs.writeFileSync(f, "crm_leads_select|crm_leads\n", "utf8");
+    try {
+      const saida = execFileSync("awk", [programaAwkRecria(), f, baseline], {
+        encoding: "utf8",
+      });
+      expect(saida).toMatch(/create policy "crm_leads_select" on public\.crm_leads/);
+      expect(saida.trim().endsWith(";")).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

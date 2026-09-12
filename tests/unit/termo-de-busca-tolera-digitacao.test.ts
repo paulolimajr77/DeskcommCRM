@@ -30,11 +30,16 @@ describe("o termo de busca tolera como gente digita", () => {
     expect(normalizarTermoDeBusca("Paulo, Jr")).toBe("Paulo*Jr");
   });
 
-  it("as três formas produzem O MESMO termo — é o ponto da tarefa", () => {
+  it("as três formas produzem O MESMO termo, E ele é o curinga", () => {
     const a = normalizarTermoDeBusca("Paulo Jr");
     expect(normalizarTermoDeBusca("Paulo  Jr")).toBe(a);
     expect(normalizarTermoDeBusca("Paulo, Jr")).toBe(a);
     expect(normalizarTermoDeBusca("Paulo;Jr")).toBe(a);
+    // A segunda metade não é zelo: MEDIDA numa sabotagem. Trocando `join("*")`
+    // por `join(" ")`, as três continuam iguais entre si — e este caso passava
+    // verde enquanto o recurso estava destruído. Concordar não basta: elas têm de
+    // concordar NO CURINGA, que é o que faz a busca achar.
+    expect(a).toContain("*");
   });
 
   it("CONTROLE: o termo continua FILTRANDO — não vira curinga universal", () => {

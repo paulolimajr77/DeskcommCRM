@@ -190,6 +190,15 @@ export async function listConversationsHandler(
   if (q.channel_session_id) query = query.eq("channel_session_id", q.channel_session_id);
   if (q.tag) query = query.contains("tags", [q.tag]); // tags @> array[tag] (GIN)
 
+  // No BANCO, e não em memória: filtrar depois de paginar devolveria páginas curtas —
+  // e, quando a página inteira estivesse lida, uma lista vazia que a tela apresentava
+  // como caixa vazia, sem sequer oferecer "Carregar mais".
+  //
+  // ⛔ Compõe sobre `query`, que JÁ tem `.eq("organization_id", ctx.organization_id)`.
+  // Este handler usa o admin client, que passa por cima da RLS: esse filtro é a Única
+  // barreira. Consulta nova só para os não lidos nasceria sem barreira nenhuma.
+  if (q.unread) query = query.gt("unread_count_for_assignee", 0);
+
   if (q.assigned_to === "me") {
     if (ctx.actor.type !== "user") {
       throw new ApiError(

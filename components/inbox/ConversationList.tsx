@@ -27,7 +27,6 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string) => void;
   /** Optional client-side filter (e.g. only-unread). */
-  clientFilter?: (c: ConversationWithContact) => boolean;
   /** Notifies parent when the visible list changes (used by keyboard nav). */
   onVisibleChange?: (ids: string[]) => void;
 }
@@ -37,7 +36,6 @@ export function ConversationList({
   filters,
   selectedId,
   onSelect,
-  clientFilter,
   onVisibleChange,
 }: Props) {
   const t = useT();
@@ -61,10 +59,13 @@ export function ConversationList({
   // com o cabeçalho, que faz a mesma pergunta).
   const automaticoDaOrg = useAutomaticoAtivo();
 
-  const items = useMemo(() => {
-    const all: ConversationWithContact[] = q.data?.pages.flatMap((p) => p.data) ?? [];
-    return clientFilter ? all.filter(clientFilter) : all;
-  }, [q.data, clientFilter]);
+  // Sem filtro de cliente: TODO filtro é parâmetro do schema e roda no banco.
+  // `clientFilter` era o mecanismo que permitia um filtro existir fora do contrato
+  // — e foi por ele que "Não lidos" virou ilha, fora da cerca que vigia os demais.
+  const items = useMemo(
+    () => (q.data?.pages.flatMap((p) => p.data) ?? []) as ConversationWithContact[],
+    [q.data],
+  );
 
   // Notify parent of currently-visible IDs (for j/k nav). Must use effect
   // (not render-time call) — invoking onVisibleChange during render triggers

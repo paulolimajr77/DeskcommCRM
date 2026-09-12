@@ -316,6 +316,19 @@ export const listConversationsQuerySchema = z.object({
   channel_session_id: z.string().uuid().optional(),
   tag: conversationTagSchema.optional(),
   /**
+   * Só as que têm mensagem não lida para o dono.
+   *
+   * NASCEU FORA DO CONTRATO E POR ISSO FORA DE TODO MECANISMO. Era `onlyUnread`,
+   * um predicado aplicado em memória sobre a página JÁ TRUNCADA (50 linhas): com
+   * as 50 primeiras lidas, a tela dizia "Sem conversas por aqui" — e o botão
+   * "Carregar mais" nem era desenhado, porque o estado vazio retornava antes dele.
+   * Medido na tela: ligar o filtro não gerava requisição nenhuma.
+   *
+   * Estando aqui, `tests/unit/rota-le-todo-filtro-do-schema.test.ts` passa a
+   * cobrá-lo sozinho — a cerca deriva as chaves deste schema.
+   */
+  unread: z.coerce.boolean().optional(),
+  /**
    * O termo de busca. A régua inteira vive em `lib/inbox/termo-de-busca.ts`, e a
    * tela lê a MESMA — repetir aqui faria os dois divergirem, e a divergência
    * apareceria como erro na cara de quem digita (a rota recusa e o hook mostra).

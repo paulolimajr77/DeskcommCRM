@@ -182,6 +182,7 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
         : undefined,
       channel_session_id: filterValue.channel_session_id,
       tag: filterValue.tag,
+      unread: filterValue.onlyUnread || undefined,
     }),
     [
       filterValue.tab,
@@ -189,16 +190,10 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
       filterValue.search,
       filterValue.channel_session_id,
       filterValue.tag,
+      filterValue.onlyUnread,
     ],
   );
 
-  const clientFilter = useMemo(
-    () =>
-      filterValue.onlyUnread
-        ? (c: ConversationWithContact) => (c.unread_count_for_assignee ?? 0) > 0
-        : undefined,
-    [filterValue.onlyUnread],
-  );
 
   // We need the selected conversation object for header / composer / side panel.
   // Source it from the same query the list uses to avoid an extra request.
@@ -414,7 +409,6 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
             filters={filters}
             selectedId={selectedId}
             onSelect={handleSelect}
-            clientFilter={clientFilter}
             onVisibleChange={handleVisibleChange}
           />
         </div>

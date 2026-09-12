@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listConversationsQuerySchema } from "@/lib/schemas";
+import { PISO_DA_BUSCA, listConversationsQuerySchema } from "@/lib/schemas";
 
 /**
  * O campo de busca do Inbox ia ao banco com UM caractere.
@@ -36,5 +36,21 @@ describe("a busca não vai ao banco com 1 caractere", () => {
     const r = listConversationsQuerySchema.safeParse({ search: "  ana  " });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.search).toBe("ana");
+  });
+
+  /**
+   * A TELA usa o mesmo piso (components/inbox/InboxLayout.tsx) para não pedir o
+   * que a rota recusa — o hook chama `showApiError`, então pedir e ser recusado
+   * faz piscar um erro na cara de quem digita a primeira letra.
+   *
+   * Este caso deriva do PRÓPRIO `PISO_DA_BUSCA` em vez de repetir o número: se
+   * alguém mudar a constante, o teste acompanha e a tela acompanha. Repetir `2`
+   * aqui faria os três divergirem em silêncio.
+   */
+  it("o schema honra exatamente o PISO_DA_BUSCA que a tela lê", () => {
+    const curto = "a".repeat(PISO_DA_BUSCA - 1);
+    const exato = "a".repeat(PISO_DA_BUSCA);
+    expect(listConversationsQuerySchema.safeParse({ search: curto }).success).toBe(false);
+    expect(listConversationsQuerySchema.safeParse({ search: exato }).success).toBe(true);
   });
 });

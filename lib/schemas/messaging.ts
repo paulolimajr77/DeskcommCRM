@@ -220,6 +220,15 @@ export const CONVERSATION_TERMINAL_STATUSES = ["closed", "archived"] as const;
  */
 export const CONVERSATION_QUEUE_STATUSES = ["open", "pending"] as const;
 
+/**
+ * Quantos caracteres a busca do Inbox exige para ir ao banco.
+ *
+ * EXPORTADA de propósito: a tela precisa do MESMO piso para não pedir o que o
+ * contrato recusa. Duplicar o número lá faria os dois divergirem no primeiro
+ * ajuste — e a divergência apareceria como erro na cara de quem digita.
+ */
+export const PISO_DA_BUSCA = 2;
+
 export const listConversationsQuerySchema = z.object({
   /**
    * Um status, ou vários separados por vírgula (`?status=open,pending`).
@@ -322,7 +331,7 @@ export const listConversationsQuerySchema = z.object({
    * mesmo raciocínio ao telefone (piso de 4 dígitos, com a justificativa escrita
    * lá); faltava aplicá-lo ao texto.
    */
-  search: z.string().trim().min(2).optional(),
+  search: z.string().trim().min(PISO_DA_BUSCA).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });

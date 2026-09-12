@@ -24096,7 +24096,7 @@ grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid
 grant execute on function public.fn_update_budget_consumption() to service_role;
 
 
--- ---- política de cadastro da instalação (migration 0233) ----
+-- ---- política de cadastro da instalação (migration 0240) ----
 create table if not exists public.platform_settings (
   id           smallint    primary key default 1,
   signup_mode  text        not null default 'aberto',

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { googleRpc } from "@/lib/agenda/google/sync-store";
 import { ok, fail } from "@/lib/api/wrappers";
 import { logger } from "@/lib/logger";
+import { motivoDoMeet } from "@/lib/agenda/motivo-do-meet";
+import { traduzir } from "@/lib/i18n/dicionario";
 import { audit } from "@/lib/audit";
 
 export async function meetingAction(
@@ -59,10 +61,24 @@ export async function meetingAction(
       });
     return ok({ pending: true, changed: Boolean(changed) }, { requestId });
   } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : null;
-    if (code === "40001") return fail("conflict", "O compromisso ou atendimento mudou. Atualize e tente novamente.", 409, { requestId });
-    if (code === "42501") return fail("forbidden", "Esta ação exige o responsável pelo compromisso e uma conversa disponível.", 403, { requestId });
-    logger.error("agenda.meet_action_failed", { requestId, action, code: "internal_error" });
-    return fail("internal_error", "Não foi possível registrar a ação. Atualize e tente novamente em instantes.", 500, { requestId });
+    // O motivo REAL, não um literal. A versão anterior gravava
+    // `code: "internal_error"` fixo — o servidor sabia por que tinha recusado e
+    // apagava a informação ao registrá-la. Foi o que fez uma investigação de um
+    // dia inteiro não achar nada nos logs.
+    const motivo = motivoDoMeet(error);
+    logger.error("agenda.meet_action_failed", {
+      requestId,
+      action,
+      motivo: motivo.codigo,
+      erro: error instanceof Error ? error.message : String(error),
+      sqlstate: error && typeof error === "object" && "code" in error ? String(error.code) : null,
+    });
+    // ⛔ RECUSA DE REGRA NUNCA VAI COMO 5xx.
+    //
+    // O cliente HTTP repete automaticamente em 5xx. Devolver 500 para uma
+    // recusa conhecida virava três tentativas idênticas, três recusas
+    // idênticas, e ~20 segundos de espera antes de uma frase que não dizia
+    // nada — medido com cronômetro por quem operava.
+    return fail(motivo.codigo, traduzir(motivo.texto, auth.user.idioma), motivo.status, { requestId });
   }
 }

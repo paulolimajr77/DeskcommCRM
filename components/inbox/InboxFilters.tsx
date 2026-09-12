@@ -99,6 +99,15 @@ export function InboxFilters({ value, onChange }: Props) {
     !channels.some((c) => c.id === value.channel_session_id);
   // Alternador só aparece com 2+ números — com um só não há o que alternar.
   const showChannelSwitch = (channels?.length ?? 0) >= 2 || filtroForaDaLista;
+  // O MESMO tratamento, agora para a etiqueta. Sem ele, o seletor inteiro some
+  // com o filtro AINDA APLICADO — a lista fica num subconjunto, às vezes vazio,
+  // e nada na tela diz que há filtro nem oferece como tirá-lo.
+  const tagForaDoVocabulario =
+    value.tag != null &&
+    tagVocabulary != null &&
+    !tagVocabulary.includes(value.tag);
+  const mostrarSeletorDeTag =
+    (tagVocabulary?.length ?? 0) > 0 || tagForaDoVocabulario;
 
   // O timer lê o valor MAIS RECENTE, não o do render em que foi agendado.
   //
@@ -111,9 +120,15 @@ export function InboxFilters({ value, onChange }: Props) {
   // `value`/`onChange` ali reagendaria o timer a cada render e a busca nunca
   // fecharia) SEM pagar o preço da closure velha.
   const valorRef = useRef(value);
-  valorRef.current = value;
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  // A atualização vai num efeito, e não no corpo do render: escrever em ref
+  // durante a renderização é proibido pela regra `react-hooks/refs` — o React
+  // pode renderizar sem efetivar, e aí a ref passa a apontar para um estado que
+  // nunca chegou à tela. O efeito roda depois do commit, quando `value` é real.
+  useEffect(() => {
+    valorRef.current = value;
+    onChangeRef.current = onChange;
+  });
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -123,7 +138,6 @@ export function InboxFilters({ value, onChange }: Props) {
       }
     }, 250);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);
 
   return (
@@ -170,7 +184,7 @@ export function InboxFilters({ value, onChange }: Props) {
           </button>
         </div>
 
-        {(showChannelSwitch || (tagVocabulary?.length ?? 0) > 0) && (
+        {(showChannelSwitch || mostrarSeletorDeTag) && (
           <div className="flex gap-2">
             {showChannelSwitch && (
               <Select
@@ -202,7 +216,7 @@ export function InboxFilters({ value, onChange }: Props) {
               </Select>
             )}
 
-            {(tagVocabulary?.length ?? 0) > 0 && (
+            {mostrarSeletorDeTag && (
               <Select
                 value={value.tag ?? "all"}
                 onValueChange={(v) => onChange({ ...value, tag: v === "all" ? undefined : v })}
@@ -218,7 +232,13 @@ export function InboxFilters({ value, onChange }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("Todas as tags")}</SelectItem>
-                  {tagVocabulary?.map((tag) => (
+                  {/* A órfã entra na lista: sem ela o Select mostraria o
+                      placeholder no lugar do valor JÁ selecionado, e o operador
+                      veria "Todas as tags" com um filtro ativo. */}
+                  {[
+                    ...(tagVocabulary ?? []),
+                    ...(tagForaDoVocabulario && value.tag ? [value.tag] : []),
+                  ].map((tag) => (
                     <SelectItem key={tag} value={tag}>
                       {tag}
                     </SelectItem>

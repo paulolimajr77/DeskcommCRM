@@ -314,7 +314,15 @@ export const listConversationsQuerySchema = z.object({
   assigned_to: z.union([z.string().uuid(), z.literal("me"), z.literal("unassigned")]).optional(),
   channel_session_id: z.string().uuid().optional(),
   tag: conversationTagSchema.optional(),
-  search: z.string().optional(),
+  /**
+   * O termo de busca, com piso de 2 caracteres DEPOIS de aparado.
+   *
+   * Medido em produção: `?search=a` devolvia a lista inteira — e lista inteira
+   * sob busca não é resposta, é ruído que PARECE resposta. O handler já aplica o
+   * mesmo raciocínio ao telefone (piso de 4 dígitos, com a justificativa escrita
+   * lá); faltava aplicá-lo ao texto.
+   */
+  search: z.string().trim().min(2).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });

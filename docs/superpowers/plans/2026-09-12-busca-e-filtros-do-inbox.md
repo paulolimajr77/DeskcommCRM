@@ -1284,6 +1284,16 @@ Expected: **1 failed**, o previsto.
 
 ## Task 10: Prova pela tela (DoD item 12)
 
+> ⚠️ **Caso obrigatório, descoberto executando a Task 1 (commit `ca510768`):** digitar **uma letra**
+> no campo de busca **não** pode fazer aparecer mensagem de erro, e **não** pode gerar requisição.
+>
+> Por que ele não pode faltar: o piso de 2 caracteres vive no schema, e `useConversationsRealtime`
+> trata falha com `showApiError`, que **aparece na tela**. A guarda que impede o pedido mora em
+> `InboxLayout` — e **nenhum teste unitário a vigia**, porque o arnês que renderiza esse componente
+> (`tests/unit/deep-link-nao-espera-a-lista.test.tsx`) mocka o `InboxFilters` e não deixa digitar.
+> Esta spec de tela é o **único** gate dessa guarda: sem o caso, tirar a guarda passa verde em tudo.
+
+
 **Files:**
 - Create: `tests/e2e/inbox-filtros-dizem-a-verdade.spec.ts`
 - Modify: `.github/workflows/e2e.yml` (`SPECS_PARTE_*`)

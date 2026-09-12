@@ -29,12 +29,12 @@
  */
 import { expect, test } from "@playwright/test";
 
-import { loginComoAdmin } from "./helpers/login-admin";
+import { lerCreds, loginComoAdmin } from "./helpers/login-admin";
 
 const CAMPO_DE_BUSCA = "Buscar conversas";
 
 test.beforeEach(async ({ page }) => {
-  await loginComoAdmin(page);
+  await loginComoAdmin(page, lerCreds());
   await page.goto("/app/inbox");
   await expect(page.getByLabel(CAMPO_DE_BUSCA)).toBeVisible();
 });

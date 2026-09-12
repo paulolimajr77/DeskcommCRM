@@ -481,9 +481,27 @@ export function AgendaClient({
           nasceria barra HORIZONTAL exatamente no breakpoint que o conserto de
           largura acabou de reparar.
         */}
+        {/* ⚠️ A ROLAGEM É DO PAINEL INTEIRO, EM TODO TAMANHO DE TELA.
+
+            Havia aqui `lg:overflow-hidden`: de `lg` para cima o Sheet segurava a
+            altura e só a LISTA de horários rolava. O raciocínio era de LARGURA —
+            e o que aperta é a ALTURA. Numa janela larga e BAIXA o
+            `overflow-hidden` cortava em silêncio: medido na instalação de
+            produção, 1264×549 deixava **42 controles inalcançáveis** (o mês
+            inteiro do calendário, nenhum dia clicável), e 1264×377 deixava 45.
+            Sem barra, sem aviso, sem nada dizendo que havia mais embaixo.
+
+            `overflow-x-hidden` é o que o comentário antigo protegia por outro
+            caminho: o CSS computa `overflow-x: visible` como `auto` quando o
+            `overflow-y` não é `visible`, então a barra vertical fazia nascer uma
+            HORIZONTAL. Declarando `hidden` no eixo x, ela não nasce.
+
+            E `lg:max-w-[1060px]` no lugar de 1040: o painel pede ~980px, 1040
+            com `p-6` dava 992px de caixa, e uma barra vertical (~15px) comia a
+            folga inteira. 1060 → 1012 − 15 = 997, e ainda sobra. */}
         <SheetContent
           side="right"
-          className="flex w-full flex-col overflow-y-auto sm:max-w-3xl lg:max-w-[1040px] lg:overflow-hidden"
+          className="flex w-full flex-col overflow-y-auto overflow-x-hidden sm:max-w-3xl lg:max-w-[1060px]"
         >
           <SheetHeader>
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
@@ -556,9 +574,14 @@ export function AgendaClient({
             </p>
           </div>
           {tipo && (
-            <div className="mt-4 lg:min-h-0 lg:flex-1">
+            /* Altura NATURAL, e não esticada. `lg:min-h-0 lg:flex-1` aqui e
+               `lg:h-full` no painel prendiam o miolo à altura do Sheet — então o
+               Sheet nunca "sabia" que havia conteúdo sobrando, e o
+               `overflow-hidden` de dentro do painel cortava. Medido: com o Sheet
+               rolando mas o miolo ainda preso, os 42 inalcançáveis continuavam
+               42. Soltar a altura é o que faz a rolagem existir. */
+            <div className="mt-4">
               <PainelDeMarcacao
-                className="lg:h-full"
                 ancora={new Date()}
                 agora={new Date()}
                 responsavel={

@@ -17,6 +17,22 @@
 > um screenshot da **nossa** tela. Mandar print de produto alheio num repo open-source é risco jurídico
 > desnecessário, e a informação útil (o comportamento) não precisa da imagem para ser transmitida.
 
+> 🔬 **Revisado em 2026-09-11, dirigindo a nossa tela numa instalação real** (`crm.thothcrm.com.br`,
+> versão 1.17.8, canal WAHA/QR Code), pelo navegador, como um atendente usaria. Auditoria completa em
+> [`docs/audits/2026-09-11-filtros-e-busca-do-inbox.md`](../audits/2026-09-11-filtros-e-busca-do-inbox.md).
+>
+> **A primeira versão deste documento mediu “existe o código”, não “funciona na tela”** — e a diferença
+> apareceu justamente nos itens que mais importam. Das 24 linhas da seção 2:
+>
+> - **⚠️ 7 estavam otimistas demais** e foram corrigidas — busca, tag, “não lidas”, contador de
+>   Fechadas, as duas da janela de 24h, e o histórico;
+> - **✅ 9 foram confirmadas na tela**, e três delas são melhores do que o texto dizia;
+> - **as 8 restantes seguem sem prova de tela** — e estão marcadas. Onde não houver ⚠️ nem ✅, leia
+>   “o recurso existe no código”, não “o recurso funciona tão bem quanto o deles”.
+>
+> **Nada foi escrito na instalação durante o teste.** Por isso o que só se prova agindo — encerrar com
+> desfecho, transferir de fato, enviar mídia — continua sem ✅.
+
 ---
 
 ## 1. O que o vídeo mostra
@@ -41,30 +57,30 @@ para atender, o robô cala.**
 
 | # | Funcionalidade no vídeo | Como está no DeskcommCRM | Onde está no código |
 |---|---|---|---|
-| 1 | Abas com contador (Todas / Aguardando / Minhas / Encerradas) | **Temos, com uma aba a mais.** Nossas abas são `Fila`, `Minhas`, `Todas`, `Fechadas` e **`Automático`** — a quinta separa o que a IA está atendendo agora, coisa que eles não têm | `components/inbox/InboxFilters.tsx:23-34`; contadores em `app/api/v1/conversations/counts/route.ts` |
-| 2 | Admin/supervisor vê a equipe inteira; atendente vê o dele | **Temos**, e por RLS de verdade (`organization_id` + papel), não por filtro de tela | `app/api/v1/conversations/_handler.ts`; política `tenant_isolation_conversations_all` |
-| 3 | Robô responde em Aguardando; humano assume e o robô cala | **Temos, e mais fino.** Além do “assumir” (que cala o automático), temos **Liberar**, **Pausar o automático** e **Devolver ao automático** como ações separadas | `components/inbox/ConversationHeader.tsx:212-279`; rotas `claim`, `release`, `pause-ai`, `reactivate-bot` |
-| 4 | Busca de conversa por nome / telefone | **Temos, e busca também dentro da mensagem** (“Buscar por nome, telefone ou mensagem…”) | `components/inbox/InboxFilters.tsx:120` |
-| 5 | Filtro por conexão (número de WhatsApp) | **Temos** | `InboxFilters.tsx:148-171` |
-| 6 | Filtro por tag | **Temos** | `InboxFilters.tsx:178-195` |
-| 7 | Filtro “não lidas” | **Temos** | `InboxFilters.tsx:140` |
-| 8 | Transferir conversa para outro atendente | **Temos, com motivo opcional registrado** | `components/inbox/ReassignDialog.tsx`; `POST /api/v1/conversations/[id]/transfer`; tabela `conversation_assignment_events` |
+| 1 | Abas com contador (Todas / Aguardando / Minhas / Encerradas) | ⚠️ **CORRIGIDO — temos a aba a mais, mas um contador a menos.** As abas são `Fila`, `Minhas`, `Todas`, `Fechadas` e **`Automático`** (a quinta é nossa e eles não têm). Só que **“Fechadas” não tem contador**: a rota devolve `fila, automatico, unassigned, mine, all` e **nenhum `closed`** — provado na tela e na API. O Atendechat mostra “Encerradas **8067**”. Num inbox antigo, é o número que diz o tamanho do arquivo | `InboxFilters.tsx:23-34,76-84`; `conversations/counts/route.ts` |
+| 2 | Admin/supervisor vê a equipe inteira; atendente vê o dele | **Temos** (sem prova de tela: testei só como administrador, numa org de um usuário), e por RLS de verdade (`organization_id` + papel), não por filtro de tela | `app/api/v1/conversations/_handler.ts`; política `tenant_isolation_conversations_all` |
+| 3 | Robô responde em Aguardando; humano assume e o robô cala | ✅ **Provado na tela.** Além do “assumir” (que cala o automático), há **Liberar**, **Devolver ao automático** e **Transferir** no cabeçalho, mais o selo “Automático pausado para este cliente”. Mais fino que o deles | `components/inbox/ConversationHeader.tsx:212-279`; rotas `claim`, `release`, `pause-ai`, `reactivate-bot` |
+| 4 | Busca de conversa por nome / telefone | ⚠️ **CORRIGIDO — a paridade é parcial.** **Telefone: melhor que o deles** (provado: aceita `+5515992594261`, `(15) 99259-4261`, `99259-4261`, `4261` — todos acham). **Nome: funciona no caminho simples**, mas falha com espaço duplo e com palavras não adjacentes (`Paulo Jr` → 0 num contato “Paulo Lima Jr”). **Mensagem: NÃO temos** — a busca alcança só a **última** mensagem; numa conversa real de 32 mensagens, buscar o que o cliente pediu na 3ª devolve zero. A frase anterior desta célula (“busca também dentro da mensagem”) era falsa | `InboxFilters.tsx:120`; achados C e I da auditoria |
+| 5 | Filtro por conexão (número de WhatsApp) | **Temos** (não exercitado pela tela: a instalação testada tem um canal só, e o seletor só aparece com dois ou mais; pela API o filtro responde certo) | `InboxFilters.tsx:148-171` |
+| 6 | Filtro por tag | ⚠️ **CORRIGIDO — temos o seletor, mas ele não filtra o que a tela mostra.** As opções vêm de uma lista curada em Configurações, não das tags em uso. Provado: o seletor oferece 8 tags de exemplo, **nenhuma conversa tem tag**, filtrar por qualquer uma devolve 0 — e a etiqueta que a lista de conversas **exibe** (“Pessoal”, do contato) não está entre as 8. O Atendechat filtra pelas tags reais | `InboxFilters.tsx:178-195`; achado E |
+| 7 | Filtro “não lidas” | ⚠️ **CORRIGIDO — temos o botão, e ele engana.** Não vai ao servidor: filtra em memória a página já carregada (provado: ligar o botão não gera **nenhuma** requisição). Quando esvazia, a tela diz *“Sem conversas por aqui — quando chegarem mensagens, elas aparecem aqui”*, afirmando caixa vazia com conversas existindo, **e o contador da aba continua mostrando o total**. No vídeo, o “Não lidos” deles traz contador próprio (10), o que sugere consulta de verdade | `InboxFilters.tsx:140`; achados A e F |
+| 8 | Transferir conversa para outro atendente | **Temos** — o botão “Transferir” foi visto na tela; o diálogo e o registro do motivo **não foram exercitados** (seria escrita na sua instalação) | `components/inbox/ReassignDialog.tsx`; `POST /api/v1/conversations/[id]/transfer`; tabela `conversation_assignment_events` |
 | 9 | Relógio da janela de 24h da API oficial | **Temos, e melhor.** O selo mostra o tempo restante e, quando fecha, a tela **explica e oferece o envio do modelo aprovado ali mesmo** — o Atendechat mostra só o contador | `components/inbox/JanelaSelo.tsx`, `components/inbox/JanelaFechadaAviso.tsx` |
 | 10 | Aviso “aguardando primeira resposta — envie um template” + botão | **Temos** (o mesmo `JanelaFechadaAviso`, com seletor de modelo aprovado) | `JanelaFechadaAviso.tsx:118-168` |
-| 11 | Encerrar conversa | **Temos, e exigimos o desfecho**: Resolvida / Convertida / Não procede / Encerrada pelo cliente / Perdida / Expirada sem resposta | `components/inbox/CRMSidePanel.tsx:121-129`; `POST /api/v1/conversations/[id]/close` |
-| 12 | Painel lateral com ficha do contato | **Temos**, com contato, tags, lead, demandas abertas, memória do contato, leads recentes, pedidos recentes e atividade | `components/inbox/CRMSidePanel.tsx` |
-| 13 | Vincular a conversa a um funil / Kanban | **Temos** (botão “Lead”, funil e etapa, campos extras do funil) | `CRMSidePanel.tsx:370-593`; tabelas `crm_leads`, `crm_pipelines`, `crm_stages` |
-| 14 | Tags na conversa e no contato | **Temos as duas**, separadas | `ConversationTagsEditor.tsx`, `ContactTagsEditor.tsx` |
-| 15 | Notas internas | **Temos** | `components/inbox/NoteCard.tsx`; tabela `conversation_notes`; rotas `/notes` |
-| 16 | Anexar arquivo (PDF, documento, imagem) | **Temos** | `components/inbox/composer/AttachMenu.tsx`, `AttachmentPreviewDialog.tsx` |
-| 17 | Emoji | **Temos** | `components/inbox/composer/EmojiButton.tsx` |
-| 18 | Gravar e enviar áudio | **Temos** | `components/inbox/composer/AudioRecorder.tsx` |
-| 19 | Respostas rápidas / atalhos de frase pronta | **Temos, por `/` no campo de texto** (slash-menu, filtra por título e atalho) | `components/inbox/composer/TemplateMenu.tsx`; tela em `/app/templates` (“Respostas rápidas”) |
-| 20 | Menu de templates da API oficial | **Temos** (dentro do aviso de janela fechada) | `JanelaFechadaAviso.tsx:143-158`; tabela `meta_templates` |
-| 21 | Som de notificação de chat | **Temos**, com preferência por usuário e push | `lib/notifications/sounds.ts`, `emit.ts`; tela `/app/settings/notifications` |
-| 22 | Recarregar a lista | **Não precisamos de botão — é realtime** (Supabase Realtime, a lista se atualiza sozinha) | `hooks/inbox/useConversationsRealtime.ts` |
-| 23 | Histórico das conversas encerradas do mesmo contato | **Temos parcialmente.** Existe “Histórico encerrado” no painel, mas mostra só o **desfecho**, não as mensagens. Ver item ③ da seção 3 | `CRMSidePanel.tsx:424,696` |
-| 24 | Kanban, Contatos, Conexões, Templates, Usuários, Integrações, Configurações | **Temos todos** | `/app/kanban`, `/app/contacts`, `/app/connections`, `/app/templates`, `/app/team`, `/app/webhooks`, `/app/settings` |
+| 11 | Encerrar conversa | **Temos**, com botão “Fechar” no cabeçalho (visto na tela), e o desfecho em 6 opções: Resolvida / Convertida / Não procede / Encerrada pelo cliente / Perdida / Expirada sem resposta. ⚠️ **Não verifiquei se o desfecho é mesmo exigido** — o seletor está atrelado à *demanda*, e a conversa testada não tinha demanda aberta; não cliquei em Fechar porque seria escrita na sua instalação. A palavra “exigimos” ainda não foi provada | `components/inbox/CRMSidePanel.tsx:121-129`; `POST /api/v1/conversations/[id]/close` |
+| 12 | Painel lateral com ficha do contato | ✅ **Provado na tela, e é mais rico que o deles.** Vistos, em ordem: Contato (nome, telefone, “Marcar compromisso”, Tag, Lead), Tags da conversa, Demandas abertas, Memória do contato (fatos duráveis), Histórico encerrado, Leads recentes, campos do funil, Pedidos, e uma **Atividade** com a linha do tempo (“Assumiu a conversa”, “Passou para humano”, “Atendimento da IA”…). O painel do Atendechat não tem memória, demanda nem linha do tempo | `components/inbox/CRMSidePanel.tsx` |
+| 13 | Vincular a conversa a um funil / Kanban | **Temos** — botão “Lead”, “Leads recentes” e os campos extras do funil (Prazo desejado, Segmento do negócio, Tipo de projeto) foram vistos na tela; **vincular de fato não foi exercitado** | `CRMSidePanel.tsx:370-593`; tabelas `crm_leads`, `crm_pipelines`, `crm_stages` |
+| 14 | Tags na conversa e no contato | ✅ **Provado na tela que são separadas** — o painel tem “Tags da conversa” (vazio) enquanto a lista exibe a tag “Pessoal”, que é do contato. Mas ver o item 6: essa separação é exatamente o que confunde na hora de filtrar | `ConversationTagsEditor.tsx`, `ContactTagsEditor.tsx` |
+| 15 | Notas internas | ✅ **Provado na tela** — aba “Nota interna” ao lado de “Responder” no composer | `components/inbox/NoteCard.tsx`; tabela `conversation_notes`; rotas `/notes` |
+| 16 | Anexar arquivo (PDF, documento, imagem) | ✅ **Provado na tela** — botão `+` no composer | `components/inbox/composer/AttachMenu.tsx`, `AttachmentPreviewDialog.tsx` |
+| 17 | Emoji | ✅ **Provado na tela** | `components/inbox/composer/EmojiButton.tsx` |
+| 18 | Gravar e enviar áudio | ✅ **Provado na tela** — botão de microfone, que some quando há texto digitado, igual ao deles | `components/inbox/composer/AudioRecorder.tsx` |
+| 19 | Respostas rápidas / atalhos de frase pronta | ✅ **Provado na tela.** Digitar `/` abre o menu com as frases reais da organização (“Prazo típico”, “Proposta a caminho”, “Pedir material”, “Como funciona o pagamento”, “Reativar contato”…) | `components/inbox/composer/TemplateMenu.tsx`; tela em `/app/templates` (“Respostas rápidas”) |
+| 20 | Menu de templates da API oficial | **Temos** (dentro do aviso de janela fechada) — ⚠️ **mesma ressalva dos itens 9 e 10**: depende de canal oficial, e não aparece em instalação com QR Code | `JanelaFechadaAviso.tsx:143-158`; tabela `meta_templates` |
+| 21 | Som de notificação de chat | **Temos**, com preferência por usuário e push (sem prova de tela: não esperei chegar mensagem) | `lib/notifications/sounds.ts`, `emit.ts`; tela `/app/settings/notifications` |
+| 22 | Recarregar a lista | **Não precisamos de botão — é realtime** (sem prova de tela: não esperei chegar mensagem para ver a lista mexer sozinha) | `hooks/inbox/useConversationsRealtime.ts` |
+| 23 | Histórico das conversas encerradas do mesmo contato | ✅ **Confirmado na tela que é parcial.** O painel mostra “Histórico encerrado — sem tarefas pendentes” e, abaixo, apenas duas linhas de desfecho (“Expirada sem resposta”, “Expirada sem resposta”): **sem data, sem contagem de mensagens, sem protocolo e sem como abrir a conversa** — e a data é o caso mais irritante, porque ela **chega da API e é descartada pelo componente** (ver ③ e PR 0, item 8). O Atendechat mostra os quatro e abre o atendimento inteiro. Ver item ③ da seção 3 | `CRMSidePanel.tsx:424,696` |
+| 24 | Kanban, Contatos, Conexões, Templates, Usuários, Integrações, Configurações | ✅ **Vistos no menu** como Funis, Contatos, Conexões, Respostas rápidas, Webhooks e Configurações — mais Radar, Agenda, Tarefas, Agentes, Follow-ups, Roteadores, Desempenho, Meta Ads e Atividades, que o menu deles não tem | `/app/kanban`, `/app/contacts`, `/app/connections`, `/app/templates`, `/app/team`, `/app/webhooks`, `/app/settings` |
 
 ---
 
@@ -112,6 +128,10 @@ data, quantas mensagens, quem encerrou**. Clicar abre um modal com **a conversa 
 
 **No nosso código:** `CRMSidePanel.tsx:696` mostra “Histórico encerrado” — mas só a linha do **desfecho**.
 Não há contagem de mensagens, não há “ver a conversa”, e não há protocolo (ver ④).
+
+⚠️ **Mas a data não está faltando — está sendo descartada.** A rota já seleciona `fechada_em` e já
+ordena por ele (`crm-summary/route.ts:124`); o componente só não renderiza. É conserto de uma linha,
+e por isso foi rebaixado para o **PR 0**, sem esperar o protocolo.
 
 ### ④ Número de protocolo do atendimento — **não existe**
 
@@ -211,6 +231,15 @@ não schema novo.
 
 Depende do PR 1 para o protocolo (mas funciona sem ele, mostrando só data).
 
+> ⚠️ **A data já chega na tela e é jogada fora — medido, não suposto.** A rota seleciona
+> `id, desfecho, fechada_em` e ordena por `fechada_em`
+> (`app/api/v1/contacts/[id]/crm-summary/route.ts:124`), mas o componente renderiza só o desfecho:
+> `historico.map((h) => <p key={h.id}>{t(DESFECHO_LEGIVEL[h.desfecho] ?? h.desfecho)}</p>)`
+> (`components/inbox/CRMSidePanel.tsx:696`). Não é dado que falta — é dado descartado. Por isso a
+> data saiu deste PR e virou o **item 8 do PR 0**: é uma linha de tela, não depende de nada, e não
+> tem por que esperar o protocolo. O que continua sendo deste PR: contagem de mensagens, quem
+> encerrou, e abrir a conversa.
+
 ### PR 4 — Assinatura do atendente · *esforço: baixo · valor: médio*
 
 Botão de alternância no composer + preferência por organização (padrão: ligado) e por usuário. Prefixa a
@@ -225,6 +254,49 @@ fixo e a Meta reprova alteração).
 A API **já aceita** `assigned_to` (`useConversationsRealtime.ts:123`). Falta o seletor em `InboxFilters.tsx`,
 alimentado pelo `useAssignableMembers` que já existe. Junto, um controle de ordem (Recentes / Antigas).
 É a mudança de menor custo da lista inteira.
+
+⚠️ **Mas ele deixou de ser o primeiro da fila.** A auditoria de 2026-09-11 achou, na busca e nos filtros
+que já temos, defeitos que custam mais ao atendente do que a ausência deste seletor. Consertar o que
+está quebrado vem antes de somar o que falta — e os quatro abaixo são **nossos**, não vieram do vídeo.
+
+### PR 0 — Consertar a busca e os filtros que já existem · *esforço: baixo a médio · valor: ALTO*
+
+⚠️ **Este é o único dos oito que já saiu do estágio de proposta.** Tem auditoria, spec de design e plano
+de execução escritos — e o que está lá é mais completo do que esta seção já foi:
+
+```bash
+cat docs/audits/2026-09-11-filtros-e-busca-do-inbox.md            # 8 achados, 1 retratado
+cat docs/superpowers/specs/2026-09-12-busca-e-filtros-do-inbox-design.md
+cat docs/superpowers/plans/2026-09-12-busca-e-filtros-do-inbox.md  # 12 tarefas
+```
+
+**Esta seção listava quatro itens. São oito.** Os quatro que faltavam apareceram depois, lendo o
+código com a spec na mão — e dois deles (o contador de “Fechadas” e a data do histórico) são os mais
+baratos de todos.
+
+| # | o que conserta | achado |
+|---|---|---|
+| 1 | **“Não lidos” vira filtro de servidor** — `unread` no schema Zod, `gt("unread_count_for_assignee", 0)` no handler. A cerca `rota-le-todo-filtro-do-schema.test.ts` passa a vigiá-lo sozinha | A |
+| 2 | **O estado vazio distingue filtro de ausência** — diz “nenhuma conversa com esses filtros”, oferece limpá-los, e **mantém o “Carregar mais”** (hoje ele some junto) | A |
+| 3 | **A busca por nome tolera espaço duplo e palavras não adjacentes** — colapsar separadores em curinga. Uma linha | I |
+| 4 | **A busca exige 2 caracteres** — hoje uma letra só já vai ao banco | H |
+| 5 | **Os contadores das abas respeitam os filtros**, e a aba **“Fechadas” ganha número** (hoje não tem nenhum) | F |
+| 6 | **A corrida do debounce** — digitar e trocar de aba em menos de 250 ms volta à aba anterior | G |
+| 7 | **O seletor de tag vem das tags EM USO**, unidas às canônicas, e ganha o tratamento de “filtro órfão” que o seletor de canal já tem. **É o único que leva migration** (`fn_tags_de_conversa_em_uso`, **0239**) | E |
+| 8 | **O histórico encerrado ganha a data** — e isso é quase de graça: ver a nota do PR 3 abaixo | — |
+
+**A busca alcançar o histórico da conversa** (achado C, o mais grave) **não entra aqui.** Hoje o cliente
+escreve o que quer comprar e some da busca na mensagem seguinte — numa conversa real de 32 mensagens,
+buscar o que ele pediu na 3ª devolve zero. O conserto honesto para agora é **parar de prometer**: o
+placeholder passa a dizer “nome, telefone ou **última** mensagem”. Buscar de verdade em `messages` é
+projeto à parte — exige índice trigram, decisão de retenção e LGPD.
+
+> **Um achado desta lista foi REFUTADO, e vale mais do que os confirmados.** A primeira rodada (leitura
+> de código) deu como certo que o `*` de `termoSeguroParaOr` seria literal no ramo direto do `.ilike()`,
+> quebrando a busca. A segunda rodada dirigiu a instância real e mediu: `Pass*sua` → 1 resultado,
+> `Pass#sua` → 0, `zzqqxx` → 0. O PostgREST converte `*` em `%` em **todo** `like`/`ilike`, não só dentro
+> de `or=`. A função está correta e virou **não-objetivo**: não encostar nela. É por isso que os critérios
+> de aceite da spec exigem prova de tela — ler código produz hipótese, dirigir a tela produz fato.
 
 ### PR 6 — Aba de Grupos · *esforço: baixo-médio · valor: médio*
 
@@ -260,8 +332,19 @@ roteamento, RBAC e a tela de transferência ao mesmo tempo. Esboço:
 1. **Toda mudança de schema aqui sai em dois artefatos**: arquivo em `supabase/migrations/` **e** apêndice
    idempotente no `supabase/baseline.sql`, porque é o baseline que o self-hoster aplica. Só a migration
    **não chega a quem já instalou**.
-2. **O `NNNN` da migration sai do maior número, não do último arquivo do `ls`** —
-   `ls supabase/migrations/ | grep -oE '_[0-9]{4}_' | tr -d _ | sort -n | tail -1`.
+2. **O `NNNN` da migration se mede na `origin/main`, NUNCA no disco desta branch** — e pelo maior
+   número, nunca pelo último arquivo do `ls`:
+
+   ```bash
+   git fetch origin && git ls-tree -r --name-only origin/main -- supabase/migrations \n     | grep -oE '_[0-9]{4}_' | tr -d _ | sort -n | tail -1
+   ```
+
+   ⚠️ **A versão anterior desta linha mandava rodar `ls supabase/migrations/` — e eu segui, e errei.**
+   Esta branch é a planta própria e diverge: o disco dizia `0233`, então a spec nasceu com `0234`.
+   Na `origin/main` o `0234` **já existe** (`20260907130000_0234_voice_calls_no_realtime.sql`) e o topo
+   é `0238` — a nossa é **0239**. É o erro nº 1 da tabela de erros recorrentes de contribuidor do
+   projeto: migration com número já usado, renumerada 11 vezes desde agosto, cinco PRs disputando o
+   mesmo `0161` numa rodada só (issue #285). O timestamp segue a mesma régua.
 3. **Protocolo e departamento são tenant-aware**: `organization_id not null` + policy
    `tenant_isolation_<tabela>_all`, e `pnpm test:db` localmente antes do PR — é o único caminho que exercita
    o `baseline.sql` de verdade.
@@ -270,10 +353,35 @@ roteamento, RBAC e a tela de transferência ao mesmo tempo. Esboço:
    precisar de uma tela de gestão de departamentos, e aí a regra vale.
 5. **Prova pela tela, não por `curl`** (doutrina de QA Visual): PRs 2, 3, 4, 5 e 6 mudam UI, então precisam de
    spec em `tests/e2e/` dirigindo o frontend, em banco fresco estilo VPS, com evidência visual.
+   Duas armadilhas medidas depois de escrever esta linha:
+   - a evidência vai em **`evidence/`**, versionada — `.superpowers/` é ignorado pelo git, e evidência
+     que o git ignora não chega a ninguém;
+   - a spec nova entra em `SPECS_PARTE_N` do `.github/workflows/e2e.yml`, ou em `FORA_DO_CI` **com o
+     motivo escrito**: `tests/unit/e2e-cobertura-completa.test.ts` reprova spec órfã.
+   E a ordem, que é nossa (`NOSSA-REGRA.md`): gates verdes → subir na VPS → **o Paulo prova na tela** →
+   **só então** o PR. PR antes disso sai como rascunho, e dito em voz alta.
 6. **Fragmento em `.changes/`** em todo PR que muda comportamento visível para quem opera uma VPS — o que
    é o caso de todos os sete. `pnpm release:conferir` confere.
-7. **Ordem sugerida de entrega:** PR 5 (o mais barato, mostra serviço) → PR 1 → PR 2 → PR 3 → PR 4 → PR 6 →
+7. **Ordem sugerida de entrega (revista em 2026-09-11):** **PR 0** (consertar busca e filtros — é o que
+   dói hoje em quem usa) → PR 5 (o mais barato dos aditivos) → PR 1 → PR 2 → PR 3 → PR 4 → PR 6 →
    brainstorming do PR 7.
+
+   A ordem mudou depois de a tela ser testada de verdade. A versão anterior punha o PR 5 primeiro
+   porque ele era o mais barato; barato não é o critério quando há coisa quebrada em produção.
+
+   **Estado em 2026-09-12:** só o **PR 0** tem spec e plano escritos. Os outros sete continuam
+   propostas — e proposta não é projeto: dizer “protocolo é esforço baixo” não decidiu o formato do
+   número, onde ele nasce, nem o que acontece quando uma conversa reabre. Cada um precisa da sua
+   própria spec antes de virar código. A fila viva está no `FILA.md`, itens 11 e 12.
+
+8. **O destino de cada PR — jeito 1 (ao Rafael) ou jeito 2 (só aqui) — é decisão do Paulo, item a item.**
+   A recomendação medida é jeito 1 para todos: nenhum dos oito é personalização desta instalação,
+   e pela tabela do `NOSSA-REGRA.md` *“consertar ou melhorar o CRM”* é jeito 1, com custo zero depois.
+   Guardar aqui qualquer um que leve migration **dobra** um pedágio que a `FILA.md` (item 8) já
+   registra como recorrente: a nossa única migration própria já trocou de número três vezes.
+
+9. **As capturas deste documento são de um produto concorrente e são para análise interna.**
+   **Nunca** entram no corpo de um PR para o repositório público.
 
 ---
 
@@ -284,3 +392,16 @@ roteamento, RBAC e a tela de transferência ao mesmo tempo. Esboço:
   amostragem automática pulou (filtros, transferência, composição).
 - Cada afirmação sobre o DeskcommCRM foi medida no código da branch `vps/pljr-combinada` em 2026-09-11.
   Onde o documento diz “não existe”, foi `grep` que não encontrou — está escrito qual busca foi feita.
+- **Uma segunda rodada, em 2026-09-11, dirigiu a instância real** (`crm.thothcrm.com.br/app/inbox`),
+  com controles positivos e negativos. Ela **refutou** um achado da primeira e **promoveu outro a mais
+  grave**. Toda célula marcada ⚠️ **CORRIGIDO** na seção 2 saiu daí. Nada foi escrito na instância:
+  a rodada inteira foi leitura.
+
+⚠️ **A régua deste documento é a planta própria, e ela diverge do original.** Tudo aqui foi medido em
+`vps/pljr-combinada`. Para qualquer coisa que vá virar PR, a âncora é **`origin/main`** — e a diferença
+não é teórica: foi exatamente ela que fez a spec nascer com a migration `0234`, que **já existe** lá.
+Antes de prometer qualquer número, arquivo ou linha a partir daqui, remedir na `origin/main`:
+
+```bash
+git fetch origin && git diff --stat origin/main...HEAD -- <o arquivo que você vai citar>
+```

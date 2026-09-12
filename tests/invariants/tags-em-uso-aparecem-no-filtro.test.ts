@@ -102,25 +102,37 @@ describe("fn_tags_de_conversa_em_uso — as etiquetas em uso, e só as da própr
     expect(vazamento).not.toContain(TAG_DA_VIZINHA);
   });
 
-  it("⛔ `anon` não executa a função — e a recusa é de PERMISSÃO", () => {
-    // A anon key vai para o browser. Prova as DUAS origens de EXECUTE que o
-    // CLAUDE.md descreve — e nenhum gate genérico cobre isto aqui, porque a
-    // varredura de definer não alcança função `invoker`.
+  it("⛔ `anon` NÃO tem EXECUTE na função — perguntado ao catálogo", () => {
+    // ⚠️ ESTE CASO JÁ PASSOU VERDE COM A FUNÇÃO EXPOSTA, duas vezes, por medir o
+    // SINTOMA em vez do ESTADO:
     //
-    // ⚠️ A asserção é na MENSAGEM, e não em "deu erro". Medido: com a função ainda
-    // inexistente este caso passava VERDE, porque `does not exist` também lança.
-    // Um teste que aprova pelo motivo errado é pior que teste nenhum — e este
-    // vigia vazamento pela chave que vai para o navegador.
-    let erro = "";
-    try {
-      sql(`
-        set role anon;
-        select tag from public.fn_tags_de_conversa_em_uso('${GOV_ORG}');
-      `);
-    } catch (e) {
-      erro = (e as { stderr?: string }).stderr ?? String(e);
-    }
-    expect(erro, "anon conseguiu executar a função").toMatch(/permission denied/i);
-    expect(erro, "passou verde porque a função nem existe").not.toMatch(/does not exist/i);
+    //   1ª versão — "deu erro?": função inexistente também lança. Passava sem a
+    //      função existir.
+    //   2ª versão — "permission denied"? e depois "permission denied for
+    //      function"? Removendo o `revoke` do baseline, os 4 continuavam verdes.
+    //
+    // Mensagem de erro depende de QUAL barreira o banco topa primeiro, e há mais
+    // de uma. O catálogo não depende: ele diz se o privilégio existe.
+    //
+    // Isto importa porque a anon key vai para o browser, e porque a proteção da
+    // TABELA não substitui a da FUNÇÃO — bastaria uma definer futura para a
+    // barreira de tabela deixar de valer.
+    const tem = sql(`
+      select has_function_privilege(
+        'anon', 'public.fn_tags_de_conversa_em_uso(uuid)', 'EXECUTE'
+      );
+    `).trim();
+    expect(tem, "anon TEM execute na função — o `revoke` sumiu").toBe("f");
+  });
+
+  it("CONTROLE: `authenticated` TEM EXECUTE — o revoke não pode levar o legítimo junto", () => {
+    // Sem este par, um `revoke ... from public, anon, authenticated` passaria no
+    // caso de cima e quebraria o recurso para todo mundo.
+    const tem = sql(`
+      select has_function_privilege(
+        'authenticated', 'public.fn_tags_de_conversa_em_uso(uuid)', 'EXECUTE'
+      );
+    `).trim();
+    expect(tem, "authenticated perdeu execute — o filtro de tag para de funcionar").toBe("t");
   });
 });

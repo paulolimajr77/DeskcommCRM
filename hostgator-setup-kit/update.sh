@@ -141,8 +141,28 @@ fi
 # pela string do app: numa instalação em Supabase próprio, com a role menor no
 # `.env` como recomendamos, este passo passava a falhar em silêncio a cada
 # atualização — e é o update.sh que entrega migration nova ao clone (issue #192).
+# ── NINGUÉM FALA COM O BANCO ENQUANTO ELE MUDA ───────────────────────────────
+#
+# Medido nesta instalação, no mesmo dia e com o mesmo arquivo:
+#   tudo de pé ................................ 113 travamentos
+#   CRM parado ................................  60 travamentos
+#   CRM + rest + realtime + studio parados ....   0 travamentos
+#
+# Travamento aqui não é lentidão: quando o `create policy` trava, o `drop` que
+# veio antes já valeu. A regra some, o banco nega a leitura em silêncio, e a
+# tela fica vazia — indistinguível de "não há nada aqui".
+#
+# Custa ~16s (medido: parar 10,3s, subir 6,0s) numa atualização cuja mediana
+# real é 308s e cuja variação natural entre duas rodadas foi de 785s. Fica
+# abaixo do ruído que já existe.
+#
+# O `trap` é o que impede um erro no meio de deixar a instalação pela metade:
+# qualquer saída — sucesso, erro ou interrupção — devolve as peças do Supabase.
+trap restaurar_servicos EXIT
+
 step "Atualizando o banco de dados"
 if [ -f supabase/baseline.sql ]; then
+  pausar_o_que_fala_com_o_banco
   # Extensões que o schema exige (idempotente; iguais ao install.sh).
   docker run --rm postgres:17-alpine psql "$(url_do_schema)" -c \
     "create extension if not exists vector with schema public; create extension if not exists citext with schema public; create extension if not exists pg_trgm with schema public;" \
@@ -258,6 +278,19 @@ if [ -f supabase/baseline.sql ]; then
     printf '%s\n' "$faltando" | sed 's/|/ na tabela /; s/^/   • /' | head -20
     c_ylw "   O log do banco está em .deskcomm-banco.log — mande-o para o suporte."
     c_ylw "   Para voltar ao estado anterior: bash restore.sh"
+    # ⛔ E A ATUALIZAÇÃO PARA AQUI.
+    #
+    # Antes ela seguia: imprimia este bloco vermelho e ia para o passo 5, que
+    # sobe o app com a imagem nova. O CRM voltava ao ar sem regra de isolamento,
+    # mostrando tela vazia para todo mundo — e o vermelho já tinha rolado para
+    # fora da tela. Foi assim que o dono da instalação descobriu pelo funil,
+    # horas depois, e não pela atualização.
+    #
+    # O `trap` (logo acima do passo do banco) devolve as peças do Supabase e
+    # deixa o CRM parado de propósito. Um CRM fora do ar é um problema visível
+    # que alguém resolve; um CRM no ar sem isolamento, não.
+    REGRAS_FALTANDO="$faltando"
+    exit 1
   else
     c_grn "✓ regras de isolamento conferidas ($(printf '%s\n' "$esperadas" | grep -c . ) declaradas, todas no lugar)."
   fi

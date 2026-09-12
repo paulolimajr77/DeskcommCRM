@@ -103,6 +103,62 @@ chmod +x "$tmp/bin/docker"
 vazio="$(supabase_local_containers | tr -d '[:space:]')"
 [ -z "$vazio" ] && ok "hospedado: nada a parar" || nao "hospedado devolve vazio" "(vazio)" "$vazio"
 
+# ── O CICLO INTEIRO, com `docker` gravando tudo que foi chamado ──────────────
+#
+# Daqui para baixo o dublê anota cada invocação num diário, e os casos leem o
+# diário. É a única forma de provar QUEM foi parado e QUEM voltou sem parar nada
+# de verdade.
+diario="$tmp/chamadas.txt"
+cat > "$tmp/bin/docker" <<DUBLE
+#!/usr/bin/env bash
+echo "\$*" >> "$diario"
+if [ "\$1" = "ps" ]; then
+  printf 'deskcomm-app-1\nrealtime-dev.supabase-realtime\nsupabase-rest\nsupabase-studio\nimobplus-server-app-1\n'
+  exit 0
+fi
+exit 0
+DUBLE
+chmod +x "$tmp/bin/docker"
+
+echo "caso 5 — GUARDA DE VACUIDADE: as funções do ciclo existem"
+for f in pausar_o_que_fala_com_o_banco restaurar_servicos; do
+  declare -F "$f" >/dev/null 2>&1 && ok "$f está declarada" \
+    || nao "$f existe" "declarada em _common.sh" "ausente — os casos abaixo medem o nada"
+done
+
+echo "caso 6 — para as três peças do Supabase pelo nome exato"
+: > "$diario"; REGRAS_FALTANDO=""
+pausar_o_que_fala_com_o_banco >/dev/null 2>&1
+grep -q 'stop realtime-dev.supabase-realtime supabase-rest supabase-studio' "$diario" \
+  && ok "parou as três num comando só" \
+  || nao "parar as três" "stop realtime-dev... supabase-rest supabase-studio" "$(tr '\n' ';' < "$diario")"
+grep -q 'stop app worker scheduler' "$diario" \
+  && ok "e parou o CRM, o worker e o agendador" \
+  || nao "parar o CRM" "stop app worker scheduler" "$(tr '\n' ';' < "$diario")"
+
+echo "caso 7 — com regra faltando, o CRM NÃO volta ao ar"
+# Um CRM fora do ar é um problema visível que alguém resolve. Um CRM no ar sem
+# regra de isolamento mostra tela vazia para todo mundo e ninguém sabe por quê —
+# foi exatamente o que custou um dia inteiro nesta instalação.
+: > "$diario"; REGRAS_FALTANDO="crm_leads_select|crm_leads"
+restaurar_servicos >/dev/null 2>&1
+grep -q 'start realtime-dev' "$diario" \
+  && ok "as peças do Supabase voltam (elas não são o risco)" \
+  || nao "peças do Supabase voltam" "start realtime-dev..." "$(tr '\n' ';' < "$diario")"
+grep -q 'up -d app' "$diario" \
+  && nao "o CRM fica parado" "sem 'up -d app'" "$(tr '\n' ';' < "$diario")" \
+  || ok "o CRM fica parado de propósito"
+
+echo "caso 8 — CONTROLE: sem regra faltando, o CRM volta"
+# Sem este controle, uma implementação que NUNCA subisse o CRM passaria no caso
+# 7 — e deixaria toda instalação do mundo fora do ar depois de atualizar.
+: > "$diario"; REGRAS_FALTANDO=""
+pausar_o_que_fala_com_o_banco >/dev/null 2>&1
+: > "$diario"
+restaurar_servicos >/dev/null 2>&1
+grep -q 'up -d app' "$diario" && ok "tudo certo: o CRM volta" \
+  || nao "o CRM volta" "up -d app" "$(tr '\n' ';' < "$diario")"
+
 if [ "$falhas" -eq 0 ]; then
   echo "TUDO VERDE"
   exit 0

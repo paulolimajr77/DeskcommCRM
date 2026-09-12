@@ -65,6 +65,50 @@ supabase_local_containers() {
     '^(supabase-rest|supabase-studio|realtime-dev\.supabase-realtime)$' || true
 }
 
+# ── O CICLO: PAUSAR ANTES DO BANCO, VOLTAR DEPOIS DE CONFERIR ────────────────
+#
+# Estas duas vivem aqui, e não dentro do `update.sh`, por um motivo prático: é
+# aqui que dá para carregá-las num teste e provar o ciclo com um `docker` dublê,
+# sem parar nada de verdade. O `update.sh` fica com o que é dele — a ordem dos
+# passos e o `trap`.
+#
+# `PARADOS` guarda o que esta rodada derrubou, para saber o que levantar.
+# `REGRAS_FALTANDO` é preenchida pela conferência e decide se o CRM volta.
+PARADOS="${PARADOS:-}"
+REGRAS_FALTANDO="${REGRAS_FALTANDO:-}"
+
+pausar_o_que_fala_com_o_banco() {
+  PARADOS="$(supabase_local_containers)"
+  c_ylw "Pausando o sistema para mexer no banco com segurança."
+  dc stop app worker scheduler >/dev/null 2>&1 || true
+  if [ -n "$PARADOS" ]; then
+    # shellcheck disable=SC2086
+    docker stop $PARADOS >/dev/null 2>&1 || true
+  fi
+}
+
+restaurar_servicos() {
+  if [ -n "${PARADOS:-}" ]; then
+    # As peças do Supabase voltam SEMPRE: elas não são o risco, e deixá-las
+    # paradas quebraria até o diagnóstico de quem for consertar as regras.
+    # shellcheck disable=SC2086
+    docker start $PARADOS >/dev/null 2>&1 || true
+    PARADOS=""
+  fi
+  # ⛔ O CRM NÃO VOLTA AO AR COM REGRA DE ISOLAMENTO FALTANDO.
+  #
+  # Um CRM fora do ar é um problema visível que alguém resolve em minutos. Um
+  # CRM no ar sem regra de isolamento mostra tela VAZIA para todo mundo, sem um
+  # erro sequer, e é indistinguível de "não há nada aqui" — foi exatamente isso
+  # que custou um dia inteiro nesta instalação, com o funil vazio e a
+  # atualização dizendo "concluída com sucesso".
+  if [ -n "${REGRAS_FALTANDO:-}" ]; then
+    c_red "   O CRM segue PARADO de propósito. Resolva as regras antes de subir."
+    return 0
+  fi
+  dc up -d app worker scheduler >/dev/null 2>&1 || true
+}
+
 # ── A rede externa por onde o proxy de fora alcança o app ────────────────────
 # O nome que o docker compose dá ao projeto quando ninguém passa -p: basename do
 # diretório, minúsculo, só [a-z0-9_-] — E com os `_`/`-` do INÍCIO aparados

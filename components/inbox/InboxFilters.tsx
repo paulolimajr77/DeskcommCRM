@@ -1,6 +1,6 @@
 "use client";
 import { useT } from "@/hooks/i18n/useT";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MagnifyingGlass } from "@/lib/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,7 +63,14 @@ export function InboxFilters({ value, onChange }: Props) {
   const { data: channels } = useChannelSessions({ refetchInterval: 30_000 });
   const { activeOrg } = useAuth();
   const { data: tagVocabulary } = useConversationTagVocabulary(activeOrg?.orgId ?? null);
-  const { data: counts } = useConversationCounts(activeOrg?.orgId ?? null);
+  // Os MESMOS filtros que a lista aplicou. Badge que conta o que a aba não mostra
+  // manda o atendente procurar trabalho que não existe — a regra já estava escrita
+  // na rota; faltava alcançar os filtros ao lado da aba.
+  const { data: counts } = useConversationCounts(activeOrg?.orgId ?? null, {
+    unread: value.onlyUnread,
+    tag: value.tag,
+    channel_session_id: value.channel_session_id,
+  });
 
   const tabs = activeOrg
     ? visibleInboxTabs(activeOrg.role, activeOrg.visibility_mode)
@@ -80,6 +87,7 @@ export function InboxFilters({ value, onChange }: Props) {
     ai: counts?.automatico,
     mine: counts?.mine,
     all: counts?.all,
+    closed: counts?.closed,
   };
   // Filtrar por um número que saiu da lista (o operador acabou de excluir o
   // canal) deixa o inbox mostrando um subconjunto — às vezes vazio — sem nada na
@@ -92,11 +100,26 @@ export function InboxFilters({ value, onChange }: Props) {
   // Alternador só aparece com 2+ números — com um só não há o que alternar.
   const showChannelSwitch = (channels?.length ?? 0) >= 2 || filtroForaDaLista;
 
-  // Debounce search input → propagate to parent.
+  // O timer lê o valor MAIS RECENTE, não o do render em que foi agendado.
+  //
+  // Antes, o efeito dependia só de `[searchInput]` e a closure capturava `value`
+  // inteiro — `tab` incluso. Digitar e trocar de aba em menos de 250 ms fazia o
+  // timer disparar com a aba VELHA e devolver o operador à aba anterior, sem ele
+  // ter pedido. Some em teste manual: quem sabe do defeito digita devagar.
+  //
+  // As refs são o que permite manter `[searchInput]` como única dependência (pôr
+  // `value`/`onChange` ali reagendaria o timer a cada render e a busca nunca
+  // fecharia) SEM pagar o preço da closure velha.
+  const valorRef = useRef(value);
+  valorRef.current = value;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   useEffect(() => {
     const t = setTimeout(() => {
-      if (searchInput !== value.search) {
-        onChange({ ...value, search: searchInput });
+      const atual = valorRef.current;
+      if (searchInput !== atual.search) {
+        onChangeRef.current({ ...atual, search: searchInput });
       }
     }, 250);
     return () => clearTimeout(t);

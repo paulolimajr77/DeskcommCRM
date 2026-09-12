@@ -370,24 +370,78 @@ violates check constraint "crm_lead_risk_states_since_no_passado"
 
 A regra do banco é `check (since <= detected_at)`.
 
-**A causa, medida:** `lib/leads/risk-worker.ts:106` grava com **upsert**
-(`onConflict: "lead_id"`) e **omite `detected_at` de propósito** — o comentário
-ali explica que o default `now()` do banco é o relógio certo, e que preencher do
-processo produzia `since > detected_at`.
+⚠️ **A versão anterior desta seção culpava a causa errada**, e está corrigida
+aqui. Eu havia escrito que o `detected_at` congelava no UPDATE porque o `upsert`
+o omite. **Medido, é falso:** existe o gatilho
+`trg_crm_lead_risk_states_detected_at`, que é `before insert **or update**` e
+carimba `detected_at := now()` em toda escrita (migration 0081). **E ele está
+presente e ligado na instalação real** — conferido no `pg_trigger` da produção.
+Omitir `detected_at` no `upsert` é correto, e o comentário no código está certo.
 
-O comentário está certo para o **INSERT**. Mas num **UPDATE o default não se
-aplica**: a linha mantém o `detected_at` da primeira vez que aquele negócio
-entrou em risco. Enquanto isso `since` avança. Cedo ou tarde `since` ultrapassa
-um `detected_at` congelado no passado — e a constraint recusa.
+**A causa real, provada com as próprias funções.** Se `detected_at` é sempre
+`now()`, então violar `since <= detected_at` exige `since` **no futuro**. E ele
+pode nascer no futuro:
 
-**Consequência medida:** a mensagem diz *"o worker INTEIRO abortava"*. Ou seja,
-não é uma linha que falha: é o observador de risco parando para a organização
-toda, a cada passada.
+`classifyRisk` (`lib/leads/risk-radar.ts:70-90`) tem **dois atalhos da agenda**
+que atribuem balde **sem que limiar nenhum tenha sido cruzado**:
 
-**Conserto:** o `detected_at` precisa acompanhar o `since` no UPDATE — ou a
-constraint precisa admitir que ele é o instante da PRIMEIRA detecção, e não da
-última. As duas leituras são defensáveis, e a escolha muda o significado da
-coluna. É decisão de produto, não de código.
+| condição | balde | limiar cruzado? |
+|---|---|---|
+| `agenda.adiar` | `em_voo` | **não** — entra por adiamento |
+| `agenda.motivo = 'presenca_vencida'` | `critico` | **não** — entra por falta |
+
+Mas `sinceDoBucket` (`lib/leads/risk-since.ts:23-40`) devolve **o instante do
+cruzamento do limiar** daquele balde: `lastActivityAt + coldHours` para
+`em_voo`, `lastActivityAt + criticalHours` para `critico`. Num negócio que foi
+tocado há pouco, esse instante ainda **não chegou**.
+
+Rodado contra as duas funções de verdade, com janela de 72h/168h e um negócio
+tocado **uma hora antes**:
+
+```
+balde: em_voo   | since: 2026-09-15T21:00Z | agora: 2026-09-12T22:00Z | FUTURO? true
+balde: critico  | since: 2026-09-19T21:00Z | agora: 2026-09-12T22:00Z | FUTURO? true
+CONTROLE — negócio realmente frio:
+balde: critico  | since: 2026-09-08T22:00Z | FUTURO? false
+```
+
+**O controle é o que fecha o argumento:** no caminho normal — negócio que esfriou
+de verdade — o `since` nasce no passado e nada quebra. Só os dois atalhos da
+agenda produzem data futura. Por isso o defeito só apareceu depois que a agenda
+passou a alimentar o risco.
+
+**Consequência medida:** `risk-worker.ts:120` faz `throw` no erro da gravação,
+dentro do laço — então **o observador inteiro para para aquela organização**, na
+primeira travessia com data futura, e as demais nem são avaliadas.
+
+### C.2 O conserto — e por que não é decisão de produto
+
+A seção anterior terminava dizendo que a escolha era do dono do produto. **Não
+é**, e a medição é que mostra por quê: o `upsert` só é executado quando o balde
+**mudou** (`risk-worker.ts:103`, `if (de === e.bucket) continue`). Uma travessia
+percebida agora começou, no mais tardar, **agora** — então limitar o `since` a
+`now` não escolhe significado nenhum: escreve o que já é verdade.
+
+**O conserto:** `sinceDoBucket` recebe `now` e nunca devolve instante posterior a
+ele. No caminho normal nada muda (o cruzamento está no passado); nos dois
+atalhos da agenda, o `since` passa a ser o instante da travessia — que é
+exatamente o que a coluna promete.
+
+**O que NÃO fazer, e o motivo:** afrouxar a constraint. Ela é a única peça que
+percebeu o defeito. Trocá-la por tolerância transformaria "o observador para e
+grita" em "o observador grava data futura em silêncio", e a tela passaria a
+dizer que um negócio está em risco desde uma data que ainda não aconteceu.
+
+### C.3 Critérios de aceite
+
+- [ ] Negócio tocado há uma hora, com adiamento na agenda, grava `since` **não
+      posterior a agora**
+- [ ] Mesmo caso com `presenca_vencida`
+- [ ] CONTROLE: negócio realmente frio continua com `since` no passado — o
+      instante do cruzamento, não `now`
+- [ ] Uma gravação que falha **não** derruba a avaliação das outras da mesma
+      organização
+- [ ] A constraint continua de pé, sem afrouxar
 
 ---
 

@@ -23992,6 +23992,34 @@ create trigger trg_org_voice_calls_set_updated_at
 
 notify pgrst, 'reload schema';
 
+-- ---- tags de conversa em uso (migration 0239) ----
+-- O seletor de etiqueta do Inbox oferece as etiquetas EM USO, e nao so a lista
+-- curada a mao. `security INVOKER` de proposito: a funcao recebe a organizacao
+-- por ARGUMENTO e e concedida a `authenticated`, entao `definer` aqui seria
+-- leitura cross-tenant (o mesmo aviso esta no comentario de
+-- `fn_gasto_de_ia_do_mes`). Sob invoker quem isola e a RLS de `conversations`.
+-- Idempotente por construcao: `create or replace` + `revoke`/`grant`.
+create or replace function public.fn_tags_de_conversa_em_uso(p_org uuid)
+returns table (tag text)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select distinct t
+  from public.conversations c, unnest(c.tags) as t
+  where c.organization_id = p_org
+    and c.tags is not null
+  order by t
+  limit 200;
+$$;
+
+-- As DUAS origens de EXECUTE: o ALTER DEFAULT PRIVILEGES do baseline (que da a
+-- anon) e o grant a PUBLIC que o Postgres da ao criar. Revogar uma so deixa a
+-- funcao alcancavel pela anon key, que vai para o browser.
+revoke execute on function public.fn_tags_de_conversa_em_uso(uuid) from public, anon;
+grant  execute on function public.fn_tags_de_conversa_em_uso(uuid) to authenticated, service_role;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ ESTE BLOCO É, DE PROPÓSITO, O ÚLTIMO DO ARQUIVO. Apêndice novo entra ANTES
@@ -24067,30 +24095,3 @@ grant execute on function public.fn_encrypt_oauth(text) to service_role;
 grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) to service_role;
 grant execute on function public.fn_update_budget_consumption() to service_role;
 
--- ---- tags de conversa em uso (migration 0239) ----
--- O seletor de etiqueta do Inbox oferece as etiquetas EM USO, e nao so a lista
--- curada a mao. `security INVOKER` de proposito: a funcao recebe a organizacao
--- por ARGUMENTO e e concedida a `authenticated`, entao `definer` aqui seria
--- leitura cross-tenant (o mesmo aviso esta no comentario de
--- `fn_gasto_de_ia_do_mes`). Sob invoker quem isola e a RLS de `conversations`.
--- Idempotente por construcao: `create or replace` + `revoke`/`grant`.
-create or replace function public.fn_tags_de_conversa_em_uso(p_org uuid)
-returns table (tag text)
-language sql
-stable
-security invoker
-set search_path = public
-as $$
-  select distinct t
-  from public.conversations c, unnest(c.tags) as t
-  where c.organization_id = p_org
-    and c.tags is not null
-  order by t
-  limit 200;
-$$;
-
--- As DUAS origens de EXECUTE: o ALTER DEFAULT PRIVILEGES do baseline (que da a
--- anon) e o grant a PUBLIC que o Postgres da ao criar. Revogar uma so deixa a
--- funcao alcancavel pela anon key, que vai para o browser.
-revoke execute on function public.fn_tags_de_conversa_em_uso(uuid) from public, anon;
-grant  execute on function public.fn_tags_de_conversa_em_uso(uuid) to authenticated, service_role;

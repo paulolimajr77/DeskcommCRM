@@ -116,10 +116,10 @@ export function InboxFilters({ value, onChange }: Props) {
             />
             {/* "última mensagem", e não "mensagem": a busca alcança apenas
                 `conversations.last_message_preview` — a ÚLTIMA mensagem, truncada em 200
-                caracteres (`lib/channels/zernio/ingest.ts:271`). Medido numa conversa real
-                de 32 mensagens: buscar o que o cliente pediu na 3ª devolve ZERO. Alcançar o
-                histórico é projeto próprio (índice trigram + retenção + LGPD); até lá, a
-                tela não promete o que o backend não faz. */}
+                caracteres já na ingestão (`grep -rn 'slice(0, 200)' lib/channels/` mostra onde).
+                Medido numa conversa real de 32 mensagens: buscar o que o cliente pediu na
+                3ª devolve ZERO. Alcançar o histórico é projeto próprio (índice trigram +
+                retenção + LGPD); até lá, a tela não promete o que o backend não faz. */}
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}

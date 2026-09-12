@@ -145,9 +145,20 @@ describe("a rota não volta a apagar o motivo ao registrar", () => {
     expect(/code:\s*"internal_error"/.test(fonte), "há um código fixo no registro").toBe(false);
   });
 
-  it("⛔ registra o erro de verdade e o SQLSTATE", () => {
-    expect(fonte).toMatch(/erro:/);
+  it("⛔ registra o MOTIVO derivado e o SQLSTATE", () => {
+    expect(fonte).toMatch(/code:\s*motivo\.codigo/);
     expect(fonte).toMatch(/sqlstate:/);
+  });
+
+  it("⛔ e NUNCA a mensagem crua — ela pode conter o link da reunião", () => {
+    // `tests/unit/agenda-meet-routes.test.ts` injeta
+    // `https://meet.google.com/secret?token=private` como mensagem do erro e
+    // exige que o registro não contenha "secret". Foi esse teste que pegou a
+    // primeira versão deste conserto, que gravava `error.message` no log: eu ia
+    // trocar um defeito de diagnóstico por um vazamento de link privado.
+    expect(/erro:\s*error instanceof Error/.test(fonte), "a mensagem crua voltou ao log").toBe(
+      false,
+    );
   });
 
   it("CONTROLE: a cerca casa com a forma proibida em código de verdade", () => {

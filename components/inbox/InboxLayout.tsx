@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { comandosDaFila } from "@/lib/inbox/comando-da-conversa";
-import { PISO_DA_BUSCA } from "@/lib/schemas";
+import { buscaValeConsulta } from "@/lib/inbox/termo-de-busca";
 import { useAutomaticoAtivo } from "@/hooks/ai/useAutomaticoAtivo";
 
 /**
@@ -173,14 +173,13 @@ export function InboxLayout({ initialSelectedId = null }: InboxLayoutProps = {})
   const filters: ConversationsFilters = useMemo(
     () => ({
       ...tabToFilter(filterValue.tab, automaticoDaOrg),
-      // Abaixo do piso, a tela NÃO pede: a rota recusa (o schema exige
-      // PISO_DA_BUSCA) e o hook chama `showApiError`, então digitar a primeira
-      // letra de qualquer busca faria piscar um erro na cara de quem digita.
-      // O piso vem do schema, nunca repetido aqui — dois números divergem.
-      search:
-        filterValue.search.trim().length >= PISO_DA_BUSCA
-          ? filterValue.search
-          : undefined,
+      // A tela NÃO pede o que a rota recusa: o hook trata falha com
+      // `showApiError`, então digitar a primeira letra de qualquer busca faria
+      // piscar um erro na cara de quem digita. A regra é a MESMA que o schema
+      // usa (`lib/inbox/termo-de-busca.ts`) — nunca repetida aqui.
+      search: buscaValeConsulta(filterValue.search)
+        ? filterValue.search
+        : undefined,
       channel_session_id: filterValue.channel_session_id,
       tag: filterValue.tag,
     }),

@@ -16,6 +16,7 @@ import type {
   PatchConversationInput,
 } from "@/lib/schemas";
 import type { Conversation } from "@/lib/types/messaging";
+import { normalizarTermoDeBusca } from "@/lib/inbox/termo-de-busca";
 
 /**
  * Prepara o termo digitado para viajar dentro de um `or=` do PostgREST.
@@ -244,7 +245,16 @@ export async function listConversationsHandler(
     //
     // O controle que impede o degenerado está no teste: termo inexistente
     // continua devolvendo ZERO. Sem ele, "troque tudo por `*`" passaria.
-    const s = termoSeguroParaOr(q.search);
+    // Duas normalizações, em ordem, com responsabilidades diferentes:
+    //   normalizarTermoDeBusca → como a PESSOA digitou (espaço duplo, vírgula e
+    //                            ponto e vírgula viram o mesmo curinga)
+    //   termoSeguroParaOr      → a GRAMÁTICA do `or=` do PostgREST (não mexer)
+    //
+    // A ordem importa e a composição é segura: `termoSeguroParaOr` escapa `%` e
+    // `_` e troca `,()` por `*`, mas NÃO escapa `*` — então o curinga posto pela
+    // primeira chega inteiro ao banco. O telefone também sobrevive: `somenteDigitos`
+    // descarta tudo que não é dígito, inclusive o curinga.
+    const s = termoSeguroParaOr(normalizarTermoDeBusca(q.search));
 
     // ─── A BUSCA ALCANÇA O CONTATO, NÃO SÓ A ÚLTIMA MENSAGEM ──────────────
     //

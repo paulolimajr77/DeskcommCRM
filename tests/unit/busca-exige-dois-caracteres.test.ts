@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { PISO_DA_BUSCA, listConversationsQuerySchema } from "@/lib/schemas";
+import { listConversationsQuerySchema } from "@/lib/schemas";
+import { PISO_DA_BUSCA } from "@/lib/inbox/termo-de-busca";
 
 /**
  * O campo de busca do Inbox ia ao banco com UM caractere.

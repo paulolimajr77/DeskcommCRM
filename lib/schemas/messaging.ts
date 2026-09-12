@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { COMANDOS_DO_BANCO, type ComandoDoBanco } from "@/lib/inbox/comando-da-conversa";
+import { PISO_DA_BUSCA, buscaValeConsulta } from "@/lib/inbox/termo-de-busca";
 
 /**
  * O que a API aceita ESCREVER. Cinco valores, e a ausência de `pending`/`resolved`
@@ -220,15 +221,6 @@ export const CONVERSATION_TERMINAL_STATUSES = ["closed", "archived"] as const;
  */
 export const CONVERSATION_QUEUE_STATUSES = ["open", "pending"] as const;
 
-/**
- * Quantos caracteres a busca do Inbox exige para ir ao banco.
- *
- * EXPORTADA de propósito: a tela precisa do MESMO piso para não pedir o que o
- * contrato recusa. Duplicar o número lá faria os dois divergirem no primeiro
- * ajuste — e a divergência apareceria como erro na cara de quem digita.
- */
-export const PISO_DA_BUSCA = 2;
-
 export const listConversationsQuerySchema = z.object({
   /**
    * Um status, ou vários separados por vírgula (`?status=open,pending`).
@@ -324,14 +316,21 @@ export const listConversationsQuerySchema = z.object({
   channel_session_id: z.string().uuid().optional(),
   tag: conversationTagSchema.optional(),
   /**
-   * O termo de busca, com piso de 2 caracteres DEPOIS de aparado.
+   * O termo de busca. A régua inteira vive em `lib/inbox/termo-de-busca.ts`, e a
+   * tela lê a MESMA — repetir aqui faria os dois divergirem, e a divergência
+   * apareceria como erro na cara de quem digita (a rota recusa e o hook mostra).
    *
-   * Medido em produção: `?search=a` devolvia a lista inteira — e lista inteira
-   * sob busca não é resposta, é ruído que PARECE resposta. O handler já aplica o
-   * mesmo raciocínio ao telefone (piso de 4 dígitos, com a justificativa escrita
-   * lá); faltava aplicá-lo ao texto.
+   * `buscaValeConsulta` mede o termo DEPOIS de normalizado, e não o cru: um termo
+   * feito só de pontuação passa por qualquer piso de caracteres e vira string
+   * vazia na normalização — e vazio no `ilike` casa TUDO.
    */
-  search: z.string().trim().min(PISO_DA_BUSCA).optional(),
+  search: z
+    .string()
+    .trim()
+    .refine(buscaValeConsulta, {
+      message: `A busca precisa de pelo menos ${PISO_DA_BUSCA} caracteres.`,
+    })
+    .optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });

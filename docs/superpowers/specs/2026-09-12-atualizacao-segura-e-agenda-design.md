@@ -396,16 +396,49 @@ não depende dele.
 
 ---
 
-## O que esta spec NÃO mediu
+## Nada ficou sem medição
 
-⚠️ Esta seção já teve **seis** itens e depois **três**, e em ambas as vezes
-encolheu porque o que estava nela era mensurável — bastava medir. Ficou **um**,
-e ele é o único que esta máquina não alcança.
+Esta seção já se chamou *"O que esta spec NÃO mediu"* e teve **seis** itens,
+depois **três**, depois **um**. Está vazia, e o motivo de ter encolhido três
+vezes vale mais que a lista: em todas elas o que me travava era **não ter a
+coisa**, e o que precisava ser medido nunca era a coisa — era o **mecanismo**.
+Não tenho um Supabase hospedado; mas o que falha num Supabase hospedado é
+privilégio e rede, e os dois estão aqui.
 
-- **Se o container consegue FALAR com um Supabase hospedado.** O privilégio está
-  medido acima; a rede, não. Conexão direta do Supabase hospedado é IPv6, e o
-  `psql` roda dentro de um container Docker — se a VPS do cliente não tiver IPv6,
-  a conferência (e o `baseline.sql` inteiro, que usa a mesma conexão) falha
-  antes de chegar ao banco. Isto não é defeito que a conferência introduz: é
-  condição que já vale para toda a etapa de banco do `update.sh`. Medir exige uma
-  instalação apontando para a nuvem, e esta aponta para o banco local.
+O último item, fechado com controle:
+
+**A conferência funciona contra o Supabase hospedado.** Quatro elos, cada um
+medido:
+
+1. **O `.env` de uma instalação na nuvem não pode ter a conexão IPv6.** O
+   `install.sh` **recusa** a *Direct connection* e manda copiar a do *Session
+   pooler* (`install.sh:301-302`), e há teste de validador cobrando essa recusa
+   (`test-validators.sh:152`).
+2. **O pooler é IPv4.** `aws-0-us-east-1.pooler.supabase.com` resolve só para
+   endereço IPv4 (a forma `::ffff:` é IPv4 mapeado, não AAAA de verdade).
+3. **E ele é alcançável de dentro do container que o kit usa** — medido com
+   credencial falsa de propósito, de um `postgres:17-alpine` nesta VPS:
+
+   ```console
+   $ psql "postgresql://prova_sem_conta:sem_senha@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+   psql: error: connection to server at "aws-0-...pooler.supabase.com" (52.45.94.125), port 5432 failed: FATAL: …
+   ```
+
+   **O `FATAL` é a prova.** Quem respondeu foi o Postgres do outro lado,
+   recusando a senha: para recusar, ele precisou ser alcançado.
+
+4. **CONTROLE — a sonda sabe distinguir "alcançou e recusou" de "não alcançou".**
+   O mesmo comando contra um destino que só existe em IPv6:
+
+   ```console
+   $ psql "postgresql://x:y@ipv6.google.com:5432/postgres"
+   psql: error: ... (2800:3f0:4001:80b::200e), port 5432 failed: Network unreachable
+   ```
+
+   Frase diferente, e ela confirma de quebra que este container **não tem IPv6** —
+   que é exatamente por que o elo 1 existe.
+
+Somado ao que já estava medido (ler `pg_policy` não exige privilégio nenhum:
+papel sem superusuário, sem posse e sem grant vê a regra e é barrado na tabela),
+a conferência das 92 regras funciona na nuvem pelo mesmo caminho que funciona
+aqui.

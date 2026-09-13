@@ -255,6 +255,26 @@ export const DICIONARIO: Traducoes = {
   "Buscar cliente": { es: "Buscar cliente" },
   "Quem será atendido": { es: "Quién será atendido" },
   "Compromisso pessoal, sem cliente": { es: "Cita personal, sin cliente" },
+  "Enviar de novo": { es: "Enviar de nuevo" },
+  "Mandar ao cliente": { es: "Enviar al cliente" },
+  "Conversa que receberá os dados": { es: "Conversación que recibirá los datos" },
+  "O envio dos dados ainda não foi autorizado.": {
+    es: "El envío de los datos aún no fue autorizado.",
+  },
+  "Envio autorizado: aguardando a vez na fila.": {
+    es: "Envío autorizado: esperando su turno en la cola.",
+  },
+  "Dados aguardando envio nesta conversa.": {
+    es: "Datos esperando envío en esta conversación.",
+  },
+  "Dados enviados na conversa autorizada.": {
+    es: "Datos enviados en la conversación autorizada.",
+  },
+  "Confirmar reenvio": { es: "Confirmar reenvío" },
+  "Mandar de novo os dados desta reunião para o cliente?": {
+    es: "¿Enviar de nuevo los datos de esta reunión al cliente?",
+  },
+  "Mandar de novo": { es: "Enviar de nuevo" },
   "Cliente do compromisso": { es: "Cliente de la cita" },
   "Tirar o cliente": { es: "Quitar el cliente" },
   "Digite para buscar um cliente": { es: "Escriba para buscar un cliente" },
@@ -8433,6 +8453,12 @@ export const DICIONARIO: Traducoes = {
   "O envio atingiu uma janela ou limite do canal. Aguarde a liberação antes de tentar novamente.": { es: "El envío alcanzó una ventana o un límite del canal. Espera a que se habilite antes de intentarlo de nuevo." },
   "Uma regra de envio impediu a mensagem. Confira o aviso na Central antes de tentar novamente.": { es: "Una regla de envío bloqueó el mensaje. Revisa el aviso en la Central antes de intentarlo de nuevo." },
   "Sua reunião está marcada para": { es: "Tu reunión está programada para" },
+  // A frase da CORRECAO. Ela vai para o CLIENTE, no idioma dele — entao a
+  // falta de espanhol aqui nao apareceria em nenhuma tela, so na mensagem de
+  // quem recebe.
+  "O horário da sua reunião mudou. Agora é": {
+    es: "El horario de tu reunión cambió. Ahora es",
+  },
   "Link do Google Meet:": { es: "Enlace de Google Meet:" },
 
 

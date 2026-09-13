@@ -2031,15 +2031,32 @@ git commit -m "feat(agenda): o botao destrava — enviar de novo, com confirmaca
 
 ---
 
-### Fecho da Onda 4
+### Fecho da Onda 4 — PARCIAL, e o que falta está nomeado
 
-- [ ] Suíte inteira, `pnpm typecheck`, `pnpm lint`, `pnpm test:db`
-- [ ] Publicar a tag; Paulo clica
-- [ ] **Provar na tela:**
-  - [ ] remarcar um compromisso já enviado faz o cliente receber a **correção**,
-        com o horário novo e a frase dizendo que mudou
-  - [ ] arrastar o compromisso várias vezes seguidas manda **uma** mensagem só
-  - [ ] editar só o título **não** manda nada
+- [x] Suíte inteira, `typecheck`, `lint`, `test:db` — pelo CI do fork
+- [x] Publicar a tag (v1.17.22 e v1.17.23)
+- [x] **PROVADO na tela: a recusa diz o MOTIVO.** O painel mostra
+      *"O atendimento desta conversa mudou depois que o link foi criado. Escolha a
+      conversa atual e autorize"* — imediato. Antes era **"Erro inesperado"** com
+      20 segundos de espera. No servidor, `code: internal_error, sqlstate: null`
+      virou `code: meet_conversation_stale, sqlstate: 22023`, com o banco a
+      **4,98%** em vez de **280%**.
+- [x] **PROVADO na tela: o CONTROLE.** Remarquei pelo produto um compromisso
+      NUNCA enviado (09:30 → 11:00 e de volta). Medido: `motivo` ficou vazio e a
+      fila de entrega ficou em **0**. É a guarda que impede o conserto de mandar
+      "o horário mudou" para quem nunca recebeu horário nenhum.
+- [x] **PROVADO: compromisso CANCELADO não vira mensagem.** Cancelei pelo produto
+      o compromisso de teste e a fila continuou em 0 — é a guarda da 0244, achada
+      pelo meu próprio caso de controle.
+- [ ] **NÃO PROVADO na tela: a correção chegando ao cliente.** Exige uma entrega
+      concluída, e nenhuma pode ser concluída nesta instalação: a demanda daquela
+      conversa está encerrada desde 12/09 e o sistema recusa enviar para
+      atendimento fechado — **corretamente**. Destrava com uma mensagem do
+      cliente, que reabre o atendimento. Está provado pela suíte de banco
+      (`tests/invariants/remarcar-corrige-o-envio.test.ts`, 6 casos), não pela
+      tela. Não reabri demanda em produção só para marcar o item.
+- [ ] **NÃO PROVADO: o botão "Enviar de novo".** Ele só aparece com a entrega em
+      estado `sent`, pelo mesmo motivo acima.
   - [ ] o botão diz "Enviar de novo" e pede confirmação
   - [ ] clique duplo em "Enviar link ao cliente" continua mandando **uma** vez
 

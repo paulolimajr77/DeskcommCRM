@@ -35,7 +35,18 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    # ── ADAPTAÇÃO DO FORK (paulolimajr77) ──────────────────────────────────
+    # `vps/pljr-combinada` é a linha que a VPS instala, e ela não é `main` nem
+    # passa por PR antes de virar versão publicada — então o `e2e` NUNCA rodou
+    # sobre o que o cliente recebe.
+    #
+    # MEDIDO em 2026-09-13, e o preço já tinha sido pago: a asserção
+    # `"Link já enviado" + toBeDisabled()` de `agenda-google-meet.spec.ts`
+    # sobreviveu a TRÊS versões publicadas depois de o botão passar a dizer
+    # "Enviar de novo". Ninguém a exercitou porque nada a executava aqui.
+    #
+    # Inerte no repositório de origem: lá não existe branch com este nome.
+    branches: [main, vps/pljr-combinada]
 
 # O GITHUB_TOKEN deste job serve a `actions/checkout` (clone) e a
 # `actions/setup-node` (manifest de `actions/node-versions`, repo público).

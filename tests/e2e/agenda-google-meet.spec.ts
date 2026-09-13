@@ -191,6 +191,29 @@ async function book(page: Page, f: Fixture) {
   await page.keyboard.press("Escape");
   const days = await irParaASemanaSeguinte(page);
   await page.getByRole("button", { name: /novo agendamento/i }).click();
+  // ⛔ ESCOLHER O CLIENTE AQUI DEIXOU DE SER OPCIONAL, e a mudança é deliberada.
+  //
+  // Este preparo abria o painel pela CONVERSA (que preenche cliente e conversa),
+  // apertava Escape para poder trocar de semana, e reabria por "Novo
+  // agendamento" contando que os dois continuassem lá.
+  //
+  // Não continuam mais: fechar o painel agora LIMPA o cliente, de propósito.
+  // Medido numa instalação real — "Novo agendamento" abria com um contato já
+  // selecionado, herdado de uma abertura anterior feita a partir da conversa
+  // dele, e quem não reparasse marcava no nome de outra pessoa. Um campo em
+  // branco a pessoa vê; um campo com o cliente errado, não.
+  //
+  // Então o preparo passa a fazer o que a pessoa faz: escolher. Sem isto o
+  // compromisso nascia com `contact_id: null` e os quatro casos deste arquivo
+  // morriam aqui — foi o que a primeira execução do `e2e` nesta linha mostrou.
+  await page.getByLabel("Cliente do compromisso").fill("Maria");
+  await page.getByRole("option", { name: "Maria Meet" }).click();
+  await expect(page.getByRole("button", { name: "Tirar o cliente" })).toBeVisible();
+  // E a conversa junto: escolher o cliente do zero LIMPA o vínculo de conversa
+  // (`onEscolhe` chama `onChange(id, "", email)`), e é dela que sai a fronteira
+  // de atendimento que autoriza a entrega. Sem esta linha o compromisso nasce
+  // com `conversation_id: null` e a entrega não teria a quem se prender.
+  await page.getByLabel("Conversa vinculada (opcional)").selectOption(f.conversation);
   await page.getByRole("button", { name: /^Consulta Meet/ }).click();
   await escolherDiaDesenhado(page, days);
   await page.locator('[data-testid^="horario-"]').first().click();

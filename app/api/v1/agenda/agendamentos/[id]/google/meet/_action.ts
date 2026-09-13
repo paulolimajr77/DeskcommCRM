@@ -68,15 +68,18 @@ export async function meetingAction(
     const motivo = motivoDoMeet(error);
     // ⛔ A MENSAGEM CRUA DO ERRO NUNCA ENTRA AQUI.
     //
-    // Ela pode carregar o LINK DA REUNIÃO — `tests/unit/agenda-meet-routes.test.ts`
-    // injeta `https://meet.google.com/secret?token=private` como mensagem e exige
-    // que o registro não contenha "secret". O `code: "internal_error"` fixo da
-    // versão anterior não era descuido: era sanitização.
+    // Ela pode carregar o LINK DA REUNIÃO. `tests/unit/agenda-meet-routes.test.ts`
+    // injeta `https://meet.google.com/secret?token=private` como mensagem do
+    // erro e exige que o registro não contenha "secret" — e foi ele que pegou a
+    // primeira versão deste conserto, que gravava `erro: error.message`. Eu ia
+    // trocar um defeito de diagnóstico por um vazamento de link privado.
     //
-    // O que este commit conserta é outra coisa — aquele campo era fixo para TODO
-    // erro, então o motivo se perdia junto com o segredo. Agora vai o `codigo`
-    // derivado, que é identificador nosso (`meet_conversation_stale`,
-    // `forbidden`, …) e não carrega dado de ninguém. Diagnóstico sem vazamento.
+    // O `code: "internal_error"` fixo da versão ANTERIOR à minha não era
+    // descuido: era sanitização. O que este conserto corrige é outra coisa —
+    // aquele campo era fixo para TODO erro, então o motivo se perdia junto com
+    // o segredo. Agora vai o `codigo` derivado, que é identificador NOSSO
+    // (`meet_conversation_stale`, `forbidden`, …) e não carrega dado de
+    // ninguém. Diagnóstico sem vazamento.
     logger.error("agenda.meet_action_failed", {
       requestId,
       action,

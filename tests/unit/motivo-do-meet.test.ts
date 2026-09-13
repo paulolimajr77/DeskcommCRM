@@ -150,15 +150,30 @@ describe("a rota não volta a apagar o motivo ao registrar", () => {
     expect(fonte).toMatch(/sqlstate:/);
   });
 
-  it("⛔ e NUNCA a mensagem crua — ela pode conter o link da reunião", () => {
-    // `tests/unit/agenda-meet-routes.test.ts` injeta
-    // `https://meet.google.com/secret?token=private` como mensagem do erro e
-    // exige que o registro não contenha "secret". Foi esse teste que pegou a
-    // primeira versão deste conserto, que gravava `error.message` no log: eu ia
-    // trocar um defeito de diagnóstico por um vazamento de link privado.
+  it("⛔ e NUNCA a mensagem crua — ela pode carregar o LINK DA REUNIÃO", () => {
+    // ⚠️ ESTA CERCA PEDIA O CONTRÁRIO, e pedir o contrário era o defeito.
+    //
+    // Ela dizia `expect(fonte).toMatch(/erro:/)` — cobrando que a mensagem do
+    // erro fosse registrada. `tests/unit/agenda-meet-routes.test.ts` injeta
+    // `https://meet.google.com/secret?token=private` como mensagem e exige que
+    // o registro não contenha "secret": os dois arquivos se contradiziam, e
+    // quem estava certo era o outro.
+    //
+    // O que torna o engano fácil de cometer: o `code: "internal_error"` fixo da
+    // versão original NÃO era descuido, era sanitização. Ao consertar o campo
+    // fixo — que apagava o motivo de TODO erro — a tentação é gravar a mensagem
+    // inteira "para não perder nada". O certo é gravar o `codigo` derivado, que
+    // é identificador nosso e não carrega dado de ninguém.
     expect(/erro:\s*error instanceof Error/.test(fonte), "a mensagem crua voltou ao log").toBe(
       false,
     );
+    expect(/error\.message/.test(fonte), "a mensagem crua voltou ao log").toBe(false);
+  });
+
+  it("CONTROLE: esta cerca casa com a forma proibida em código de verdade", () => {
+    // Sem isto, uma expressão que parasse de casar deixaria o caso acima verde
+    // para sempre — inclusive com o vazamento de volta.
+    expect(/error\.message/.test("{ erro: error.message }")).toBe(true);
   });
 
   it("CONTROLE: a cerca casa com a forma proibida em código de verdade", () => {

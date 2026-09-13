@@ -141,8 +141,28 @@ fi
 # pela string do app: numa instalação em Supabase próprio, com a role menor no
 # `.env` como recomendamos, este passo passava a falhar em silêncio a cada
 # atualização — e é o update.sh que entrega migration nova ao clone (issue #192).
+# ── NINGUÉM FALA COM O BANCO ENQUANTO ELE MUDA ───────────────────────────────
+#
+# Medido nesta instalação, no mesmo dia e com o mesmo arquivo:
+#   tudo de pé ................................ 113 travamentos
+#   CRM parado ................................  60 travamentos
+#   CRM + rest + realtime + studio parados ....   0 travamentos
+#
+# Travamento aqui não é lentidão: quando o `create policy` trava, o `drop` que
+# veio antes já valeu. A regra some, o banco nega a leitura em silêncio, e a
+# tela fica vazia — indistinguível de "não há nada aqui".
+#
+# Custa ~16s (medido: parar 10,3s, subir 6,0s) numa atualização cuja mediana
+# real é 308s e cuja variação natural entre duas rodadas foi de 785s. Fica
+# abaixo do ruído que já existe.
+#
+# O `trap` é o que impede um erro no meio de deixar a instalação pela metade:
+# qualquer saída — sucesso, erro ou interrupção — devolve as peças do Supabase.
+trap restaurar_servicos EXIT
+
 step "Atualizando o banco de dados"
 if [ -f supabase/baseline.sql ]; then
+  pausar_o_que_fala_com_o_banco
   # Extensões que o schema exige (idempotente; iguais ao install.sh).
   docker run --rm postgres:17-alpine psql "$(url_do_schema)" -c \
     "create extension if not exists vector with schema public; create extension if not exists citext with schema public; create extension if not exists pg_trgm with schema public;" \
@@ -227,14 +247,54 @@ if [ -f supabase/baseline.sql ]; then
   faltando="$(comm -23 <(printf '%s\n' "$esperadas") <(printf '%s\n' "$existentes") || true)"
 
   if [ -n "$faltando" ]; then
-    # Uma segunda passada, e ela costuma bastar: a falha medida foi
-    # CIRCUNSTANCIAL (o banco estava sob carga e não deu a tabela por um
-    # instante), não um defeito do arquivo — reaplicado depois, sem carga, ele
-    # passou sem um erro. Tentar de novo é mais barato e mais seguro do que
-    # reconstruir cada regra à mão aqui.
-    c_ylw "⚠ Faltaram regras de isolamento. Tentando aplicar o banco mais uma vez…"
-    docker run --rm -i -v "$PROJECT_DIR/supabase/baseline.sql:/b.sql:ro" \
-      postgres:17-alpine psql "$(url_do_schema)" -f /b.sql >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true
+    # ── RECRIAR AS QUE FALTAM, NUNCA REAPLICAR O ARQUIVO ─────────────────────
+    #
+    # ⚠️ Isto corrige o que este script fazia antes: reaplicar o baseline inteiro
+    # e conferir de novo. Aquilo era o que eu tinha feito no servidor, e a
+    # medição mostrou que NÃO FECHA — reaplicar não converge. A segunda passada
+    # devolveu `conversations_select` e levou embora `conversations_agent_insert`;
+    # a terceira trocou o conjunto outra vez. Cada passada sorteia, porque cada
+    # passada é a mesma corrida de APAGAR e CRIAR 92 vezes.
+    #
+    # Recriar só o que falta é um punhado de comandos rápidos, com muito menos
+    # superfície para travar. E roda com os serviços ainda PARADOS, que é a
+    # única janela sem disputa.
+    #
+    # E não é uma segunda cópia das 92 declarações: o comando sai do PRÓPRIO
+    # `baseline.sql`, recortado dele. Nada aqui sabe o que uma regra diz.
+    c_ylw "⚠ Faltaram regras de isolamento. Recriando exatamente as que faltam…"
+    faltam_arq="$PROJECT_DIR/.deskcomm-regras-faltando.txt"
+    printf '%s\n' "$faltando" > "$faltam_arq"
+
+    # A régua junta o comando INTEIRO — uma regra real ocupa várias linhas, e
+    # recortar só a primeira produziria SQL sem predicado e sem `;`, que falha
+    # deixando a impressão de que tentou. E vale a ÚLTIMA operação de cada
+    # regra: quem o arquivo cria e depois apaga de propósito não é recriada.
+    # /!\ O arquivo do que falta entra como PRIMEIRO ARQUIVO do awk, e nao por
+    # `-v`. MEDIDO: `awk -v var=valor` processa sequencias de escape no valor,
+    # entao um caminho do Windows (C:\Users\...) perde as barras e o awk le um
+    # arquivo que nao existe — devolvendo vazio, EM SILENCIO, como se nada
+    # faltasse. Numa VPS Linux nao doeria; o teste pegou antes de virar aposta.
+    recria="$(awk '
+      NR == FNR { sub(/[ \t\r]+$/, "", $0); if ($0 != "") quero[$0] = 1; next }
+      /create policy|drop policy if exists/ { buf = ""; coletando = 1 }
+      coletando { buf = buf $0 "\n" }
+      coletando && /;[ \t]*$/ {
+        coletando = 0
+        if (match(buf, /drop policy if exists "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/)) { k = substr(buf, RSTART, RLENGTH); acao = "drop" }
+        else if (match(buf, /create policy "?[a-zA-Z0-9_]+"? on public\.[a-zA-Z0-9_]+/)) { k = substr(buf, RSTART, RLENGTH); acao = "create" }
+        else next
+        gsub(/.*policy (if exists )?"?/, "", k); gsub(/"? on public\./, "|", k)
+        estado[k] = acao; if (acao == "create") texto[k] = buf
+      }
+      END { for (k in quero) if (estado[k] == "create") printf "%s", texto[k] }
+    ' "$faltam_arq" supabase/baseline.sql)"
+
+    if [ -n "$recria" ]; then
+      printf '%s\n' "$recria" | docker run --rm -i postgres:17-alpine \
+        psql "$(url_do_schema)" >> "$PROJECT_DIR/.deskcomm-banco.log" 2>&1 || true
+    fi
+    rm -f "$faltam_arq"
 
     existentes="$(docker run --rm -i postgres:17-alpine psql "$(url_do_schema)" -t -A -F'|' -c \
       "select p.polname, c.relname from pg_policy p join pg_class c on c.oid=p.polrelid
@@ -249,6 +309,19 @@ if [ -f supabase/baseline.sql ]; then
     printf '%s\n' "$faltando" | sed 's/|/ na tabela /; s/^/   • /' | head -20
     c_ylw "   O log do banco está em .deskcomm-banco.log — mande-o para o suporte."
     c_ylw "   Para voltar ao estado anterior: bash restore.sh"
+    # ⛔ E A ATUALIZAÇÃO PARA AQUI.
+    #
+    # Antes ela seguia: imprimia este bloco vermelho e ia para o passo 5, que
+    # sobe o app com a imagem nova. O CRM voltava ao ar sem regra de isolamento,
+    # mostrando tela vazia para todo mundo — e o vermelho já tinha rolado para
+    # fora da tela. Foi assim que o dono da instalação descobriu pelo funil,
+    # horas depois, e não pela atualização.
+    #
+    # O `trap` (logo acima do passo do banco) devolve as peças do Supabase e
+    # deixa o CRM parado de propósito. Um CRM fora do ar é um problema visível
+    # que alguém resolve; um CRM no ar sem isolamento, não.
+    REGRAS_FALTANDO="$faltando"
+    exit 1
   else
     c_grn "✓ regras de isolamento conferidas ($(printf '%s\n' "$esperadas" | grep -c . ) declaradas, todas no lugar)."
   fi

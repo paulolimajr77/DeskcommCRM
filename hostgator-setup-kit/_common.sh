@@ -34,6 +34,81 @@ dc_files() {
   fi
 }
 
+# ── QUEM FALA COM O BANCO E PODE SER PARADO ──────────────────────────────────
+#
+# O `update.sh` aplica o `baseline.sql`, que APAGA e RECRIA cada regra de
+# isolamento — é o único jeito portável, porque o Postgres não tem
+# `create or replace policy`. Com tráfego vivo isso vira disputa de trava, e
+# quando o CRIAR trava o APAGAR já valeu: a regra some, o banco passa a negar a
+# leitura em silêncio, e a tela fica VAZIA sem um erro sequer.
+#
+# Medido numa instalação real, no mesmo dia e com o mesmo arquivo:
+#   tudo de pé ................................ 113 travamentos
+#   CRM parado ................................  60 travamentos
+#   CRM + rest + realtime + studio parados ....   0 travamentos
+#
+# ⚠️ O realtime NÃO se chama `supabase-realtime`. Na instalação real o nome é
+# `realtime-dev.supabase-realtime`, e um padrão ancorado em `^supabase-` deixa
+# de pé justamente quem mais reage a mudança de estrutura. O ponto é escapado
+# porque em expressão regular ele casaria com qualquer caractere.
+#
+# ⚠️ O banco e o auth ficam DE PÉ de propósito: é no banco que o DDL roda, e
+# derrubar o auth deslogaria quem está na tela sem necessidade.
+#
+# ⚠️ Nada de varredura larga. Uma VPS hospeda outros sistemas (medido numa real:
+# um CRM imobiliário e dois WordPress). A lista é explícita, e é só a nossa.
+#
+# Vazio quando o Supabase é HOSPEDADO — lá não há o que parar, e é por isso que
+# a conferência das regras, que não depende de parar nada, é a peça portável.
+supabase_local_containers() {
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -E \
+    '^(supabase-rest|supabase-studio|realtime-dev\.supabase-realtime)$' || true
+}
+
+# ── O CICLO: PAUSAR ANTES DO BANCO, VOLTAR DEPOIS DE CONFERIR ────────────────
+#
+# Estas duas vivem aqui, e não dentro do `update.sh`, por um motivo prático: é
+# aqui que dá para carregá-las num teste e provar o ciclo com um `docker` dublê,
+# sem parar nada de verdade. O `update.sh` fica com o que é dele — a ordem dos
+# passos e o `trap`.
+#
+# `PARADOS` guarda o que esta rodada derrubou, para saber o que levantar.
+# `REGRAS_FALTANDO` é preenchida pela conferência e decide se o CRM volta.
+PARADOS="${PARADOS:-}"
+REGRAS_FALTANDO="${REGRAS_FALTANDO:-}"
+
+pausar_o_que_fala_com_o_banco() {
+  PARADOS="$(supabase_local_containers)"
+  c_ylw "Pausando o sistema para mexer no banco com segurança."
+  dc stop app worker scheduler >/dev/null 2>&1 || true
+  if [ -n "$PARADOS" ]; then
+    # shellcheck disable=SC2086
+    docker stop $PARADOS >/dev/null 2>&1 || true
+  fi
+}
+
+restaurar_servicos() {
+  if [ -n "${PARADOS:-}" ]; then
+    # As peças do Supabase voltam SEMPRE: elas não são o risco, e deixá-las
+    # paradas quebraria até o diagnóstico de quem for consertar as regras.
+    # shellcheck disable=SC2086
+    docker start $PARADOS >/dev/null 2>&1 || true
+    PARADOS=""
+  fi
+  # ⛔ O CRM NÃO VOLTA AO AR COM REGRA DE ISOLAMENTO FALTANDO.
+  #
+  # Um CRM fora do ar é um problema visível que alguém resolve em minutos. Um
+  # CRM no ar sem regra de isolamento mostra tela VAZIA para todo mundo, sem um
+  # erro sequer, e é indistinguível de "não há nada aqui" — foi exatamente isso
+  # que custou um dia inteiro nesta instalação, com o funil vazio e a
+  # atualização dizendo "concluída com sucesso".
+  if [ -n "${REGRAS_FALTANDO:-}" ]; then
+    c_red "   O CRM segue PARADO de propósito. Resolva as regras antes de subir."
+    return 0
+  fi
+  dc up -d app worker scheduler >/dev/null 2>&1 || true
+}
+
 # ── A rede externa por onde o proxy de fora alcança o app ────────────────────
 # O nome que o docker compose dá ao projeto quando ninguém passa -p: basename do
 # diretório, minúsculo, só [a-z0-9_-] — E com os `_`/`-` do INÍCIO aparados

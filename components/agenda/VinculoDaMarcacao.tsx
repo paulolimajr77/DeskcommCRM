@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { EscolhaDoCliente } from "@/components/agenda/EscolhaDoCliente";
@@ -12,11 +12,18 @@ export function VinculoDaMarcacao({
   contactId,
   conversationId,
   onChange,
+  onEmailDoCliente,
 }: {
   contactId: string;
   conversationId: string;
   /** O terceiro argumento e o e-mail do contato escolhido, quando ele tem um. */
   onChange: (contact: string, conversation: string, email?: string | null) => void;
+  /**
+   * Avisa o e-mail do cliente ATUAL, inclusive quando ele nao foi escolhido
+   * aqui — `/app/agenda?contato=<id>` preenche o cliente direto no estado de
+   * quem chama, e esse caminho nunca passa pela lista.
+   */
+  onEmailDoCliente?: (email: string | null) => void;
 }) {
   const t = useT();
   const [search, setSearch] = useState("");
@@ -29,6 +36,23 @@ export function VinculoDaMarcacao({
         )
       ).data,
   });
+  // ⛔ O CLIENTE PODE CHEGAR DE FORA, E AI NAO HA CLIQUE PARA CARREGAR O E-MAIL.
+  //
+  // Reproduzido pela tela em 2026-09-13: `/app/agenda?contato=<id>` — o caminho
+  // de quem esta na conversa do cliente e clica para agendar — abre o painel com
+  // o cliente JA preenchido. O e-mail viajava junto do clique na lista, entao
+  // nesse caminho ele nunca chegava, e o campo do convidado ficava vazio mesmo
+  // com o contato tendo e-mail cadastrado.
+  //
+  // Quem tem o dado e este componente: a consulta por `contact_id` devolve o
+  // contato com o e-mail. Entao e ele quem avisa.
+  const emailDoAtual = query.data?.contacts.find((c) => c.id === contactId)?.email ?? null;
+  useEffect(() => {
+    // Sem cliente NAO avisa: mandar `null` em compromisso pessoal apagaria um
+    // e-mail que a pessoa tivesse acabado de digitar.
+    if (contactId && onEmailDoCliente) onEmailDoCliente(emailDoAtual);
+  }, [contactId, emailDoAtual, onEmailDoCliente]);
+
   return (
     <div className="space-y-3 rounded-lg border p-3">
       {/* Um campo só. Eram dois — "Buscar cliente" e "Quem será atendido" —, e

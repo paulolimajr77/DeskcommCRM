@@ -128,6 +128,20 @@ export function AgendaClient({
   // produto — "o agendamento e individual". A coluna `notes` ja existia e a
   // API ja a aceitava; so a tela nao oferecia onde escrever.
   const [observacao, setObservacao] = React.useState("");
+  // `useCallback` porque o efeito do `VinculoDaMarcacao` depende da
+  // IDENTIDADE desta funcao: recriada a cada render, ela faria o efeito
+  // disparar a cada render. Nao viraria laco (a regra devolve o mesmo valor e
+  // o React descarta o set), mas custa trabalho a toa e esconde defeito.
+  //
+  // Forma funcional no `set`: sem ela, `atual` viria do fechamento e poderia
+  // estar velho — apagando o que a pessoa acabou de digitar.
+  const avisarEmailDoCliente = React.useCallback(
+    (email: string | null) =>
+      setEmailConvidado((atual) =>
+        emailDoConvidadoAoTrocarDeCliente({ atual, tocado: convidadoTocado, emailDoCliente: email }),
+      ),
+    [convidadoTocado],
+  );
   const emailConvidadoLimpo = emailConvidado.trim();
   // A MESMA pergunta que a rota faz, feita aqui só para não gastar um 422 com
   // uma letra faltando no domínio. A rota continua sendo a dona da recusa — esta
@@ -551,7 +565,7 @@ export function AgendaClient({
           <SheetHeader>
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
           </SheetHeader>
-            {!remarcandoId?<VinculoDaMarcacao contactId={contactId} conversationId={conversationId} onChange={(contact,conversation,email)=>{setContactId(contact);setConversationId(conversation);setEmailConvidado(emailDoConvidadoAoTrocarDeCliente({atual:emailConvidado,tocado:convidadoTocado,emailDoCliente:email}));}}/>:null}
+            {!remarcandoId?<VinculoDaMarcacao contactId={contactId} conversationId={conversationId} onChange={(contact,conversation,email)=>{setContactId(contact);setConversationId(conversation);setEmailConvidado(emailDoConvidadoAoTrocarDeCliente({atual:emailConvidado,tocado:convidadoTocado,emailDoCliente:email}));}} onEmailDoCliente={avisarEmailDoCliente}/>:null}
           {tiposIniciais.length > 1 && (
             <div className="mt-4" data-testid="tipos-de-agendamento">
               <p className="mb-2 text-xs font-medium text-text-muted">{t("Tipo de agendamento")}</p>

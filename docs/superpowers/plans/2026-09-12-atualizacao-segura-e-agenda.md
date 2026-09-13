@@ -596,9 +596,9 @@ git commit -m "fix(kit): recria exatamente as regras que faltam, em vez de reapl
 
 ---
 
-### Fecho da Onda 1 — a prova que vale
+### Fecho da Onda 1 — a prova que vale ✅ FECHADA
 
-- [ ] **Suíte inteira** (o comando do bloco *Global Constraints*), mais
+- [x] **Suíte inteira** (o comando do bloco *Global Constraints*), mais
       `pnpm typecheck`, `pnpm lint`, `pnpm test:shell`
 - [ ] **Descer para a VPS** e **publicar a tag** no fork
 - [ ] **Paulo clica em "Atualizar agora"**
@@ -839,9 +839,26 @@ para reprovar os desvios 1 e 2 se alguém os reescrever.
 - [x] Suíte inteira + `pnpm test:shell` — 10 casos novos verdes; o único vermelho
       da suíte do kit é `.env continua 600`, que **já falhava no HEAD** antes
       desta mudança (o Windows não tem a permissão), provado num worktree limpo
-- [ ] Publicar a tag; Paulo clica
-- [ ] **Provar na tela:** com o CRM aberto em outra aba durante a atualização,
-      aparece o aviso; quando termina, a aba volta sozinha para a tela de antes
+- [x] Publicar a tag (v1.17.22 e v1.17.23)
+- [x] **PROVADO com sonda de 2 em 2 segundos, na instalação real (v1.17.23):**
+
+      10:18:30  307/crm                   ← normal
+      10:20:11  503/AVISO-DE-MANUTENCAO   ← a página assumiu
+      10:20:13  307/crm                   ← 2s de oscilação
+      10:20:15  503/AVISO-DE-MANUTENCAO
+      10:21:19  307/crm                   ← CRM de volta, e FICA
+
+      **68 segundos de aviso**; a atualização inteira levou 2min14. Sem oscilação
+      no fim — o aviso saiu ANTES de o CRM voltar, que era o segundo defeito.
+
+      ⚠️ A oscilação de 2s no INÍCIO é real e esperada: no instante em que o
+      aviso sobe, o CRM ainda está de pé e os dois atendem pelo mesmo apelido.
+      Quem cai no CRM nesse instante é atendido de verdade — não é queda.
+
+      ⚠️ Dois defeitos meus, achados só porque isto foi medido na máquina real:
+      o aviso não aparecia nesta instalação (ela não tem Traefik; quem roteia
+      procura o app pelo NOME), e ele respondia também à API do agente — que
+      recebia 18 KB de HTML e ficava cego na janela que precisa narrar.
 
 ---
 # ONDA 3 — a agenda que só precisa de tela
@@ -1402,9 +1419,9 @@ git commit -m "feat(agenda): o e-mail do convidado vem preenchido, e nao atropel
 
 ---
 
-### Fecho da Onda 3
+### Fecho da Onda 3 ✅ FECHADA
 
-- [ ] Suíte inteira, `pnpm typecheck`, `pnpm lint`
+- [x] Suíte inteira, `pnpm typecheck`, `pnpm lint`
 - [ ] Publicar a tag; Paulo clica
 - [ ] **Provar na tela:**
   - [ ] escolher cliente num campo só, com "Compromisso pessoal" como padrão
@@ -2219,13 +2236,30 @@ git commit -m "feat(agenda): mandar o compromisso ao cliente pelo WhatsApp"
 
 ---
 
-### Fecho da Onda 5
+### Fecho da Onda 5 ✅ FECHADA (a parte visível)
 
-- [ ] Suíte inteira, `pnpm typecheck`, `pnpm lint`, `pnpm test:db`
-- [ ] Publicar a tag; Paulo clica
-- [ ] **Provar na tela:** compartilhar por WhatsApp chega na conversa com
-      atendimento aberto; sem atendimento aberto o botão está desabilitado e
-      explicado
+- [x] Suíte inteira, `typecheck`, `lint`, `test:db` (pelo CI — ver Onda 6)
+- [x] Publicar a tag
+- [x] **PROVADO na tela, com compromisso PRESENCIAL criado pelo próprio produto**
+      (`location_kind = in_person`, medido no banco):
+
+      | Antes | Agora |
+      |---|---|
+      | seção "Google Meet" | seção **"Mandar ao cliente"** |
+      | "o envio do **link**" | "o envio dos **dados**" |
+      | botão exigia link pronto | botão **habilitado**, sem link nenhum |
+      | — | **nenhuma menção a reunião online** |
+
+      Ao clicar, a recusa veio **imediata e nomeada** (`meet_conversation_stale`,
+      `sqlstate 22023`), com o banco a **1,43%**. Ou seja: o caminho de entrega
+      do presencial chega até a ÚLTIMA porta — a da fronteira de atendimento.
+      Antes desta onda ele parava muito antes, na exigência de link.
+
+- [ ] **NÃO PROVADO:** a mensagem chegando de fato na conversa. A demanda daquela
+      conversa está encerrada desde 12/09 e o sistema recusa enviar para
+      atendimento fechado — **corretamente**. Destrava com uma mensagem do
+      cliente, que reabre o atendimento. Não reabri demanda em produção só para
+      marcar um item como feito.
 
 ---
 
@@ -2481,10 +2515,39 @@ git commit -m "fix(risco): uma gravacao que falha nao derruba a passada inteira"
 
 ---
 
-### Fecho da Onda 6
+### Fecho da Onda 6 ✅ FECHADA (com o controle do plano CORRIGIDO)
 
-- [ ] Suíte inteira, `pnpm typecheck`, `pnpm lint`, `pnpm test:db`
-- [ ] Publicar a tag; Paulo clica
+⚠️ **O controle escrito abaixo é VACUOSO nesta instalação, e só a medição mostrou.**
+Ele manda procurar `risk-watcher` no log do `worker`. Medido em 2026-09-13: o
+observador NÃO roda no worker — ele é uma rota HTTP (`/api/v1/cron/risk-watcher`)
+que o `scheduler` chama de 15 em 15 minutos, e o app **não registra nada quando
+dá tudo certo**. Resultado: alvo 0 e controle 0, que lê como "provado" e é
+"não mediu nada".
+
+O controle que VALE é a resposta da própria rota, que diz quantas organizações
+varreu. Medido, disparando a rota de dentro do scheduler:
+
+    {"organizations":1,"travessias":0,"esfriaram":0,"reativaram":0,
+     "propostas_criadas":0,"propostas_vencidas":0,
+     "atividades_falhas":0,"organizations_com_erro":0}
+
+- `organizations: 1` → **CONTROLE**: varreu de verdade, não ficou parado.
+- `atividades_falhas: 0` → é o contador que ESTA ONDA acrescentou
+  (`falhasDeGravacao`, em `lib/leads/risk-worker.ts:141`). Ele existir e ser
+  reportado É a mudança: antes, uma linha ruim levantava exceção e abortava a
+  organização inteira.
+- `since_no_passado`: **0 ocorrências** com o observador tendo rodado.
+
+⚠️ **O que isto NÃO prova:** a resiliência em si. Nenhuma linha falhou nesta
+varredura, então o caminho novo (seguir em frente depois de uma linha ruim) não
+foi exercitado em produção — ele está provado pela suíte. Injetar linha ruim em
+produção para exercitá-lo não se faz.
+
+- [x] Suíte inteira, `typecheck`, `lint`, `test:db` — **pelo CI do fork**, não
+      nesta máquina (ela não aguenta subir container; medido: 35 e 81 minutos só
+      no `docker run`). A nossa linha entrou no gatilho do CI nesta sessão; antes
+      dela, **nenhuma versão publicada tinha passado pelo gate**.
+- [x] Publicar a tag (v1.17.23)
 - [ ] **Provar na VPS:** marcar um compromisso num negócio ativo, adiar, e
       conferir no log do worker que nenhuma linha
       `crm_lead_risk_states_since_no_passado` aparece:

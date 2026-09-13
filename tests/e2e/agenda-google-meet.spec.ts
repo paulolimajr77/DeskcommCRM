@@ -742,7 +742,12 @@ test("⛔ ONDA 4 — CONTROLE: mexer no que NÃO é horário não manda nada ao 
     const depois = await row(f, id);
     expect(depois.notes).toBe("só uma anotação interna");
     expect(depois.meeting_delivery.state).toBe("sent");
-    expect(depois.meeting_delivery.motivo).toBeUndefined();
+    // ⚠️ `motivo` NÃO fica vazio aqui, e eu errei ao escrever que ficaria: uma
+    // entrega que passou pelo caminho real sai carimbada com `primeiro_envio`.
+    // Vazio é o que se vê no invariante de banco, onde a entrega é semeada à
+    // mão. A pergunta que importa é a mesma e fica mais forte assim: o motivo
+    // continua o DE ANTES, e não virou `remarcado`.
+    expect(depois.meeting_delivery.motivo).toBe("primeiro_envio");
     expect(channel.bodies).toHaveLength(1);
   } finally {
     await page.close();

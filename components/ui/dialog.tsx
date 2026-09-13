@@ -42,7 +42,7 @@ const DialogContent = React.forwardRef<
         ref={ref}
         className={cn(
           // ⚠️ `[&>*]:min-w-0` — filho de `grid` não encolhe abaixo do próprio
-          // conteúdo (`min-width: auto` é o default). Um nome de sessão WAHA
+          // conteúdo (`min-width: auto` é o default). Um nome de sessão de canal
           // (`org_043c9d27_5a168…`) é UMA palavra indivisível de 375px; num
           // celular de 360px sobram 280px para o título, e ele escapava da
           // borda. Medido na instalação de produção em 2026-09-11, com a caixa
@@ -108,7 +108,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      // `break-words`: sem isto, um identificador sem espaço (nome de sessão WAHA,
+      // `break-words`: sem isto, um identificador sem espaço (nome de sessão de canal,
     // e-mail longo, URL) é uma palavra só e escapa da borda do modal.
     // `leading-none` sai junto — com o texto quebrando em duas linhas ele
     // as fazia se tocarem.

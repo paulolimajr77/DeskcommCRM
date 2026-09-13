@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+
+import { podeTrocarOCliente, MOTIVO_NAO_PODE_TROCAR } from "@/lib/agenda/trocar-o-cliente";
 import type { Json } from "@/lib/database.types";
 /**
  * A REGRA de marcar, remarcar e cancelar — fora da rota, de propósito.
@@ -80,6 +82,18 @@ export interface AlterarInput {
   notes?: string;
   /** Igual ao de `MarcarInput`: `""` desconvida, ausente não mexe. */
   guest_email?: string;
+  /**
+   * Trocar QUEM será atendido, num compromisso que já existe.
+   *
+   * Não existia: a tela de remarcar escondia o bloco do cliente, e escondia com
+   * razão — a rota não aceitava. Quem marcasse para a pessoa errada só tinha o
+   * caminho de cancelar e marcar de novo.
+   *
+   * `null` desvincula; ausente não mexe. Só é aceito enquanto NADA foi enviado
+   * ao cliente — ver `podeTrocarOCliente`.
+   */
+  contact_id?: string | null;
+  conversation_id?: string | null;
 }
 
 export interface CancelarInput {
@@ -251,9 +265,13 @@ export async function alterarAgendamentoHandler(
     "event_type_id",
     "owner_user_id",
     "contact_id",
+    "conversation_id",
     "starts_at",
     "status",
     "time_zone",
+    // Lido porque é ELE que decide se trocar o cliente ainda é seguro — não o
+    // horário, não o status. Ver `podeTrocarOCliente`.
+    "meeting_delivery",
   ]);
 
   if (input.revision !== undefined && input.revision !== Number(atual.revision)) throw new ApiError(409,"conflict",undefined,ctx.requestId,"O compromisso mudou. Recarregue antes de confirmar.");
@@ -280,6 +298,49 @@ export async function alterarAgendamentoHandler(
   // gerada `needs_google_push` (migration 0225), que compara a revisão
   // publicável com o último aceite; notes e metadata não criam intenção.
   if (input.guest_email !== undefined) mudanca.guest_email = input.guest_email || null;
+
+  // ── TROCAR QUEM SERÁ ATENDIDO ──────────────────────────────────────────────
+  //
+  // A linha que separa o seguro do perigoso é a ENTREGA. Enquanto nada saiu, o
+  // vínculo é anotação interna. Depois que saiu, o endereço da reunião está no
+  // aparelho de alguém, e o produto não tem como recolhê-lo — trocar ali criaria
+  // um compromisso que diz pertencer a B enquanto A tem o link no WhatsApp.
+  if (input.contact_id !== undefined || input.conversation_id !== undefined) {
+    const entrega = (atual.meeting_delivery ?? null) as { state?: string } | null;
+    if (!podeTrocarOCliente(entrega?.state)) {
+      throw new ApiError(
+        422,
+        "agenda_cliente_ja_avisado",
+        undefined,
+        ctx.requestId,
+        MOTIVO_NAO_PODE_TROCAR,
+      );
+    }
+    // Mesmo cuidado do caminho de marcar: `contact_id` é INPUT EXTERNO e é
+    // resolvido contra a organização, nunca repassado cru. Sem isto, a rota de
+    // alterar seria a porta que o `marcarAgendamentoHandler` já fechou.
+    if (input.contact_id) {
+      const { data: contato, error: erroContato } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("id", input.contact_id)
+        .eq("organization_id", ctx.organization_id)
+        .maybeSingle();
+      if (erroContato) {
+        throw new ApiError(500, "internal_error", undefined, ctx.requestId, erroContato.message);
+      }
+      if (!contato) {
+        throw new ApiError(404, "not_found", undefined, ctx.requestId, "Contato não encontrado.");
+      }
+    }
+    if (input.contact_id !== undefined) mudanca.contact_id = input.contact_id || null;
+    // A conversa acompanha o contato: deixá-la apontando para o atendimento de
+    // OUTRA pessoa é pior que deixá-la vazia — é de lá que sai a fronteira que
+    // autoriza a entrega.
+    if (input.conversation_id !== undefined) mudanca.conversation_id = input.conversation_id || null;
+    else if (input.contact_id !== undefined) mudanca.conversation_id = null;
+  }
+
   let transicao: Transicao | null = null;
 
   if (input.starts_at) {

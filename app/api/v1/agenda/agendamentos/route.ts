@@ -100,6 +100,15 @@ const alterarSchema = z
     status: z.enum(["confirmed", "completed", "no_show"]).optional(),
     notes: z.string().max(2000).optional(),
     guest_email: emailDoConvidado.optional(),
+    /**
+     * Trocar QUEM será atendido. `null` desvincula; ausente não mexe.
+     *
+     * Só passa enquanto NADA foi enviado ao cliente — o handler recusa com
+     * `agenda_cliente_ja_avisado` depois disso, porque o endereço da reunião já
+     * está no aparelho de alguém e o produto não tem como recolhê-lo.
+     */
+    contact_id: z.string().uuid().nullable().optional(),
+    conversation_id: z.string().uuid().nullable().optional(),
   })
   .refine(
     (c) =>
@@ -107,7 +116,9 @@ const alterarSchema = z
       c.starts_at !== undefined ||
       c.status !== undefined ||
       c.notes !== undefined ||
-      c.guest_email !== undefined,
+      c.guest_email !== undefined ||
+      c.contact_id !== undefined ||
+      c.conversation_id !== undefined,
     {
       message: "Informe pelo menos um campo para alterar.",
     },

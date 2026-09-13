@@ -209,3 +209,59 @@ test("remarcar pela tela: o painel abre em modo remarcar e o horário muda", asy
     })
     .toContain(rotuloNovo);
 });
+
+test("⛔ editar abre PREENCHIDO: tipo, observação e convidado vêm do compromisso", async ({
+  page,
+}) => {
+  // O RELATO de quem usa: "Página do form de agendamento como edição não
+  // funciona direito. Não seleciona usuário, conversa, observação."
+  //
+  // A causa era o handler inteiro do botão Remarcar:
+  //
+  //     onRemarcar={(id) => { setRemarcandoId(id); setMarcando(true); }}
+  //
+  // Guardava o id, abria o painel, e mais nada. O formulário de EDITAR nascia
+  // com os valores do de MARCAR — tipo errado (o primeiro da lista), observação
+  // em branco, convidado em branco.
+  //
+  // ⚠️ E o tipo errado não é só enfeite: ele governa QUAIS HORÁRIOS a tela
+  // oferece. Abrir no tipo errado leva a pessoa a escolher entre horários de
+  // outra duração sem ter como saber.
+  const creds = lerCreds();
+  if (!creds.agenda) throw new Error("sem bloco agenda");
+  const diasDaSemana = await entrar(page, creds);
+
+  // Marca JÁ com observação e convidado, para ter o que reabrir.
+  await page.getByRole("button", { name: /novo agendamento/i }).click();
+  await expect(page.getByTestId("painel-de-marcacao")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("tipos-de-agendamento")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: new RegExp(`^${creds.agenda.tipo_nome}`) }).click();
+  await page.getByTestId("observacao-do-compromisso").fill("levar o contrato assinado");
+  await page.getByLabel(/e-?mail do convidado/i).fill("convidado@exemplo.com");
+  await escolherDiaDesenhado(page, diasDaSemana);
+  await page.locator('[data-testid^="horario-"]').first().click();
+  await page.getByTestId("confirmar-marcacao").click();
+  await expect(page.getByTestId("ver-na-agenda")).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+
+  // Reabre em modo EDIÇÃO.
+  const historico = page.getByTestId("historico-da-agenda");
+  await historico.getByRole("button", { name: /^Remarcar$/ }).first().click();
+  await expect(page.getByRole("heading", { name: /Remarcar agendamento/ })).toBeVisible({
+    timeout: 10_000,
+  });
+
+  // ── O QUE O RELATO PEDIA ───────────────────────────────────────────────
+  await expect(
+    page.getByTestId("observacao-do-compromisso"),
+    "a observação abriu em branco — o formulário de editar não carregou o compromisso",
+  ).toHaveValue("levar o contrato assinado", { timeout: 15_000 });
+  await expect(page.getByLabel(/e-?mail do convidado/i)).toHaveValue("convidado@exemplo.com");
+  // O tipo do compromisso, e não o primeiro da lista.
+  await expect(
+    page.getByRole("button", { name: new RegExp(`^${creds.agenda.tipo_nome}`) }),
+  ).toHaveAttribute("aria-pressed", "true");
+  // E o bloco do cliente passa a existir na edição — antes ele era escondido,
+  // porque a rota `PATCH` não aceitava trocar cliente nem conversa.
+  await expect(page.getByLabel(/quem será atendido/i)).toBeVisible();
+});

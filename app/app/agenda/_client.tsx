@@ -33,7 +33,23 @@ import {
 } from "@/hooks/agenda/useRemarcarAgendamento";
 import { usePessoasDaAgenda } from "@/hooks/agenda/usePessoasDaAgenda";
 import { CalendarPlus, CaretLeft, CaretRight } from "@/lib/ui/icons";
+import { apiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+
+/**
+ * O recorte da rota de detalhe que o formulário de EDIÇÃO precisa.
+ *
+ * Só os campos que o formulário preenche — não o objeto inteiro. A rota devolve
+ * muito mais (Meet, sincronização do Google, recuperação de presença), e copiar
+ * tudo aqui criaria uma segunda declaração da mesma verdade para manter em dia.
+ */
+type CompromissoParaEdicao = {
+  event_type_id?: string | null;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  guest_email?: string | null;
+  notes?: string | null;
+};
 
 const VISOES: Array<{ id: VisaoDaAgenda; rotulo: string }> = [
   { id: "dia", rotulo: "Dia" },
@@ -161,6 +177,35 @@ export function AgendaClient({
   // uma. Achado escrevendo a spec de marcar, não lendo o código.
   const [tipoId, setTipoId] = React.useState<string | null>(() => tiposIniciais[0]?.id ?? null);
   const tipo = tiposIniciais.find((t) => t.id === tipoId) ?? tiposIniciais[0] ?? null;
+
+  // Busca o compromisso para PREENCHER o formulário de edição.
+  //
+  // A lista da grade não serve: `Agendamento` (components/agenda/tipos.ts) tem
+  // título, horários e situação — não tem observação, convidado, cliente nem
+  // tipo. Quem tem é a rota de detalhe, que a tela do compromisso já usa.
+  //
+  // Falha em silêncio de propósito: o painel abre de qualquer jeito e a pessoa
+  // remarca o horário, que é o que ela veio fazer. Bloquear a remarcação porque
+  // a observação não carregou seria trocar um incômodo por um impedimento.
+  const carregarParaEdicao = React.useCallback(async (id: string) => {
+    try {
+      const { data } = await apiClient.get<{ data: CompromissoParaEdicao }>(
+        `/api/v1/agenda/agendamentos/${id}`,
+      );
+      if (data.event_type_id) setTipoId(data.event_type_id);
+      setContactId(data.contact_id ?? "");
+      setConversationId(data.conversation_id ?? "");
+      setEmailConvidado(data.guest_email ?? "");
+      setObservacao(data.notes ?? "");
+      // Quem abriu para editar NÃO tocou no campo do convidado — o marcador
+      // precisa nascer limpo, senão a regra de `emailDoConvidadoAoTrocarDeCliente`
+      // leria o preenchimento automático como decisão de gente e travaria a
+      // troca de cliente que vem logo em seguida.
+      setConvidadoTocado(false);
+    } catch {
+      /* o painel abre mesmo assim; remarcar o horário continua possível */
+    }
+  }, []);
   const [visao, setVisao] = React.useState<VisaoDaAgenda>("semana");
   const [isolada, setIsolada] = React.useState<string | null>(null);
   const [ancora, setAncora] = React.useState(() => new Date());
@@ -565,7 +610,19 @@ export function AgendaClient({
           <SheetHeader>
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
           </SheetHeader>
-            {!remarcandoId?<VinculoDaMarcacao contactId={contactId} conversationId={conversationId} onChange={(contact,conversation,email)=>{setContactId(contact);setConversationId(conversation);setEmailConvidado(emailDoConvidadoAoTrocarDeCliente({atual:emailConvidado,tocado:convidadoTocado,emailDoCliente:email}));}} onEmailDoCliente={avisarEmailDoCliente}/>:null}
+            {/* ⛔ ESTA LINHA ERA `{!remarcandoId ? <VinculoDaMarcacao/> : null}`.
+                O bloco do cliente sumia ao EDITAR — e sumia com razão, porque a
+                rota `PATCH` não aceitava `contact_id` nem `conversation_id`:
+                trocar o cliente de um compromisso simplesmente não existia no
+                produto. Quem marcasse para a pessoa errada só podia cancelar e
+                marcar de novo.
+
+                Agora a rota aceita, e o bloco aparece nos dois modos. A guarda
+                não é da tela: o servidor recusa a troca depois que os dados
+                foram enviados ao cliente (`agenda_cliente_ja_avisado`), porque
+                o endereço da reunião já está no aparelho de alguém e o produto
+                não tem como recolhê-lo. */}
+            <VinculoDaMarcacao contactId={contactId} conversationId={conversationId} onChange={(contact,conversation,email)=>{setContactId(contact);setConversationId(conversation);setEmailConvidado(emailDoConvidadoAoTrocarDeCliente({atual:emailConvidado,tocado:convidadoTocado,emailDoCliente:email}));}} onEmailDoCliente={avisarEmailDoCliente}/>
           {tiposIniciais.length > 1 && (
             <div className="mt-4" data-testid="tipos-de-agendamento">
               <p className="mb-2 text-xs font-medium text-text-muted">{t("Tipo de agendamento")}</p>
@@ -728,7 +785,21 @@ export function AgendaClient({
                   const convidado = emailConvidadoLimpo || undefined;
                   if (remarcandoId) {
                     return remarcar
-                      .mutateAsync({ id: remarcandoId,revision:agendamentos.find(a=>a.id===remarcandoId)?.revision, starts_at: instante, guest_email: convidado, notes: observacao || undefined })
+                      .mutateAsync({
+                        id: remarcandoId,
+                        revision: agendamentos.find((a) => a.id === remarcandoId)?.revision,
+                        starts_at: instante,
+                        guest_email: convidado,
+                        notes: observacao || undefined,
+                        // Vão SEMPRE, e não `|| undefined`: aqui o campo em
+                        // branco É a decisão de desvincular. O formulário agora
+                        // nasce preenchido com o que está gravado, então "vazio"
+                        // só acontece quando alguém apagou de propósito —
+                        // ao contrário de `notes`, que o servidor ignora quando
+                        // ausente justamente para não apagar o que não se viu.
+                        contact_id: contactId || null,
+                        conversation_id: conversationId || null,
+                      })
                       .then((r) => {
                         setRemarcandoId(null);
                         setMarcando(false);
@@ -881,6 +952,23 @@ export function AgendaClient({
         onRemarcar={(id) => {
           setRemarcandoId(id);
           setMarcando(true);
+          // ⛔ ABRIR O PAINEL SEM CARREGAR O COMPROMISSO ERA O DEFEITO.
+          //
+          // Estas duas linhas eram o handler INTEIRO: guardavam o id, abriam o
+          // painel, e mais nada. O formulário de EDITAR nascia com os valores do
+          // formulário de MARCAR — tipo errado (o primeiro da lista), observação
+          // em branco, e-mail do convidado em branco, cliente em branco.
+          //
+          // Relatado por quem usa: "não seleciona usuário, conversa,
+          // observação". E não era só feio: o seletor de tipo governa QUAIS
+          // HORÁRIOS a tela oferece, então abrir no tipo errado leva a pessoa a
+          // escolher entre horários de outra duração sem saber.
+          //
+          // O que salvava de virar perda de dado é que a confirmação omite campo
+          // vazio (`notes: observacao || undefined`), então remarcar nunca
+          // APAGOU a observação — só escondia. Quem digitasse algo, porém,
+          // substituía sem ver o que havia.
+          void carregarParaEdicao(id);
         }}
         onCancelar={(id) => {
           setMotivo("");

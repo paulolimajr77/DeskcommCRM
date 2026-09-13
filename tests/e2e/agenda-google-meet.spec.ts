@@ -666,14 +666,21 @@ test("⛔ ONDA 4: remarcar depois de enviado manda a CORREÇÃO sozinho, dizendo
     expect(primeira).toContain(link);
 
     // ── REMARCAR, pelo mesmo caminho que a tela usa ────────────────────────
-    // Arrasta o compromisso INTEIRO: quem move o começo move o fim junto. Mexer
-    // só no `starts_at` bate em `calendar_appointments_periodo_valido` e o
-    // vermelho fala de "período inválido", não do gatilho — já custou uma rodada.
+    //
+    // ⚠️ O endereço é a COLEÇÃO, e o `id` vai no CORPO — é assim que
+    // `useRemarcarAgendamento` chama. Mandar para
+    // `/api/v1/agenda/agendamentos/${id}` devolve **405**: aquele caminho só tem
+    // `GET`. Foi o que esta linha fez na primeira versão.
+    //
+    // E não se manda `ends_at`: o fim é RECALCULADO pelo servidor a partir da
+    // duração do tipo do próprio compromisso. Quem precisa arrastar os dois
+    // juntos é quem escreve direto no banco — lá, mexer só no começo bate em
+    // `calendar_appointments_periodo_valido`, e o vermelho fala de "período
+    // inválido" em vez do gatilho.
     const antes = await row(f, id);
     const novoInicio = new Date(Date.parse(antes.starts_at) + 24 * 3600_000).toISOString();
-    const novoFim = new Date(Date.parse(antes.ends_at) + 24 * 3600_000).toISOString();
-    const patch = await page.request.patch(`/api/v1/agenda/agendamentos/${id}`, {
-      data: { starts_at: novoInicio, ends_at: novoFim, revision: String(antes.revision) },
+    const patch = await page.request.patch("/api/v1/agenda/agendamentos", {
+      data: { id, starts_at: novoInicio, revision: Number(antes.revision) },
     });
     expect(patch.status(), await patch.text()).toBe(200);
 
@@ -702,11 +709,11 @@ test("⛔ ONDA 4: remarcar depois de enviado manda a CORREÇÃO sozinho, dizendo
   }
 });
 
-test("⛔ ONDA 4 — CONTROLE: mexer só no TÍTULO não manda nada ao cliente", async ({ page }) => {
+test("⛔ ONDA 4 — CONTROLE: mexer no que NÃO é horário não manda nada ao cliente", async ({ page }) => {
   // A guarda que impede o conserto de virar defeito novo. Um gatilho que
-  // reagisse a QUALQUER `update` na linha faria uma correção de digitação no
-  // título mandar mensagem ao cliente — pior que o defeito original, porque
-  // acontece sozinho e sem ninguém pedir.
+  // reagisse a QUALQUER `update` na linha faria uma anotação interna virar
+  // mensagem ao cliente — pior que o defeito original, porque acontece sozinho
+  // e sem ninguém pedir.
   const f = await fixture(),
     google = await googleReceiver(),
     channel = await deliveryReceiver(),
@@ -721,14 +728,19 @@ test("⛔ ONDA 4 — CONTROLE: mexer só no TÍTULO não manda nada ao cliente",
     await deliver(f, id, pool);
     expect(channel.bodies).toHaveLength(1);
 
+    // ⚠️ `title` NÃO é campo da rota de alterar (o schema aceita `starts_at`,
+    // `status`, `notes`, `guest_email` e agora o vínculo). O jeito de mexer só
+    // numa coisa que o gatilho deve IGNORAR é a observação — ela é gravada, é
+    // visível, e não tem nada a ver com horário. O caso continua sendo o mesmo:
+    // mudar algo que não é horário nem fuso não pode mandar mensagem.
     const antes = await row(f, id);
-    const patch = await page.request.patch(`/api/v1/agenda/agendamentos/${id}`, {
-      data: { title: "Outro nome", revision: String(antes.revision) },
+    const patch = await page.request.patch("/api/v1/agenda/agendamentos", {
+      data: { id, notes: "só uma anotação interna", revision: Number(antes.revision) },
     });
     expect(patch.status(), await patch.text()).toBe(200);
 
     const depois = await row(f, id);
-    expect(depois.title).toBe("Outro nome");
+    expect(depois.notes).toBe("só uma anotação interna");
     expect(depois.meeting_delivery.state).toBe("sent");
     expect(depois.meeting_delivery.motivo).toBeUndefined();
     expect(channel.bodies).toHaveLength(1);

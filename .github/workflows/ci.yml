@@ -3,7 +3,18 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    # ── ADAPTAÇÃO DO FORK (paulolimajr77) ──────────────────────────────────
+    # `vps/pljr-combinada` é a linha que a VPS instala. Ela não é `main` e não
+    # passa por PR antes de virar versão publicada — então, sem esta linha, o
+    # código que vai para a instalação real **nunca vê o `invariants`**.
+    #
+    # MEDIDO em 2026-09-13: a máquina onde o trabalho acontece não aguenta subir
+    # o Postgres efêmero do `pnpm test:db` — duas rodadas na mesma madrugada
+    # ficaram 35 e 81 minutos só no `docker run`, sem veredito. O gate de banco
+    # da nossa linha passa a ser ESTE, e não o computador.
+    #
+    # Inerte no repositório de origem: lá não existe branch com este nome.
+    branches: [main, vps/pljr-combinada]
 
 # O GITHUB_TOKEN destes jobs serve a `actions/checkout` (clone) e a
 # `actions/setup-node` (manifest de `actions/node-versions`, repo público) —

@@ -240,13 +240,26 @@ test("⛔ editar abre PREENCHIDO: tipo, observação e convidado vêm do comprom
   await page.getByLabel(/e-?mail do convidado/i).fill("convidado@exemplo.com");
   await escolherDiaDesenhado(page, diasDaSemana);
   await page.locator('[data-testid^="horario-"]').first().click();
+  // ⚠️ O ID VEM DA RESPOSTA, e não se usa `.first()` no histórico.
+  //
+  // Este arquivo tem outros casos que marcam com a MESMA conta, e o histórico
+  // acumula os compromissos de todos. `.first()` pega a primeira linha da lista,
+  // que não é necessariamente a que este caso acabou de criar — e a asserção
+  // então reprova por olhar o compromisso errado, dizendo "a observação abriu em
+  // branco" sobre um compromisso que de fato nunca teve observação. Foi
+  // exatamente assim que a primeira versão deste caso falhou no CI.
+  const salvo = page.waitForResponse(
+    (r) =>
+      new URL(r.url()).pathname === "/api/v1/agenda/agendamentos" &&
+      r.request().method() === "POST",
+  );
   await page.getByTestId("confirmar-marcacao").click();
+  const id = (await (await salvo).json()).data.id as string;
   await expect(page.getByTestId("ver-na-agenda")).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press("Escape");
 
-  // Reabre em modo EDIÇÃO.
-  const historico = page.getByTestId("historico-da-agenda");
-  await historico.getByRole("button", { name: /^Remarcar$/ }).first().click();
+  // Reabre em modo EDIÇÃO — o compromisso DESTE caso, pelo id.
+  await page.getByTestId(`remarcar-${id}`).click();
   await expect(page.getByRole("heading", { name: /Remarcar agendamento/ })).toBeVisible({
     timeout: 10_000,
   });
@@ -263,5 +276,10 @@ test("⛔ editar abre PREENCHIDO: tipo, observação e convidado vêm do comprom
   ).toHaveAttribute("aria-pressed", "true");
   // E o bloco do cliente passa a existir na edição — antes ele era escondido,
   // porque a rota `PATCH` não aceitava trocar cliente nem conversa.
-  await expect(page.getByLabel(/quem será atendido/i)).toBeVisible();
+  //
+  // ⚠️ O rótulo é "Cliente do compromisso", e não "Quem será atendido": a Onda 3
+  // juntou os dois campos num só. Eu copiei o nome velho ao escrever este caso, e
+  // o CI pegou — na mesma execução em que pegou a mesma cópia dentro do
+  // `agenda-google-meet.spec.ts`.
+  await expect(page.getByText("Cliente do compromisso")).toBeVisible();
 });

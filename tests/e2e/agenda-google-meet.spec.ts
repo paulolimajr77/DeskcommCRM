@@ -175,7 +175,18 @@ async function book(page: Page, f: Fixture) {
   await page.goto(`/app/inbox/${f.conversation}`);
   await page.getByRole("link", { name: "Marcar compromisso", exact: true }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible();
-  await expect(page.getByLabel("Quem será atendido")).toHaveValue(f.contact);
+  // ⛔ ESTAS DUAS ASSERÇÕES ERAM `getByLabel("Quem será atendido")` com
+  // `toHaveValue(f.contact)` — e estavam quebradas desde que a escolha do
+  // cliente virou UM CAMPO SÓ: o rótulo passou a ser "Cliente do compromisso" e
+  // o controle deixou de ser um `select` que guarda o id para ser um combobox
+  // que MOSTRA O NOME. `toHaveValue(uuid)` não tem como passar num campo assim.
+  //
+  // ⚠️ Ninguém soube porque o job `e2e` dispara em `main` e em PR, e a
+  // `vps/pljr-combinada` não é nenhum dos dois — ele nunca rodou sobre esta
+  // linha. É o mesmo buraco que deixou `"Link já enviado"` sobreviver a três
+  // versões publicadas, encontrado na mesma execução.
+  await expect(page.getByText("Cliente do compromisso")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tirar o cliente" })).toBeVisible();
   await expect(page.getByLabel("Conversa vinculada (opcional)")).toHaveValue(f.conversation);
   await page.keyboard.press("Escape");
   const days = await irParaASemanaSeguinte(page);

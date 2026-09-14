@@ -654,20 +654,53 @@ export async function patchContactHandler(
 // delete
 // ---------------------------------------------------------------------------
 
+/**
+ * A recusa do banco NOMEIA quem travou; a nossa frase não nomeava nada.
+ *
+ * "o contato ainda tem registros vinculados" é verdadeira e inútil: quem lê não
+ * sabe o que fazer, e quem dá suporte não sabe o que olhar. Em 2026-09-14 ela
+ * escondeu DUAS travas diferentes no mesmo dia — a agenda e o rascunho de
+ * resposta da IA —, e nas duas vezes o caminho para o diagnóstico foi ir ao
+ * banco à mão.
+ *
+ * O Postgres já diz tudo na mensagem do 23503:
+ *   update or delete on table "messages" violates foreign key constraint
+ *   "ai_reply_drafts_message_id_fkey" on table "ai_reply_drafts"
+ *
+ * A ÚLTIMA tabela citada é a que segura. Quando ela é conhecida, a frase diz o
+ * que fazer; quando não é, a frase continua honesta e o nome técnico vai em
+ * `details`, para quem dá suporte não precisar de acesso ao banco.
+ */
+const QUEM_SEGURA: Record<string, string> = {
+  calendar_appointments: "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.",
+  ai_reply_drafts: "Este contato tem sugestão de resposta da IA pendente. Resolva na Central antes de excluir.",
+};
+
+function tabelaQueSegurou(mensagem: string): string | null {
+  const citadas = [...mensagem.matchAll(/on table "([a-z_]+)"/g)].map((m) => m[1]);
+  return citadas.length > 0 ? (citadas[citadas.length - 1] ?? null) : null;
+}
+
 function throwOnDbError(
   err: { code?: string; message: string } | null,
   requestId: string,
   idioma: Idioma = "pt-BR",
 ): void {
   if (!err) return;
-  // conversations/messages apontam para contacts com ON DELETE RESTRICT.
+  // conversations/messages apontam para contacts com ON DELETE RESTRICT — e o
+  // que trava `messages` trava este handler por tabela.
   if (err.code === "23503") {
+    const tabela = tabelaQueSegurou(err.message);
+    const conhecida = tabela !== null ? QUEM_SEGURA[tabela] : undefined;
     throw new ApiError(
       409,
       "state_conflict",
-      undefined,
+      tabela !== null ? { blocked_by: tabela } : undefined,
       requestId,
-      traduzir("Não foi possível excluir: o contato ainda tem registros vinculados.", idioma),
+      traduzir(
+        conhecida ?? "Não foi possível excluir: o contato ainda tem registros vinculados.",
+        idioma,
+      ),
     );
   }
   throw new ApiError(500, "internal_error", undefined, requestId, err.message);

@@ -24041,10 +24041,10 @@ begin
       'alter table public.calendar_appointments drop constraint %I', nome_da_fk);
   end if;
 
-  -- O Postgres não tem `add constraint if not exists`: a forma idempotente aqui
-  -- é `drop constraint if exists` + `add`, que torna idempotente a REGRA e não
-  -- só a criação. Vem depois do drop dinâmico acima de propósito — aquele
-  -- alcança o nome legado, este alcança o nome canônico.
+  -- O Postgres não aceita `if not exists` ao adicionar constraint: a forma
+  -- idempotente aqui é `drop constraint if exists` + `add`, que torna idempotente
+  -- a REGRA e não só a criação. Vem depois do drop dinâmico acima de propósito —
+  -- aquele alcança o nome legado, este alcança o nome canônico.
   execute 'alter table public.calendar_appointments
              drop constraint if exists calendar_appointments_contact_id_fkey';
   execute 'alter table public.calendar_appointments
@@ -24099,7 +24099,7 @@ begin
       'alter table public.ai_reply_drafts drop constraint %I', nome_da_fk);
   end if;
 
-  -- O Postgres não tem `add constraint if not exists`: a forma idempotente é
+  -- O Postgres não aceita `if not exists` ao adicionar constraint: a forma
   -- `drop constraint if exists` + `add`, que torna idempotente a REGRA e não só
   -- a criação.
   execute 'alter table public.ai_reply_drafts

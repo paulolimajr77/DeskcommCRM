@@ -321,7 +321,16 @@ test("testa sem enviar, pausa preserva publicação e duas aprovações entregam
       chatId: "15551234567@c.us",
       text: "Maria, confirmei as informações e posso ajudar por aqui.",
     });
-    await expect(panel(page).getByText("Resposta aprovada enviada", { exact: true })).toBeVisible();
+    // ⏱️ 15s, e não os 5s do padrão. Quem escreve "sent" é o CONSUMIDOR do job,
+    // fora do browser: quando `deliver` retorna, o banco já tem `sent` (ele
+    // mesmo confere) e o receiver já tem a mensagem — mas a tela só descobre no
+    // próximo giro do `refetchInterval: 4000` do `ReplyReviewPanel`. Poll de 4s
+    // contra teto de 5s é corrida: sobra menos de um segundo para a resposta
+    // chegar e o React pintar, e no CI isso não sobra. Medido: reprovou em cinco
+    // rodadas seguidas sempre nesta linha, com o dado correto no banco.
+    await expect(panel(page).getByText("Resposta aprovada enviada", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await inbound(f, "Obrigada, pode continuar");
     const second = await generate(page);
     await panel(page)

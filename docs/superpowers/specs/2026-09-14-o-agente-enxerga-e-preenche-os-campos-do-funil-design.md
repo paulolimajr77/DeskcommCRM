@@ -1,7 +1,10 @@
 # O agente pergunta e preenche os campos que o dono declarou — design
 
 **Data:** 2026-09-14
-**Estado:** desenho aprovado em conversa; falta revisão do documento e o plano
+**Estado:** revisado contra o código em 2026-09-14 — três afirmações caíram na
+medição e estão corrigidas aqui (a fusão `display_name ?? name`, a condição do
+bloco de identificação, e as chaves serem coluna e não `config`).
+**Plano:** [`docs/superpowers/plans/2026-09-14-o-agente-pergunta-e-preenche-os-campos.md`](../plans/2026-09-14-o-agente-pergunta-e-preenche-os-campos.md)
 
 ---
 
@@ -184,8 +187,22 @@ sites"`), um apelido ou o próprio número. Não identifica, não serve para
 proposta, documento ou nota fiscal — e `name`, o campo que a empresa preencheria,
 fica nulo em todo contato que entra pelo canal.
 
-**Por que nunca é preenchido:** a ferramenta existe, está ligada no agente, e a
-descrição dela diz ao modelo:
+**Por que nunca é preenchido — e são DUAS causas, não uma.**
+
+**Primeira: o modelo nunca soube que falta.** O contexto entregue a ele funde as
+duas colunas, em `lib/agent-engine/edge/crm/get-lead-context.ts:280`:
+
+```ts
+name: contact.display_name ?? contact.name,
+```
+
+O modelo sempre enxerga um nome — `"Josué sites"` — e conclui que já sabe. **Por
+isso nenhum bloco de sistema resolveria sozinho:** mandar "pergunte o nome de
+quem não tem" a um modelo que lê um nome não produz pergunta nenhuma. Falta um
+campo que separe *nome confirmado pela empresa* de *texto vindo do aparelho*.
+
+**Segunda: ninguém mandou perguntar.** A ferramenta existe, e a descrição dela
+diz ao modelo:
 
 > *"**Registra** uma informação que o cliente forneceu (email, nome ou telefone)
 > como PROPOSTA para uma pessoa confirmar."*
@@ -202,8 +219,19 @@ grep -rn "SYSTEM_BLOCK" --include=*.ts lib/agent-engine | grep -v test   | grep 
 escrever. A diferença é que no funil falta a lista **e** a ordem de perguntar; no
 contato falta **só a ordem**.
 
-**Custo:** um bloco de sistema e uma regra. Nenhuma tabela, nenhuma migration,
-nenhuma tela, nenhuma ferramenta nova — a proposta já tem mecânica, tela e cron.
+**Custo:** um campo no contexto e um bloco de sistema. Nenhuma tabela, nenhuma
+migration, nenhuma tela, nenhuma ferramenta nova — a proposta já tem mecânica,
+tela e cron.
+
+⚠️ **O bloco é CONSTANTE, e a condição dele não é o contato.** Ele vai para o
+prefixo cacheado (`buildStablePrefix`), cujo módulo tem regra dura escrita —
+*"NADA volátil (timestamp, random, lead, contador) entra aqui"*. Um bloco que
+entra ou sai conforme o contato ter nome **invalidaria o cache a cada lead**, que
+é exatamente o erro denunciado na peça 1 abaixo. A condição é **por versão do
+agente**: `crm_propose_contact_field` estar entre as `toolIds` — ela está **fora**
+do pacote "Atender", por causa do teto de 25 capacidades, e um bloco que manda
+perguntar sem a ferramenta faz o agente prometer o que não consegue cumprir. A
+variação por contato viaja no **sufixo**, no campo novo do contexto.
 
 ⚠️ **Três travas, e as três são de conversa, não de código:**
 
@@ -329,9 +357,17 @@ vocabulário velho falha ao re-aplicar, e
 
 Separadas: quase todo mundo quer a primeira e não a segunda.
 
-⚠️ **Impacto em quem atualiza: nenhum.** Nascem `false`, como a chamada de voz.
-E `ai_agent_versions` é **imutável por gatilho** — ligar é publicar versão nova,
-desligar é mover o ponteiro.
+⚠️ **São COLUNAS em `ai_agent_versions`, não chaves em `config`.** Medido:
+`agent-config.ts:126` lê `a.config` — `config` é de **`ai_agents`**, o agente, não
+da versão. Em `config` a chave seria mutável e ficaria fora do versionamento e do
+diff de versões. Como coluna da versão, ela herda a imutabilidade por gatilho:
+ligar é publicar versão nova, desligar é mover o ponteiro. **O custo é real e foi
+medido:** coluna nova obriga a editar a lista literal de colunas repetida em 8
+arquivos — é o preço do versionamento, e ele se paga.
+
+⚠️ **Impacto em quem atualiza: nenhum.** Nascem `false`, e o mapeamento usa
+`?? false` como `operator_enabled` já faz — clone sem a migration recebe coluna
+ausente, e a direção segura é desligado.
 
 ---
 
@@ -356,7 +392,8 @@ de alguém.
 
 | Prova | O quê |
 |---|---|
-| unidade — identificação | contato sem `name` ⇒ o bloco de identificação entra; contato com `name` ⇒ **não** entra (não pergunta o que já sabe) |
+| unidade — identificação | `name` nulo e `display_name` preenchido ⇒ `nome_confirmado` **false**; `name` preenchido ⇒ **true**; `name` só de espaços ⇒ **false** |
+| unidade — identificação | sem `crm_propose_contact_field` nas `toolIds`, o bloco **não** entra — e o prefixo fica byte-idêntico ao de hoje |
 | unidade — e-mail com motivo | sem nada a enviar, o bloco não pede e-mail |
 | unidade — bloco | entra com a chave ligada; **sem a chave, os bytes do prefixo são idênticos aos de hoje** |
 | unidade — cache | o hash do prefixo é **igual** em dois leads diferentes da mesma org (definição no prefixo, valores no sufixo) |

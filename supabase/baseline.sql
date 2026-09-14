@@ -15218,7 +15218,7 @@ create table if not exists public.calendar_appointments (
   -- que a pessoa saia da empresa depois.
   owner_user_id uuid references auth.users(id) on delete set null,
 
-  -- QUEM VAI SER ATENDIDO. `cascade` desde a 0239, e a redação anterior deste
+  -- QUEM VAI SER ATENDIDO. `cascade` desde a 0247, e a redação anterior deste
   -- comentário é parte do defeito que ela conserta: ele dizia que
   -- conversations e messages eram "as duas únicas FKs RESTRICT do schema" —
   -- falso no instante em que foi escrito, porque este bloco estava criando a
@@ -23996,14 +23996,14 @@ create trigger trg_org_voice_calls_set_updated_at
 
 notify pgrst, 'reload schema';
 
--- ---- apagar um contato leva os compromissos dele junto (migration 0239) ----
+-- ---- apagar um contato leva os compromissos dele junto (migration 0247) ----
 --
 -- `calendar_appointments.contact_id` nasceu `on delete restrict` na 0177 e era
 -- a TERCEIRA FK que impede apagar um contato — o handler de exclusão contorna
 -- `conversations` e `messages` à mão e nunca soube desta. Como cancelar um
 -- compromisso é um `update status`, e nenhuma rota do produto apaga a linha,
 -- quem tinha compromisso na agenda ficava com o contato preso para sempre.
--- O argumento completo está no cabeçalho da migration 0239.
+-- O argumento completo está no cabeçalho da migration 0247.
 --
 -- Auto-curativo: a FK é procurada pela FORMA (coluna + destino), nunca pelo
 -- nome, porque um clone antigo pode tê-la com outro nome — e um

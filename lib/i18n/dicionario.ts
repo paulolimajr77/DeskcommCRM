@@ -6566,7 +6566,7 @@ export const DICIONARIO: Traducoes = {
   "chave (endereco)": { es: "clave (direccion)" },
   // A redação anterior — "e a conversa associada, se houver" — prometia MENOS
   // do que o botão faz: ele apaga todas as mensagens e todas as conversas
-  // daquele contato, e desde a migration 0239 leva junto os compromissos já
+  // daquele contato, e desde a migration 0247 leva junto os compromissos já
   // encerrados na agenda. Aviso menor que o ato é o mesmo defeito do aviso
   // maior que o ato, só que ninguém reclama porque funciona.
   "e todo o histórico de conversas e mensagens, e os compromissos já encerrados na agenda. Esta ação não pode ser desfeita.":

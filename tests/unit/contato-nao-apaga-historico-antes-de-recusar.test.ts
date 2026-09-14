@@ -14,7 +14,7 @@
  *
  * O caso 3 é o controle positivo: compromisso CANCELADO não recusa nada. Sem
  * ele, um handler que recusasse toda vez que a tabela tivesse qualquer linha
- * passaria nos outros dois e reintroduziria a prisão que a migration 0239
+ * passaria nos outros dois e reintroduziria a prisão que a migration 0247
  * conserta — cancelar é `update status`, a linha fica, e nenhuma rota do
  * produto apaga um compromisso.
  */

@@ -717,7 +717,7 @@ export async function deleteContactHandler(
   //
   // Compromisso cancelado, concluído ou não comparecido não tem esse problema:
   // ele some junto com o contato, pela FK `on delete cascade` da migration
-  // 0239 — antes dela, `restrict`, e ele prendia o contato PARA SEMPRE, porque
+  // 0247 — antes dela, `restrict`, e ele prendia o contato PARA SEMPRE, porque
   // cancelar é `update status` e nenhuma rota do produto apaga um compromisso.
   const { count: marcados, error: agendaErr } = await supabase
     .from("calendar_appointments")

@@ -70,7 +70,7 @@ beforeAll(() => {
   `);
 });
 
-describe("contato apagado leva os compromissos (migration 0239)", () => {
+describe("contato apagado leva os compromissos (migration 0247)", () => {
   it("a FK de contact_id está declarada como cascade no catálogo", () => {
     const regra = sql(`
       select con.confdeltype

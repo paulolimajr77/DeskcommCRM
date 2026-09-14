@@ -1,4 +1,4 @@
--- 0239 — apagar um contato leva os compromissos dele junto
+-- 0247 — apagar um contato leva os compromissos dele junto
 --
 -- O DEFEITO, medido numa instalação real
 -- ------------------------------------------------------------------------

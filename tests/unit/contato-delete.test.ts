@@ -14,7 +14,7 @@ const USUARIO = "c05e7a00-0000-4000-8000-0000000000a1";
 
 const chamadas: Array<{ tabela: string; op: string }> = [];
 
-function clienteFalso(opts?: { missing?: boolean; fk?: boolean }): unknown {
+function clienteFalso(opts?: { missing?: boolean; fk?: boolean; marcados?: number }): unknown {
   return {
     from: (tabela: string) => {
       const del = {
@@ -30,16 +30,25 @@ function clienteFalso(opts?: { missing?: boolean; fk?: boolean }): unknown {
           }),
       };
       return {
-        select: () => ({
-          eq: () => ({
-            eq: () => ({
-              maybeSingle: async () =>
-                opts?.missing
-                  ? { data: null, error: null }
-                  : { data: { id: CONTATO, organization_id: ORG }, error: null },
+        // A LEITURA tem duas formas agora: a ficha (`…eq().eq().maybeSingle()`)
+        // e a contagem de compromissos ainda marcados
+        // (`…eq().eq().in(status)`), que o handler faz ANTES de apagar
+        // qualquer coisa. Uma cadeia que não conheça `.in` faz o handler
+        // estourar `is not a function` e o teste acusa o lugar errado.
+        select: () => {
+          const sel: Record<string, unknown> = {
+            eq: () => sel,
+            in: () => ({
+              then: (r: (v: unknown) => unknown) =>
+                r({ count: opts?.marcados ?? 0, error: null }),
             }),
-          }),
-        }),
+            maybeSingle: async () =>
+              opts?.missing
+                ? { data: null, error: null }
+                : { data: { id: CONTATO, organization_id: ORG }, error: null },
+          };
+          return sel;
+        },
         delete: () => {
           chamadas.push({ tabela, op: "delete" });
           return del;

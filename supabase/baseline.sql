@@ -24041,10 +24041,15 @@ begin
       'alter table public.calendar_appointments drop constraint %I', nome_da_fk);
   end if;
 
-  execute '
-    alter table public.calendar_appointments
-      add constraint calendar_appointments_contact_id_fkey
-      foreign key (contact_id) references public.contacts(id) on delete cascade';
+  -- O Postgres não tem `add constraint if not exists`: a forma idempotente aqui
+  -- é `drop constraint if exists` + `add`, que torna idempotente a REGRA e não
+  -- só a criação. Vem depois do drop dinâmico acima de propósito — aquele
+  -- alcança o nome legado, este alcança o nome canônico.
+  execute 'alter table public.calendar_appointments
+             drop constraint if exists calendar_appointments_contact_id_fkey';
+  execute 'alter table public.calendar_appointments
+             add constraint calendar_appointments_contact_id_fkey
+             foreign key (contact_id) references public.contacts(id) on delete cascade';
 end $$;
 
 notify pgrst, 'reload schema';

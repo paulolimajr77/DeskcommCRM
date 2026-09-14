@@ -1393,3 +1393,45 @@ Duas opções:
 
 1. **Um subagente por tarefa** (recomendado) — revisão entre tarefas, iteração rápida.
 2. **Execução nesta sessão** — em lotes, com ponto de conferência por onda.
+
+---
+
+## Living System Checklist — item 13 do Definition of Done
+
+Respondido com **artefato nomeado**, nunca com o que a peça "poderia" fazer.
+Medido em 2026-09-14.
+
+### Peça: o agente identifica quem está do outro lado (Onda 0)
+
+| # | Pergunta | Resposta |
+|---|---|---|
+| 1 | Quem me alimenta? | `contacts.name` e `contacts.display_name`, pela query de `lib/agent-engine/edge/crm/get-lead-context.ts:184`; e `ai_agent_versions.tool_ids`, por `agentConfig.toolIds` |
+| 2 | Quem eu alimento? | `crm_propose_contact_field` (`lib/mcp/tools/contacts.ts:134`) → `proporDadoDoContato` → tabela `contact_field_proposals` |
+| 3 | Que registro eu emito? | a própria linha em `contact_field_proposals` (com `trecho`, a frase que originou) e o audit `mcp.tool_called` |
+| 4 | Onde apareço na tela? | `components/contacts/PropostasDeDado.tsx`, na ficha do contato (`app/app/contacts/[id]/_client.tsx`) — *"O QUE A IA OUVIU E ESPERA UMA PESSOA CONFIRMAR"* |
+| 5 | Por qual porta se chega? | a ficha do contato, que já tem porta. **Nenhuma tela nova** — nada a declarar em `lib/navigation/catalogo.ts` |
+| 6 | Qual meu anti-morte? | o cron `app/api/v1/cron/contact-proposals-watcher/route.ts`: proposta que ninguém decide vence e vira item de caixa, em vez de virar badge permanente |
+| 7 | Onde se configura? | a capacidade **"Anotar dado que o cliente informou"** na tela do agente. **O que aparece se faltar:** o bloco não é empilhado — e é um teste que prova, não uma esperança |
+| 8 | Qual a continuidade IA↔humano? | a proposta **é** a continuidade: a IA entrega valor + evidência (`trecho`), e o humano decide com os dois lados à vista (`valor_anterior` existe para isso) |
+| 9 | Qual meu laço de retorno? | `contact_field_proposals.motivo_recusa` — proposta recusada diz onde a IA erra, e o comentário da coluna no schema já nomeia isso como o laço |
+| 10 | Atualizei o mapa? | `docs/architecture/crm-vivo.architecture.json` e `agent-turn.workflow.json` já contêm a peça das propostas; a aresta nova é *bloco de identificação → `crm_propose_contact_field`* |
+
+### Peça: o agente enxerga e preenche os campos do funil (Ondas 1–2)
+
+| # | Pergunta | Resposta |
+|---|---|---|
+| 1 | Quem me alimenta? | `crm_pipelines.settings.fields` (o dono declara na tela de funis) e `ai_agent_versions.pipeline_ids` |
+| 2 | Quem eu alimento? | o prompt do turno → `crm_update_lead` → `crm_leads.custom_fields` → a ficha do lead, que já desenha todos |
+| 3 | Que registro eu emito? | `crm_lead_activities` tipo `lead_edited`, com `payload.fields` — **nomes de campo, nunca valores** (§9) |
+| 4 | Onde apareço na tela? | ficha do lead (os campos preenchidos) e a timeline do lead (quais campos foram anotados) |
+| 5 | Por qual porta se chega? | telas existentes. Nenhuma porta nova |
+| 6 | Qual meu anti-morte? | **Onda 5** — a conferência dos obrigatórios antes do handoff. ⚠️ **Enquanto as ondas 1–2 estiverem na VPS sem a 5, esta peça não tem anti-morte, e isto é dívida declarada:** campo obrigatório em branco não vira próximo passo de ninguém |
+| 7 | Onde se configura? | a chave `lead_fields_enabled` (Onda 7), na tela do agente. **O que aparece se faltar:** o bloco não entra e o prefixo fica byte-idêntico ao de hoje — provado por teste |
+| 8 | Qual a continuidade IA↔humano? | Onda 5: o handoff **declara** o que ficou em branco em vez de travar a passagem |
+| 9 | Qual meu laço de retorno? | Onda 4 fecha metade: valor divergente vira proposta, e a recusa com motivo diz onde a IA erra. ⚠️ **A outra metade fica aberta e declarada:** quando o agente grava num campo **vazio** e acerta a forma mas erra o conteúdo, o humano corrige na ficha e **nada sinaliza** — o sistema não aprende com essa correção. Candidato a onda futura: correção humana de campo que a IA preencheu emite sinal |
+| 10 | Atualizei o mapa? | `docs/architecture/crm-vivo.architecture.json` — aresta nova: *definição dos campos do funil → prefixo do turno do agente* |
+
+**Invariante 7, dito sem rodeio:** a Onda 0 fecha o laço (a recusa da proposta é o
+retorno). As Ondas 1–2 **não fecham sozinhas** — só com a 4 e a 5. Quem parar na
+2 leva uma capacidade que funciona e não aprende. É decisão de quem opera, e está
+escrita aqui para ser decisão, não descuido.

@@ -1026,6 +1026,42 @@ git add tests/invariants/proposta-de-campo-do-funil.test.ts
 git commit -m "test(db): a idempotencia da proposta sobrevive ao lead nulo"
 ```
 
+### Tarefa 4.0: ⚠️ a corrida que apaga a anotação — MEDIDA em 2026-09-14
+
+**Arquivos:**
+- Criar: migration com uma `rpc` de merge atômico
+- Modificar: `app/api/v1/leads/_handler.ts:429-435`
+
+O merge de `custom_fields` é **read-modify-write no aplicativo**, não no banco:
+
+```ts
+    const prev = existing.custom_fields …            // ← lido lá em cima, no SELECT
+    patch.custom_fields = { ...prev, ...input.custom_fields };
+```
+
+`existing` vem de um `select` anterior. **Duas escritas simultâneas com chaves
+diferentes perdem uma:** a segunda leu `prev` antes de a primeira gravar, e
+sobrescreve a coluna inteira com a versão velha mais a chave dela. Ninguém recebe
+erro. O dado some.
+
+⚠️ **Este plano AGRAVA essa janela, e é por isso que a tarefa entra aqui.** Hoje
+`custom_fields` é escrito raramente, à mão. Depois da onda 2 o agente escreve
+**várias vezes por conversa**, enquanto quem atende pode estar editando a mesma
+ficha na tela. A onda 4 protege contra o agente **decidir** sobrescrever; esta
+corrida perde a escrita do humano por outra porta, sem decisão nenhuma.
+
+**Por que não é conserto de uma linha:** o handler grava pelo PostgREST
+(`supabase.update()`), que não sabe dizer `custom_fields = coalesce(custom_fields,'{}'::jsonb) || $1::jsonb`.
+O merge atômico exige uma função no banco — logo, migration —, e o handler é
+**compartilhado** por três chamadores (rota HTTP, MCP do agente e `bulk`), então
+a mudança alcança os três de uma vez.
+
+- [ ] **Passo 1: o teste que falha** — duas escritas concorrentes com chaves
+      diferentes; ao fim, as duas chaves existem.
+- [ ] **Passo 2:** a `rpc` de merge (`||` em `jsonb`, idempotente, com a tripla).
+- [ ] **Passo 3:** o handler passa a chamá-la quando `custom_fields` vem no input.
+- [ ] **Passo 4: sabotar** — voltar ao merge em memória e provar o vermelho.
+
 ### Tarefa 4.3: a precedência no código
 
 **Arquivos:**

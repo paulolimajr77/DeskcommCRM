@@ -2,6 +2,7 @@ import { setExecutionAgentOperation } from '@/lib/atendimento/fronteira-server';
 import { TIPOS_DE_CASO, TIPOS_DE_CASO_PARA_A_IA } from "@/lib/ai/case-copy";
 import { DEFAULT_CHANNEL_PROVIDER } from '@/lib/channels/capabilities';
 import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './preview';
+import { deveIdentificar, IDENTIFICACAO_SYSTEM_BLOCK } from './identificacao';
 import { claimOfJob } from '../queue/claim';
 import { currentExecutionBoundary, guardServiceEffect } from '@/lib/atendimento/fronteira-server';
 /**
@@ -1956,6 +1957,12 @@ async function executarTurnoDoAgente(
   } else if (agentConfig !== null && agentConfig.toolIds.includes('crm_find_free_slots')) {
     // Só consulta: o bloco de cima nomeia uma ferramenta que ele não tem.
     blocosResidentes.push(AGENDA_CONSULTA_SYSTEM_BLOCK);
+  }
+  // Mesmo padrão dos blocos acima: a condição é a FERRAMENTA publicada, nunca o
+  // estado do contato — o que varia por contato invalidaria o prefixo cacheável.
+  // Quem decide é `deveIdentificar`, para o teste vigiar esta regra e não uma cópia.
+  if (agentConfig !== null && deveIdentificar(agentConfig.toolIds)) {
+    blocosResidentes.push(IDENTIFICACAO_SYSTEM_BLOCK);
   }
   if (preview)
     blocosResidentes.push(

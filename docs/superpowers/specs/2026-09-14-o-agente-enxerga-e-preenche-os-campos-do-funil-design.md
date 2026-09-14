@@ -166,6 +166,57 @@ a **frase** vivem onde o acesso é controlado.
 
 ## Peça por peça, com o impacto no sistema em funcionamento
 
+### 0. Identificar quem está do outro lado — a peça mais barata, e a que falta há mais tempo
+
+**Medido nesta instalação:**
+
+```
+Paulão              name preenchido   email preenchido   origem: manual
+(NULO)              display_name "Ana Maria Matias"      origem: whatsapp
+(NULO)              display_name "Josué sites"           origem: whatsapp
+```
+
+Dois de três contatos **sem `name`**. O único que tem foi cadastrado à mão.
+
+**O que vem do WhatsApp não é nome.** É o texto que a própria pessoa escreveu no
+aparelho dela: pode ser o nome (`"Ana Maria Matias"`), o negócio (`"Josué
+sites"`), um apelido ou o próprio número. Não identifica, não serve para
+proposta, documento ou nota fiscal — e `name`, o campo que a empresa preencheria,
+fica nulo em todo contato que entra pelo canal.
+
+**Por que nunca é preenchido:** a ferramenta existe, está ligada no agente, e a
+descrição dela diz ao modelo:
+
+> *"**Registra** uma informação que o cliente forneceu (email, nome ou telefone)
+> como PROPOSTA para uma pessoa confirmar."*
+
+**"Registra"** — é ferramenta de anotar o que caiu no colo, não de perguntar. E
+não há bloco de sistema sobre identificação: os residentes são Agenda,
+Agenda-consulta, Casos e Transparência.
+
+```bash
+grep -rn "SYSTEM_BLOCK" --include=*.ts lib/agent-engine | grep -v test   | grep -oE "[A-Z_]+_SYSTEM_BLOCK" | sort -u
+```
+
+**É a mesma doença das outras ondas:** o agente tem a caneta e ninguém disse para
+escrever. A diferença é que no funil falta a lista **e** a ordem de perguntar; no
+contato falta **só a ordem**.
+
+**Custo:** um bloco de sistema e uma regra. Nenhuma tabela, nenhuma migration,
+nenhuma tela, nenhuma ferramenta nova — a proposta já tem mecânica, tela e cron.
+
+⚠️ **Três travas, e as três são de conversa, não de código:**
+
+- **pergunte uma vez, não insista.** Quem se recusa a dizer o nome não vai dizer
+  na terceira vez, e insistir queima o atendimento;
+- **e-mail só quando houver o que mandar** — proposta, orçamento, link de
+  reunião. Pedir e-mail no "oi" parece golpe, e o cliente fecha a conversa;
+- **telefone não se pede:** já se sabe qual é. Só entra se a pessoa der um
+  segundo, diferente do canal.
+
+⚠️ **E o que a pessoa disser vira PROPOSTA, não gravação** — a mecânica já é essa,
+e é o que impede o modelo de escrever "Meu nome é" no campo nome.
+
 ### 1. O bloco no prompt — e o custo
 
 Os blocos residentes são montados em `lib/agent-engine/agent/inbound-turn.ts`:
@@ -305,6 +356,8 @@ de alguém.
 
 | Prova | O quê |
 |---|---|
+| unidade — identificação | contato sem `name` ⇒ o bloco de identificação entra; contato com `name` ⇒ **não** entra (não pergunta o que já sabe) |
+| unidade — e-mail com motivo | sem nada a enviar, o bloco não pede e-mail |
 | unidade — bloco | entra com a chave ligada; **sem a chave, os bytes do prefixo são idênticos aos de hoje** |
 | unidade — cache | o hash do prefixo é **igual** em dois leads diferentes da mesma org (definição no prefixo, valores no sufixo) |
 | unidade — pergunta | campo com `pergunta` usa a frase; sem ela, deriva do `label`; `select` oferece as opções |
@@ -332,6 +385,7 @@ com volume; aqui a prova é de FORMA (o prefixo não varia por lead), não de pr
 
 | Onda | O quê | Entrega sozinha? |
 |---|---|---|
+| **0** | o agente **pergunta o nome** de quem não tem, e o e-mail quando houver o que mandar — por proposta | sim, e é a mais barata: um bloco de sistema |
 | **1** | o agente **recebe a definição** dos campos do funil dele (prefixo estável) e os valores do lead (sufixo) | sim — ele para de perguntar o que já está na ficha |
 | **2** | ele **pergunta e anota** durante a conversa, respeitando tipo e opções | sim — é o pedido original |
 | **3** | a chave opcional **`pergunta`** no campo, com input na tela de funis | sim — afina sem skill |
@@ -351,8 +405,6 @@ negócio). Encolher é decisão de quem opera, não deste PR.
 
 ## O que fica de fora
 
-- **Preencher campo de CONTATO** (nome, e-mail, telefone) — já existe, por
-  proposta, e não muda aqui.
 - **Editar o valor proposto antes de aceitar** — aceitar ou dispensar, como já é.
 - **Apagar campo do funil pelo agente.** Não: propor criação é reversível a um
   clique; remoção apaga dado de todos os leads.

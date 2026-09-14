@@ -6679,8 +6679,17 @@ export const DICIONARIO: Traducoes = {
   "Rótulo do campo": { es: "Etiqueta del campo" },
   "Tipo do campo": { es: "Tipo del campo" },
   "chave (endereco)": { es: "clave (direccion)" },
-  "e a conversa associada, se houver. Esta ação não pode ser desfeita.": {
-    es: "y la conversación asociada, si la hay. Esta acción no puede deshacerse.",
+  // A redação anterior — "e a conversa associada, se houver" — prometia MENOS
+  // do que o botão faz: ele apaga todas as mensagens e todas as conversas
+  // daquele contato, e desde a migration 0247 leva junto os compromissos já
+  // encerrados na agenda. Aviso menor que o ato é o mesmo defeito do aviso
+  // maior que o ato, só que ninguém reclama porque funciona.
+  "e todo o histórico de conversas e mensagens, e os compromissos já encerrados na agenda. Esta ação não pode ser desfeita.":
+    {
+      es: "y todo el historial de conversaciones y mensajes, y las citas ya cerradas en la agenda. Esta acción no puede deshacerse.",
+    },
+  "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.": {
+    es: "Este contacto tiene una cita agendada. Cancélala antes de eliminar.",
   },
 
   // ─── Mensagens literais de `fail()` em app/api/v1/** ───

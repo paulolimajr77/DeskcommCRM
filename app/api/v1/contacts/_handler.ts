@@ -698,6 +698,50 @@ export async function deleteContactHandler(
     );
   }
 
+  // ⛔ TODA RECUSA VEM ANTES DA PRIMEIRA EXCLUSÃO.
+  //
+  // Não é estilo: até 2026-09-14 o handler apagava mensagens e conversas e SÓ
+  // ENTÃO tentava apagar a ficha. Quem tinha compromisso na agenda tomava 409
+  // `state_conflict` — com o histórico já destruído e o contato de pé. Não há
+  // transação envolvendo estas chamadas (cada uma é um request PostgREST), e
+  // portanto não há rollback: a operação "falhou" depois de causar a perda que
+  // ela prometia causar só no sucesso.
+  //
+  // Compromisso AINDA MARCADO é a única coisa que ainda recusa — e recusa
+  // dizendo o que fazer. O motivo é que ele não existe só aqui: quando a
+  // agenda está ligada ao Google, `google_event_id` mora na linha do
+  // compromisso e quem avisa o Google é o cron lendo essa linha
+  // (`app/api/v1/cron/agenda-google-push`). Apagar a linha de um compromisso
+  // aberto deixaria o evento órfão no calendário de quem atende, e a pessoa do
+  // outro lado esperando num horário que ninguém mais enxerga.
+  //
+  // Compromisso cancelado, concluído ou não comparecido não tem esse problema:
+  // ele some junto com o contato, pela FK `on delete cascade` da migration
+  // 0247 — antes dela, `restrict`, e ele prendia o contato PARA SEMPRE, porque
+  // cancelar é `update status` e nenhuma rota do produto apaga um compromisso.
+  const { count: marcados, error: agendaErr } = await supabase
+    .from("calendar_appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", contactId)
+    .eq("organization_id", ctx.organization_id)
+    .in("status", ["pending", "confirmed"]);
+
+  if (agendaErr) {
+    throw new ApiError(500, "internal_error", undefined, ctx.requestId, agendaErr.message);
+  }
+  if ((marcados ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      "state_conflict",
+      undefined,
+      ctx.requestId,
+      traduzir(
+        "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.",
+        ctx.idioma ?? "pt-BR",
+      ),
+    );
+  }
+
   // Mensagens e conversas RESTRICT no contato: apagar primeiro, senão o DELETE
   // da ficha falha para qualquer lead que já falou no canal.
   const { error: msgErr } = await supabase

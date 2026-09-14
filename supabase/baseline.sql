@@ -15218,12 +15218,16 @@ create table if not exists public.calendar_appointments (
   -- que a pessoa saia da empresa depois.
   owner_user_id uuid references auth.users(id) on delete set null,
 
-  -- QUEM VAI SER ATENDIDO. `restrict` acompanha conversations.contact_id e
-  -- messages.contact_id — as duas únicas FKs RESTRICT do schema, e existem
-  -- pela mesma razão: apagar um contato não pode apagar o histórico dele. Na
-  -- prática a LGPD deste produto anonimiza em vez de apagar (CLAUDE.md § LGPD),
-  -- então o RESTRICT nunca é o caminho normal — é o cinto.
-  contact_id uuid references public.contacts(id) on delete restrict,
+  -- QUEM VAI SER ATENDIDO. `cascade` desde a 0247, e a redação anterior deste
+  -- comentário é parte do defeito que ela conserta: ele dizia que
+  -- conversations e messages eram "as duas únicas FKs RESTRICT do schema" —
+  -- falso no instante em que foi escrito, porque este bloco estava criando a
+  -- terceira. O handler de exclusão de contato contornava as duas nomeadas e
+  -- nunca soube desta, então quem tinha compromisso na agenda ficava com o
+  -- contato preso para sempre (cancelar não apaga a linha, e nenhuma rota do
+  -- produto apaga um compromisso). O compromisso é dado pessoal do contato —
+  -- entra na exportação de LGPD dele — e acompanha a exclusão.
+  contact_id uuid references public.contacts(id) on delete cascade,
   conversation_id uuid references public.conversations(id) on delete set null,
 
   location_kind text not null default 'in_person',
@@ -24803,6 +24807,64 @@ begin
 end;$$;
 revoke all on function public.fn_meet_action(uuid,uuid,text,uuid,text,uuid) from public,anon;
 grant execute on function public.fn_meet_action(uuid,uuid,text,uuid,text,uuid) to authenticated;
+
+-- ---- apagar um contato leva os compromissos dele junto (migration 0247) ----
+--
+-- `calendar_appointments.contact_id` nasceu `on delete restrict` na 0177 e era
+-- a TERCEIRA FK que impede apagar um contato — o handler de exclusão contorna
+-- `conversations` e `messages` à mão e nunca soube desta. Como cancelar um
+-- compromisso é um `update status`, e nenhuma rota do produto apaga a linha,
+-- quem tinha compromisso na agenda ficava com o contato preso para sempre.
+-- O argumento completo está no cabeçalho da migration 0247.
+--
+-- Auto-curativo: a FK é procurada pela FORMA (coluna + destino), nunca pelo
+-- nome, porque um clone antigo pode tê-la com outro nome — e um
+-- `drop constraint <nome errado>` deixaria a regra velha de pé com o update
+-- reportando sucesso.
+
+do $$
+declare
+  nome_da_fk text;
+  coluna     smallint;
+begin
+  if to_regclass('public.calendar_appointments') is null then
+    return;
+  end if;
+
+  select attnum into coluna
+    from pg_attribute
+   where attrelid = 'public.calendar_appointments'::regclass
+     and attname  = 'contact_id'
+     and not attisdropped;
+
+  if coluna is null then
+    return;
+  end if;
+
+  select conname into nome_da_fk
+    from pg_constraint
+   where conrelid  = 'public.calendar_appointments'::regclass
+     and confrelid = 'public.contacts'::regclass
+     and contype   = 'f'
+     and conkey    = array[coluna];
+
+  if nome_da_fk is not null then
+    execute format(
+      'alter table public.calendar_appointments drop constraint %I', nome_da_fk);
+  end if;
+
+  -- O Postgres não tem `add constraint if not exists`: a forma idempotente aqui
+  -- é `drop constraint if exists` + `add`, que torna idempotente a REGRA e não
+  -- só a criação. Vem depois do drop dinâmico acima de propósito — aquele
+  -- alcança o nome legado, este alcança o nome canônico.
+  execute 'alter table public.calendar_appointments
+             drop constraint if exists calendar_appointments_contact_id_fkey';
+  execute 'alter table public.calendar_appointments
+             add constraint calendar_appointments_contact_id_fkey
+             foreign key (contact_id) references public.contacts(id) on delete cascade';
+end $$;
+
+notify pgrst, 'reload schema';
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --

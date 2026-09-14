@@ -51,9 +51,35 @@ import { describe, expect, it } from "vitest";
 
 const BASELINE = join(process.cwd(), "supabase", "baseline.sql");
 
+/**
+ * O que se conta é SQL, não prosa.
+ *
+ * A sonda lia o arquivo inteiro, comentário incluso — e em 2026-09-14 ficou
+ * vermelha por causa de um comentário que explicava, em português, que *"o
+ * Postgres não tem `add constraint if not exists`"*. A frase foi contada como
+ * uma constraint chamada `if`, duas vezes, e o gate acusou reconstrução em
+ * série de uma constraint que não existe.
+ *
+ * Tirar os comentários também é o que a REGRA deste arquivo pede: quando uma
+ * migration nova amplia vocabulário, o texto manda *"comente os demais"* — e um
+ * bloco comentado não pode continuar contando como reconstrução. Mesmo
+ * tratamento que `apendice-do-baseline-nao-diverge-da-cadeia` já dá.
+ *
+ * A varredura de `--` não distingue comentário de hífen duplo dentro de string
+ * literal; nenhum bloco deste arquivo tem uma, e errar aqui produziria um falso
+ * VERDE num caso que não existe — contra um falso VERMELHO recorrente, que é o
+ * que mata gate.
+ */
+function semComentarios(sql: string): string {
+  return sql
+    .split("\n")
+    .map((linha) => linha.replace(/--.*$/, ""))
+    .join("\n");
+}
+
 /** Nomes de constraint em cada `add constraint <nome>`, na ordem do arquivo. */
 function constraintsAdicionadas(sql: string): string[] {
-  return [...sql.matchAll(/add\s+constraint\s+([a-z0-9_]+)/gi)]
+  return [...semComentarios(sql).matchAll(/add\s+constraint\s+([a-z0-9_]+)/gi)]
     .map((m) => m[1])
     .filter((nome): nome is string => nome !== undefined)
     .map((nome) => nome.toLowerCase());

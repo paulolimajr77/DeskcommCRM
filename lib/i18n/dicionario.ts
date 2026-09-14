@@ -258,9 +258,6 @@ export const DICIONARIO: Traducoes = {
   "Enviar de novo": { es: "Enviar de nuevo" },
   "Mandar ao cliente": { es: "Enviar al cliente" },
   "Conversa que receberá os dados": { es: "Conversación que recibirá los datos" },
-  "O envio dos dados ainda não foi autorizado.": {
-    es: "El envío de los datos aún no fue autorizado.",
-  },
   "Envio autorizado: aguardando a vez na fila.": {
     es: "Envío autorizado: esperando su turno en la cola.",
   },
@@ -8399,7 +8396,8 @@ export const DICIONARIO: Traducoes = {
   "Link do Google Meet pronto": { es: "Enlace de Google Meet listo" },
   "Não foi possível confirmar o link": { es: "No se pudo confirmar el enlace" },
   "Solicitação de link cancelada": { es: "Solicitud de enlace cancelada" },
-  "O envio do link ainda não foi autorizado.": { es: "El envío del enlace aún no ha sido autorizado." },
+  "Link não enviado ainda.": { es: "Enlace aún no enviado." },
+  "Dados não enviados ainda.": { es: "Datos aún no enviados." },
   "O atendimento desta conversa mudou depois que o link foi criado. Escolha a conversa atual e autorize o envio de novo.": {
     es: "La atención de esta conversación cambió después de crearse el enlace. Elige la conversación actual y autoriza el envío de nuevo.",
   },

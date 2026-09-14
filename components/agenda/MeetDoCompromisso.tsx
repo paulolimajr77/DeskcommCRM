@@ -77,7 +77,7 @@ export function MeetDoCompromisso({
   };
   const deliveryLabel: Record<string, string> = ehMeetLabel
     ? {
-        none: "O envio do link ainda não foi autorizado.",
+        none: "Link não enviado ainda.",
         waiting_for_link: "Envio autorizado: aguardando o link ficar pronto.",
         queued: "Link aguardando envio nesta conversa.",
         sent: "Link enviado na conversa autorizada.",
@@ -87,7 +87,7 @@ export function MeetDoCompromisso({
         failed: "O envio falhou. Confira o canal e tente novamente.",
       }
     : {
-        none: "O envio dos dados ainda não foi autorizado.",
+        none: "Dados não enviados ainda.",
         waiting_for_link: "Envio autorizado: aguardando a vez na fila.",
         queued: "Dados aguardando envio nesta conversa.",
         sent: "Dados enviados na conversa autorizada.",
@@ -157,7 +157,7 @@ export function MeetDoCompromisso({
         {t(
           (meeting.delivery_error ? meetingDeliveryErrors[meeting.delivery_error] : null) ??
             deliveryLabel[meeting.delivery_state] ??
-            "O envio do link ainda não foi autorizado.",
+            "Link não enviado ainda.",
         )}
       </p>
       {meeting.can_manage && meeting.state !== "cancelled" && (

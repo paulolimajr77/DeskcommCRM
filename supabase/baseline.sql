@@ -21688,7 +21688,7 @@ create table if not exists public.ai_reply_drafts(
  service_boundary jsonb not null,context_revision bigint not null,operation_revision bigint not null,
  generation_token uuid not null default gen_random_uuid(),revision bigint not null default 1,status text not null default 'generating' check(status in('generating','pending','approved','sending','sent','dismissed','stale','failed')),
  original_body text,edited_body text,approved_body text,proposals jsonb not null default '[]',trace jsonb not null default '[]',feedback jsonb,
- approved_by uuid references auth.users(id),approved_at timestamptz,approved_support_session_id uuid references public.platform_support_sessions(id),send_job_id uuid unique references public.job_queue(id),message_id uuid references public.messages(id),
+ approved_by uuid references auth.users(id),approved_at timestamptz,approved_support_session_id uuid references public.platform_support_sessions(id),send_job_id uuid unique references public.job_queue(id),message_id uuid references public.messages(id) on delete set null,
  error_code text,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
  unique(organization_id,conversation_id,agent_id,context_revision,operation_revision)
 );
@@ -24050,6 +24050,63 @@ begin
   execute 'alter table public.calendar_appointments
              add constraint calendar_appointments_contact_id_fkey
              foreign key (contact_id) references public.contacts(id) on delete cascade';
+end $$;
+
+notify pgrst, 'reload schema';
+
+-- ---- o rascunho da IA para de trancar a mensagem (migration 0248) ----
+--
+-- `ai_reply_drafts.message_id` nasceu na 0227 sem `on delete` — e o default do
+-- Postgres, NO ACTION, trava igual a RESTRICT sem estar escrito em lugar
+-- nenhum. Apagar um contato apaga as MENSAGENS dele primeiro, e o rascunho
+-- pendurado numa delas recusava o delete: o erro saía como se o problema fosse
+-- o contato. O argumento completo está no cabeçalho da migration 0248.
+--
+-- Auto-curativo: a FK é procurada pela FORMA (coluna + destino), nunca pelo
+-- nome.
+
+do $$
+declare
+  nome_da_fk text;
+  coluna     smallint;
+begin
+  if to_regclass('public.ai_reply_drafts') is null then
+    return;
+  end if;
+
+  select attnum into coluna
+    from pg_attribute
+   where attrelid = 'public.ai_reply_drafts'::regclass
+     and attname  = 'message_id'
+     and not attisdropped;
+
+  if coluna is null then
+    return;
+  end if;
+
+  -- Pela FORMA (coluna + destino), nunca pelo nome: um clone antigo pode tê-la
+  -- com outro nome, e um `drop constraint <nome errado>` deixaria a regra velha
+  -- de pé com este bloco reportando sucesso.
+  select conname into nome_da_fk
+    from pg_constraint
+   where conrelid  = 'public.ai_reply_drafts'::regclass
+     and confrelid = 'public.messages'::regclass
+     and contype   = 'f'
+     and conkey    = array[coluna];
+
+  if nome_da_fk is not null then
+    execute format(
+      'alter table public.ai_reply_drafts drop constraint %I', nome_da_fk);
+  end if;
+
+  -- O Postgres não tem `add constraint if not exists`: a forma idempotente é
+  -- `drop constraint if exists` + `add`, que torna idempotente a REGRA e não só
+  -- a criação.
+  execute 'alter table public.ai_reply_drafts
+             drop constraint if exists ai_reply_drafts_message_id_fkey';
+  execute 'alter table public.ai_reply_drafts
+             add constraint ai_reply_drafts_message_id_fkey
+             foreign key (message_id) references public.messages(id) on delete set null';
 end $$;
 
 notify pgrst, 'reload schema';

@@ -6576,6 +6576,9 @@ export const DICIONARIO: Traducoes = {
   "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.": {
     es: "Este contacto tiene una cita agendada. Cancélala antes de eliminar.",
   },
+  "Este contato tem sugestão de resposta da IA pendente. Resolva na Central antes de excluir.": {
+    es: "Este contacto tiene una sugerencia de respuesta de la IA pendiente. Resuélvela en la Central antes de eliminar.",
+  },
 
   // ─── Mensagens literais de `fail()` em app/api/v1/** ───
   //

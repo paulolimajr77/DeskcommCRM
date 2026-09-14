@@ -34,6 +34,8 @@ const USER = "11111111-1111-4111-8111-111111111111";
 interface Config {
   /** Quantos compromissos AINDA MARCADOS (pending/confirmed) o contato tem. */
   marcados: number;
+  /** Mensagem de 23503 que o banco devolve ao apagar as mensagens. */
+  erroAoApagar?: string;
 }
 
 /**
@@ -47,6 +49,9 @@ function criarSupabase(cfg: Config) {
     if (tabela === "calendar_appointments") {
       feito.push("leu:calendar_appointments");
       return { count: cfg.marcados, error: null, data: null };
+    }
+    if (tabela === "messages" && op === "delete" && cfg.erroAoApagar !== undefined) {
+      return { data: null, error: { code: "23503", message: cfg.erroAoApagar } };
     }
     if (tabela === "contacts" && op === "select") {
       return { data: { id: CONTATO, organization_id: ORG }, error: null };
@@ -128,5 +133,44 @@ describe("excluir contato", () => {
 
     const erro = await deleteContactHandler(sb, ctx(), CONTATO).catch((e: ApiError) => e);
     expect((erro as ApiError).message).toMatch(/desmarque/i);
+  });
+});
+
+describe("a recusa do banco nomeia quem segurou", () => {
+  /**
+   * O 23503 já diz tudo; a frase antiga jogava fora. Estes casos prendem a
+   * leitura da ÚLTIMA tabela citada — que é a que segura —, e não da primeira,
+   * que é a que estava sendo apagada.
+   */
+  const MSG_RASCUNHO =
+    'update or delete on table "messages" violates foreign key constraint ' +
+    '"ai_reply_drafts_message_id_fkey" on table "ai_reply_drafts"';
+
+  it("aponta o rascunho da IA, e não a tabela que estava sendo apagada", async () => {
+    const { sb } = criarSupabase({ marcados: 0, erroAoApagar: MSG_RASCUNHO });
+
+    const erro = (await deleteContactHandler(sb, ctx(), CONTATO).catch(
+      (e: ApiError) => e,
+    )) as ApiError;
+
+    expect(erro.status).toBe(409);
+    expect(erro.message).toMatch(/sugest/i);
+    expect(erro.message).not.toMatch(/registros vinculados/i);
+  });
+
+  it("⛔ trava desconhecida continua honesta, e leva o nome técnico junto", async () => {
+    const { sb } = criarSupabase({
+      marcados: 0,
+      erroAoApagar:
+        'update or delete on table "messages" violates foreign key constraint ' +
+        '"tabela_nova_fkey" on table "tabela_que_ainda_nao_existia"',
+    });
+
+    const erro = (await deleteContactHandler(sb, ctx(), CONTATO).catch(
+      (e: ApiError) => e,
+    )) as ApiError;
+
+    expect(erro.message).toMatch(/registros vinculados/i);
+    expect(erro.details).toMatchObject({ blocked_by: "tabela_que_ainda_nao_existia" });
   });
 });

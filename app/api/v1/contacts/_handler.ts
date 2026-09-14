@@ -706,6 +706,59 @@ function throwOnDbError(
   throw new ApiError(500, "internal_error", undefined, requestId, err.message);
 }
 
+/**
+ * Os vínculos `on delete restrict` que apontam para `contacts` e que este
+ * handler NÃO apaga de propósito.
+ *
+ * Medido em `supabase/baseline.sql` (não inferido): além de
+ * `conversations.contact_id` (linha 3531) e `messages.contact_id` (3781) — o
+ * histórico, que sai logo abaixo porque é o pedido da exclusão —, a única FK
+ * RESTRICT que sobra é `calendar_appointments.contact_id` (linha 15226, da
+ * migração 0177). Ela é da agenda, e a decisão da 0177 foi explícita: o
+ * compromisso aconteceu, tem dono e tem texto livre, então ele não cai por
+ * cascata junto com a ficha.
+ *
+ * Conferir esta lista ANTES do primeiro DELETE é o arranjo que a issue #752
+ * pede: sem ele, apagar `messages`/`conversations` e só então esbarrar no
+ * RESTRICT é destruir o histórico do lead para devolver 409 — o pior dos dois
+ * desfechos, porque a ficha continua lá e as mensagens não.
+ *
+ * Tabela nova com RESTRICT para `contacts` entra aqui como uma linha, e o
+ * teste que acompanha este handler (`tests/unit/contato-delete.test.ts`)
+ * exercita a contagem com filtro de organização.
+ */
+/**
+ * ⚠️ `situacoes` ENCOLHE o que bloqueia, e isso é metade do conserto.
+ *
+ * Bloquear por QUALQUER compromisso deixa o contato preso para sempre: cancelar
+ * é `update status='cancelled'` e a linha fica, e nenhuma rota do produto apaga
+ * um compromisso — medido numa instalação real, um contato com 5 consultas
+ * canceladas não saía de jeito nenhum, e não havia ação possível pela tela.
+ *
+ * Desde a migration 0247 o compromisso ENCERRADO acompanha o contato por
+ * `on delete cascade`, então só o que ainda está marcado precisa barrar. E esse
+ * barra por um motivo concreto: `google_event_id` mora na linha do compromisso
+ * e quem avisa o Google é o cron lendo essa linha — apagar um compromisso
+ * aberto deixaria o evento órfão no calendário de quem atende.
+ *
+ * `frase` existe porque "o contato ainda tem registros vinculados" é verdadeira
+ * e inútil: quem lê não sabe o que fazer. Quando um vínculo sabe dizer o que
+ * fazer, ele diz.
+ */
+const VINCULOS_RESTRICT_NAO_APAGADOS: ReadonlyArray<{
+  tabela: string;
+  rotulo: string;
+  situacoes?: readonly string[];
+  frase?: string;
+}> = [
+  {
+    tabela: "calendar_appointments",
+    rotulo: "compromisso(s) marcado(s) na agenda",
+    situacoes: ["pending", "confirmed"],
+    frase: "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.",
+  },
+];
+
 export async function deleteContactHandler(
   supabase: SB,
   ctx: HandlerCtx,
@@ -731,74 +784,110 @@ export async function deleteContactHandler(
     );
   }
 
-  // ⛔ TODA RECUSA VEM ANTES DA PRIMEIRA EXCLUSÃO.
-  //
-  // Não é estilo: até 2026-09-14 o handler apagava mensagens e conversas e SÓ
-  // ENTÃO tentava apagar a ficha. Quem tinha compromisso na agenda tomava 409
-  // `state_conflict` — com o histórico já destruído e o contato de pé. Não há
-  // transação envolvendo estas chamadas (cada uma é um request PostgREST), e
-  // portanto não há rollback: a operação "falhou" depois de causar a perda que
-  // ela prometia causar só no sucesso.
-  //
-  // Compromisso AINDA MARCADO é a única coisa que ainda recusa — e recusa
-  // dizendo o que fazer. O motivo é que ele não existe só aqui: quando a
-  // agenda está ligada ao Google, `google_event_id` mora na linha do
-  // compromisso e quem avisa o Google é o cron lendo essa linha
-  // (`app/api/v1/cron/agenda-google-push`). Apagar a linha de um compromisso
-  // aberto deixaria o evento órfão no calendário de quem atende, e a pessoa do
-  // outro lado esperando num horário que ninguém mais enxerga.
-  //
-  // Compromisso cancelado, concluído ou não comparecido não tem esse problema:
-  // ele some junto com o contato, pela FK `on delete cascade` da migration
-  // 0247 — antes dela, `restrict`, e ele prendia o contato PARA SEMPRE, porque
-  // cancelar é `update status` e nenhuma rota do produto apaga um compromisso.
-  const { count: marcados, error: agendaErr } = await supabase
-    .from("calendar_appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("contact_id", contactId)
-    .eq("organization_id", ctx.organization_id)
-    .in("status", ["pending", "confirmed"]);
+  const a = actorAuditPayload(ctx.actor);
 
-  if (agendaErr) {
-    throw new ApiError(500, "internal_error", undefined, ctx.requestId, agendaErr.message);
+  // Pré-checagem dos vínculos que barram o DELETE da ficha (issue #752).
+  //
+  // Só CONTA: quem recusa continua sendo o banco, com o 23503 do RESTRICT. A
+  // contagem existe para saber disso antes de apagar o histórico, e é por isso
+  // que ela vem antes do primeiro DELETE — depois não há mais como desfazer.
+  const vinculos: string[] = [];
+  const frases: string[] = [];
+  for (const vinculo of VINCULOS_RESTRICT_NAO_APAGADOS) {
+    let consulta = supabase
+      .from(vinculo.tabela)
+      .select("id", { count: "exact", head: true })
+      .eq("contact_id", contactId)
+      .eq("organization_id", ctx.organization_id);
+    if (vinculo.situacoes !== undefined) consulta = consulta.in("status", vinculo.situacoes);
+    const { count, error } = await consulta;
+    if (error) {
+      // Falha da CONTAGEM não autoriza seguir apagando: seguir aqui é cair no
+      // defeito que esta pré-checagem existe para impedir (histórico
+      // destruído antes de saber se a ficha sai). Um 500 agora é reversível;
+      // mensagem apagada não volta.
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, error.message);
+    }
+    if ((count ?? 0) > 0) {
+      vinculos.push(`${count} ${vinculo.rotulo}`);
+      if (vinculo.frase !== undefined) frases.push(vinculo.frase);
+    }
   }
-  if ((marcados ?? 0) > 0) {
+
+  if (vinculos.length > 0) {
+    // O 409 é o MESMO do caminho de FK (mesma causa, mesmo tratamento no
+    // cliente), mas aqui ele chega com `messages`/`conversations` intactos.
+    // O detalhe que o cliente não vê está na auditoria: `vinculos` diz o que
+    // barrou, `apagados` vazio diz que nada foi tocado.
+    await audit({
+      action: "contact.delete_blocked",
+      actorUserId: a.actorUserId,
+      organizationId: ctx.organization_id,
+      resourceType: "contact",
+      resourceId: contactId,
+      requestId: ctx.requestId,
+      metadata: { ...a.metadataActor, motivo: "vinculo_restrict", vinculos, apagados: [] },
+    });
     throw new ApiError(
       409,
       "state_conflict",
       undefined,
       ctx.requestId,
       traduzir(
-        "Este contato tem compromisso marcado na agenda. Desmarque antes de excluir.",
+        frases[0] ?? "Não foi possível excluir: o contato ainda tem registros vinculados.",
         ctx.idioma ?? "pt-BR",
       ),
     );
   }
 
-  // Mensagens e conversas RESTRICT no contato: apagar primeiro, senão o DELETE
-  // da ficha falha para qualquer lead que já falou no canal.
-  const { error: msgErr } = await supabase
-    .from("messages")
-    .delete()
-    .eq("contact_id", contactId)
-    .eq("organization_id", ctx.organization_id);
-  throwOnDbError(msgErr, ctx.requestId, ctx.idioma);
+  // `apagados` é preenchido passo a passo de propósito: se um DELETE do meio
+  // falhar, a linha de auditoria do erro precisa dizer exatamente até onde o
+  // histórico foi, senão o incidente vira arqueologia.
+  const apagados: string[] = [];
+  let deleted: { id: string } | null = null;
+  try {
+    // Mensagens e conversas RESTRICT no contato: apagar primeiro, senão o
+    // DELETE da ficha falha para qualquer lead que já falou no canal.
+    const { error: msgErr } = await supabase
+      .from("messages")
+      .delete()
+      .eq("contact_id", contactId)
+      .eq("organization_id", ctx.organization_id);
+    throwOnDbError(msgErr, ctx.requestId, ctx.idioma);
+    apagados.push("messages");
 
-  const { error: convErr } = await supabase
-    .from("conversations")
-    .delete()
-    .eq("contact_id", contactId)
-    .eq("organization_id", ctx.organization_id);
-  throwOnDbError(convErr, ctx.requestId, ctx.idioma);
+    const { error: convErr } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("contact_id", contactId)
+      .eq("organization_id", ctx.organization_id);
+    throwOnDbError(convErr, ctx.requestId, ctx.idioma);
+    apagados.push("conversations");
 
-  const { data: deleted, error: delErr } = await supabase
-    .from("contacts")
-    .delete()
-    .eq("id", contactId)
-    .eq("organization_id", ctx.organization_id)
-    .select("id")
-    .maybeSingle();
-  throwOnDbError(delErr, ctx.requestId, ctx.idioma);
+    const { data, error: delErr } = await supabase
+      .from("contacts")
+      .delete()
+      .eq("id", contactId)
+      .eq("organization_id", ctx.organization_id)
+      .select("id")
+      .maybeSingle();
+    throwOnDbError(delErr, ctx.requestId, ctx.idioma);
+    deleted = data;
+  } catch (err) {
+    // `audit()` é best-effort por doutrina (engole a própria falha e reporta),
+    // então registrar aqui não pode trocar o desfecho do erro real.
+    await audit({
+      action: "contact.delete_blocked",
+      actorUserId: a.actorUserId,
+      organizationId: ctx.organization_id,
+      resourceType: "contact",
+      resourceId: contactId,
+      requestId: ctx.requestId,
+      metadata: { ...a.metadataActor, motivo: "falha_ao_apagar", vinculos: [], apagados },
+    });
+    throw err;
+  }
+
   if (!deleted) {
     throw new ApiError(
       404,
@@ -808,8 +897,6 @@ export async function deleteContactHandler(
       traduzir("Contato não encontrado.", ctx.idioma ?? "pt-BR"),
     );
   }
-
-  const a = actorAuditPayload(ctx.actor);
 
   await supabase
     .rpc("emit_event", {

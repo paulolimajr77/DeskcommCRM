@@ -386,6 +386,17 @@ export const DICIONARIO: Traducoes = {
   Canais: { es: "Canales" },
   Análise: { es: "Análisis" },
   Organização: { es: "Organización" },
+  "Selecionar org": { es: "Seleccionar org" },
+  "o dia todo": { es: "todo el día" },
+  "Dias sem atendimento": { es: "Días sin atención" },
+  "Feriado, férias, viagem. Nesses dias o sistema deixa de oferecer horários — e o que já estava marcado continua marcado, para você decidir o que fazer com cada um.": { es: "Feriado, vacaciones, viaje. En esos días el sistema deja de ofrecer horarios — y lo que ya estaba agendado sigue agendado, para que decidas qué hacer con cada uno." },
+  "Ex.: feriado": { es: "Ej.: feriado" },
+  "Fechar este dia": { es: "Cerrar este día" },
+  "Nenhum dia fechado daqui para a frente.": { es: "Ningún día cerrado de aquí en adelante." },
+  "aberto excepcionalmente": { es: "abierto excepcionalmente" },
+  "Abrir atendimento": { es: "Abrir atención" },
+  "Abra o atendimento e diga o que fazer: concluir, pedir informação ao cliente ou passar para uma pessoa.": { es: "Abre la atención y di qué hacer: concluir, pedir información al cliente o pasarla a una persona." },
+  "Um atendimento espera decisão da equipe": { es: "Una atención espera decisión del equipo" },
 
   // ─── Navegação (a barra lateral, presente em toda tela) ───
   Inbox: { es: "Inbox" },
@@ -729,6 +740,18 @@ export const DICIONARIO: Traducoes = {
   },
   "Escolha por qual número de WhatsApp ele atende.": {
     es: "Elige por cuál número de WhatsApp atiende.",
+  },
+  "Escolha por qual número de WhatsApp ele atende. O rascunho está salvo; conecte um número em Conexões e volte aqui para publicar.":
+    {
+      es: "Elige por cuál número de WhatsApp atiende. El borrador está guardado; conecta un número en Conexiones y vuelve aquí para publicar.",
+    },
+  "Nenhum número conectado ainda — o rascunho salva sem ele.": {
+    es: "Ningún número conectado todavía — el borrador se guarda sin él.",
+  },
+  "Conectar WhatsApp": { es: "Conectar WhatsApp" },
+  "para poder publicar.": { es: "para poder publicar." },
+  "Escolha o número para poder publicar. Sem ele, o rascunho salva mas não atende.": {
+    es: "Elige el número para poder publicar. Sin él, el borrador se guarda pero no atiende.",
   },
   "Máximo de": { es: "Máximo de" },
   "capacidades por agente.": { es: "capacidades por agente." },
@@ -1332,6 +1355,14 @@ export const DICIONARIO: Traducoes = {
   "Condição da aresta": { es: "Condición de la arista" },
   "Excluir nó": { es: "Eliminar nodo" },
   "Excluir aresta": { es: "Eliminar arista" },
+  "Excluir este nó?": { es: "¿Eliminar este nodo?" },
+  "Excluir esta aresta?": { es: "¿Eliminar esta arista?" },
+  "Este nó e as arestas ligadas a ele são apagados. Não é possível desfazer.": {
+    es: "Este nodo y las aristas ligadas a él se borran. No se puede deshacer.",
+  },
+  "A aresta entre os dois nós é apagada. Não é possível desfazer.": {
+    es: "La arista entre los dos nodos se borra. No se puede deshacer.",
+  },
   Organizar: { es: "Organizar" },
   "Quando seguir por esta aresta": { es: "Cuándo seguir por esta arista" },
   "São as saídas do nó": { es: "Son las salidas del nodo" },
@@ -3625,6 +3656,7 @@ export const DICIONARIO: Traducoes = {
   "roteadores de IA": { es: "enrutadores de IA" },
   "ajuste de proteção de envio": { es: "ajuste de protección de envío" },
   "ajustes de proteção de envio": { es: "ajustes de protección de envío" },
+  "Não foi possível carregar a proteção de envio desta conexão. Ela pode ter sido removida, ou esta lista está desatualizada.": { es: "No se pudo cargar la protección de envío de esta conexión. Puede que se haya eliminado, o esta lista está desactualizada." },
   "conversa continua": { es: "conversación continúa" },
   "conversas continuam": { es: "conversaciones continúan" },
 
@@ -6133,6 +6165,7 @@ export const DICIONARIO: Traducoes = {
   //  traduções da mesma frase divergirem.)
   "Devolver acesso": { es: "Devolver el acceso" },
   "Acesso devolvido.": { es: "Acceso devuelto." },
+  // ("Seu nome" já existe mais acima — a chave é o próprio texto.)
   "Informe seu nome": { es: "Escribe tu nombre" },
   "Você já tem uma conta com este e-mail": {
     es: "Ya tienes una cuenta con este correo",
@@ -7833,6 +7866,7 @@ export const DICIONARIO: Traducoes = {
   "Este negócio não tem contato, então não há proposta do agente.": { es: "Este negocio no tiene contacto, así que no hay propuesta del agente." },
   "Este número foi excluído da Central de Conexões — reconectar não o traz de volta. Conecte um número para voltar a atender.": { es: "Este número fue eliminado de la Central de Conexiones — reconectar no lo trae de vuelta. Conecta un número para volver a atender." },
   "Falha ao processar o envio do arquivo.": { es: "Falla al procesar el envío del archivo." },
+  "Esta chave de idempotência já foi usada com outro conteúdo.": { es: "Esta clave de idempotencia ya fue usada con otro contenido." },
   "Filtros inválidos.": { es: "Filtros inválidos." },
   "Header Idempotency-Key é obrigatório.": { es: "El header Idempotency-Key es obligatorio." },
   "JSON inválido.": { es: "JSON inválido." },
@@ -8434,6 +8468,10 @@ export const DICIONARIO: Traducoes = {
   "Não foi possível registrar a ação. O motivo ficou registrado no servidor com o identificador abaixo.": {
     es: "No se pudo registrar la acción. El motivo quedó registrado en el servidor con el identificador de abajo.",
   },
+  "O envio do link ainda não foi autorizado.": { es: "El envío del enlace aún no ha sido autorizado." },
+  "Este atendimento está ocupado neste instante. Aguarde alguns segundos e tente de novo.": {
+    es: "Esta atención está ocupada en este momento. Espera unos segundos e inténtalo de nuevo.",
+  },
   "Envio autorizado: aguardando o link ficar pronto.": { es: "Envío autorizado: esperando a que el enlace esté listo." },
   "Link aguardando envio nesta conversa.": { es: "Enlace pendiente de envío en esta conversación." },
   "Link enviado na conversa autorizada.": { es: "Enlace enviado en la conversación autorizada." },
@@ -8511,6 +8549,29 @@ export const DICIONARIO: Traducoes = {
   },
   "Convite reenviado.": { es: "Invitación reenviada." },
   "Convite revogado.": { es: "Invitación revocada." },
+
+  // ─── issue #651 — tabelas de rótulo que só o guarda ampliado alcança ───
+  //
+  // `chavesUsadas()` passou a resolver `t(X[k])`/`t(X.k)` quando `X` é tabela
+  // `const` de módulo. Estas 8 chaves saíam em português com o guarda antigo
+  // verde — medido rodando o guarda ampliado contra `main` antes de adicionar
+  // qualquer entrada aqui: as 8 abaixo, e só elas, reprovavam.
+  // ─── app/app/lgpd/requests/RequestsTable.tsx (SLA_LABELS) ───
+  "OK": { es: "OK" },
+  // ─── lib/kanban/score-band.ts (SCORE_BAND_LABELS) ───
+  "Frio": { es: "Frío" },
+  "Morno": { es: "Tibio" },
+  "Quente": { es: "Caliente" },
+  // ─── components/ai/GuardrailsEditor.tsx (KIND_LABELS) ───
+  //
+  // As 4 chaves abaixo já nascem em INGLÊS, não em português — bug à parte de
+  // #651: a convenção do projeto é "a chave é o texto em português", e aqui
+  // não é. Fora do escopo deste PR (é a fonte que precisa mudar, não a
+  // tradução), sinalizado no PR para abrir issue própria.
+  "Regex output block": { es: "Bloqueo de salida por regex" },
+  "RAG must hit": { es: "RAG debe coincidir" },
+  "Regex input block": { es: "Bloqueo de entrada por regex" },
+  "Contact flag": { es: "Marca de contacto" },
 };
 
 /**

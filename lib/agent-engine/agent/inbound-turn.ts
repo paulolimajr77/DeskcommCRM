@@ -3,6 +3,10 @@ import { TIPOS_DE_CASO, TIPOS_DE_CASO_PARA_A_IA } from "@/lib/ai/case-copy";
 import { DEFAULT_CHANNEL_PROVIDER } from '@/lib/channels/capabilities';
 import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './preview';
 import { deveIdentificar, IDENTIFICACAO_SYSTEM_BLOCK } from './identificacao';
+import {
+  carregarCamposDoFunilDoAgente,
+  renderCamposDoFunil,
+} from './campos-do-funil-do-agente';
 import { claimOfJob } from '../queue/claim';
 import { currentExecutionBoundary, guardServiceEffect } from '@/lib/atendimento/fronteira-server';
 /**
@@ -1963,6 +1967,19 @@ async function executarTurnoDoAgente(
   // Quem decide é `deveIdentificar`, para o teste vigiar esta regra e não uma cópia.
   if (agentConfig !== null && deveIdentificar(agentConfig.toolIds)) {
     blocosResidentes.push(IDENTIFICACAO_SYSTEM_BLOCK);
+  }
+  // O vocabulário do nicho — os campos personalizados que a empresa declarou no
+  // funil deste agente. Prefixo ESTÁVEL, como a memória da organização: só a
+  // DEFINIÇÃO entra (chave, rótulo, tipo, opções, obrigatoriedade), que é igual
+  // para toda a organização. O VALOR preenchido é do lead e chega pelo
+  // `crm_get_lead`, no sufixo — um único valor aqui mataria o cache a cada
+  // conversa. Sem campo declarado, `renderCamposDoFunil` devolve '' e nada é
+  // empilhado: quem não usa campo personalizado não paga byte nenhum.
+  if (agentConfig !== null && agentConfig.leadFieldsEnabled) {
+    const blocoDosCampos = renderCamposDoFunil(
+      await carregarCamposDoFunilDoAgente(pool, tenantId, agentConfig.pipelineIds),
+    );
+    if (blocoDosCampos !== '') blocosResidentes.push(blocoDosCampos);
   }
   if (preview)
     blocosResidentes.push(

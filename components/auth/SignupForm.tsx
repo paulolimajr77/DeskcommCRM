@@ -107,6 +107,13 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
         setServerError(t("Muitas tentativas. Aguarde alguns minutos."));
       } else if (res.error === "validation_error") {
         setServerError(t("Dados inválidos. Confira os campos."));
+      } else if (res.error === "conta_ja_existe" && convite) {
+        // Ramo próprio porque o `else` mandava "Tente novamente" — e tentar de
+        // novo nunca funciona quando a conta já existe. Em vez da mensagem,
+        // a SAÍDA: entrar levando o convite pendurado, para cair no aceite e
+        // não na tela inicial (que, para quem foi revogado, é a tela de acesso
+        // revogado, com um botão Sair e mais nada).
+        setContaExistente(true);
       } else if (res.error === "somente_convite") {
         // Ramo próprio porque o `else` diria "Tente novamente", e aqui tentar
         // de novo nunca vai funcionar — é política, não falha transitória.
@@ -115,13 +122,6 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
             "Esta instalação aceita cadastro apenas por convite. Se você foi convidado, use o link que chegou no seu e-mail.",
           ),
         );
-      } else if (res.error === "conta_ja_existe" && convite) {
-        // Ramo próprio porque o `else` mandava "Tente novamente" — e tentar de
-        // novo nunca funciona quando a conta já existe. Em vez da mensagem,
-        // a SAÍDA: entrar levando o convite pendurado, para cair no aceite e
-        // não na tela inicial (que, para quem foi revogado, é a tela de acesso
-        // revogado, com um botão Sair e mais nada).
-        setContaExistente(true);
       } else {
         setServerError(t("Não foi possível criar a conta. Tente novamente."));
       }

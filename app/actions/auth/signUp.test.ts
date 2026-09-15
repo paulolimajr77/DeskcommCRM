@@ -157,8 +157,10 @@ describe("signUp — instalação que só aceita convidados", () => {
     const { signUp } = await import("./signUp");
     const res = await signUp(
       {
-        // O convite agora pede o nome — quem entra convidado pula o onboarding
-        // e ficava sem nome para sempre.
+        // `full_name` passou a ser exigido de quem entra por CONVITE (a main de
+        // hoje): quem é convidado pula o onboarding e ficava sem nome para
+        // sempre. Este caso é sobre a política de cadastro, não sobre o nome —
+        // o campo entra para o payload ser o que a action aceita hoje.
         full_name: "Convidada da Silva",
         email: dados.email,
         password: dados.password,

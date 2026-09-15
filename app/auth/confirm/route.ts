@@ -4,8 +4,8 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { ensureTenantForUser } from "@/lib/auth/provision";
 import { decidirConviteDoSignup } from "@/lib/auth/convite-no-signup";
-import { aplicarConvite } from "@/lib/auth/aplicar-convite";
 import { modoDeCadastro } from "@/lib/auth/politica-de-cadastro";
+import { aplicarConvite } from "@/lib/auth/aplicar-convite";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 

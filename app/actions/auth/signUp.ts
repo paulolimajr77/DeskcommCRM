@@ -45,7 +45,9 @@ export type SignUpResult =
        *
        * `conta_ja_existe`: só acontece COM convite na mão. Sem convite a
        * resposta continua indistinguível de sucesso — ver o parágrafo de
-       * anti-enumeração abaixo.
+       * anti-enumeração abaixo. Os dois convivem sem se confundir: a recusa por
+       * política é decidida ANTES de tocar no GoTrue, então numa instalação
+       * fechada quem chega sem convite nunca chega a saber se o e-mail existe.
        */
       error:
         | "validation_error"

@@ -25012,6 +25012,49 @@ comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
 
 notify pgrst, 'reload schema';
 
+-- ---- a proposta de dado ganha DESTINO (migration 0270) ----
+-- Racional completo no cabeçalho da migration 0270. Em uma frase: a mesma
+-- tabela passa a carregar proposta de campo do FUNIL, e quem diz para onde a
+-- confirmação escreve é `lead_id`.
+--
+-- ⚠️ O ÍNDICE INDEXA `coalesce(lead_id, <zero>)`, e não a coluna crua: em
+-- índice único NULL é distinto de NULL, e a coluna nula desarmaria a
+-- idempotência da proposta de CONTATO em silêncio.
+--
+alter table public.contact_field_proposals
+  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
+
+comment on column public.contact_field_proposals.lead_id is
+  'Para ONDE a confirmação escreve. Nulo = campo do contato (email/name/'
+  'phone_number, vocabulário fechado). Preenchido = uma chave dentro de '
+  'crm_leads.custom_fields daquele negócio, validada contra pipeline.settings.'
+  'fields na ACEITAÇÃO — nunca só na proposta.';
+
+-- O índice velho sai pelo nome: recriá-lo com a mesma assinatura e conteúdo
+-- diferente não é possível, e deixar os dois faria o antigo continuar barrando
+-- proposta de funil legítima.
+drop index if exists public.uq_contact_field_proposals_uma_viva;
+create unique index if not exists uq_contact_field_proposals_uma_viva
+  on public.contact_field_proposals
+     (organization_id, contact_id, campo,
+      coalesce(lead_id, '00000000-0000-0000-0000-000000000000'::uuid))
+  where status = 'pending';
+
+-- Quem decide na Central lista por lead; sem isto a tela varre a tabela.
+create index if not exists idx_contact_field_proposals_por_lead
+  on public.contact_field_proposals (organization_id, lead_id)
+  where status = 'pending' and lead_id is not null;
+
+alter table public.contact_field_proposals
+  drop constraint if exists contact_field_proposals_campo_check;
+alter table public.contact_field_proposals
+  add constraint contact_field_proposals_campo_check check (
+    (lead_id is null and campo = any (array['email', 'name', 'phone_number']::text[]))
+    or (lead_id is not null and length(btrim(campo)) between 1 and 64)
+  );
+
+notify pgrst, 'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ ESTE BLOCO É, DE PROPÓSITO, O ÚLTIMO DO ARQUIVO. Apêndice novo entra ANTES

@@ -3093,6 +3093,7 @@ export type Database = {
           decided_by_user_id: string | null
           expires_at: string
           id: string
+          lead_id: string | null
           message_id: string | null
           motivo_recusa: string | null
           organization_id: string
@@ -3112,6 +3113,7 @@ export type Database = {
           decided_by_user_id?: string | null
           expires_at: string
           id?: string
+          lead_id?: string | null
           message_id?: string | null
           motivo_recusa?: string | null
           organization_id: string
@@ -3131,6 +3133,7 @@ export type Database = {
           decided_by_user_id?: string | null
           expires_at?: string
           id?: string
+          lead_id?: string | null
           message_id?: string | null
           motivo_recusa?: string | null
           organization_id?: string

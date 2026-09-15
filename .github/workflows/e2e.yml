@@ -104,7 +104,7 @@ jobs:
       # uma rodada por parte.
       fail-fast: false
       matrix:
-        parte: [1, 2, 3]
+        parte: [1, 2, 3, 4]
     # ─────────────────────────────────────────────────────────────────────────
     # A COBERTURA DEIXA DE SER PROSA DIGITADA À MÃO.
     #
@@ -585,26 +585,21 @@ jobs:
         autonomia-assistida.spec.ts
         roteamento-por-canal.spec.ts
         central-avisos-destino.spec.ts
-        agenda-presenca-recuperacao.spec.ts
         agenda-google-sync.spec.ts
-        agenda-google-meet.spec.ts
         encerramento-atendimento.spec.ts
         interface-por-vinculo.spec.ts
-        olhar-telas-do-epico.spec.ts
         pipelines-gestao.spec.ts
         qa-agente-usa-as-maos.spec.ts
         qa-selo-no-funil-usado.spec.ts
         qa-telas-descobertas-w4.spec.ts
         retorno-anti-morte.spec.ts
         webhooks.spec.ts
-        marca-logo.spec.ts
         logo-moldura-no-tema-escuro.spec.ts
         historico-de-captacao.spec.ts
         inbox-quem-manda.spec.ts
         inbox-rotulo-de-origem.spec.ts
         troca-de-organizacao-tem-volta.spec.ts
         organizacoes-criacao-convite-e-cache.spec.ts
-        suporte-temporario.spec.ts
         i18n-espanhol-na-tela.spec.ts
         inbox-abas-espelham-o-comando.spec.ts
         moeda-da-organizacao.spec.ts
@@ -612,10 +607,32 @@ jobs:
         central-avisos-resolver-em-lote.spec.ts
         voz-desligada-por-padrao.spec.ts
         voz-primeiro-pareamento.spec.ts
-        inbox-busca-e-filtros-dizem-a-verdade.spec.ts
         qa-titulos-das-telas.spec.ts
         qa-equipe-pinta-na-hora.spec.ts
         qa-sugestao-rejeitada-e-motivo.spec.ts
+      # ── PARTE 4 ────────────────────────────────────────────────────────────
+      #
+      # A QUARTA PARTE NASCEU DO TETO, NAO DE GOSTO. Em 2026-09-15 a parte 3
+      # estourou os 30 min DUAS vezes seguidas, sem um unico teste vermelho:
+      # completou 49 de ~66 testes e foi cortada. A rodada anterior que passou
+      # levou 23m21s — sete minutos de folga num teto de trinta.
+      #
+      # O cabecalho do job diz, e esta certo, que o teto FICA: subi-lo trocaria
+      # um vermelho honesto por um CI que demora mais a cada mes sem ninguem
+      # perceber. Entao o teto acusou, e o conserto e' o que ele pede —
+      # reparticionar. So' mover as pesadas da 3 para a 2 nao resolvia: a 2
+      # roda 16,5 min e ficaria em 25, trocando de vitima.
+      #
+      # As seis escolhidas sao as mais caras da parte 3, medidas pelo
+      # `--reporter=list` da ultima rodada que COMPLETOU (run 34896038112):
+      # 237s + 118s + 86s + 52s + 48s + 37s = 578s (~9,6 min).
+      SPECS_PARTE_4: >-
+        inbox-busca-e-filtros-dizem-a-verdade.spec.ts
+        agenda-presenca-recuperacao.spec.ts
+        agenda-google-meet.spec.ts
+        suporte-temporario.spec.ts
+        olhar-telas-do-epico.spec.ts
+        marca-logo.spec.ts
 
       FORA_DO_CI: >-
         vps-fresh-onboarding.spec.ts
@@ -862,7 +879,7 @@ jobs:
       # workers, dois specs gerando o mesmo código no mesmo intervalo de 30s
       # fazem o segundo ser recusado como replay. Foi o que derrubava a
       # `reset-password-mfa` (issue #80): ela passa sozinha e falha em paralelo.
-      - name: E2E — parte ${{ matrix.parte }} de 3
+      - name: E2E — parte ${{ matrix.parte }} de 4
         run: |
           set -euo pipefail
           # A lista sai da matrix, e as duas variáveis continuam existindo no
@@ -873,6 +890,7 @@ jobs:
             1) LISTA="$SPECS_PARTE_1" ;;
             2) LISTA="$SPECS_PARTE_2" ;;
             3) LISTA="$SPECS_PARTE_3" ;;
+            4) LISTA="$SPECS_PARTE_4" ;;
             *) echo "::error::parte ${{ matrix.parte }} sem lista"; exit 1 ;;
           esac
           # Falha alto se a variável vier vazia: sem isto, um typo no nome faria
@@ -991,13 +1009,13 @@ jobs:
                       dentro { exit }
                     ' .github/workflows/e2e.yml | grep -oE "[a-z0-9-]+\.spec\.ts" | sort -u; }
           NO_DISCO=$(ls tests/e2e/*.spec.ts | wc -l | tr -d " ")
-          RODOU=$( { bloco SPECS_PARTE_1; bloco SPECS_PARTE_2; bloco SPECS_PARTE_3; } | sort -u | wc -l | tr -d " ")
+          RODOU=$( { bloco SPECS_PARTE_1; bloco SPECS_PARTE_2; bloco SPECS_PARTE_3; bloco SPECS_PARTE_4; } | sort -u | wc -l | tr -d " ")
           FORA_LISTA=$(bloco FORA_DO_CI)
           FORA=$(echo "$FORA_LISTA" | grep -c . || true)
           # E o recorte passa a ter CONTROLE, não só um piso.
           #
           # `tests/unit/e2e-cobertura-completa.test.ts` já garante que toda spec
-          # do disco está em exatamente uma das três listas, sem duplicata e sem
+          # do disco está em exatamente uma das listas de parte, sem duplicata e sem
           # fantasma. Logo `RODOU + FORA` TEM de dar `NO_DISCO` — e quando não
           # der, o recorte leu a mais ou a menos. Sem esta linha, ler a mais é
           # invisível: o passo imprime um número maior e segue verde, que é

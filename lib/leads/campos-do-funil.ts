@@ -65,6 +65,10 @@ export function obrigatoriosEmBranco(
       if (v === undefined || v === null) return true;
       if (typeof v === "string") return v.trim() === "";
       if (Array.isArray(v)) return v.length === 0;
+      // Objeto sem chave nenhuma é ausência com outra roupa — um `select`
+      // múltiplo que ninguém marcou, por exemplo. `false` e `0` NÃO caem aqui
+      // porque não são objeto, e continuam valendo como resposta.
+      if (typeof v === "object") return Object.keys(v as object).length === 0;
       return false;
     })
     .map((c) => c.key);

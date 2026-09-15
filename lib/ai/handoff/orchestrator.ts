@@ -207,7 +207,18 @@ export async function triggerHandoff(
       // cliente esperar por uma decisão nossa — proteção de dado virando parede
       // na frente de quem está do outro lado. Por isso o `catch` devolve lista
       // vazia e segue: falhar em conferir não pode custar a conversa.
+      // ⏱️ E O TETO DE TEMPO É O QUE TORNA "NÃO TRAVA" VERDADE, e não promessa.
+      //
+      // `try/catch` pega ERRO, não LENTIDÃO. Uma conexão pendurada ou um
+      // PostgREST devagar seguraria a passagem indefinidamente — justamente o
+      // que este bloco jura não fazer. Sem o teto, a frase acima era aspiração.
+      //
+      // 800ms: folgado para uma leitura por chave primária, e curto o bastante
+      // para ninguém perceber. Estourou, a lista vai vazia e a passagem segue —
+      // conferir é um GANHO sobre a passagem, nunca uma condição dela.
       const obrigatoriosEmBrancoDoLead = await (async (): Promise<string[]> => {
+        const semResposta = new Promise<string[]>((r) => setTimeout(() => r([]), 800));
+        const leitura = (async (): Promise<string[]> => {
         try {
           const { data } = await admin
             .from("crm_leads")
@@ -224,6 +235,8 @@ export async function triggerHandoff(
         } catch {
           return [];
         }
+        })();
+        return Promise.race([leitura, semResposta]);
       })();
 
       const { error: actErr } = await admin.from("crm_lead_activities").insert({

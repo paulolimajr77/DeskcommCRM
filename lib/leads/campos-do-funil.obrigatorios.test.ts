@@ -58,6 +58,14 @@ describe("obrigatoriosEmBranco", () => {
     expect(obrigatoriosEmBranco(campos, { tem_convenio: false, funcionarios: 0 })).toEqual([]);
   });
 
+  it("objeto vazio conta como branco; objeto com chave, não", () => {
+    // Um `select` múltiplo que ninguém marcou chega como `{}`. É ausência com
+    // outra roupa — achado revisando o diff, não previsto na primeira versão.
+    const campos = [campo("preferencias", true, "select")];
+    expect(obrigatoriosEmBranco(campos, { preferencias: {} })).toEqual(["preferencias"]);
+    expect(obrigatoriosEmBranco(campos, { preferencias: { a: 1 } })).toEqual([]);
+  });
+
   it("sem campos declarados, ou sem valores, não explode", () => {
     expect(obrigatoriosEmBranco([], { a: 1 })).toEqual([]);
     expect(obrigatoriosEmBranco([campo("a", true)], null)).toEqual(["a"]);

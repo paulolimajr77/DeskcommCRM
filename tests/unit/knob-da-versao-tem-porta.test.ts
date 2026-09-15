@@ -89,6 +89,24 @@ const SEM_PORTA_ACEITO: Readonly<Record<string, string>> = {
     "vira chave de verdade ou se sai do schema. Registrado na fila.",
 };
 
+/**
+ * A busca é por PALAVRA INTEIRA, e não por pedaço.
+ *
+ * ⛔ `includes` cru daria verde de graça para uma coluna cujo nome fosse pedaço
+ * de outra coisa já escrita no arquivo: `fields` casa dentro de
+ * `lead_fields_enabled` e de `custom_fields`; `model` casa em `operator_model`;
+ * `input` casa em `inputSchema`. Uma coluna assim passaria nas quatro portas sem
+ * ter nenhuma — a cerca ficaria verde exatamente no caso que ela existe para
+ * pegar. Achado revisando o diff, antes de empurrar.
+ */
+function temPorta(fonte: string, coluna: string): boolean {
+  // ⚠️ A BARRA É DOBRADA de propósito. Num template literal, `\w` vira só `w`
+  // (JavaScript trata escape desconhecido como o próprio caractere), e a expressão
+  // viraria "não precedido da LETRA w" — que é quase sempre verdade. O caso de
+  // teste abaixo acusou isto na primeira rodada.
+  return new RegExp(`(?<![\\w$])${coluna}(?![\\w$])`).test(fonte);
+}
+
 function colunasDaVersao(): string[] {
   const sql = readFileSync(path.join(RAIZ, BASELINE), "utf8");
   const cols = new Set<string>();
@@ -131,7 +149,7 @@ describe("toda chave da versão do agente tem porta", () => {
     const semPorta: string[] = [];
     for (const c of colunas) {
       if (c in SEM_PORTA_ACEITO) continue;
-      const faltam = Object.keys(PORTAS).filter((nome) => !(fontes[nome] ?? "").includes(c));
+      const faltam = Object.keys(PORTAS).filter((nome) => !temPorta(fontes[nome] ?? "", c));
       if (faltam.length > 0) semPorta.push(`${c} — falta em: ${faltam.join(", ")}`);
     }
     expect(
@@ -140,6 +158,17 @@ describe("toda chave da versão do agente tem porta", () => {
         "Dê porta às quatro, ou declare em SEM_PORTA_ACEITO com o motivo:\n" +
         `${semPorta.join("\n")}\n`,
     ).toEqual([]);
+  });
+
+  it("a busca é por palavra inteira — nome que é PEDAÇO de outro não conta como porta", () => {
+    // Este caso guarda a correção acima. Sem ele, alguém troca `temPorta` por
+    // `includes` num refactor e a cerca volta a dar verde de graça.
+    const trecho = "lead_fields_enabled: v.lead_fields_enabled, custom_fields, operator_model";
+    expect(temPorta(trecho, "fields"), "`fields` casou dentro de outra palavra").toBe(false);
+    expect(temPorta(trecho, "model"), "`model` casou dentro de `operator_model`").toBe(false);
+    // Controle: a palavra inteira continua sendo achada.
+    expect(temPorta(trecho, "lead_fields_enabled")).toBe(true);
+    expect(temPorta(trecho, "operator_model")).toBe(true);
   });
 
   it("a lista de exceções não guarda coluna que não existe mais", () => {

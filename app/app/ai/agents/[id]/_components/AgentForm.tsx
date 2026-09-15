@@ -1138,7 +1138,19 @@ export function AgentForm(props: Props) {
               <Switch
                 id="lead_fields_enabled"
                 checked={form.lead_fields_enabled}
-                onCheckedChange={(v) => patch({ lead_fields_enabled: v })}
+                // ⛔ DESLIGAR O DE CIMA DESLIGA O DE BAIXO, e isto não é zelo.
+                // Sem esta linha: liga os dois, desliga este, salva. O banco
+                // fica com `enabled=false` e `propose_new=true`, e ao recarregar
+                // o segundo interruptor aparece LIGADO e CINZA — ninguém consegue
+                // desligá-lo sem religar este primeiro. Estado impossível de
+                // desfazer pela tela que o criou. Achado revisando o diff.
+                onCheckedChange={(v) =>
+                  patch(
+                    v
+                      ? { lead_fields_enabled: true }
+                      : { lead_fields_enabled: false, lead_fields_propose_new: false },
+                  )
+                }
                 disabled={disabled}
               />
               <Label htmlFor="lead_fields_enabled">

@@ -121,6 +121,43 @@ function formaDaResposta(campo: CustomFieldDef): string {
  * Mesma forma do que a agenda já faz (`AGENDA_SEM_FERRAMENTA`, inbound-turn):
  * sem ferramenta o bloco não some — ele troca de texto e proíbe a afirmação.
  */
+/**
+ * A PERGUNTA DO DONO ENTRA NUM BLOCO ESTRUTURADO — e por isso passa por aqui.
+ *
+ * Ela é texto livre, digitado por gente, e vai para o prefixo do turno entre
+ * aspas, numa linha de um bloco que tem forma (`- chave (rótulo)`, `--- funil:
+ * … ---`). Sem sanear, uma quebra de linha ou uma aspa reescrevem a estrutura
+ * do bloco inteiro — e o estrago não é no campo dela: é nos campos SEGUINTES,
+ * que o modelo passa a ler errado.
+ *
+ * ## O que este saneamento é, e o que ele NÃO é
+ *
+ * Não é defesa contra o dono: quem escreve aqui já controla o `system_prompt`
+ * inteiro do próprio agente, então não há privilégio a escalar. É defesa contra
+ * ACIDENTE DE FORMATAÇÃO — e contra o caso real de quem edita o funil não ser
+ * a mesma pessoa que escreveu o prompt.
+ *
+ * Quebra de linha (inclusive os separadores Unicode, que atravessam um
+ * `<input>` sem aparecer), aspa dupla e espaço repetido viram um espaço só. O
+ * texto continua legível; o bloco continua com uma linha por campo.
+ *
+ * ## E o tipo é CONFERIDO aqui, não confiado
+ *
+ * `settings` é `jsonb`: um import antigo, um `UPDATE` à mão ou um bug podem ter
+ * deixado `pergunta` como número ou objeto. Um `.trim()` num número estoura no
+ * CAMINHO QUENTE do turno — a conversa inteira morre por um campo de
+ * configuração. Aqui, o que não é string vira ausência.
+ */
+function perguntaSegura(bruta: unknown): string {
+  if (typeof bruta !== "string") return "";
+  return bruta
+    .replace(/[\r\n\u2028\u2029]+/g, " ")
+    .replace(/"/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
 export function renderCamposDoFunil(
   funis: CamposPorFunil[],
   opcoes: { podeAnotar?: boolean } = {},
@@ -143,6 +180,17 @@ export function renderCamposDoFunil(
     for (const campo of funil.campos) {
       const marca = campo.required === true ? ' [obrigatório]' : '';
       linhas.push(`- ${campo.key} (${campo.label})${marca} — ${formaDaResposta(campo)}`);
+      // A PERGUNTA DO DONO, quando ele escreveu uma.
+      //
+      // Sem ela o modelo deriva do rótulo e funciona — "Segmento" vira "qual o
+      // seu segmento?", que é linguagem de formulário. Quem conhece o cliente
+      // sabe que a pergunta boa é "você atende convênio ou particular?".
+      //
+      // Entra como "pergunte assim" e NÃO como ordem literal: o modelo precisa
+      // poder encaixá-la na conversa ("aproveitando, você atende…"), senão duas
+      // perguntas seguidas saem soletradas e o atendimento vira interrogatório.
+      const pergunta = perguntaSegura((campo as { pergunta?: unknown }).pergunta);
+      if (pergunta) linhas.push(`  pergunte assim: "${pergunta}"`);
     }
   }
 

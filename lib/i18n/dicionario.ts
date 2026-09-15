@@ -6595,6 +6595,10 @@ export const DICIONARIO: Traducoes = {
   "Aparecem no dossiê do negócio. No follow-up, você escolhe em qual campo gravar a resposta.": { es: "Aparecen en el expediente del negocio. En el seguimiento, eliges en qué campo guardar la respuesta." },
   "Rótulo (Endereço)": { es: "Etiqueta (Dirección)" },
   "Opções, separadas por vírgula": { es: "Opciones, separadas por coma" },
+  "Pergunta que o agente faz": { es: "Pregunta que hace el agente" },
+  "Pergunta que o agente faz (opcional) — ex.: você atende convênio ou particular?": {
+    es: "Pregunta que hace el agente (opcional) — ej.: ¿atiendes por seguro médico o particular?",
+  },
   "Sem janelas, o roteamento aceita conversa a qualquer hora — mas a Agenda não oferece NENHUM horário para marcar. Adicione janelas para publicar seus horários de atendimento.": { es: "Sin franjas, el enrutamiento acepta conversación a cualquier hora — pero la Agenda no ofrece NINGÚN horario para agendar. Agrega franjas para publicar tus horarios de atención." },
   "Nenhuma janela publicada — ninguém consegue marcar com esta pessoa.": { es: "Ninguna franja publicada — nadie puede agendar con esta persona." },
   "Atendentes e horários de atendimento": { es: "Agentes y horarios de atención" },

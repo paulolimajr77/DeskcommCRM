@@ -105,13 +105,37 @@ function formaDaResposta(campo: CustomFieldDef): string {
  * As cinco regras de conduta fecham ESTE bloco, e não um segundo: cabeçalho e
  * separador extras custariam bytes no prefixo sem ensinar nada a mais.
  */
-export function renderCamposDoFunil(funis: CamposPorFunil[]): string {
+/**
+ * ⛔ `podeAnotar` NÃO É ENFEITE: sem ele o bloco manda anotar quem não tem com o quê.
+ *
+ * `lead_fields_enabled` (a chave da versão) e `crm_update_lead` (a ferramenta)
+ * são interruptores SEPARADOS, em telas diferentes. Nada obriga os dois a
+ * andarem juntos, e com os campos ligados e a ferramenta ausente o que sai não
+ * é silêncio: é o modelo dizendo ao cliente que anotou. Mesmo defeito que
+ * derrubou `lead_fields_propose_new` — a tela grava, o motor ignora.
+ *
+ * Padrão `true` de propósito: vários testes montam este bloco, e um padrão que
+ * negasse a capacidade mudaria todos eles em silêncio. Quem sabe da ferramenta
+ * é o turno, e é ele que diz.
+ *
+ * Mesma forma do que a agenda já faz (`AGENDA_SEM_FERRAMENTA`, inbound-turn):
+ * sem ferramenta o bloco não some — ele troca de texto e proíbe a afirmação.
+ */
+export function renderCamposDoFunil(
+  funis: CamposPorFunil[],
+  opcoes: { podeAnotar?: boolean } = {},
+): string {
+  const podeAnotar = opcoes.podeAnotar ?? true;
   const comCampos = funis.filter((f) => f.campos.length > 0);
   if (comCampos.length === 0) return '';
 
   const linhas: string[] = [
-    '=== campos do cadastro (o vocabulário desta empresa — pergunte e anote) ===',
-    'A chave é o que vai no argumento `custom_fields` da ferramenta `crm_update_lead`; o rótulo é o nome que a empresa usa ao falar com gente.',
+    podeAnotar
+      ? '=== campos do cadastro (o vocabulário desta empresa — pergunte e anote) ==='
+      : '=== campos do cadastro (o vocabulário desta empresa — pergunte; quem anota é a equipe) ===',
+    podeAnotar
+      ? 'A chave é o que vai no argumento `custom_fields` da ferramenta `crm_update_lead`; o rótulo é o nome que a empresa usa ao falar com gente.'
+      : 'O rótulo é o nome que a empresa usa ao falar com gente. Você NÃO tem ferramenta para gravar estes campos nesta conversa.',
   ];
 
   for (const funil of comCampos) {
@@ -122,14 +146,28 @@ export function renderCamposDoFunil(funis: CamposPorFunil[]): string {
     }
   }
 
-  linhas.push(
-    '--- como preencher ---',
-    '1. Uma pergunta por vez, na linguagem do cliente. Despejar a lista inteira vira formulário, e formulário faz o cliente abandonar a conversa.',
-    '2. Anote assim que ouvir, sem esperar o fim da conversa: conversa que cai no meio leva junto tudo o que não foi anotado.',
-    '3. Grave somente o que foi dito. Se a frase não contém a resposta, o campo fica vazio. "Ele falou em clínica, logo o segmento é saúde" é dedução, e dedução enche o cadastro de dado errado com cara de certo.',
-    '4. Não sobrescreva campo já preenchido. Se o que o cliente disser hoje divergir do que está gravado, mantenha o gravado e siga.',
-    '5. Não pergunte o que já está na ficha.',
-  );
+  if (podeAnotar) {
+    linhas.push(
+      '--- como preencher ---',
+      '1. Uma pergunta por vez, na linguagem do cliente. Despejar a lista inteira vira formulário, e formulário faz o cliente abandonar a conversa.',
+      '2. Anote assim que ouvir, sem esperar o fim da conversa: conversa que cai no meio leva junto tudo o que não foi anotado.',
+      '3. Grave somente o que foi dito. Se a frase não contém a resposta, o campo fica vazio. "Ele falou em clínica, logo o segmento é saúde" é dedução, e dedução enche o cadastro de dado errado com cara de certo.',
+      '4. Não sobrescreva campo já preenchido. Se o que o cliente disser hoje divergir do que está gravado, mantenha o gravado e siga.',
+      '5. Não pergunte o que já está na ficha.',
+    );
+  } else {
+    // PERGUNTAR CONTINUA VALENDO, e por isso o bloco não some: a resposta do
+    // cliente fica na conversa, e quem atende lê e registra. O que não pode é
+    // prometer registro — é a promessa, não a falta da ferramenta, que quebra
+    // a confiança de quem está do outro lado.
+    linhas.push(
+      '--- como usar ---',
+      '1. Uma pergunta por vez, na linguagem do cliente. Despejar a lista inteira vira formulário, e formulário faz o cliente abandonar a conversa.',
+      '2. Pergunte somente o que ainda falta e serve à conversa de agora. Estes campos existem para a empresa entender quem chegou, não para virar cadastro.',
+      '3. NUNCA diga que anotou, registrou, salvou ou atualizou o cadastro. Você não tem ferramenta para isso nesta conversa, e quem lê a resposta do cliente é a equipe.',
+      '4. Se o cliente perguntar se ficou registrado, diga que a equipe recebe a conversa e cuida disso. Isso é como a empresa funciona, não uma limitação a esconder.',
+    );
+  }
 
   return linhas.join('\n');
 }

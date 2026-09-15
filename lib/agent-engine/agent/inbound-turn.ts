@@ -1976,8 +1976,18 @@ async function executarTurnoDoAgente(
   // conversa. Sem campo declarado, `renderCamposDoFunil` devolve '' e nada é
   // empilhado: quem não usa campo personalizado não paga byte nenhum.
   if (agentConfig !== null && agentConfig.leadFieldsEnabled) {
+    // ⛔ QUEM SABE DA FERRAMENTA É O TURNO, e por isso ele é quem diz.
+    //
+    // `lead_fields_enabled` e `crm_update_lead` são interruptores SEPARADOS, em
+    // telas diferentes: ligar os campos não dá a ferramenta. Sem esta linha o
+    // bloco mandaria "anote assim que ouvir" a um modelo que não tem com o quê
+    // — e o que sai disso não é silêncio, é ele dizendo ao cliente que anotou.
+    //
+    // `toolIds` é a lista da versão PUBLICADA, constante enquanto a versão for
+    // a mesma: o bloco continua cacheável no prefixo, e não varia por lead.
     const blocoDosCampos = renderCamposDoFunil(
       await carregarCamposDoFunilDoAgente(pool, tenantId, agentConfig.pipelineIds),
+      { podeAnotar: agentConfig.toolIds.includes('crm_update_lead') },
     );
     if (blocoDosCampos !== '') blocosResidentes.push(blocoDosCampos);
   }

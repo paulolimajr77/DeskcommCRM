@@ -182,3 +182,56 @@ describe('carregarCamposDoFunilDoAgente', () => {
     expect(await carregarCamposDoFunilDoAgente(pool, 'org1', ['p1', 'p2'])).toEqual([]);
   });
 });
+
+describe('quando o dono ligou os campos mas NÃO deu a ferramenta de anotar', () => {
+  /**
+   * ⛔ INSTRUÇÃO SEM CAPACIDADE É O PIOR DOS DOIS MUNDOS.
+   *
+   * `lead_fields_enabled` e a ferramenta `crm_update_lead` são interruptores
+   * SEPARADOS: o dono liga os campos na versão do agente, e escolhe as
+   * ferramentas numa lista à parte. Nada obriga os dois a andarem juntos.
+   *
+   * Com os campos ligados e a ferramenta ausente, o bloco mandava "anote assim
+   * que ouvir, sem esperar o fim da conversa" para um modelo que não tem com o
+   * quê. O que sai disso não é silêncio — é o modelo dizendo ao cliente que
+   * anotou. Foi exatamente o defeito que derrubou `lead_fields_propose_new`
+   * hoje de manhã: a tela grava, o motor ignora, e quem paga a conta é a
+   * confiança de quem está do outro lado.
+   *
+   * O produto já resolve isto na agenda: quando o agente não tem
+   * `crm_book_appointment`, o bloco troca de texto e proíbe dizer "confirmado"
+   * — ver `AGENDA_SEM_FERRAMENTA` em `inbound-turn.ts`. Aqui é a mesma regra.
+   */
+  const UM_FUNIL = [
+    {
+      pipelineId: 'p1',
+      nome: 'Clientes',
+      campos: [{ key: 'segmento', label: 'Segmento', type: 'text' as const }],
+    },
+  ];
+
+  it('o bloco NÃO manda anotar, e proíbe dizer que anotou', () => {
+    const bloco = renderCamposDoFunil(UM_FUNIL, { podeAnotar: false });
+    expect(bloco, 'o bloco ficou vazio — perguntar continua valendo').not.toBe('');
+    // Perguntar continua sendo trabalho útil: o que a pessoa responde vai para
+    // a conversa, e quem atende lê. O que não pode é prometer registro.
+    expect(bloco).toMatch(/pergunt/i);
+    expect(bloco, 'mandou anotar sem ter com o quê').not.toMatch(/anote assim que ouvir/i);
+    expect(bloco, 'não proibiu afirmar que registrou').toMatch(/nunca diga|não diga/i);
+  });
+
+  it('com a ferramenta, o bloco volta a mandar anotar', () => {
+    // O controle positivo. Sem ele, um render que devolvesse sempre o texto
+    // defensivo passaria no caso acima com a capacidade ligada quebrada.
+    const bloco = renderCamposDoFunil(UM_FUNIL, { podeAnotar: true });
+    expect(bloco).toMatch(/anote assim que ouvir/i);
+    expect(bloco).toContain('crm_update_lead');
+  });
+
+  it('o padrão é PODER anotar — quem chama sem dizer não muda de comportamento', () => {
+    // A opção nasce opcional de propósito: oito arquivos montam este bloco em
+    // teste, e um padrão que negasse a capacidade mudaria todos eles em
+    // silêncio.
+    expect(renderCamposDoFunil(UM_FUNIL)).toBe(renderCamposDoFunil(UM_FUNIL, { podeAnotar: true }));
+  });
+});

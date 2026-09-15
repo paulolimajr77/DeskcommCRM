@@ -516,7 +516,15 @@ test("ir para a Agenda pelo menu apaga o cliente da conversa — \"Novo agendame
   await page.goto(`/app/inbox/${p.conversation}`);
   await page.getByRole("link", { name: "Marcar compromisso", exact: true }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible();
-  await expect(page.getByLabel("Quem será atendido")).toHaveValue(p.contact);
+  // ⚠️ MIGRADO NO MERGE DA v1.27.1. Era `getByLabel("Quem será atendido")`, o
+  // seletor dos DOIS campos. Eles viraram um só (`EscolhaDoCliente`), e quando
+  // há cliente escolhido não existe campo nenhum: o painel mostra o NOME e a
+  // saída para desfazer. O irmão deste caso, mais acima, já tinha sido migrado
+  // — este ficou para trás e só apareceu quando o e2e passou a ALCANÇAR estas
+  // specs (a parte 3 as cortava por tempo antes de chegar nelas).
+  const clienteDaConversa = page.getByRole("button", { name: "Tirar o cliente" });
+  await expect(clienteDaConversa).toBeVisible();
+  await expect(clienteDaConversa.locator("..")).toContainText(p.name);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("painel-de-marcacao")).toBeHidden();
 
@@ -524,7 +532,12 @@ test("ir para a Agenda pelo menu apaga o cliente da conversa — \"Novo agendame
   await expect(page).toHaveURL(/\/app\/agenda$/);
   await page.getByRole("button", { name: /novo agendamento/i }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible();
-  await expect(page.getByLabel("Quem será atendido")).toHaveValue("");
+  // O QUE "NAO HERDOU" QUER DIZER NO CAMPO UNICO: nao ha ficha de cliente, e o
+  // campo de busca esta la', vazio. As DUAS afirmacoes juntas — so' a ausencia
+  // da ficha passaria com a tela quebrada, e so' o campo vazio passaria se a
+  // ficha continuasse desenhada ao lado.
+  await expect(page.getByRole("button", { name: "Tirar o cliente" })).toBeHidden();
+  await expect(page.getByLabel("Cliente do compromisso")).toHaveValue("");
 });
 
 test("gestão configura prazos e gatilho; falta inicia uma vez e resposta interrompe", async ({

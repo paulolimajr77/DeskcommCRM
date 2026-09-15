@@ -61,9 +61,9 @@ beforeAll(() => {
     values
       -- Encerrado: acompanha o contato.
       --
-      -- ⚠️ `cancelled_at` VAI JUNTO, e nao e' enfeite da fixture:
-      -- `calendar_appointments_cancelamento_coerente` exige que status
-      -- 'cancelled' e `cancelled_at` andem juntos nos dois sentidos. Sem ele o
+      -- ⚠️ cancelled_at VAI JUNTO, e nao e' enfeite da fixture: a constraint
+      -- calendar_appointments_cancelamento_coerente exige que status
+      -- 'cancelled' e cancelled_at andem juntos nos dois sentidos. Sem ele o
       -- INSERT e' recusado, os tres casos deste arquivo ficam SKIPPED e o
       -- arquivo reprova sem nenhuma assercao ter rodado — que e' pior que um
       -- vermelho, porque le como "1 arquivo falhou, 0 casos".

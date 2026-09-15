@@ -57,16 +57,26 @@ beforeAll(() => {
       on conflict (id) do nothing;
 
     insert into public.calendar_appointments
-      (organization_id, contact_id, owner_user_id, title, starts_at, ends_at, status)
+      (organization_id, contact_id, owner_user_id, title, starts_at, ends_at, status, cancelled_at)
     values
-      -- encerrado: acompanha o contato
+      -- Encerrado: acompanha o contato.
+      --
+      -- ⚠️ `cancelled_at` VAI JUNTO, e nao e' enfeite da fixture:
+      -- `calendar_appointments_cancelamento_coerente` exige que status
+      -- 'cancelled' e `cancelled_at` andem juntos nos dois sentidos. Sem ele o
+      -- INSERT e' recusado, os tres casos deste arquivo ficam SKIPPED e o
+      -- arquivo reprova sem nenhuma assercao ter rodado — que e' pior que um
+      -- vermelho, porque le como "1 arquivo falhou, 0 casos".
       ('${ORG}', '${ALVO}', '${DONO}', 'Consulta cancelada',
-       now() - interval '30 days', now() - interval '30 days' + interval '1 hour', 'cancelled'),
+       now() - interval '30 days', now() - interval '30 days' + interval '1 hour',
+       'cancelled', now() - interval '30 days'),
       ('${ORG}', '${ALVO}', '${DONO}', 'Consulta concluida',
-       now() - interval '10 days', now() - interval '10 days' + interval '1 hour', 'completed'),
+       now() - interval '10 days', now() - interval '10 days' + interval '1 hour',
+       'completed', null),
       -- do vizinho: não pode ser tocado
       ('${ORG}', '${VIZINHO}', '${DONO}', 'Consulta do vizinho',
-       now() + interval '3 days', now() + interval '3 days' + interval '1 hour', 'confirmed');
+       now() + interval '3 days', now() + interval '3 days' + interval '1 hour',
+       'confirmed', null);
   `);
 });
 

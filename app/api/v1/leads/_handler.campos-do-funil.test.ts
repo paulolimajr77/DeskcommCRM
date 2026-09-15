@@ -71,6 +71,7 @@ vi.mock("@/lib/leads/activity-write-failure", () => ({
 const ORG = "11111111-1111-4111-8111-111111111111";
 const LEAD = "22222222-2222-4222-8222-222222222222";
 const USUARIO = "33333333-3333-4333-8333-333333333333";
+const AGENTE = "44444444-4444-4444-8444-444444444444";
 
 const ctx: HandlerCtx = {
   organization_id: ORG,
@@ -244,5 +245,127 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
       emitLeadActivity,
       "salvar sem mexer em nada virou acontecimento na linha do tempo",
     ).not.toHaveBeenCalled();
+  });
+});
+
+describe("precedência: o agente não sobrescreve o que já está preenchido", () => {
+  /**
+   * ⛔ PRECEDÊNCIA EM CÓDIGO, NÃO EM INSTRUÇÃO.
+   *
+   * O bloco do prefixo já diz ao modelo "não sobrescreva campo já preenchido"
+   * (regra 4). Instrução o modelo desobedece — e desobedecer aqui apaga o que
+   * uma pessoa digitou, que é o dano que não se desfaz sozinho.
+   *
+   * ## Presença, e não autoria — e isto foi MEDIDO, não escolhido por gosto
+   *
+   * A prosa do plano dizia "não sobrescreva o que GENTE escreveu". Medi: não há
+   * como saber. `crm_lead_activities` guarda `performed_by_user_id`, mas o
+   * `fields` da atividade diz apenas `custom_fields` — nunca QUAL chave. Saber a
+   * autoria por campo exigiria uma coluna nova só para isso.
+   *
+   * O próprio teste do plano usa presença (`custom_fields: { segmento: … }` →
+   * não sobrescreve), então a regra que vale é: **chave com valor não vazio não
+   * é sobrescrita pelo agente.** É mais restritiva que autoria — o agente
+   * também não corrige o que ele mesmo escreveu — e essa restrição a mais é
+   * segura: mudar dado já registrado merece o olho de uma pessoa.
+   *
+   * ## Só o AGENTE é barrado
+   *
+   * Quem edita pela tela do dossiê passa pelo MESMO handler. Barrar ali
+   * impediria a atendente de corrigir um campo — o oposto do que se quer.
+   * `ctx.actor.type` é quem distingue.
+   */
+  const CTX_AGENTE: HandlerCtx = {
+    organization_id: ORG,
+    actor: { type: "ai_agent", id: "run-1", role: "ai_operator", agent_id: AGENTE },
+    requestId: "req-precedencia",
+  };
+
+  it("⛔ chave JÁ preenchida não é sobrescrita pelo agente", async () => {
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    const atualizado = await updateLeadHandler(
+      banco.supabase,
+      CTX_AGENTE,
+      LEAD,
+      entrada({ custom_fields: { segmento: "estetica" } }),
+    );
+
+    // O valor gravado NÃO muda.
+    expect(atualizado.custom_fields).toEqual({ segmento: "clinica" });
+    // E a chave conflitante nem chega à função de merge — barrar depois de
+    // gravar não é barrar.
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou, "o agente escreveu por cima e só depois alguém reclamou").toHaveLength(0);
+  });
+
+  it("chave VAZIA é gravada direto — não há o que proteger", async () => {
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    await updateLeadHandler(
+      banco.supabase,
+      CTX_AGENTE,
+      LEAD,
+      entrada({ custom_fields: { prazo: "30 dias" } }),
+    );
+
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou).toHaveLength(1);
+    expect(anotou[0]!.args.p_campos).toEqual({ prazo: "30 dias" });
+  });
+
+  it("escrita MISTA: passa a nova e segura a conflitante", async () => {
+    // O caso que uma implementação de tudo-ou-nada erraria: recusar o lote
+    // inteiro perderia o campo novo, que não tinha conflito nenhum.
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    await updateLeadHandler(
+      banco.supabase,
+      CTX_AGENTE,
+      LEAD,
+      entrada({ custom_fields: { segmento: "estetica", prazo: "30 dias" } }),
+    );
+
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou).toHaveLength(1);
+    expect(anotou[0]!.args.p_campos).toEqual({ prazo: "30 dias" });
+  });
+
+  it("valor VAZIO no banco não conta como preenchido", async () => {
+    // `""` e `null` são ausência, não decisão de ninguém. Tratá-los como
+    // preenchido travaria o campo para sempre no primeiro salvamento em branco.
+    const banco = bancoFalso({ segmento: "", prazo: null });
+    campoDoBancoFalso = { segmento: "", prazo: null };
+
+    await updateLeadHandler(
+      banco.supabase,
+      CTX_AGENTE,
+      LEAD,
+      entrada({ custom_fields: { segmento: "clinica", prazo: "30 dias" } }),
+    );
+
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou[0]!.args.p_campos).toEqual({ segmento: "clinica", prazo: "30 dias" });
+  });
+
+  it("CONTROLE: a MESMA escrita por uma PESSOA sobrescreve", async () => {
+    // Sem este caso, uma implementação que barrasse todo mundo passaria nos
+    // quatro acima — e a atendente não conseguiria mais corrigir um campo.
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    await updateLeadHandler(
+      banco.supabase,
+      ctx,
+      LEAD,
+      entrada({ custom_fields: { segmento: "estetica" } }),
+    );
+
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou, "a pessoa foi barrada junto com o agente").toHaveLength(1);
+    expect(anotou[0]!.args.p_campos).toEqual({ segmento: "estetica" });
   });
 });

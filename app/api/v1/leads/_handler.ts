@@ -1,5 +1,6 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { proporCampoDoFunil } from "@/lib/contacts/proposta-de-dado";
 /**
  * Core handlers para /api/v1/leads.
  *
@@ -72,6 +73,60 @@ async function ownerPatchOrThrow(
   }
 
   return result.patch;
+}
+
+/**
+ * ⛔ O AGENTE NÃO SOBRESCREVE CAMPO JÁ PREENCHIDO — e isto é código, não prompt.
+ *
+ * O bloco do prefixo pede ao modelo que não sobrescreva (regra 4 de
+ * `campos-do-funil-do-agente.ts`). Instrução o modelo desobedece, e desobedecer
+ * aqui apaga o que uma pessoa digitou: dano que não se desfaz sozinho.
+ *
+ * ## PRESENÇA, e não autoria — e isto foi MEDIDO
+ *
+ * O plano dizia "não sobrescreva o que GENTE escreveu". Não há como saber:
+ * `crm_lead_activities` guarda `performed_by_user_id`, mas o `fields` da
+ * atividade diz apenas `custom_fields`, nunca QUAL chave. Autoria por campo
+ * exigiria uma coluna só para isso.
+ *
+ * A regra que vale é mais restritiva e mais simples: **chave com valor não
+ * vazio não é sobrescrita pelo agente**, tenha sido escrita por quem for. Ele
+ * também não corrige o que ele mesmo anotou — e essa restrição a mais é segura,
+ * porque mudar dado já registrado merece o olho de uma pessoa.
+ *
+ * ## Só o AGENTE é barrado
+ *
+ * Quem edita pela tela do dossiê passa por este MESMO handler. Barrar ali
+ * impediria a atendente de corrigir um campo — o oposto do que se quer.
+ *
+ * ## Vazio não é decisão
+ *
+ * `""`, `null` e `undefined` são ausência. Tratá-los como preenchido travaria o
+ * campo para sempre no primeiro salvamento em branco.
+ *
+ * ## Por que filtra em vez de recusar o lote
+ *
+ * Recusar tudo perderia os campos que não tinham conflito nenhum — o agente
+ * costuma anotar mais de um por vez, e um conflito não invalida os outros.
+ */
+function camposQueOAgentePodeEscrever(
+  actor: Actor,
+  existing: { custom_fields?: unknown },
+  entrada: Record<string, unknown>,
+): Record<string, unknown> {
+  if (actor.type !== "ai_agent") return entrada;
+
+  const atuais =
+    existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
+      ? (existing.custom_fields as Record<string, unknown>)
+      : {};
+
+  const preenchido = (v: unknown): boolean =>
+    v !== undefined && v !== null && !(typeof v === "string" && v.trim() === "");
+
+  return Object.fromEntries(
+    Object.entries(entrada).filter(([chave]) => !preenchido(atuais[chave])),
+  );
 }
 
 function actorAuditPayload(actor: Actor): {
@@ -483,9 +538,45 @@ export async function updateLeadHandler(
   // O MERGE ATÔMICO. `updated` já provou que o lead existe e é da organização.
   let anotouCamposDoFunil = false;
   if (input.custom_fields !== undefined) {
+    // ⛔ PRECEDÊNCIA EM CÓDIGO. O bloco do prefixo já pede ao modelo que não
+    // sobrescreva campo preenchido (regra 4) — mas instrução o modelo
+    // desobedece, e desobedecer aqui apaga o que uma pessoa digitou.
+    const aEscrever = camposQueOAgentePodeEscrever(ctx.actor, existing, input.custom_fields);
+
+    // ⛔ O QUE FOI BARRADO VIRA PROPOSTA — descartar em silêncio seria trocar um
+    // dano por outro. O cliente disse que mudou de segmento; se isso some aqui,
+    // ninguém fica sabendo e o cadastro guarda o valor velho com cara de atual.
+    //
+    // Fire-and-forget de propósito: a proposta é um GANHO sobre a mutação
+    // principal, que já aconteceu. Falhar a requisição porque a fila de
+    // confirmação não aceitou seria punir quem escreveu pelo que não escreveu.
+    // O erro vai para o log estruturado, como o audit faz.
+    const barrados = Object.keys(input.custom_fields).filter((k) => !(k in aEscrever));
+    if (barrados.length > 0 && existing.contact_id) {
+      const atuais = (existing.custom_fields ?? {}) as Record<string, unknown>;
+      void Promise.allSettled(
+        barrados.map((campo) =>
+          proporCampoDoFunil(createAdminClient(), {
+            organizationId: ctx.organization_id,
+            contactId: existing.contact_id as string,
+            leadId,
+            campo,
+            valor: String(input.custom_fields![campo] ?? ""),
+            valorAnterior: atuais[campo] === undefined ? null : String(atuais[campo]),
+            agentId: ctx.actor.type === "ai_agent" ? (ctx.actor.agent_id ?? null) : null,
+          }),
+        ),
+      );
+    }
+    if (Object.keys(aEscrever).length === 0) {
+      // Lote inteiro em conflito. Não chama a função: mandar `{}` seria um
+      // write no-op com cara de trabalho. E NÃO retorna cedo — os outros campos
+      // desta requisição já foram gravados e ainda precisam de auditoria.
+      anotouCamposDoFunil = false;
+    } else {
     const { data: mesclados, error: anotarErr } = await createAdminClient().rpc(
       "fn_lead_anotar_campos",
-      { p_org: ctx.organization_id, p_lead: leadId, p_campos: input.custom_fields },
+      { p_org: ctx.organization_id, p_lead: leadId, p_campos: aEscrever },
     );
     if (anotarErr) {
       throw new ApiError(500, "internal_error", undefined, ctx.requestId, anotarErr.message);
@@ -503,6 +594,7 @@ export async function updateLeadHandler(
     // acontecimento na linha do tempo do lead, que é ruído com cara de trabalho.
     anotouCamposDoFunil =
       JSON.stringify(mesclados ?? {}) !== JSON.stringify(existing.custom_fields ?? {});
+    }
   }
 
   const a = actorAuditPayload(ctx.actor);

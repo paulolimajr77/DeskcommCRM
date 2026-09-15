@@ -1,5 +1,6 @@
 import type { ServiceBoundary } from "@/lib/atendimento/fronteira";
 import { assertServiceBoundarySupabase } from "@/lib/atendimento/origem";
+import { camposDoFunil, obrigatoriosEmBranco, settingsDoEmbed } from "@/lib/leads/campos-do-funil";
 /**
  * Handoff orchestrator — central point que executa a transição bot→humano
  * para os 4 gatilhos OR-lógicos (G1/G2/G3/G4) do EPIC-06.
@@ -195,6 +196,36 @@ export async function triggerHandoff(
     // Step 2 — timeline activity (best-effort; missing leadId is OK).
     if (input.leadId) {
       await guard();
+      // ⛔ O QUE FALTA PREENCHER — DECLARADO, NUNCA COBRADO.
+      //
+      // Quem recebe a conversa vê o que ficou em branco antes de abrir a boca,
+      // em vez de descobrir no meio do atendimento.
+      //
+      // Esta leitura NÃO PODE TRAVAR A PASSAGEM, e a razão não é técnica: o
+      // motivo mais comum de handoff é `requested_human`, que é a pessoa
+      // PEDINDO gente. Segurar porque o robô não descobriu o convênio faz o
+      // cliente esperar por uma decisão nossa — proteção de dado virando parede
+      // na frente de quem está do outro lado. Por isso o `catch` devolve lista
+      // vazia e segue: falhar em conferir não pode custar a conversa.
+      const obrigatoriosEmBrancoDoLead = await (async (): Promise<string[]> => {
+        try {
+          const { data } = await admin
+            .from("crm_leads")
+            .select("custom_fields, crm_pipelines(settings)")
+            .eq("organization_id", input.organizationId)
+            .eq("id", input.leadId)
+            .maybeSingle();
+          if (!data) return [];
+          const campos = camposDoFunil(settingsDoEmbed((data as { crm_pipelines?: unknown }).crm_pipelines));
+          return obrigatoriosEmBranco(
+            campos,
+            (data as { custom_fields?: Record<string, unknown> | null }).custom_fields ?? null,
+          );
+        } catch {
+          return [];
+        }
+      })();
+
       const { error: actErr } = await admin.from("crm_lead_activities").insert({
         organization_id: input.organizationId,
         lead_id: input.leadId,
@@ -203,6 +234,9 @@ export async function triggerHandoff(
         payload: {
           conversation_id: input.conversationId,
           reason: input.reason,
+          // Só CHAVES. O valor não entra: este payload é renderizado na tela e
+          // viaja em captura, exportação e ticket de suporte (§9).
+          obrigatorios_em_branco: obrigatoriosEmBrancoDoLead,
         },
         metadata: {
           actor_kind: "system",

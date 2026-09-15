@@ -1,5 +1,6 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { proporCampoDoFunil } from "@/lib/contacts/proposta-de-dado";
 /**
  * Core handlers para /api/v1/leads.
  *
@@ -72,6 +73,60 @@ async function ownerPatchOrThrow(
   }
 
   return result.patch;
+}
+
+/**
+ * ⛔ O AGENTE NÃO SOBRESCREVE CAMPO JÁ PREENCHIDO — e isto é código, não prompt.
+ *
+ * O bloco do prefixo pede ao modelo que não sobrescreva (regra 4 de
+ * `campos-do-funil-do-agente.ts`). Instrução o modelo desobedece, e desobedecer
+ * aqui apaga o que uma pessoa digitou: dano que não se desfaz sozinho.
+ *
+ * ## PRESENÇA, e não autoria — e isto foi MEDIDO
+ *
+ * O plano dizia "não sobrescreva o que GENTE escreveu". Não há como saber:
+ * `crm_lead_activities` guarda `performed_by_user_id`, mas o `fields` da
+ * atividade diz apenas `custom_fields`, nunca QUAL chave. Autoria por campo
+ * exigiria uma coluna só para isso.
+ *
+ * A regra que vale é mais restritiva e mais simples: **chave com valor não
+ * vazio não é sobrescrita pelo agente**, tenha sido escrita por quem for. Ele
+ * também não corrige o que ele mesmo anotou — e essa restrição a mais é segura,
+ * porque mudar dado já registrado merece o olho de uma pessoa.
+ *
+ * ## Só o AGENTE é barrado
+ *
+ * Quem edita pela tela do dossiê passa por este MESMO handler. Barrar ali
+ * impediria a atendente de corrigir um campo — o oposto do que se quer.
+ *
+ * ## Vazio não é decisão
+ *
+ * `""`, `null` e `undefined` são ausência. Tratá-los como preenchido travaria o
+ * campo para sempre no primeiro salvamento em branco.
+ *
+ * ## Por que filtra em vez de recusar o lote
+ *
+ * Recusar tudo perderia os campos que não tinham conflito nenhum — o agente
+ * costuma anotar mais de um por vez, e um conflito não invalida os outros.
+ */
+function camposQueOAgentePodeEscrever(
+  actor: Actor,
+  existing: { custom_fields?: unknown },
+  entrada: Record<string, unknown>,
+): Record<string, unknown> {
+  if (actor.type !== "ai_agent") return entrada;
+
+  const atuais =
+    existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
+      ? (existing.custom_fields as Record<string, unknown>)
+      : {};
+
+  const preenchido = (v: unknown): boolean =>
+    v !== undefined && v !== null && !(typeof v === "string" && v.trim() === "");
+
+  return Object.fromEntries(
+    Object.entries(entrada).filter(([chave]) => !preenchido(atuais[chave])),
+  );
 }
 
 function actorAuditPayload(actor: Actor): {
@@ -436,13 +491,22 @@ export async function updateLeadHandler(
     patch.expected_close_date = input.expected_close_date;
   }
   if (input.tags !== undefined) patch.tags = input.tags;
-  if (input.custom_fields !== undefined) {
-    const prev =
-      existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
-        ? (existing.custom_fields as Record<string, unknown>)
-        : {};
-    patch.custom_fields = { ...prev, ...input.custom_fields };
-  }
+  // ⛔ `custom_fields` NÃO ENTRA NO `patch`, e a ausência é o conserto.
+  //
+  // Isto era `patch.custom_fields = { ...prev, ...input.custom_fields }`, com
+  // `prev` vindo do SELECT lá de cima. Duas escritas simultâneas com chaves
+  // DIFERENTES perdiam uma: a segunda lia `prev` antes de a primeira gravar e
+  // sobrescrevia a coluna inteira com a versão velha mais a chave dela. Sem
+  // erro, sem log, o dado some. Medido em 2026-09-14.
+  //
+  // O PostgREST não sabe dizer `custom_fields = custom_fields || $1` — só sabe
+  // mandar um valor pronto, que é justamente o valor calculado da leitura
+  // velha. Então o merge foi para onde a trava de linha existe: a migration
+  // 0269 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
+  //
+  // ⚠️ POR QUE DEPOIS, E NÃO ANTES: o `update` é quem prova que o lead existe e
+  // é desta organização (o 404). Anotar antes gravaria campo num lead que a
+  // requisição ainda vai recusar.
 
   // O filtro entra AQUI TAMBÉM, e não só no SELECT acima: entre ler e escrever
   // há uma janela, e defesa que depende de uma leitura anterior é defesa que
@@ -471,11 +535,109 @@ export async function updateLeadHandler(
     );
   }
 
+  // O MERGE ATÔMICO. `updated` já provou que o lead existe e é da organização.
+  let camposDoFunilAnotados: string[] = [];
+  if (input.custom_fields !== undefined) {
+    // ⛔ PRECEDÊNCIA EM CÓDIGO. O bloco do prefixo já pede ao modelo que não
+    // sobrescreva campo preenchido (regra 4) — mas instrução o modelo
+    // desobedece, e desobedecer aqui apaga o que uma pessoa digitou.
+    const aEscrever = camposQueOAgentePodeEscrever(ctx.actor, existing, input.custom_fields);
+
+    // ⛔ O QUE FOI BARRADO VIRA PROPOSTA — descartar em silêncio seria trocar um
+    // dano por outro. O cliente disse que mudou de segmento; se isso some aqui,
+    // ninguém fica sabendo e o cadastro guarda o valor velho com cara de atual.
+    //
+    // Fire-and-forget de propósito: a proposta é um GANHO sobre a mutação
+    // principal, que já aconteceu. Falhar a requisição porque a fila de
+    // confirmação não aceitou seria punir quem escreveu pelo que não escreveu.
+    // O erro vai para o log estruturado, como o audit faz.
+    const barrados = Object.keys(input.custom_fields).filter((k) => !(k in aEscrever));
+    if (barrados.length > 0 && existing.contact_id) {
+      const atuais = (existing.custom_fields ?? {}) as Record<string, unknown>;
+      void Promise.allSettled(
+        barrados.map((campo) =>
+          proporCampoDoFunil(createAdminClient(), {
+            organizationId: ctx.organization_id,
+            contactId: existing.contact_id as string,
+            leadId,
+            campo,
+            valor: String(input.custom_fields![campo] ?? ""),
+            valorAnterior: atuais[campo] === undefined ? null : String(atuais[campo]),
+            agentId: ctx.actor.type === "ai_agent" ? (ctx.actor.agent_id ?? null) : null,
+          }),
+        ),
+      );
+    }
+    if (Object.keys(aEscrever).length === 0) {
+      // Lote inteiro em conflito. Não chama a função: mandar `{}` seria um
+      // write no-op com cara de trabalho. E NÃO retorna cedo — os outros campos
+      // desta requisição já foram gravados e ainda precisam de auditoria.
+      camposDoFunilAnotados = [];
+    } else {
+    const { data: mesclados, error: anotarErr } = await createAdminClient().rpc(
+      "fn_lead_anotar_campos",
+      { p_org: ctx.organization_id, p_lead: leadId, p_campos: aEscrever },
+    );
+    if (anotarErr) {
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, anotarErr.message);
+    }
+    // A resposta devolve o que EXISTE no banco, não o que esta requisição
+    // mandou: sob concorrência as duas coisas diferem, e é a do banco que vale.
+    (updated as Record<string, unknown>).custom_fields = mesclados ?? {};
+    // ⛔ E `patch` NÃO é tocado aqui. Já foi enviado ao banco, e escrever nele
+    // depois é confundir "o que pedi" com "o que ficou" — a cerca de
+    // `_handler.campos-do-funil.test.ts` pegou exatamente isso. A auditoria
+    // recebe o campo por fora, logo abaixo.
+    // ⛔ SÓ CONTA COMO ANOTAÇÃO SE MUDOU ALGUMA COISA. `custom_fields: {}` passa
+    // pelo zod, chega aqui, e o `||` devolve exatamente o que já existia — é um
+    // write no-op. Marcar assim mesmo faria "salvar sem mexer em nada" virar
+    // acontecimento na linha do tempo do lead, que é ruído com cara de trabalho.
+    // AS CHAVES QUE MUDARAM DE FATO, e não a coluna.
+    //
+    // A primeira versão disto marcava um booleano e a timeline dizia
+    // "custom_fields" — o nome da COLUNA, que não informa nada a quem opera:
+    // "o Juninho mexeu em custom_fields" não diz se ele anotou o segmento ou o
+    // convênio. Nomear a chave é o que torna a linha do tempo legível.
+    //
+    // ⚠️ E A CHAVE AINDA PODE CARREGAR O DADO — dívida conhecida, não descuido.
+    //
+    // `cpf_12345678900` ou `email_joao@x.com` são nomes de chave que contêm o
+    // valor, e nada aqui os impede: a chave é arbitrária do tenant, e o agente
+    // pode inventar uma. O conserto certo NÃO é filtrar o nome (adivinhar PII
+    // por regex erra nos dois sentidos) — é recusar chave que não esteja
+    // declarada em `pipeline.settings.fields`, onde quem escolheu os nomes foi
+    // o dono. Está na fila como a validação da ACEITAÇÃO, que a Tarefa 4.3
+    // também pede. Enquanto não existe, o risco é o dono nomear mal um campo
+    // que ele mesmo criou — menor que o de a linha do tempo não dizer nada.
+    //
+    // ⛔ E SÓ A CHAVE. O valor não entra aqui nem por conveniência: o reason é
+    // RENDERIZADO NA TELA e viaja em captura, exportação e ticket de suporte, e
+    // `custom_fields` é dado arbitrário do tenant — pode ter CPF, endereço,
+    // diagnóstico. O §9 proíbe PII nova em log, reason ou evidence. Quem quiser
+    // ver o valor abre a ficha, que está sob RLS.
+    const antes = (existing.custom_fields ?? {}) as Record<string, unknown>;
+    const depois = (mesclados ?? {}) as Record<string, unknown>;
+    camposDoFunilAnotados = Object.keys(depois).filter(
+      (k) => JSON.stringify(depois[k]) !== JSON.stringify(antes[k]),
+    );
+    }
+  }
+
   const a = actorAuditPayload(ctx.actor);
   // O QUE MUDOU, nao o que foi enviado: o formulario do dossie manda o form
   // inteiro a cada salvamento, entao `Object.keys(input)` acusava cinco campos
   // quando a pessoa mexeu em um. Detalhe em lib/leads/campos-alterados.ts.
-  const fields = camposAlterados(patch, existing as Record<string, unknown>);
+  // `custom_fields` entra por fora porque não passou pelo `patch`: quem mescla
+  // é o banco (0269). Sem esta linha, anotar um campo do funil não deixaria
+  // rastro nenhum na auditoria nem na timeline — invisível é pior que errado.
+  // As chaves do funil entram por FORA porque não passaram pelo `patch`: quem
+  // mescla é o banco (0269). Sem esta linha, anotar um campo do funil não
+  // deixaria rastro nenhum na auditoria nem na timeline — invisível é pior que
+  // errado. E entram pelo NOME DA CHAVE (`segmento`), nunca pelo nome da coluna.
+  const fields = [
+    ...camposAlterados(patch, existing as Record<string, unknown>),
+    ...camposDoFunilAnotados,
+  ];
 
   // A EDIÇÃO HUMANA ENTRA NA TIMELINE (wave 6). Antes disto, mexer num campo
   // era invisível: a IA deixava rastro e o humano não — meia continuidade

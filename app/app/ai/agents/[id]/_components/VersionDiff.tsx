@@ -88,6 +88,10 @@ function buildFieldChanges(a: AgentVersionRow, b: AgentVersionRow): FieldChange[
     ["history_token_window", "history_token_window"],
     ["handoff_tool_enabled", "handoff_tool_enabled"],
     ["cases_enabled", "cases_enabled"],
+    // Sem esta, ligar os campos do funil não apareceria em lugar nenhum do
+    // histórico — e o histórico de versões é a única trilha de quem mudou o
+    // comportamento do agente.
+    ["lead_fields_enabled", "lead_fields_enabled"],
     ["split_messages", "split_messages"],
     ["split_max_chars", "split_max_chars"],
   ];

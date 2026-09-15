@@ -154,6 +154,26 @@ export const customFieldSchema = z.object({
   options: z
     .array(z.object({ value: z.string().min(1), label: z.string().min(1) }))
     .optional(),
+  /**
+   * A PERGUNTA QUE O AGENTE FAZ, escrita pelo dono.
+   *
+   * Sem ela o agente deriva do `label`, e funciona — mas "Segmento" vira "qual
+   * o seu segmento?", que é linguagem de formulário. Quem conhece o cliente
+   * sabe que a pergunta boa é "você atende convênio ou particular?". Esta chave
+   * é o lugar de escrever isso.
+   *
+   * ⛔ OPCIONAL, E ISSO NÃO É PREGUIÇA. `camposDoFunil()` roda
+   * `customFieldSchema.safeParse` por item e DESCARTA o que não valida —
+   * torná-la obrigatória faria todo campo já gravado sumir da ficha de todo
+   * lead, em toda instalação, no primeiro deploy. Campo novo em schema lido de
+   * `jsonb` existente nasce opcional; o contrário é perda de dado disfarçada de
+   * validação.
+   *
+   * 200 caracteres: cabe uma pergunta, não cabe um roteiro. Roteiro é
+   * `system_prompt`, e misturar os dois faria o prefixo do turno crescer sem
+   * teto — cada campo do funil entra nele.
+   */
+  pergunta: z.string().max(200).optional(),
 });
 export type CustomFieldDef = z.infer<typeof customFieldSchema>;
 

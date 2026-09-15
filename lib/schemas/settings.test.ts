@@ -5,6 +5,7 @@ import {
   tenantSchema,
   notificationPrefsSchema,
   pipelineConfigPatchSchema,
+  customFieldSchema,
 } from "./settings";
 
 describe("profileSchema", () => {
@@ -148,5 +149,29 @@ describe("pipelineConfigPatchSchema", () => {
       lost_reasons: ["Concorrente", "Preço"],
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe("customFieldSchema — a pergunta do dono", () => {
+  const base = { key: "segmento", label: "Segmento", type: "text" as const };
+
+  it("aceita campo SEM pergunta — e isto é o que protege o dado já gravado", () => {
+    // `camposDoFunil()` roda `safeParse` por item e DESCARTA o que não valida.
+    // Se `pergunta` fosse obrigatória, todo campo já gravado sumiria da ficha de
+    // todo lead, em toda instalação, no primeiro deploy.
+    expect(customFieldSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("aceita a pergunta e a devolve", () => {
+    const r = customFieldSchema.safeParse({ ...base, pergunta: "Convênio ou particular?" });
+    expect(r.success).toBe(true);
+    expect(r.success && r.data.pergunta).toBe("Convênio ou particular?");
+  });
+
+  it("recusa acima de 200 caracteres — cabe pergunta, não cabe roteiro", () => {
+    // Roteiro é `system_prompt`. Misturar os dois faria o prefixo do turno
+    // crescer sem teto: cada campo do funil entra nele.
+    expect(customFieldSchema.safeParse({ ...base, pergunta: "x".repeat(201) }).success).toBe(false);
+    expect(customFieldSchema.safeParse({ ...base, pergunta: "x".repeat(200) }).success).toBe(true);
   });
 });

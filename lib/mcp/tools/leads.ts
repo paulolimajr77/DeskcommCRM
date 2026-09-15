@@ -23,6 +23,13 @@ import {
 import { createLeadSchema, updateLeadSchema } from "@/lib/schemas/leads";
 import { resolveUserNames } from "./_users";
 import type { McpContext, McpToolDefinition } from "../types";
+import { camposDoFunil } from "@/lib/leads/campos-do-funil";
+import {
+  avaliarPropostaDeCampo,
+  tituloDaProposta,
+  corpoDaProposta,
+  TETO_DE_CAMPOS_POR_FUNIL,
+} from "@/lib/leads/proposta-de-campo-novo";
 
 /**
  * Enriquece rows de lead com os campos de governança aditivos (G6-03):
@@ -304,5 +311,144 @@ export const crmMoveLeadStage: McpToolDefinition<typeof moveInputShape> = {
       },
     );
     return { lead };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// O AGENTE PROPÕE UM CAMPO QUE A EMPRESA AINDA NÃO DECLAROU (migration 0271)
+// ---------------------------------------------------------------------------
+
+const propostaDeCampoShape = {
+  pipeline_id: z.string().uuid().describe("O funil onde o campo faria sentido."),
+  key: z
+    .string()
+    .min(2)
+    .max(40)
+    .describe("Identificador em minúsculas, com sublinhado: origem_do_lead."),
+  label: z.string().min(1).max(80).describe("O nome que a equipe veria na tela: Origem do lead."),
+  trecho: z
+    .string()
+    .max(500)
+    .optional()
+    .describe("O que o cliente escreveu, para quem for decidir poder conferir."),
+};
+
+/**
+ * PROPOR NÃO É CRIAR, e a diferença é o produto inteiro.
+ *
+ * Criar campo muda a tela de TODOS os leads daquele funil, para sempre. É
+ * decisão de quem administra a empresa — nunca de um turno de conversa. Esta
+ * ferramenta só abre um aviso na Central; quem cria é uma pessoa, em
+ * Configurações › Funis.
+ *
+ * ## Por que na Central e não numa tabela de proposta
+ *
+ * Tudo o que ela precisa já existe ali: fila de decisão humana, quem resolveu,
+ * e uma tela que as pessoas abrem todo dia. Uma tabela irmã duplicaria worker
+ * de vencimento, RLS e tela — e as duas divergiriam no primeiro conserto feito
+ * de um lado só. Mesmo argumento que a 0270 fez para a proposta de VALOR.
+ *
+ * ## A idempotência é do BANCO, não do modelo
+ *
+ * O agente vai propor o mesmo campo a cada turno em que o assunto voltar. O
+ * `where not exists` é quem barra — `select` antes de `insert` no aplicativo
+ * seria check-then-act, e dois turnos concorrentes passariam pela janela.
+ */
+export const crmProposeLeadField: McpToolDefinition<typeof propostaDeCampoShape> = {
+  name: "crm_propose_lead_field",
+  description:
+    "Sugere à equipe um campo de cadastro que este funil ainda não tem, quando o cliente disse algo " +
+    "importante que não cabe em nenhum campo existente. NADA é criado por conta desta chamada: abre " +
+    "um aviso para uma pessoa decidir. NUNCA diga ao cliente que criou ou vai criar um campo — a " +
+    "proposta pode ser recusada. Recusa se o campo já existe (em qualquer grafia), se o funil está " +
+    "no teto de campos, ou se a chave não é um identificador válido.",
+  inputSchema: propostaDeCampoShape,
+  category: "write",
+  // ⛔ `ai_operator`, e não `agent` — a cerca `capacidade-alcancavel-pelo-agente`
+  // reprovou, com razão. A regra dela: escrita que NÃO é trabalho de atendente
+  // exige o piso `ai_operator`. Sugerir mudança de configuração não é trabalho
+  // de atendente; é o agente opinando sobre a casa.
+  //
+  // Não é afrouxamento: `ai_operator` vive só no escopo do token efêmero e
+  // NUNCA em `user_organizations`, então nenhuma PESSOA o alcança. O que muda é
+  // o agente passar a alcançar, deliberadamente — que é o ponto desta tool.
+  requiresRole: "ai_operator",
+  requiresScope: "mcp:write",
+  handler: async (input, ctx: McpContext) => {
+    const { data: funil } = await ctx.supabase
+      .from("crm_pipelines")
+      .select("id, name, settings")
+      .eq("organization_id", ctx.organizationId)
+      .eq("id", input.pipeline_id)
+      .maybeSingle();
+    if (!funil) {
+      return { proposta_criada: false, motivo: "funil_nao_encontrado" };
+    }
+
+    const existentes = camposDoFunil((funil as { settings?: Record<string, unknown> }).settings);
+    const decisao = avaliarPropostaDeCampo({ key: input.key, label: input.label }, existentes);
+    if (!decisao.propor) {
+      // Mensagens para o MODELO decidir o que fazer em seguida. Nenhuma delas é
+      // para repetir ao cliente: falam do fluxo interno, não do atendimento.
+      const explicacao: Record<string, string> = {
+        ja_existe: "esse campo já existe neste funil — use-o em vez de propor outro.",
+        funil_no_teto:
+          `este funil já está no limite de ${TETO_DE_CAMPOS_POR_FUNIL} campos; não proponha mais.`,
+        chave_invalida:
+          "a chave precisa ser um identificador: minúsculas, dígitos e sublinhado, começando por letra.",
+        rotulo_vazio: "o campo precisa de um nome legível para quem for decidir.",
+      };
+      return { proposta_criada: false, motivo: decisao.motivo, mensagem: explicacao[decisao.motivo] };
+    }
+
+    // ⛔ GRAVA O AVISO, e não um evento. Evento sem consumidor é o
+    // anti-pattern nº 3 da doutrina deste repositório: emite e ninguém escuta.
+    // A Central JÁ é a tela de decisão humana, e é ela que precisa saber.
+    //
+    // A IDEMPOTÊNCIA É DO BANCO: o agente vai propor o mesmo campo a cada turno
+    // ⛔ O TÍTULO É A CHAVE DA IDEMPOTÊNCIA, e por isso não carrega o trecho.
+    //
+    // A primeira versão punha a frase do cliente no título. Mas o trecho vem do
+    // MODELO: muda uma vírgula, muda o título, nasce aviso novo a cada turno, e
+    // a Central enche de cópias do mesmo pedido. A evidência foi para o CORPO,
+    // que não entra na comparação. Achado revisando o diff.
+    //
+    // `ref_id` é o FUNIL, e a chave inclui o título: duas propostas de campos
+    // DIFERENTES no mesmo funil são decisões diferentes e devem conviver.
+    const titulo = tituloDaProposta(decisao.label);
+    const { data: criadoId, error } = await ctx.supabase.rpc("fn_inbox_item_unico", {
+      p_org: ctx.organizationId,
+      p_kind: "lead_field_proposed",
+      p_severity: "info",
+      p_title: titulo,
+      p_body: corpoDaProposta({
+        key: decisao.key,
+        label: decisao.label,
+        funil: (funil as { name?: string }).name ?? null,
+        trecho: input.trecho ?? null,
+      }),
+      p_ref_kind: "pipeline",
+      p_ref_id: input.pipeline_id,
+    });
+    if (error) {
+      return { proposta_criada: false, motivo: "erro", mensagem: "não consegui registrar agora." };
+    }
+    // ⛔ `error` NULO NÃO É "CRIEI". A função devolve `null` quando o aviso já
+    // estava aberto — e dizer `true` ali faria o modelo acreditar que avisou a
+    // equipe quando ninguém foi avisado. O motivo separado (`ja_proposto`) é o
+    // que impede ele de tentar de novo no turno seguinte.
+    if (!criadoId) {
+      return {
+        proposta_criada: false,
+        motivo: "ja_proposto",
+        mensagem: "já existe um aviso aberto sugerindo esse campo — não proponha de novo.",
+      };
+    }
+    return {
+      proposta_criada: true,
+      key: decisao.key,
+      label: decisao.label,
+      mensagem: "a equipe foi avisada; siga a conversa e não mencione isto ao cliente.",
+    };
   },
 };

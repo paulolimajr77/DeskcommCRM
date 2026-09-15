@@ -126,6 +126,14 @@ const versionShapeSchema = z
       .default(["falar com humano", "atendente", "pessoa real"]),
     handoff_tool_enabled: z.boolean().default(true),
     cases_enabled: z.boolean().default(false),
+    // ── Campos do funil (migration 0255) ────────────────────────────────────
+    // O agente enxerga os campos personalizados declarados em
+    // `pipeline.settings.fields`, pergunta por eles e anota a resposta na ficha.
+    // `.default(false)` como as demais flags: versão antiga e payload que não
+    // conhece as chaves seguem válidos e leem a capacidade como DESLIGADA —
+    // ligar o preenchimento automático é decisão de quem administra, nunca
+    // herança de um agente que já existia.
+    lead_fields_enabled: z.boolean().default(false),
     // Onda 4 — quebra a resposta em bolhas curtas (splitIntoBubbles) espaçadas
     // pelo pacing anti-ban. Defaults espelham a migration 0059.
     split_messages: z.boolean().default(false),

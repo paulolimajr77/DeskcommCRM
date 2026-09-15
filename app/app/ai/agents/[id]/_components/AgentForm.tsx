@@ -151,6 +151,7 @@ interface FormState {
   handoff_keywords: string[];
   handoff_tool_enabled: boolean;
   cases_enabled: boolean;
+  lead_fields_enabled: boolean;
   split_messages: boolean;
   split_max_chars: number;
   followup: FollowupValue;
@@ -213,6 +214,9 @@ function buildState(args: {
     ],
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
+    // `?? false` = agente novo nasce sem perguntar nada dos campos do funil,
+    // como o banco. Ligar é ato de quem administra, nunca padrão herdado.
+    lead_fields_enabled: version?.lead_fields_enabled ?? false,
     split_messages: version?.split_messages ?? false,
     split_max_chars: version?.split_max_chars ?? 600,
     followup: version?.followup ?? DEFAULT_FOLLOWUP,
@@ -269,6 +273,7 @@ function toVersionPayload(s: FormState) {
     handoff_keywords: s.handoff_keywords,
     handoff_tool_enabled: s.handoff_tool_enabled,
     cases_enabled: s.cases_enabled,
+    lead_fields_enabled: s.lead_fields_enabled,
     split_messages: s.split_messages,
     split_max_chars: s.split_max_chars,
     followup: s.followup,
@@ -1119,6 +1124,27 @@ export function AgentForm(props: Props) {
             <p className="text-xs text-muted-foreground">
               {t(
                 "Diferente de passar a conversa: aqui o agente continua atendendo. Quando esbarra em algo que só uma pessoa resolve — aprovar um desconto, por exemplo — ele abre um pedido interno e retoma assim que for respondido.",
+              )}
+            </p>
+          </Card>
+
+          {/* Campos do funil (migration 0255) */}
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-medium">{t("Campos do funil")}</h3>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="lead_fields_enabled"
+                checked={form.lead_fields_enabled}
+                onCheckedChange={(v) => patch({ lead_fields_enabled: v })}
+                disabled={disabled}
+              />
+              <Label htmlFor="lead_fields_enabled">
+                {t("Perguntar e preencher os campos do funil")}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "O agente vê os campos personalizados que você declarou em Configurações › Funis, pergunta por eles durante a conversa e anota as respostas na ficha do lead.",
               )}
             </p>
           </Card>

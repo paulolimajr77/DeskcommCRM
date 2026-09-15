@@ -92,6 +92,7 @@ function buildFieldChanges(a: AgentVersionRow, b: AgentVersionRow): FieldChange[
     // histórico — e o histórico de versões é a única trilha de quem mudou o
     // comportamento do agente.
     ["lead_fields_enabled", "lead_fields_enabled"],
+    ["lead_fields_propose_new", "lead_fields_propose_new"],
     ["split_messages", "split_messages"],
     ["split_max_chars", "split_max_chars"],
   ];

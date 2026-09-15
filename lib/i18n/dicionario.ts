@@ -885,6 +885,13 @@ export const DICIONARIO: Traducoes = {
   "Perguntar e preencher os campos do funil": {
     es: "Preguntar y completar los campos del embudo",
   },
+  "Sugerir um campo novo quando faltar": {
+    es: "Sugerir un campo nuevo cuando falte",
+  },
+  "Quando o cliente disser algo importante que não cabe em nenhum campo, o agente abre um aviso na Central sugerindo o campo — com a frase do cliente, para você conferir. Ele NUNCA cria o campo sozinho e nunca promete ao cliente que criou.":
+    {
+      es: "Cuando el cliente diga algo importante que no cabe en ningún campo, el agente abre un aviso en la Central sugiriendo el campo — con la frase del cliente, para que usted lo verifique. NUNCA crea el campo por su cuenta ni le promete al cliente que lo creó.",
+    },
   "O agente vê os campos personalizados que você declarou em Configurações › Funis, pergunta por eles durante a conversa e anota as respostas na ficha do lead.": {
     es: "El agente ve los campos personalizados que declaraste en Configuración › Embudos, pregunta por ellos durante la conversación y anota las respuestas en la ficha del lead.",
   },

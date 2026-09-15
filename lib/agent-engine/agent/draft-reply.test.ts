@@ -52,6 +52,7 @@ const AGENT: PublishedAgentConfig = {
   operatorModel: null,
   operatorToolIds: [], pipelineIds: [],
   leadFieldsEnabled: false,
+  leadFieldsProposeNew: false,
   agentCreatedBy: null,
 };
 

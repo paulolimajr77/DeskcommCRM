@@ -65,6 +65,19 @@ export const TOOLS_FUNIL = declararTools([
     pacotes: ["vender"],
   },
   {
+    name: "crm_propose_lead_field",
+    category: "write",
+    rotulo: "Sugerir um campo novo no funil",
+    explicacao:
+      "Quando o cliente diz algo importante que não cabe em nenhum campo existente, o agente sugere um campo novo — e quem administra decide. Nada é criado por conta da sugestão.",
+    oQueToca: "Central de avisos",
+    // `seguro` e não `atencao`: nada é criado, nada é alterado, nada sai para o
+    // cliente. O que nasce é um aviso para uma pessoa decidir — e recusar é um
+    // clique. O vocabulário só tem seguro/atencao/critico; `info` não existe.
+    risco: "seguro",
+    pacotes: ["vender"],
+  },
+  {
     name: "crm_move_lead_stage",
     category: "write",
     rotulo: "Mover oportunidade de etapa",

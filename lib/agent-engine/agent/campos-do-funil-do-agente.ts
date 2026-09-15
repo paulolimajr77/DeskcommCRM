@@ -160,9 +160,10 @@ function perguntaSegura(bruta: unknown): string {
 
 export function renderCamposDoFunil(
   funis: CamposPorFunil[],
-  opcoes: { podeAnotar?: boolean } = {},
+  opcoes: { podeAnotar?: boolean; podePropor?: boolean } = {},
 ): string {
   const podeAnotar = opcoes.podeAnotar ?? true;
+  const podePropor = opcoes.podePropor ?? false;
   const comCampos = funis.filter((f) => f.campos.length > 0);
   if (comCampos.length === 0) return '';
 
@@ -214,6 +215,22 @@ export function renderCamposDoFunil(
       '2. Pergunte somente o que ainda falta e serve à conversa de agora. Estes campos existem para a empresa entender quem chegou, não para virar cadastro.',
       '3. NUNCA diga que anotou, registrou, salvou ou atualizou o cadastro. Você não tem ferramenta para isso nesta conversa, e quem lê a resposta do cliente é a equipe.',
       '4. Se o cliente perguntar se ficou registrado, diga que a equipe recebe a conversa e cuida disso. Isso é como a empresa funciona, não uma limitação a esconder.',
+    );
+  }
+
+  if (podePropor) {
+    // ⛔ PROPOR É EXTRA, NUNCA O ASSUNTO. Sem esta ressalva o modelo vira um
+    // consultor de CRM: interrompe a conversa do cliente para sugerir campo, e
+    // a Central enche de proposta enquanto o atendimento para.
+    //
+    // E ele NÃO pode dizer ao cliente que criou o campo: quem decide isso é
+    // quem administra a empresa, e a proposta pode ser recusada. Prometer o que
+    // depende de decisão alheia é a mesma família de defeito que fez o bloco
+    // sem `crm_update_lead` parar de mandar anotar.
+    linhas.push(
+      '--- quando faltar campo ---',
+      'Se o cliente disser algo importante que NÃO cabe em nenhum campo acima, proponha um campo novo com `crm_propose_lead_field` — uma vez, e siga a conversa. Nunca interrompa o atendimento para falar de configuração, e NUNCA diga ao cliente que criou ou vai criar um campo: quem decide é quem administra a empresa, e a proposta pode ser recusada.',
+      'Não proponha o que já está na lista acima, em nenhuma grafia.',
     );
   }
 

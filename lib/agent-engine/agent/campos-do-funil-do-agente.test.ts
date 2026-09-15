@@ -338,3 +338,41 @@ describe('a pergunta do dono não reescreve a estrutura do bloco', () => {
     expect(bloco({})).not.toMatch(/pergunte assim/i);
   });
 });
+
+describe('quando o dono liga "propor campo novo"', () => {
+  /**
+   * A chave `lead_fields_propose_new` foi RETIRADA em 2026-09-15, antes de
+   * existir, porque o mecanismo não estava pronto e ela nascia como interruptor
+   * que a tela grava e o motor ignora. Ela volta aqui, com quem a leia.
+   */
+  const UM_FUNIL = [
+    {
+      pipelineId: 'p1',
+      nome: 'Clientes',
+      campos: [{ key: 'segmento', label: 'Segmento', type: 'text' as const }],
+    },
+  ];
+
+  it('o bloco ganha a instrução de propor, e a ferramenta é nomeada', () => {
+    const bloco = renderCamposDoFunil(UM_FUNIL, { podeAnotar: true, podePropor: true });
+    expect(bloco).toContain('crm_propose_lead_field');
+    expect(bloco).toMatch(/quando faltar campo/i);
+  });
+
+  it('⛔ e proíbe dizer ao cliente que criou o campo', () => {
+    // Quem decide é quem administra, e a proposta pode ser recusada. Prometer o
+    // que depende de decisão alheia é a mesma família de defeito que fez o
+    // bloco sem `crm_update_lead` parar de mandar anotar.
+    const bloco = renderCamposDoFunil(UM_FUNIL, { podePropor: true });
+    expect(bloco).toMatch(/nunca diga ao cliente que criou/i);
+  });
+
+  it('o padrão é NÃO propor — quem não liga não paga', () => {
+    // Propor custa chamada de modelo na chave de quem hospeda, e o bloco entra
+    // no prefixo de TODO turno. Padrão ligado cobraria de quem nunca pediu.
+    expect(renderCamposDoFunil(UM_FUNIL)).not.toContain('crm_propose_lead_field');
+    expect(renderCamposDoFunil(UM_FUNIL, { podePropor: false })).not.toContain(
+      'crm_propose_lead_field',
+    );
+  });
+});

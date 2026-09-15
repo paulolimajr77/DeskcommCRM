@@ -1987,7 +1987,21 @@ async function executarTurnoDoAgente(
     // a mesma: o bloco continua cacheável no prefixo, e não varia por lead.
     const blocoDosCampos = renderCamposDoFunil(
       await carregarCamposDoFunilDoAgente(pool, tenantId, agentConfig.pipelineIds),
-      { podeAnotar: agentConfig.toolIds.includes('crm_update_lead') },
+      {
+        podeAnotar: agentConfig.toolIds.includes('crm_update_lead'),
+        // ⛔ PROPOR EXIGE RECEBER A DEFINIÇÃO, e por isso a conjunção.
+        //
+        // `leadFieldsProposeNew` sozinho faria o agente propor o que a empresa
+        // JÁ declarou — ele não saberia o que existe. A Central encheria de
+        // propostas do que está na tela, e quem administra aprenderia a ignorar
+        // a fila inteira, que é o pior desfecho.
+        //
+        // A regra é de COMPORTAMENTO, não de schema: por isso mora aqui e não
+        // num CHECK. As duas chaves continuam independentes no banco, e o dono
+        // pode ligar a segunda antes da primeira sem o `update.sh` quebrar.
+        podePropor:
+          agentConfig.leadFieldsProposeNew && agentConfig.leadFieldsEnabled,
+      },
     );
     if (blocoDosCampos !== '') blocosResidentes.push(blocoDosCampos);
   }

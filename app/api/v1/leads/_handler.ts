@@ -436,13 +436,22 @@ export async function updateLeadHandler(
     patch.expected_close_date = input.expected_close_date;
   }
   if (input.tags !== undefined) patch.tags = input.tags;
-  if (input.custom_fields !== undefined) {
-    const prev =
-      existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
-        ? (existing.custom_fields as Record<string, unknown>)
-        : {};
-    patch.custom_fields = { ...prev, ...input.custom_fields };
-  }
+  // ⛔ `custom_fields` NÃO ENTRA NO `patch`, e a ausência é o conserto.
+  //
+  // Isto era `patch.custom_fields = { ...prev, ...input.custom_fields }`, com
+  // `prev` vindo do SELECT lá de cima. Duas escritas simultâneas com chaves
+  // DIFERENTES perdiam uma: a segunda lia `prev` antes de a primeira gravar e
+  // sobrescrevia a coluna inteira com a versão velha mais a chave dela. Sem
+  // erro, sem log, o dado some. Medido em 2026-09-14.
+  //
+  // O PostgREST não sabe dizer `custom_fields = custom_fields || $1` — só sabe
+  // mandar um valor pronto, que é justamente o valor calculado da leitura
+  // velha. Então o merge foi para onde a trava de linha existe: a migration
+  // 0269 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
+  //
+  // ⚠️ POR QUE DEPOIS, E NÃO ANTES: o `update` é quem prova que o lead existe e
+  // é desta organização (o 404). Anotar antes gravaria campo num lead que a
+  // requisição ainda vai recusar.
 
   // O filtro entra AQUI TAMBÉM, e não só no SELECT acima: entre ler e escrever
   // há uma janela, e defesa que depende de uma leitura anterior é defesa que
@@ -471,11 +480,41 @@ export async function updateLeadHandler(
     );
   }
 
+  // O MERGE ATÔMICO. `updated` já provou que o lead existe e é da organização.
+  let anotouCamposDoFunil = false;
+  if (input.custom_fields !== undefined) {
+    const { data: mesclados, error: anotarErr } = await createAdminClient().rpc(
+      "fn_lead_anotar_campos",
+      { p_org: ctx.organization_id, p_lead: leadId, p_campos: input.custom_fields },
+    );
+    if (anotarErr) {
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, anotarErr.message);
+    }
+    // A resposta devolve o que EXISTE no banco, não o que esta requisição
+    // mandou: sob concorrência as duas coisas diferem, e é a do banco que vale.
+    (updated as Record<string, unknown>).custom_fields = mesclados ?? {};
+    // ⛔ E `patch` NÃO é tocado aqui. Já foi enviado ao banco, e escrever nele
+    // depois é confundir "o que pedi" com "o que ficou" — a cerca de
+    // `_handler.campos-do-funil.test.ts` pegou exatamente isso. A auditoria
+    // recebe o campo por fora, logo abaixo.
+    // ⛔ SÓ CONTA COMO ANOTAÇÃO SE MUDOU ALGUMA COISA. `custom_fields: {}` passa
+    // pelo zod, chega aqui, e o `||` devolve exatamente o que já existia — é um
+    // write no-op. Marcar assim mesmo faria "salvar sem mexer em nada" virar
+    // acontecimento na linha do tempo do lead, que é ruído com cara de trabalho.
+    anotouCamposDoFunil =
+      JSON.stringify(mesclados ?? {}) !== JSON.stringify(existing.custom_fields ?? {});
+  }
+
   const a = actorAuditPayload(ctx.actor);
   // O QUE MUDOU, nao o que foi enviado: o formulario do dossie manda o form
   // inteiro a cada salvamento, entao `Object.keys(input)` acusava cinco campos
   // quando a pessoa mexeu em um. Detalhe em lib/leads/campos-alterados.ts.
-  const fields = camposAlterados(patch, existing as Record<string, unknown>);
+  // `custom_fields` entra por fora porque não passou pelo `patch`: quem mescla
+  // é o banco (0269). Sem esta linha, anotar um campo do funil não deixaria
+  // rastro nenhum na auditoria nem na timeline — invisível é pior que errado.
+  const fields = anotouCamposDoFunil
+    ? [...camposAlterados(patch, existing as Record<string, unknown>), "custom_fields"]
+    : camposAlterados(patch, existing as Record<string, unknown>);
 
   // A EDIÇÃO HUMANA ENTRA NA TIMELINE (wave 6). Antes disto, mexer num campo
   // era invisível: a IA deixava rastro e o humano não — meia continuidade

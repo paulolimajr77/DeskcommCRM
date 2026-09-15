@@ -24961,6 +24961,57 @@ create trigger trg_ai_agent_versions_content_immutable
 notify pgrst, 'reload schema';
 
 
+-- ---- a anotação simultânea não apaga a outra (migration 0269) ----
+-- Racional completo no cabeçalho da migration 0269. Em uma frase: o merge de
+-- `custom_fields` era read-modify-write no aplicativo, e duas escritas
+-- simultâneas com chaves diferentes perdiam uma, sem erro. O merge passa a
+-- acontecer onde a trava de linha existe — dentro do banco.
+--
+create or replace function public.fn_lead_anotar_campos(
+  p_org uuid, p_lead uuid, p_campos jsonb
+) returns jsonb language plpgsql security definer set search_path = public, pg_temp as $fn$
+declare
+  resultado jsonb;
+begin
+  if p_campos is null or jsonb_typeof(p_campos) <> 'object' then
+    raise exception 'campos_precisa_ser_objeto' using errcode = '22023';
+  end if;
+
+  -- A TRAVA É O CONSERTO. Quem chega depois espera aqui e relê o que o
+  -- primeiro gravou; sem isto os dois concatenariam em cima da mesma versão
+  -- velha e a última escrita venceria sozinha.
+  perform 1 from public.crm_leads
+   where organization_id = p_org and id = p_lead
+   for update;
+  if not found then
+    -- Silêncio de propósito: quem pede um lead que não é da organização dele
+    -- não recebe confirmação de que ele existe em outro lugar.
+    return null;
+  end if;
+
+  update public.crm_leads
+     set custom_fields = coalesce(custom_fields, '{}'::jsonb) || p_campos
+   where organization_id = p_org and id = p_lead
+   returning custom_fields into resultado;
+
+  return resultado;
+end $fn$;
+
+-- Função nova em `public` NASCE EXPOSTA, e são DUAS origens de EXECUTE: o
+-- `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS TO anon` do corpo do
+-- baseline (que alcança toda função criada depois dele) e o grant a PUBLIC que
+-- o Postgres dá a qualquer função ao criá-la. Tratar só uma deixa a função
+-- alcançável pela anon key, que vai para o browser.
+revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon;
+grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
+
+comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
+  'Mescla campos personalizados no lead DENTRO do banco, sob trava de linha. '
+  'Existe porque o merge no aplicativo perdia escrita concorrente em silêncio. '
+  'Não decide precedência entre humano e agente — isso é de quem chama.';
+
+notify pgrst, 'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ ESTE BLOCO É, DE PROPÓSITO, O ÚLTIMO DO ARQUIVO. Apêndice novo entra ANTES

@@ -7895,6 +7895,12 @@ export type Database = {
       fn_start_support: { Args: { p_actor: string; p_session: string; p_org: string; p_previous: string | null; p_mode?: string; p_ttl?: number }; Returns: string }
       fn_end_support: { Args: { p_actor: string; p_session: string }; Returns: Json }
 
+      /** Migration 0269 — mescla campos do funil DENTRO do banco, sob trava de linha. */
+      fn_lead_anotar_campos: {
+        Args: { p_org: string; p_lead: string; p_campos: Json }
+        Returns: Json
+      }
+
       activate_kb_version: {
         Args: { p_agent_id: string; p_version_id: string }
         Returns: undefined

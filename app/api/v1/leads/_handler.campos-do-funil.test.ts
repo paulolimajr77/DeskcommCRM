@@ -34,8 +34,31 @@ vi.mock("@/lib/audit", () => ({
   isServiceRoleConfigured: () => true,
   hashEmail: (v: string) => v,
 }));
+/**
+ * O DUBLÊ DO BANCO PRECISA MESCLAR DE VERDADE.
+ *
+ * O merge saiu do handler e foi para `fn_lead_anotar_campos` (migration 0269),
+ * porque no aplicativo ele perdia escrita concorrente em silêncio. Um dublê que
+ * devolvesse `null` faria este arquivo medir o mock, não o produto — então ele
+ * faz o que a função faz: `||` raso sobre o que já está na linha.
+ *
+ * `chamadasDaRpc` é a asserção de CAUSA: prova que o handler DELEGOU, e não que
+ * ele voltou a mesclar por conta própria e deu certo por coincidência.
+ */
+const chamadasDaRpc: Array<{ nome: string; args: Record<string, unknown> }> = [];
+let campoDoBancoFalso: Record<string, unknown> = {};
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({ rpc: async () => ({ data: null, error: null }) })),
+  createAdminClient: vi.fn(() => ({
+    rpc: async (nome: string, args: Record<string, unknown>) => {
+      chamadasDaRpc.push({ nome, args });
+      if (nome !== "fn_lead_anotar_campos") return { data: null, error: null };
+      campoDoBancoFalso = {
+        ...campoDoBancoFalso,
+        ...(args.p_campos as Record<string, unknown>),
+      };
+      return { data: { ...campoDoBancoFalso }, error: null };
+    },
+  })),
 }));
 vi.mock("@/lib/leads/activity-emitter", () => ({
   emitLeadActivity: vi.fn(async () => ({ ok: true })),
@@ -104,6 +127,8 @@ function entrada(bruto: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  chamadasDaRpc.length = 0;
+  campoDoBancoFalso = {};
 });
 
 describe("campos personalizados do funil sobrevivem a anotação em pingue-pongue", () => {
@@ -112,6 +137,7 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
     // atendente digitou o prazo à mão na terça, e hoje o cliente falou o tipo
     // de projeto. Os três têm de coexistir.
     const banco = bancoFalso({ segmento: "clinica", prazo: "30 dias" });
+    campoDoBancoFalso = { segmento: "clinica", prazo: "30 dias" };
 
     const atualizado = await updateLeadHandler(
       banco.supabase,
@@ -120,16 +146,24 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
       entrada({ custom_fields: { tipo_projeto: "site" } }),
     );
 
-    expect(banco.patch()?.custom_fields).toEqual({
-      segmento: "clinica",
-      prazo: "30 dias",
-      tipo_projeto: "site",
-    });
-    expect(banco.linha.custom_fields).toEqual({
-      segmento: "clinica",
-      prazo: "30 dias",
-      tipo_projeto: "site",
-    });
+    // ⛔ A COLUNA NÃO PODE ESTAR NO PATCH. Esta é a asserção que vale hoje: se
+    // ela voltar, o merge voltou para o aplicativo e a corrida volta junto.
+    expect(
+      banco.patch(),
+      "custom_fields voltou ao UPDATE — o merge saiu do banco",
+    ).not.toHaveProperty("custom_fields");
+
+    // E DELEGOU, com os argumentos certos. Sem isto, um handler que
+    // simplesmente ignorasse `custom_fields` também passaria na asserção acima.
+    const anotou = chamadasDaRpc.filter((c) => c.nome === "fn_lead_anotar_campos");
+    expect(anotou, "o handler não chamou fn_lead_anotar_campos").toHaveLength(1);
+    expect(anotou[0]!.args.p_lead).toBe(LEAD);
+    expect(anotou[0]!.args.p_org).toBe(ORG);
+    // Manda SÓ o que chegou, nunca o objeto inteiro relido: mandar o inteiro
+    // reintroduziria a leitura velha por outro caminho.
+    expect(anotou[0]!.args.p_campos).toEqual({ tipo_projeto: "site" });
+
+    // E a resposta ao cliente traz o que o BANCO devolveu, com os três juntos.
     expect(atualizado.custom_fields).toEqual({
       segmento: "clinica",
       prazo: "30 dias",
@@ -143,15 +177,16 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
     // atualizar um campo já preenchido estaria errada. O cliente disse clínica
     // e depois corrigiu para estética — vale a última palavra dele.
     const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
 
-    await updateLeadHandler(
+    const atualizado = await updateLeadHandler(
       banco.supabase,
       ctx,
       LEAD,
       entrada({ custom_fields: { segmento: "estetica" } }),
     );
 
-    expect(banco.linha.custom_fields).toEqual({ segmento: "estetica" });
+    expect(atualizado.custom_fields).toEqual({ segmento: "estetica" });
   });
 
   it("PATCH sem `custom_fields` não encosta no jsonb", async () => {
@@ -190,11 +225,24 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
     // é quem vai avisar que a decisão está sendo tomada.
     const banco = bancoFalso({ segmento: "clinica", prazo: "30 dias" });
 
-    await updateLeadHandler(banco.supabase, ctx, LEAD, entrada({ custom_fields: {} }));
+    campoDoBancoFalso = { segmento: "clinica", prazo: "30 dias" };
 
-    expect(banco.patch()).toHaveProperty("custom_fields");
-    expect(banco.patch()?.custom_fields).toEqual({ segmento: "clinica", prazo: "30 dias" });
-    expect(banco.linha.custom_fields).toEqual({ segmento: "clinica", prazo: "30 dias" });
-    expect(emitLeadActivity).not.toHaveBeenCalled();
+    const atualizado = await updateLeadHandler(
+      banco.supabase,
+      ctx,
+      LEAD,
+      entrada({ custom_fields: {} }),
+    );
+
+    // ⚠️ ATUALIZADO NA 0269: a coluna NÃO entra mais no patch (quem mescla é o
+    // banco), e por isso o item 2 do comentário acima deixou de valer. O resto
+    // vale igual, e por um caminho melhor: `{}` chega à função, o `||` devolve
+    // o que existia, e como nada mudou nenhuma atividade é escrita.
+    expect(banco.patch()).not.toHaveProperty("custom_fields");
+    expect(atualizado.custom_fields).toEqual({ segmento: "clinica", prazo: "30 dias" });
+    expect(
+      emitLeadActivity,
+      "salvar sem mexer em nada virou acontecimento na linha do tempo",
+    ).not.toHaveBeenCalled();
   });
 });

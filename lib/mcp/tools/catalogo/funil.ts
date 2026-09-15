@@ -71,10 +71,16 @@ export const TOOLS_FUNIL = declararTools([
     explicacao:
       "Quando o cliente diz algo importante que não cabe em nenhum campo existente, o agente sugere um campo novo — e quem administra decide. Nada é criado por conta da sugestão.",
     oQueToca: "Central de avisos",
-    // `seguro` e não `atencao`: nada é criado, nada é alterado, nada sai para o
-    // cliente. O que nasce é um aviso para uma pessoa decidir — e recusar é um
-    // clique. O vocabulário só tem seguro/atencao/critico; `info` não existe.
-    risco: "seguro",
+    // ⛔ `atencao`, e NÃO `seguro` — eu tinha escrito `seguro` argumentando que
+    // "nada é criado". A cerca `catalogo-tools-leigo-friendly` reprovou, e ela
+    // está certa: o risco anunciado a quem configura tem de bater com a
+    // categoria técnica, e esta tool É `write` — ela grava um aviso.
+    //
+    // O argumento do "nada é criado" continua verdadeiro e continua importando:
+    // ele vive na `explicacao`, que é onde quem liga a capacidade lê. Baixar o
+    // risco para carimbar essa verdade seria fazer o selo mentir sobre a
+    // categoria — e o selo é o que a pessoa usa para decidir rápido.
+    risco: "atencao",
     pacotes: ["vender"],
   },
   {

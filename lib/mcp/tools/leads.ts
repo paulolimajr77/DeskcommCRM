@@ -364,7 +364,15 @@ export const crmProposeLeadField: McpToolDefinition<typeof propostaDeCampoShape>
     "no teto de campos, ou se a chave não é um identificador válido.",
   inputSchema: propostaDeCampoShape,
   category: "write",
-  requiresRole: "agent",
+  // ⛔ `ai_operator`, e não `agent` — a cerca `capacidade-alcancavel-pelo-agente`
+  // reprovou, com razão. A regra dela: escrita que NÃO é trabalho de atendente
+  // exige o piso `ai_operator`. Sugerir mudança de configuração não é trabalho
+  // de atendente; é o agente opinando sobre a casa.
+  //
+  // Não é afrouxamento: `ai_operator` vive só no escopo do token efêmero e
+  // NUNCA em `user_organizations`, então nenhuma PESSOA o alcança. O que muda é
+  // o agente passar a alcançar, deliberadamente — que é o ponto desta tool.
+  requiresRole: "ai_operator",
   requiresScope: "mcp:write",
   handler: async (input, ctx: McpContext) => {
     const { data: funil } = await ctx.supabase

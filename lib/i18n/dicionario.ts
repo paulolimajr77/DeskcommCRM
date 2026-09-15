@@ -371,6 +371,13 @@ export const DICIONARIO: Traducoes = {
   "Nenhum dia fechado daqui para a frente.": { es: "Ningún día cerrado de aquí en adelante." },
   "aberto excepcionalmente": { es: "abierto excepcionalmente" },
   "Abrir atendimento": { es: "Abrir atención" },
+  "Abrir Configurações › Funis": { es: "Abrir Configuración › Embudos" },
+  "Para aceitar, abra Configurações › Funis e acrescente o campo. Para recusar, marque este aviso como resolvido.": {
+    es: "Para aceptar, abre Configuración › Embudos y agrega el campo. Para rechazar, marca este aviso como resuelto.",
+  },
+  "O assistente sugere um campo novo no seu funil": {
+    es: "El asistente sugiere un campo nuevo en tu embudo",
+  },
   "Abra o atendimento e diga o que fazer: concluir, pedir informação ao cliente ou passar para uma pessoa.": { es: "Abre la atención y di qué hacer: concluir, pedir información al cliente o pasarla a una persona." },
   "Um atendimento espera decisão da equipe": { es: "Una atención espera decisión del equipo" },
   "Soltar o horário de um pedido não confirmado após (minutos)": { es: "Liberar el horario de una solicitud no confirmada después de (minutos)" },

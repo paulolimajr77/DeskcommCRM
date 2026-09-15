@@ -23,6 +23,10 @@ export const REFERENCIAS_DE_AVISO = {
   channel_session: { tabela: "channel_sessions", papel: "admin", rotulo: "Revisar conexão", href: () => "/app/connections", ativo: true },
   ai_knowledge_source: { tabela: "ai_knowledge_sources", papel: "manager", rotulo: "Abrir base de conhecimento", href: () => "/app/ai/knowledge/sources" },
   agent_case: { tabela: "agent_cases", papel: "agent", rotulo: "Abrir atendimento", href: (id: string) => `/app/ai/cases?caso=${id}` },
+  // O FUNIL, para a sugestão de campo (migration 0271). O destino é a tela onde
+  // a decisão ACONTECE — Configurações › Funis, que é onde o campo é criado à
+  // mão. Um aviso que não leva ao lugar da decisão vira recado.
+  pipeline: { tabela: "crm_pipelines", papel: "admin", rotulo: "Abrir Configurações › Funis", href: () => "/app/settings/tenant/pipelines" },
 } satisfies Record<string, Alvo>;
 
 export type InboxRefKind = keyof typeof REFERENCIAS_DE_AVISO | "organization" | "ai_budget" | "job_queue" | "cron_jobs";
@@ -35,6 +39,10 @@ const CONEXOES: ContextoGeral = { papel: "admin", href: "/app/connections", rotu
 export const POLITICAS_DE_AVISO = {
   // O caso parado.  traz só  porque o aviso SEMPRE nasce com
   // o id do caso — nunca é genérico.
+  // A sugestão de campo do agente. `admin` porque criar campo muda a tela de
+  // TODOS os negócios daquele funil — é decisão de quem administra, e não de
+  // quem atende uma conversa.
+  lead_field_proposed: { refs: ["pipeline"], orientacao: "Para aceitar, abra Configurações › Funis e acrescente o campo. Para recusar, marque este aviso como resolvido." },
   case_stale: { refs: ["agent_case"], orientacao: "Abra o atendimento e diga o que fazer: concluir, pedir informação ao cliente ou passar para uma pessoa." },
   appointment_outcome_required:{refs:["appointment"],orientacao:"Abra o compromisso e confirme a presença."},
   appointment_recovery_review:{refs:["appointment"],orientacao:"Confira o motivo e escolha o próximo passo no compromisso."},

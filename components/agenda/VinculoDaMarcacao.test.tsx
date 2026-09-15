@@ -57,13 +57,23 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * ⚠️ O CAMPO DE BUSCA SE CHAMA "Cliente do compromisso", e nao "Buscar cliente".
+ *
+ * Eram DOIS campos em sequencia — "Buscar cliente" (texto) e "Quem sera
+ * atendido" (lista). Viraram um so (`EscolhaDoCliente`) depois de uma
+ * instalacao real abrir "Novo agendamento" com um contato JA selecionado,
+ * herdado da abertura anterior: quem nao reparasse marcava no nome de outra
+ * pessoa. O rotulo daqui acompanha a tela; a saida "Criar «termo»" que este
+ * arquivo mede continua valendo e agora pende do campo unico.
+ */
 describe("VinculoDaMarcacao", () => {
   it("oferece criar quando a busca não encontra ninguém", async () => {
     responderCom([]);
     const user = userEvent.setup();
     envolver(<VinculoDaMarcacao contactId="" conversationId="" onChange={vi.fn()} />);
 
-    await user.type(screen.getByLabelText(/Buscar cliente/i), "Joana");
+    await user.type(screen.getByLabelText(/Cliente do compromisso/i), "Joana");
 
     await waitFor(() => expect(screen.getByRole("button", { name: /Criar/i })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /Joana/ })).toBeInTheDocument();
@@ -74,7 +84,7 @@ describe("VinculoDaMarcacao", () => {
     const user = userEvent.setup();
     envolver(<VinculoDaMarcacao contactId="" conversationId="" onChange={vi.fn()} />);
 
-    await user.type(screen.getByLabelText(/Buscar cliente/i), "Joana");
+    await user.type(screen.getByLabelText(/Cliente do compromisso/i), "Joana");
 
     await waitFor(() => expect(screen.getByRole("option", { name: "Joana Prado" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Criar/i })).not.toBeInTheDocument();
@@ -86,7 +96,7 @@ describe("VinculoDaMarcacao", () => {
     const user = userEvent.setup();
     envolver(<VinculoDaMarcacao contactId="" conversationId="" onChange={onChange} />);
 
-    await user.type(screen.getByLabelText(/Buscar cliente/i), "Joana");
+    await user.type(screen.getByLabelText(/Cliente do compromisso/i), "Joana");
     await waitFor(() => expect(screen.getByRole("button", { name: /Criar/i })).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /Criar/i }));
 

@@ -1,9 +1,23 @@
--- O dono liga os campos do funil no agente — DUAS chaves, na VERSÃO.
+-- O dono liga os campos do funil no agente — UMA chave, na VERSÃO.
 --
--- O QUE: `ai_agent_versions.lead_fields_enabled` (o agente pergunta e preenche
--- os campos personalizados que a empresa declarou em Configurações › Funis) e
--- `ai_agent_versions.lead_fields_propose_new` (o agente PROPÕE campo que ainda
--- não existe). As duas nascem `false`.
+-- O QUE: `ai_agent_versions.lead_fields_enabled` — o agente pergunta e preenche
+-- os campos personalizados que a empresa declarou em Configurações › Funis.
+-- Nasce `false`.
+--
+-- ⚠️ POR QUE NÃO SÃO DUAS, e a segunda foi RETIRADA antes de existir. Este
+-- arquivo trazia também `lead_fields_propose_new` (o agente PROPÕE campo que
+-- ainda não existe). O mecanismo que a usaria — a proposta de campo, a tela em
+-- Configurações › Funis e o aviso na Central — ainda não foi construído, então
+-- a chave nascia sem ninguém que a lesse: um interruptor que o dono liga, que a
+-- tela grava, e que o motor ignora.
+--
+-- Quem pegou foi `tests/unit/knobs-da-versao-publicada-sao-aplicados.test.ts`,
+-- cuja régua é justamente essa — *todo campo carregado da versão publicada
+-- precisa ter quem o aplique*. Ele oferece três saídas, e duas seriam trapaça:
+-- tirar só do motor deixaria o interruptor mentindo na tela, e declarar dívida
+-- na allowlist contraria o cabeçalho daquele arquivo, que diz que a lista só
+-- encolhe. A saída honesta é a terceira: a chave volta na onda que construir o
+-- mecanismo, junto com ele.
 --
 -- POR QUE NASCEM DESLIGADAS. Cada uma custa chamada de modelo na chave de quem
 -- se auto-hospeda, e o que paga a conta é o dono da VPS — não nós. Capacidade
@@ -23,17 +37,8 @@
 -- rollback que o produto já tem. Mesmo molde de `cases_enabled` (0110),
 -- `multimodal_input` e `operator_enabled` (0111).
 --
--- POR QUE SÃO DUAS E NÃO UMA. São capacidades de tamanhos diferentes:
--- preencher um campo que a empresa declarou é escrever DADO no vocabulário que
--- ela mesma definiu; propor campo novo é mexer na ESTRUTURA do funil. Quase
--- todo mundo quer a primeira e não quer a segunda — uma chave só obrigaria a
--- recusar as duas para recusar a estrutura. `lead_fields_propose_new` não tem
--- efeito nenhum enquanto `lead_fields_enabled` for `false`: a segunda é
--- refinamento da primeira, e o runtime lê nessa ordem.
 alter table public.ai_agent_versions
   add column if not exists lead_fields_enabled boolean not null default false;
-alter table public.ai_agent_versions
-  add column if not exists lead_fields_propose_new boolean not null default false;
 
 comment on column public.ai_agent_versions.lead_fields_enabled is
   'O agente pergunta e preenche os campos personalizados do funil (o vocabulário '
@@ -41,11 +46,6 @@ comment on column public.ai_agent_versions.lead_fields_enabled is
   'normalmente e não toca em `crm_leads.custom_fields`; o que se perde é o '
   'preenchimento, nunca o atendimento. Nasce desligado porque cada turno custa '
   'chamada de modelo na chave de quem se auto-hospeda.';
-comment on column public.ai_agent_versions.lead_fields_propose_new is
-  'O agente PROPÕE campo que ainda não existe no funil. Inerte enquanto '
-  '`lead_fields_enabled` for false. Separado dela de propósito: preencher campo '
-  'declarado é escrever dado; propor campo é mexer na estrutura do funil, e quase '
-  'ninguém quer a segunda junto com a primeira.';
 
 -- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — não é limpeza de brinde.
 --
@@ -91,7 +91,6 @@ begin
     or new.pipeline_ids           is distinct from old.pipeline_ids
     or new.knowledge_source_ids   is distinct from old.knowledge_source_ids
     or new.lead_fields_enabled     is distinct from old.lead_fields_enabled
-    or new.lead_fields_propose_new is distinct from old.lead_fields_propose_new
     or new.version_number         is distinct from old.version_number
     or new.agent_id               is distinct from old.agent_id
     or new.organization_id        is distinct from old.organization_id

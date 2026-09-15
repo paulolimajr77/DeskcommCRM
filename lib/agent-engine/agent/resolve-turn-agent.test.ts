@@ -33,7 +33,7 @@ function fakeConfig(agentId: string): PublishedAgentConfig {
     operatorEnabled: false,
   operatorModel: null,
   operatorToolIds: [], pipelineIds: [],
-  leadFieldsEnabled: false, leadFieldsProposeNew: false,
+  leadFieldsEnabled: false,
   agentCreatedBy: null,
   };
 }

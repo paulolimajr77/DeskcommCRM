@@ -874,6 +874,13 @@ export const DICIONARIO: Traducoes = {
   "Diferente de passar a conversa: aqui o agente continua atendendo. Quando esbarra em algo que só uma pessoa resolve — aprovar um desconto, por exemplo — ele abre um pedido interno e retoma assim que for respondido.": {
     es: "A diferencia de transferir la conversación: aquí el agente sigue atendiendo. Cuando se topa con algo que solo una persona puede resolver — aprobar un descuento, por ejemplo — abre un pedido interno y retoma en cuanto se lo respondan.",
   },
+  // ─── Agentes de IA: campos do funil (migration 0255) ───
+  "Perguntar e preencher os campos do funil": {
+    es: "Preguntar y completar los campos del embudo",
+  },
+  "O agente vê os campos personalizados que você declarou em Configurações › Funis, pergunta por eles durante a conversa e anota as respostas na ficha do lead.": {
+    es: "El agente ve los campos personalizados que declaraste en Configuración › Embudos, pregunta por ellos durante la conversación y anota las respuestas en la ficha del lead.",
+  },
   "Follow-up": { es: "Seguimiento" },
   "Retomar sozinho quem parou de responder, para o interessado não sumir sem ninguém perceber.": {
     es: "Retomar solo a quien dejó de responder, para que el interesado no desaparezca sin que nadie lo note.",

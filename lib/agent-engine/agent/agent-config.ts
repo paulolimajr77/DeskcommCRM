@@ -90,14 +90,6 @@ export interface PublishedAgentConfig {
    */
   leadFieldsEnabled: boolean;
   /**
-   * O agente pode PROPOR campo que ainda não existe no funil.
-   *
-   * Separada da de cima porque quase todo mundo quer preencher campo e não quer
-   * que a IA proponha estrutura: criar campo muda a ficha de TODOS os leads do
-   * funil, para sempre, e o teto é 50 por funil.
-   */
-  leadFieldsProposeNew: boolean;
-  /**
    * Horário de funcionamento declarado na tela (`trigger_config.filters.business_hours`).
    * `null` = atende a qualquer hora. Quem obedece é o turno inbound, adiando o
    * job para a abertura — ver `janela-de-atendimento.ts` para o defeito que isto
@@ -137,7 +129,6 @@ interface Row {
   operator_tool_ids: string[] | null;
   pipeline_ids: string[] | null;
   lead_fields_enabled: boolean | null;
-  lead_fields_propose_new: boolean | null;
   knowledge_source_ids: string[] | null;
   trigger_config: unknown;
   version_created_by: string | null;
@@ -168,7 +159,6 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.operation_mode,a.paused_at,a.operation_re
             v.operator_tool_ids,
             v.pipeline_ids,
             v.lead_fields_enabled,
-            v.lead_fields_propose_new,
             v.knowledge_source_ids,
             v.trigger_config,
             v.created_by as version_created_by,
@@ -239,7 +229,6 @@ function mapAgentConfigRow(r: Row): PublishedAgentConfig {
     // como null/undefined, e a direção segura é DESLIGADO — nunca ligar
     // capacidade por causa de um schema desatualizado (mesma decisão da 0111).
     leadFieldsEnabled: r.lead_fields_enabled ?? false,
-    leadFieldsProposeNew: r.lead_fields_propose_new ?? false,
     // Leitura DEFENSIVA e que falha ABERTA: jsonb livre com shape estranho vira
     // `null` (sem janela ⇒ atende sempre), nunca uma mordaça acidental.
     janelaDeAtendimento: lerJanelaDeAtendimento(r.trigger_config),

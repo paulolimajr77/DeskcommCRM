@@ -184,15 +184,28 @@ describe("proposta com destino × idempotência", () => {
       "campo fora do vocabulário do contato entrou sem destino de lead",
     ).toContain("contact_field_proposals_campo_check");
 
-    let barrouComDestino = "";
+    // ⚠️ E O INVERSO NÃO É BARRADO, DE PROPÓSITO — esta afirmação eu tinha
+    // escrito errada e o CI derrubou.
+    //
+    // Eu esperava que `campo = 'email'` COM destino de lead fosse recusado. Não
+    // é, e não deve ser: com destino, a chave é do vocabulário da EMPRESA, e
+    // uma empresa pode perfeitamente declarar um campo de funil chamado
+    // "email" em Configurações › Funis — o e-mail do responsável pela compra,
+    // por exemplo, que não é o e-mail do contato. Recusar seria o CHECK
+    // decidindo o vocabulário alheio, que é exatamente o que a doutrina proíbe.
+    //
+    // Quem impede a escrita no lugar errado não é o nome: é o DESTINO. Com
+    // `lead_id` preenchido, a confirmação escreve em `custom_fields` daquele
+    // negócio, nunca na coluna `email` de `contacts`.
+    let aceitouComDestino = "";
     try {
       sql(proposta("email", LEAD_A, "c@exemplo.com"));
     } catch (e) {
-      barrouComDestino = motivoDoErro(e);
+      aceitouComDestino = motivoDoErro(e);
     }
     expect(
-      barrouComDestino,
-      "campo do contato foi aceito com destino de lead — viraria escrita no jsonb errado",
-    ).toContain("contact_field_proposals_campo_check");
+      aceitouComDestino,
+      "campo de funil com nome 'email' foi recusado — o CHECK está decidindo vocabulário alheio",
+    ).toBe("");
   });
 });

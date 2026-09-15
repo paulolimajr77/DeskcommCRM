@@ -11558,12 +11558,7 @@ comment on table public.contact_field_proposals is
 -- `ON_ERROR_STOP` o arquivo seguiria: a tabela terminaria **sem vocabulário
 -- nenhum**, aceitando qualquer campo, em silêncio e com a atualização
 -- reportando sucesso.
-alter table public.contact_field_proposals
-  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
-
-alter table public.contact_field_proposals
-  drop constraint if exists contact_field_proposals_campo_check;
--- A REGRA É SOBRE O PAR (campo, destino) desde a migration 0270.
+-- A REGRA DO CHECK É SOBRE O PAR (campo, destino) desde a migration 0270.
 --
 -- Sem destino (`lead_id` nulo) vale o vocabulário FECHADO do contato — o que
 -- entra ali vira escrita em `contacts`, e campo livre deixaria a IA propor
@@ -11573,6 +11568,16 @@ alter table public.contact_field_proposals
 -- constraint quebraria o `update.sh` de um clone com campo de nome diferente.
 -- Quem valida a chave de funil é o servidor, na ACEITAÇÃO, contra
 -- `settings.fields` daquele funil.
+--
+-- ⚠️ O COMENTÁRIO MORA AQUI, ACIMA, E NÃO ENTRE O `drop` E O `add`.
+-- `tests/unit/baseline-reaplicavel.test.ts` procura o `drop constraint if
+-- exists` numa janela de DEZ linhas antes do `add`. Prosa no meio empurra o
+-- `drop` para fora da janela, e a cerca lê como constraint desguardada — foi
+-- exatamente o que aconteceu na primeira versão deste bloco.
+alter table public.contact_field_proposals
+  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
+alter table public.contact_field_proposals
+  drop constraint if exists contact_field_proposals_campo_check;
 alter table public.contact_field_proposals
   add constraint contact_field_proposals_campo_check check (
     (lead_id is null and campo = any (array['email', 'name', 'phone_number']::text[]))

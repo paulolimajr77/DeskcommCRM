@@ -536,7 +536,7 @@ export async function updateLeadHandler(
   }
 
   // O MERGE ATÔMICO. `updated` já provou que o lead existe e é da organização.
-  let anotouCamposDoFunil = false;
+  let camposDoFunilAnotados: string[] = [];
   if (input.custom_fields !== undefined) {
     // ⛔ PRECEDÊNCIA EM CÓDIGO. O bloco do prefixo já pede ao modelo que não
     // sobrescreva campo preenchido (regra 4) — mas instrução o modelo
@@ -572,7 +572,7 @@ export async function updateLeadHandler(
       // Lote inteiro em conflito. Não chama a função: mandar `{}` seria um
       // write no-op com cara de trabalho. E NÃO retorna cedo — os outros campos
       // desta requisição já foram gravados e ainda precisam de auditoria.
-      anotouCamposDoFunil = false;
+      camposDoFunilAnotados = [];
     } else {
     const { data: mesclados, error: anotarErr } = await createAdminClient().rpc(
       "fn_lead_anotar_campos",
@@ -592,8 +592,34 @@ export async function updateLeadHandler(
     // pelo zod, chega aqui, e o `||` devolve exatamente o que já existia — é um
     // write no-op. Marcar assim mesmo faria "salvar sem mexer em nada" virar
     // acontecimento na linha do tempo do lead, que é ruído com cara de trabalho.
-    anotouCamposDoFunil =
-      JSON.stringify(mesclados ?? {}) !== JSON.stringify(existing.custom_fields ?? {});
+    // AS CHAVES QUE MUDARAM DE FATO, e não a coluna.
+    //
+    // A primeira versão disto marcava um booleano e a timeline dizia
+    // "custom_fields" — o nome da COLUNA, que não informa nada a quem opera:
+    // "o Juninho mexeu em custom_fields" não diz se ele anotou o segmento ou o
+    // convênio. Nomear a chave é o que torna a linha do tempo legível.
+    //
+    // ⚠️ E A CHAVE AINDA PODE CARREGAR O DADO — dívida conhecida, não descuido.
+    //
+    // `cpf_12345678900` ou `email_joao@x.com` são nomes de chave que contêm o
+    // valor, e nada aqui os impede: a chave é arbitrária do tenant, e o agente
+    // pode inventar uma. O conserto certo NÃO é filtrar o nome (adivinhar PII
+    // por regex erra nos dois sentidos) — é recusar chave que não esteja
+    // declarada em `pipeline.settings.fields`, onde quem escolheu os nomes foi
+    // o dono. Está na fila como a validação da ACEITAÇÃO, que a Tarefa 4.3
+    // também pede. Enquanto não existe, o risco é o dono nomear mal um campo
+    // que ele mesmo criou — menor que o de a linha do tempo não dizer nada.
+    //
+    // ⛔ E SÓ A CHAVE. O valor não entra aqui nem por conveniência: o reason é
+    // RENDERIZADO NA TELA e viaja em captura, exportação e ticket de suporte, e
+    // `custom_fields` é dado arbitrário do tenant — pode ter CPF, endereço,
+    // diagnóstico. O §9 proíbe PII nova em log, reason ou evidence. Quem quiser
+    // ver o valor abre a ficha, que está sob RLS.
+    const antes = (existing.custom_fields ?? {}) as Record<string, unknown>;
+    const depois = (mesclados ?? {}) as Record<string, unknown>;
+    camposDoFunilAnotados = Object.keys(depois).filter(
+      (k) => JSON.stringify(depois[k]) !== JSON.stringify(antes[k]),
+    );
     }
   }
 
@@ -604,9 +630,14 @@ export async function updateLeadHandler(
   // `custom_fields` entra por fora porque não passou pelo `patch`: quem mescla
   // é o banco (0269). Sem esta linha, anotar um campo do funil não deixaria
   // rastro nenhum na auditoria nem na timeline — invisível é pior que errado.
-  const fields = anotouCamposDoFunil
-    ? [...camposAlterados(patch, existing as Record<string, unknown>), "custom_fields"]
-    : camposAlterados(patch, existing as Record<string, unknown>);
+  // As chaves do funil entram por FORA porque não passaram pelo `patch`: quem
+  // mescla é o banco (0269). Sem esta linha, anotar um campo do funil não
+  // deixaria rastro nenhum na auditoria nem na timeline — invisível é pior que
+  // errado. E entram pelo NOME DA CHAVE (`segmento`), nunca pelo nome da coluna.
+  const fields = [
+    ...camposAlterados(patch, existing as Record<string, unknown>),
+    ...camposDoFunilAnotados,
+  ];
 
   // A EDIÇÃO HUMANA ENTRA NA TIMELINE (wave 6). Antes disto, mexer num campo
   // era invisível: a IA deixava rastro e o humano não — meia continuidade

@@ -369,3 +369,78 @@ describe("precedência: o agente não sobrescreve o que já está preenchido", (
     expect(anotou[0]!.args.p_campos).toEqual({ segmento: "estetica" });
   });
 });
+
+describe("a timeline nomeia o CAMPO, nunca o valor", () => {
+  /**
+   * §9: nada de PII nova em log, reason ou evidence. O reason é RENDERIZADO NA
+   * TELA e viaja em captura de tela, exportação e ticket de suporte —
+   * `custom_fields` é dado arbitrário do tenant e pode ter CPF, endereço,
+   * diagnóstico. Quem quiser ver o valor abre a ficha, que está sob RLS.
+   *
+   * E o outro lado, que é o trabalho desta tarefa: nomear a COLUNA
+   * (`custom_fields`) não informa nada — "o Juninho mexeu em custom_fields" não
+   * diz se ele anotou o segmento ou o convênio. A linha do tempo precisa da
+   * CHAVE.
+   */
+  it("nomeia a chave que mudou, e não a coluna", async () => {
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    await updateLeadHandler(
+      banco.supabase,
+      ctx,
+      LEAD,
+      entrada({ custom_fields: { convenio: "unimed" } }),
+    );
+
+    // `fields` viaja dentro de `payload`, e o `reason` é montado a partir dele —
+    // medido, porque a primeira versão deste caso procurava `fields` na raiz.
+    const chamada = vi.mocked(emitLeadActivity).mock.calls[0]?.[1] as
+      | { reason?: string; payload?: { fields?: string[] } }
+      | undefined;
+    expect(chamada?.payload?.fields, "a atividade não listou o campo anotado").toContain("convenio");
+    expect(
+      chamada?.payload?.fields,
+      "a timeline nomeia a COLUNA — quem lê não sabe qual campo mudou",
+    ).not.toContain("custom_fields");
+    // E o reason, que é o que a PESSOA lê na tela.
+    expect(chamada?.reason, "o texto na tela não cita o campo").toContain("convenio");
+  });
+
+  it("⛔ o VALOR não aparece em lugar nenhum da atividade", async () => {
+    const banco = bancoFalso({});
+    campoDoBancoFalso = {};
+
+    await updateLeadHandler(
+      banco.supabase,
+      ctx,
+      LEAD,
+      // Um valor que ninguém confundiria com nome de campo, e que é PII de
+      // verdade — o tipo de coisa que um tenant de clínica põe num campo livre.
+      entrada({ custom_fields: { diagnostico: "hipertensao arterial estagio 2" } }),
+    );
+
+    const chamada = vi.mocked(emitLeadActivity).mock.calls[0]?.[1];
+    const inteira = JSON.stringify(chamada ?? {});
+    expect(inteira, "o valor do campo vazou para a atividade").not.toContain("hipertensao");
+    // E o controle: a CHAVE tem de estar lá, senão este caso passaria com a
+    // atividade vazia.
+    expect(inteira, "nem a chave chegou — a atividade ficou muda").toContain("diagnostico");
+  });
+
+  it("anotar SEM mudar nada não escreve atividade", async () => {
+    // O mesmo princípio de "salvar sem mexer em nada não é acontecimento",
+    // agora por chave: reanotar o mesmo valor não é trabalho.
+    const banco = bancoFalso({ segmento: "clinica" });
+    campoDoBancoFalso = { segmento: "clinica" };
+
+    await updateLeadHandler(
+      banco.supabase,
+      ctx,
+      LEAD,
+      entrada({ custom_fields: { segmento: "clinica" } }),
+    );
+
+    expect(emitLeadActivity).not.toHaveBeenCalled();
+  });
+});

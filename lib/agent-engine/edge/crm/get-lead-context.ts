@@ -88,6 +88,31 @@ export interface LeadContext {
   contact_id?: string;
   contact: {
     name: string | null;
+    /**
+     * O nome acima foi CONFIRMADO pela empresa (`contacts.name`), ou é só o
+     * apelido do aparelho (`contacts.display_name`)?
+     *
+     * O campo `name` funde as duas colunas e prefere o apelido — o que a própria
+     * pessoa escreveu no WhatsApp dela ("Josué sites", "Ana Maria Matias", ou o
+     * número cru). Sem este booleano o modelo lia `name: "Josué sites"`,
+     * concluía que já sabia quem era o cliente e NUNCA perguntava: numa
+     * instalação real, 2 de 3 contatos estavam com `contacts.name` vazio, isto
+     * é, sem um nome que sirva para proposta, documento ou nota fiscal. Nenhuma
+     * instrução de prompt conserta isso, porque o modelo não tem como saber que
+     * o nome que ele está lendo não vale — a diferença não chegava até ele.
+     *
+     * Somar o booleano custa uma linha; trocar o `name` custaria uma wave (ele
+     * circula por follow-up, case-reply e escalação — ver `lead_id` abaixo).
+     *
+     * OPCIONAL pelo MESMO motivo de `contact_id` acima, e medido: exigir o campo
+     * quebra o `typecheck` em 8 arquivos que montam um `LeadContext` à mão, e um
+     * deles é `tests/invariants/case-reply-turn.test.ts` — `tests/invariants/**`
+     * é CONGELADO pelo `loop/hooks/freeze-invariants.sh`, que bloqueia o commit
+     * de arquivo modificado ali. A produção (logo abaixo) SEMPRE preenche; quem
+     * monta contexto à mão num teste não precisa. Quem lê deve tratar ausente
+     * como "não confirmado" — `!ctx.contact.nome_confirmado`, nunca `=== false`.
+     */
+    nome_confirmado?: boolean;
     phone: string | null;
     email: string | null;
     tags: string[];
@@ -135,6 +160,19 @@ interface ContactRow {
   source: string | null;
   consent: Record<string, unknown> | null;
   is_anonymized: boolean;
+}
+
+/**
+ * Só `contacts.name` conta como nome confirmado — e string de espaços não conta.
+ *
+ * O `trim()` não é zelo estético: o campo é preenchido por gente digitando na
+ * tela, e um `"   "` gravado por engano faria o agente parar de perguntar o nome
+ * exatamente como o apelido do aparelho já fazia. O apelido (`display_name`)
+ * NUNCA entra nesta conta, mesmo preenchido: é o texto do aparelho do cliente,
+ * não uma resposta que a empresa colheu.
+ */
+export function nomeFoiConfirmado(name: string | null): boolean {
+  return (name ?? '').trim() !== '';
 }
 
 interface DecisionRow {
@@ -278,6 +316,7 @@ export async function getLeadContext(
       contact_id: input.leadId,
       contact: {
         name: contact.display_name ?? contact.name,
+        nome_confirmado: nomeFoiConfirmado(contact.name),
         phone: contact.phone_number,
         email: contact.email,
         tags: contact.tags ?? [],

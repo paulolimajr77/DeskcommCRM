@@ -399,6 +399,13 @@ export const DICIONARIO: Traducoes = {
   "Nenhum dia fechado daqui para a frente.": { es: "Ningún día cerrado de aquí en adelante." },
   "aberto excepcionalmente": { es: "abierto excepcionalmente" },
   "Abrir atendimento": { es: "Abrir atención" },
+  "Abrir Configurações › Funis": { es: "Abrir Configuración › Embudos" },
+  "Para aceitar, abra Configurações › Funis e acrescente o campo. Para recusar, marque este aviso como resolvido.": {
+    es: "Para aceptar, abre Configuración › Embudos y agrega el campo. Para rechazar, marca este aviso como resuelto.",
+  },
+  "O assistente sugere um campo novo no seu funil": {
+    es: "El asistente sugiere un campo nuevo en tu embudo",
+  },
   "Abra o atendimento e diga o que fazer: concluir, pedir informação ao cliente ou passar para uma pessoa.": { es: "Abre la atención y di qué hacer: concluir, pedir información al cliente o pasarla a una persona." },
   "Um atendimento espera decisão da equipe": { es: "Una atención espera decisión del equipo" },
   "Soltar o horário de um pedido não confirmado após (minutos)": { es: "Liberar el horario de una solicitud no confirmada después de (minutos)" },
@@ -901,6 +908,13 @@ export const DICIONARIO: Traducoes = {
   },
   "Diferente de passar a conversa: aqui o agente continua atendendo. Quando esbarra em algo que só uma pessoa resolve — aprovar um desconto, por exemplo — ele abre um pedido interno e retoma assim que for respondido.": {
     es: "A diferencia de transferir la conversación: aquí el agente sigue atendiendo. Cuando se topa con algo que solo una persona puede resolver — aprobar un descuento, por ejemplo — abre un pedido interno y retoma en cuanto se lo respondan.",
+  },
+  // ─── Agentes de IA: campos do funil (migration 0255) ───
+  "Perguntar e preencher os campos do funil": {
+    es: "Preguntar y completar los campos del embudo",
+  },
+  "O agente vê os campos personalizados que você declarou em Configurações › Funis, pergunta por eles durante a conversa e anota as respostas na ficha do lead.": {
+    es: "El agente ve los campos personalizados que declaraste en Configuración › Embudos, pregunta por ellos durante la conversación y anota las respuestas en la ficha del lead.",
   },
   "Follow-up": { es: "Seguimiento" },
   "Retomar sozinho quem parou de responder, para o interessado não sumir sem ninguém perceber.": {
@@ -4298,6 +4312,10 @@ export const DICIONARIO: Traducoes = {
   // Mensagens que as rotas de voz devolvem traduzidas (`traduzir(..., idioma)`).
   "Chamada de voz ligada.": { es: "Llamadas de voz activadas." },
   "Chamada de voz desligada.": { es: "Llamadas de voz desactivadas." },
+  "O número de voz está sem conexão com o WhatsApp neste momento. Aguarde alguns segundos e tente de novo; se continuar, desconecte o número e pareie de novo em Configurações › Canais.":
+    {
+      es: "El número de voz está sin conexión con WhatsApp en este momento. Espera unos segundos y vuelve a intentarlo; si continúa, desconecta el número y vuelve a vincularlo en Configuración › Canales.",
+    },
   "Chamada de voz desligada e aparelho desconectado.": {
     es: "Llamadas de voz desactivadas y dispositivo desconectado.",
   },
@@ -6618,6 +6636,10 @@ export const DICIONARIO: Traducoes = {
   "Aparecem no dossiê do negócio. No follow-up, você escolhe em qual campo gravar a resposta.": { es: "Aparecen en el expediente del negocio. En el seguimiento, eliges en qué campo guardar la respuesta." },
   "Rótulo (Endereço)": { es: "Etiqueta (Dirección)" },
   "Opções, separadas por vírgula": { es: "Opciones, separadas por coma" },
+  "Pergunta que o agente faz": { es: "Pregunta que hace el agente" },
+  "Pergunta que o agente faz (opcional) — ex.: você atende convênio ou particular?": {
+    es: "Pregunta que hace el agente (opcional) — ej.: ¿atiendes por seguro médico o particular?",
+  },
   "Sem janelas, o roteamento aceita conversa a qualquer hora — mas a Agenda não oferece NENHUM horário para marcar. Adicione janelas para publicar seus horários de atendimento.": { es: "Sin franjas, el enrutamiento acepta conversación a cualquier hora — pero la Agenda no ofrece NINGÚN horario para agendar. Agrega franjas para publicar tus horarios de atención." },
   "Nenhuma janela publicada — ninguém consegue marcar com esta pessoa.": { es: "Ninguna franja publicada — nadie puede agendar con esta persona." },
   "Atendentes e horários de atendimento": { es: "Agentes y horarios de atención" },
@@ -7528,6 +7550,7 @@ export const DICIONARIO: Traducoes = {
   "Abrindo o áudio…": { es: "Abriendo el audio…" },
   "Sem áudio: o canal de voz não abriu": { es: "Sin audio: el canal de voz no se abrió" },
   "Chamada de voz": { es: "Llamada de voz" },
+  "Chamada de voz sem resposta": { es: "Llamada de voz sin respuesta" },
   "A chamada de voz não está configurada.": { es: "La llamada de voz no está configurada." },
   "Falta o endereço do serviço (": { es: "Falta la dirección del servicio (" },
   ") nas variáveis de ambiente desta instalação.": {
@@ -7564,6 +7587,9 @@ export const DICIONARIO: Traducoes = {
   "chamada de voz": { es: "llamada de voz" },
   "chamadas de voz": { es: "llamadas de voz" },
   "Não foi possível iniciar o pareamento.": { es: "No fue posible iniciar el emparejamiento." },
+  "O código de pareamento venceu. Clique em parear para gerar outro.": {
+    es: "El código de vinculación venció. Haz clic en vincular para generar otro.",
+  },
   "Não foi possível receber o código de pareamento. Tente novamente.": {
     es: "No fue posible recibir el código de emparejamiento. Inténtalo de nuevo.",
   },

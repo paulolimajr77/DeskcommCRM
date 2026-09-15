@@ -79,6 +79,26 @@ export interface PublishedAgentConfig {
    */
   pipelineIds: string[];
   /**
+   * O agente enxerga a DEFINIÇÃO dos campos personalizados do funil dele — chave,
+   * rótulo, tipo, opções, obrigatoriedade — e pergunta por eles na conversa.
+   *
+   * Nasce `false`, e é COLUNA DA VERSÃO e não chave de `ai_agents.config` de
+   * propósito: `config` pertence ao agente, então a chave seria mutável e ficaria
+   * fora do diff de versões. Como coluna de `ai_agent_versions` ela herda a
+   * imutabilidade por gatilho — ligar é publicar versão nova, desligar é mover o
+   * ponteiro.
+   */
+  leadFieldsEnabled: boolean;
+  /**
+   * O agente PROPÕE campo que ainda não existe (migration 0271).
+   *
+   * ⚠️ Só faz sentido com `leadFieldsEnabled`: quem não recebe a definição dos
+   * campos não sabe o que já existe, e proporia o que a empresa já declarou —
+   * enchendo a Central de propostas do que está na tela. Quem cobra isso é o
+   * turno, e não o banco: a combinação é de comportamento, não de schema.
+   */
+  leadFieldsProposeNew: boolean;
+  /**
    * Horário de funcionamento declarado na tela (`trigger_config.filters.business_hours`).
    * `null` = atende a qualquer hora. Quem obedece é o turno inbound, adiando o
    * job para a abertura — ver `janela-de-atendimento.ts` para o defeito que isto
@@ -117,6 +137,8 @@ interface Row {
   operator_model: string | null;
   operator_tool_ids: string[] | null;
   pipeline_ids: string[] | null;
+  lead_fields_enabled: boolean | null;
+  lead_fields_propose_new: boolean | null;
   knowledge_source_ids: string[] | null;
   trigger_config: unknown;
   version_created_by: string | null;
@@ -146,6 +168,8 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.operation_mode,a.paused_at,a.operation_re
             v.operator_model,
             v.operator_tool_ids,
             v.pipeline_ids,
+            v.lead_fields_enabled,
+            v.lead_fields_propose_new,
             v.knowledge_source_ids,
             v.trigger_config,
             v.created_by as version_created_by,
@@ -212,6 +236,11 @@ function mapAgentConfigRow(r: Row): PublishedAgentConfig {
     // `?? []` = NENHUM funil. O clone que ainda não aplicou a 0125 nasce
     // fechado — a direção segura é agir de menos (mesma decisão da linha acima).
     pipelineIds: r.pipeline_ids ?? [],
+    // `?? false` cobre o clone que ainda não aplicou a 0255: coluna ausente vem
+    // como null/undefined, e a direção segura é DESLIGADO — nunca ligar
+    // capacidade por causa de um schema desatualizado (mesma decisão da 0111).
+    leadFieldsEnabled: r.lead_fields_enabled ?? false,
+    leadFieldsProposeNew: r.lead_fields_propose_new ?? false,
     // Leitura DEFENSIVA e que falha ABERTA: jsonb livre com shape estranho vira
     // `null` (sem janela ⇒ atende sempre), nunca uma mordaça acidental.
     janelaDeAtendimento: lerJanelaDeAtendimento(r.trigger_config),

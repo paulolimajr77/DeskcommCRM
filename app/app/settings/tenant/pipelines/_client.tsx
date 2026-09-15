@@ -247,6 +247,29 @@ function PipelineEditor({ pipeline }: { pipeline: PipelineRow }) {
                 }}
               />
             )}
+            {/* A PERGUNTA QUE O AGENTE FAZ, na voz de quem conhece o cliente.
+                Sem ela o agente deriva do rótulo e funciona — "Segmento" vira
+                "qual o seu segmento?", que soa a formulário. Aqui o dono
+                escreve "você atende convênio ou particular?" sem precisar
+                mexer no prompt do agente. Opcional de propósito: campo antigo
+                não tem, e continua funcionando. */}
+            <Input
+              className="md:col-span-3"
+              aria-label={`${t("Pergunta que o agente faz")} ${i + 1}`}
+              placeholder={t("Pergunta que o agente faz (opcional) — ex.: você atende convênio ou particular?")}
+              maxLength={200}
+              value={f.pergunta ?? ""}
+              onChange={(e) => {
+                const next = [...fields];
+                const pergunta = e.target.value;
+                // Vazio SAI do objeto em vez de virar `""`: uma chave vazia no
+                // jsonb faria o bloco do agente ganhar uma linha `pergunte
+                // assim: ""`, que gasta prefixo e ensina o modelo a preencher
+                // lacuna.
+                next[i] = pergunta.trim() === "" ? (({ pergunta: _, ...resto }) => resto)(f) : { ...f, pergunta };
+                setFields(next);
+              }}
+            />
           </div>
         ))}
         {fields.length < 50 && (

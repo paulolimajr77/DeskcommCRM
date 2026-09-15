@@ -10115,6 +10115,18 @@ alter table public.agent_inbox_items
     -- lista, não em bloco novo (#159, bloco único por constraint).
     'voice_call_missed',
     'case_stale',
+    -- (migration 0271) O agente OUVIU algo que a empresa ainda não declarou em
+    -- Configurações › Funis — "vocês anotam de onde o cliente veio?" — e propõe
+    -- o campo. É proposta de CONFIGURAÇÃO, não de dado: criar campo muda a tela
+    -- de TODOS os leads daquele funil, para sempre.
+    --
+    -- Por que vive na Central e não numa tabela própria: o que ela precisa já
+    -- existe aqui — fila de decisão humana, prazo, quem resolveu, e uma tela
+    -- que as pessoas já abrem. Uma tabela irmã duplicaria worker de vencimento,
+    -- RLS e tela, e as duas divergiriam no primeiro conserto de um lado só.
+    --
+    -- Entra NESTA lista, e não em bloco novo (#159, bloco único por constraint).
+    'lead_field_proposed',
     'other'
   ));
 
@@ -11503,8 +11515,18 @@ create table if not exists public.contact_field_proposals (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   contact_id uuid not null references public.contacts(id) on delete cascade,
 
-  -- QUAL campo. Vocabulário FECHADO por CHECK: o que entra aqui vira escrita em
-  -- `contacts`, e campo livre deixaria a IA propor qualquer coluna.
+  -- PARA ONDE a confirmação escreve (migration 0270). Nulo = campo do contato;
+  -- preenchido = uma chave em `crm_leads.custom_fields` daquele negócio.
+  --
+  -- ⚠️ A COLUNA NASCE AQUI, e não só no apêndice da 0270, porque o CHECK logo
+  -- abaixo a cita: numa instalação NOVA o apêndice só roda no fim do arquivo, e
+  -- a constraint falharia por coluna inexistente. Quem atualiza recebe a coluna
+  -- pelo `add column if not exists` da 0270 — os dois caminhos convergem.
+  lead_id uuid references public.crm_leads(id) on delete cascade,
+
+  -- QUAL campo. O vocabulário depende do DESTINO — ver o CHECK abaixo: fechado
+  -- para contato (o que entra ali vira escrita em `contacts`), aberto para
+  -- campo de funil, que cada empresa inventa em Configurações › Funis.
   campo text not null,
 
   -- O valor proposto e o que existia quando a proposta nasceu. O segundo é o
@@ -11537,11 +11559,41 @@ create table if not exists public.contact_field_proposals (
 comment on table public.contact_field_proposals is
   'Dado do contato que a IA ouviu na conversa e propôs — aguardando confirmação humana (spec 17 §4b). SEMPRE com prazo: proposta que ninguém decide vira badge permanente, que simula atenção e adia a decisão. No vencimento sai da tela e vira item de caixa.';
 
+-- ⛔ A COLUNA VEM ANTES DO CHECK, E ISTO NÃO É REDUNDANTE COM A LINHA DO
+-- `create table` ACIMA.
+--
+-- Os dois caminhos do baseline divergem exatamente aqui. Na instalação NOVA o
+-- `create table` roda e a coluna nasce com ele. Em quem ATUALIZA, o
+-- `if not exists` faz o bloco inteiro ser PULADO — a tabela já existe — e a
+-- coluna não chega. O `drop constraint` abaixo funcionaria, o `add constraint`
+-- falharia por coluna inexistente, e como o `update.sh` roda SEM
+-- `ON_ERROR_STOP` o arquivo seguiria: a tabela terminaria **sem vocabulário
+-- nenhum**, aceitando qualquer campo, em silêncio e com a atualização
+-- reportando sucesso.
+-- A REGRA DO CHECK É SOBRE O PAR (campo, destino) desde a migration 0270.
+--
+-- Sem destino (`lead_id` nulo) vale o vocabulário FECHADO do contato — o que
+-- entra ali vira escrita em `contacts`, e campo livre deixaria a IA propor
+-- qualquer coluna. Com destino, a chave é de `crm_leads.custom_fields`, cujo
+-- vocabulário é ABERTO: cada empresa inventa o seu em Configurações › Funis, e
+-- a doutrina deste repositório proíbe CHECK em vocabulário aberto — a
+-- constraint quebraria o `update.sh` de um clone com campo de nome diferente.
+-- Quem valida a chave de funil é o servidor, na ACEITAÇÃO, contra
+-- `settings.fields` daquele funil.
+--
+-- ⚠️ O COMENTÁRIO MORA AQUI, ACIMA, E NÃO ENTRE O `drop` E O `add`.
+-- `tests/unit/baseline-reaplicavel.test.ts` procura o `drop constraint if
+-- exists` numa janela de DEZ linhas antes do `add`. Prosa no meio empurra o
+-- `drop` para fora da janela, e a cerca lê como constraint desguardada — foi
+-- exatamente o que aconteceu na primeira versão deste bloco.
+alter table public.contact_field_proposals
+  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
 alter table public.contact_field_proposals
   drop constraint if exists contact_field_proposals_campo_check;
 alter table public.contact_field_proposals
   add constraint contact_field_proposals_campo_check check (
-    campo = any (array['email', 'name', 'phone_number']::text[])
+    (lead_id is null and campo = any (array['email', 'name', 'phone_number']::text[]))
+    or (lead_id is not null and length(btrim(campo)) between 1 and 64)
   );
 
 alter table public.contact_field_proposals
@@ -25740,6 +25792,328 @@ begin
              add constraint ai_reply_drafts_message_id_fkey
              foreign key (message_id) references public.messages(id) on delete set null';
 end $$;
+-- ---- o dono liga os campos do funil no agente (migration 0261) ----
+-- Uma chave na VERSÃO, nascendo `false`: `lead_fields_enabled` — o agente
+-- pergunta e preenche os campos personalizados que a organização declarou em
+-- `pipeline.settings.fields`.
+--
+-- Nasce desligada porque custa chamada de modelo na chave de quem se
+-- auto-hospeda — capacidade que gasta o dinheiro do dono da VPS se liga na tela,
+-- por ele, nunca por um `update.sh`. Mesmo argumento de `operator_enabled`
+-- (0111). Re-aplicar este bloco num clone que já ligou a capacidade NÃO a
+-- desliga: `add column if not exists` não toca em coluna existente, e não há
+-- backfill aqui de propósito.
+--
+-- São colunas da VERSÃO e não chave em `ai_agents.config` porque `config`
+-- pertence ao agente: ali a chave seria mutável, ficaria fora do diff entre
+-- versões e fora do versionamento. Na versão, ligar é publicar versão nova e
+-- desligar é mover o ponteiro — o rollback que o produto já tem.
+--
+-- São DUAS e não uma porque preencher campo declarado é escrever DADO, e propor
+-- campo é mexer na ESTRUTURA do funil. Quase todo mundo quer a primeira sem a
+-- segunda; uma chave só obrigaria a recusar as duas.
+alter table public.ai_agent_versions
+  add column if not exists lead_fields_enabled boolean not null default false;
+
+comment on column public.ai_agent_versions.lead_fields_enabled is
+  'O agente pergunta e preenche os campos personalizados do funil (o vocabulário '
+  'que a organização declara em `pipeline.settings.fields`). false = ele conversa '
+  'normalmente e não toca em `crm_leads.custom_fields`; o que se perde é o '
+  'preenchimento, nunca o atendimento. Nasce desligado porque cada turno custa '
+  'chamada de modelo na chave de quem se auto-hospeda.';
+
+-- CONSERTO OBRIGATÓRIO no mesmo bloco: `fn_ai_agent_version_content_immutable`
+-- ENUMERA as colunas congeladas depois da publicação, e coluna que fica de fora
+-- é editável numa versão PUBLICADA sem virar versão nova e sem deixar trilha —
+-- ou seja, a promessa que estas duas fazem ao morar na versão. Mesma decisão da
+-- 0125 (`pipeline_ids`) e da 0181 (`knowledge_source_ids`). O corpo é DERIVADO
+-- do que está em vigor acima (0181): recriá-lo de um corpo antigo apagaria a
+-- proteção das colunas posteriores no `update.sh` de quem já rodava.
+create or replace function public.fn_ai_agent_version_content_immutable() returns trigger
+language plpgsql as $fn$
+begin
+  if old.status <> 'draft' and (
+       new.system_prompt          is distinct from old.system_prompt
+    or new.provider               is distinct from old.provider
+    or new.model                  is distinct from old.model
+    or new.credential_id          is distinct from old.credential_id
+    or new.tool_ids               is distinct from old.tool_ids
+    or new.trigger_config         is distinct from old.trigger_config
+    or new.channel_session_id     is distinct from old.channel_session_id
+    or new.max_steps              is distinct from old.max_steps
+    or new.token_budget           is distinct from old.token_budget
+    or new.cost_budget_cents      is distinct from old.cost_budget_cents
+    or new.history_message_window is distinct from old.history_message_window
+    or new.history_token_window   is distinct from old.history_token_window
+    or new.handoff_keywords       is distinct from old.handoff_keywords
+    or new.handoff_tool_enabled   is distinct from old.handoff_tool_enabled
+    or new.followup               is distinct from old.followup
+    or new.multimodal_input       is distinct from old.multimodal_input
+    or new.video_frames_enabled   is distinct from old.video_frames_enabled
+    or new.split_messages         is distinct from old.split_messages
+    or new.split_max_chars        is distinct from old.split_max_chars
+    or new.cases_enabled          is distinct from old.cases_enabled
+    or new.operator_enabled       is distinct from old.operator_enabled
+    or new.operator_model         is distinct from old.operator_model
+    or new.operator_tool_ids      is distinct from old.operator_tool_ids
+    or new.pipeline_ids           is distinct from old.pipeline_ids
+    or new.knowledge_source_ids   is distinct from old.knowledge_source_ids
+    or new.lead_fields_enabled     is distinct from old.lead_fields_enabled
+    or new.version_number         is distinct from old.version_number
+    or new.agent_id               is distinct from old.agent_id
+    or new.organization_id        is distinct from old.organization_id
+  ) then
+    raise exception 'ai_agent_versions % é imutável (status=%): mudança de conteúdo = versão draft nova; rollback = revert (clona + publica)',
+      old.id, old.status;
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists trg_ai_agent_versions_content_immutable on public.ai_agent_versions;
+create trigger trg_ai_agent_versions_content_immutable
+  before update on public.ai_agent_versions
+  for each row execute function public.fn_ai_agent_version_content_immutable();
+
+notify pgrst, 'reload schema';
+
+
+-- ---- a anotação simultânea não apaga a outra (migration 0269) ----
+-- Racional completo no cabeçalho da migration 0269. Em uma frase: o merge de
+-- `custom_fields` era read-modify-write no aplicativo, e duas escritas
+-- simultâneas com chaves diferentes perdiam uma, sem erro. O merge passa a
+-- acontecer onde a trava de linha existe — dentro do banco.
+--
+create or replace function public.fn_lead_anotar_campos(
+  p_org uuid, p_lead uuid, p_campos jsonb
+) returns jsonb language plpgsql security definer set search_path = public, pg_temp as $fn$
+declare
+  resultado jsonb;
+begin
+  if p_campos is null or jsonb_typeof(p_campos) <> 'object' then
+    raise exception 'campos_precisa_ser_objeto' using errcode = '22023';
+  end if;
+
+  -- A TRAVA É O CONSERTO. Quem chega depois espera aqui e relê o que o
+  -- primeiro gravou; sem isto os dois concatenariam em cima da mesma versão
+  -- velha e a última escrita venceria sozinha.
+  perform 1 from public.crm_leads
+   where organization_id = p_org and id = p_lead
+   for update;
+  if not found then
+    -- Silêncio de propósito: quem pede um lead que não é da organização dele
+    -- não recebe confirmação de que ele existe em outro lugar.
+    return null;
+  end if;
+
+  update public.crm_leads
+     set custom_fields = coalesce(custom_fields, '{}'::jsonb) || p_campos
+   where organization_id = p_org and id = p_lead
+   returning custom_fields into resultado;
+
+  return resultado;
+end $fn$;
+
+-- Função nova em `public` NASCE EXPOSTA, e são DUAS origens de EXECUTE: o
+-- `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS TO anon` do corpo do
+-- baseline (que alcança toda função criada depois dele) e o grant a PUBLIC que
+-- o Postgres dá a qualquer função ao criá-la. Tratar só uma deixa a função
+-- alcançável pela anon key, que vai para o browser.
+-- ⛔ `authenticated` ENTRA NA LISTA, e esquecê-lo custou um vermelho no CI.
+-- O corpo do baseline faz `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS`
+-- para anon, authenticated E service_role (linhas 4877-4879). Revogar só de
+-- `public, anon` deixa esta funcao — que ESCREVE — executavel por qualquer
+-- usuario logado de QUALQUER tenant. Foi o que
+-- `tests/invariants/hardening-definer-varredura.test.ts` acusou.
+revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
+
+comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
+  'Mescla campos personalizados no lead DENTRO do banco, sob trava de linha. '
+  'Existe porque o merge no aplicativo perdia escrita concorrente em silêncio. '
+  'Não decide precedência entre humano e agente — isso é de quem chama.';
+
+notify pgrst, 'reload schema';
+
+-- ---- a proposta de dado ganha DESTINO (migration 0270) ----
+-- Racional completo no cabeçalho da migration 0270. Em uma frase: a mesma
+-- tabela passa a carregar proposta de campo do FUNIL, e quem diz para onde a
+-- confirmação escreve é `lead_id`.
+--
+-- ⚠️ O ÍNDICE INDEXA `coalesce(lead_id, <zero>)`, e não a coluna crua: em
+-- índice único NULL é distinto de NULL, e a coluna nula desarmaria a
+-- idempotência da proposta de CONTATO em silêncio.
+--
+alter table public.contact_field_proposals
+  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
+
+comment on column public.contact_field_proposals.lead_id is
+  'Para ONDE a confirmação escreve. Nulo = campo do contato (email/name/'
+  'phone_number, vocabulário fechado). Preenchido = uma chave dentro de '
+  'crm_leads.custom_fields daquele negócio, validada contra pipeline.settings.'
+  'fields na ACEITAÇÃO — nunca só na proposta.';
+
+-- O índice velho sai pelo nome: recriá-lo com a mesma assinatura e conteúdo
+-- diferente não é possível, e deixar os dois faria o antigo continuar barrando
+-- proposta de funil legítima.
+-- ⚠️ O `drop` + `create` deixa a tabela sem índice único por um instante. Isso
+-- é seguro AQUI, e o argumento é sobre os dados: o índice novo é mais FROUXO
+-- que o velho — o velho proibia duas linhas com o mesmo (org, contato, campo)
+-- independentemente do destino; o novo permite quando o lead difere. Todo dado
+-- que satisfazia o antigo satisfaz o novo, então o `create` não tem como falhar
+-- por duplicata. Se fosse o contrário, um `create` que falhasse sem
+-- `ON_ERROR_STOP` deixaria a idempotência desarmada com a atualização verde.
+drop index if exists public.uq_contact_field_proposals_uma_viva;
+create unique index if not exists uq_contact_field_proposals_uma_viva
+  on public.contact_field_proposals
+     (organization_id, contact_id, campo,
+      coalesce(lead_id, '00000000-0000-0000-0000-000000000000'::uuid))
+  where status = 'pending';
+
+-- Quem decide na Central lista por lead; sem isto a tela varre a tabela.
+create index if not exists idx_contact_field_proposals_por_lead
+  on public.contact_field_proposals (organization_id, lead_id)
+  where status = 'pending' and lead_id is not null;
+
+-- ⚠️ O CHECK DE `campo` NÃO É RECONSTRUÍDO AQUI, e a ausência é deliberada.
+--
+-- `tests/unit/baseline-constraint-reconstruida.test.ts` cobra UMA constraint,
+-- UM bloco: quando dois blocos a recriam, cada um com o vocabulário da sua
+-- época, o `update.sh` de um banco com dados falha em cadeia nos blocos
+-- antigos e só o último acerta — estado final certo por acidente, com erro na
+-- tela de quem atualiza. Custou sete reconstruções de
+-- `agent_inbox_items_kind_check` para esta regra existir.
+--
+-- Então a forma nova mora onde a constraint sempre morou, mais acima neste
+-- arquivo, junto da tabela. A migration 0270 traz o `alter` para quem aplica a
+-- cadeia; aqui, o bloco original já nasce com a regra final.
+
+notify pgrst, 'reload schema';
+
+-- ---- o agente propõe campo novo, e a chave volta com o mecanismo (migration 0271) ----
+-- Racional completo no cabeçalho da migration 0271. Duas coisas:
+--
+-- 1. O kind `lead_field_proposed` entrou no BLOCO ÚNICO da constraint, mais
+--    acima neste arquivo — não aqui. Uma constraint, um bloco.
+-- 2. `lead_fields_propose_new` VOLTA, agora com quem a leia. Ela foi retirada
+--    hoje mesmo, antes de existir, porque o mecanismo não estava pronto e ela
+--    nascia como interruptor que a tela grava e o motor ignora.
+--
+alter table public.ai_agent_versions
+  add column if not exists lead_fields_propose_new boolean not null default false;
+
+comment on column public.ai_agent_versions.lead_fields_propose_new is
+  'O agente PROPÕE campo de funil que ainda não existe — proposta de '
+  'CONFIGURAÇÃO, que vai para a Central (kind lead_field_proposed) e não para a '
+  'ficha do lead. Nasce desligado. Exige lead_fields_enabled para fazer '
+  'sentido: quem não recebe a definição dos campos não sabe o que já existe, e '
+  'proporia o que a empresa já declarou.';
+
+-- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — a mesma razão da 0261.
+--
+-- `fn_ai_agent_version_content_immutable` ENUMERA as colunas congeladas depois
+-- de publicada. Coluna nova fora da lista fica editável numa versão PUBLICADA,
+-- sem virar versão nova e sem deixar trilha — justamente a promessa que a chave
+-- faz ao morar na versão em vez de em `ai_agents.config`.
+--
+-- O corpo abaixo é DERIVADO do que está em vigor (a 0261): recriá-lo de um
+-- corpo antigo apagaria as colunas que entraram depois, e no baseline isso vira
+-- remoção de proteção no `update.sh` de quem já rodava.
+create or replace function public.fn_ai_agent_version_content_immutable() returns trigger
+language plpgsql as $fn$
+begin
+  if old.status <> 'draft' and (
+       new.system_prompt          is distinct from old.system_prompt
+    or new.provider               is distinct from old.provider
+    or new.model                  is distinct from old.model
+    or new.credential_id          is distinct from old.credential_id
+    or new.tool_ids               is distinct from old.tool_ids
+    or new.trigger_config         is distinct from old.trigger_config
+    or new.channel_session_id     is distinct from old.channel_session_id
+    or new.max_steps              is distinct from old.max_steps
+    or new.token_budget           is distinct from old.token_budget
+    or new.cost_budget_cents      is distinct from old.cost_budget_cents
+    or new.history_message_window is distinct from old.history_message_window
+    or new.history_token_window   is distinct from old.history_token_window
+    or new.handoff_keywords       is distinct from old.handoff_keywords
+    or new.handoff_tool_enabled   is distinct from old.handoff_tool_enabled
+    or new.followup               is distinct from old.followup
+    or new.multimodal_input       is distinct from old.multimodal_input
+    or new.video_frames_enabled   is distinct from old.video_frames_enabled
+    or new.split_messages         is distinct from old.split_messages
+    or new.split_max_chars        is distinct from old.split_max_chars
+    or new.cases_enabled          is distinct from old.cases_enabled
+    or new.operator_enabled       is distinct from old.operator_enabled
+    or new.operator_model         is distinct from old.operator_model
+    or new.operator_tool_ids      is distinct from old.operator_tool_ids
+    or new.pipeline_ids           is distinct from old.pipeline_ids
+    or new.knowledge_source_ids   is distinct from old.knowledge_source_ids
+    or new.lead_fields_enabled     is distinct from old.lead_fields_enabled
+    or new.lead_fields_propose_new is distinct from old.lead_fields_propose_new
+    or new.version_number         is distinct from old.version_number
+    or new.agent_id               is distinct from old.agent_id
+    or new.organization_id        is distinct from old.organization_id
+  ) then
+    raise exception 'ai_agent_versions % é imutável (status=%): mudança de conteúdo = versão draft nova; rollback = revert (clona + publica)',
+      old.id, old.status;
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists trg_ai_agent_versions_content_immutable on public.ai_agent_versions;
+create trigger trg_ai_agent_versions_content_immutable
+  before update on public.ai_agent_versions
+  for each row execute function public.fn_ai_agent_version_content_immutable();
+
+notify pgrst, 'reload schema';
+
+-- ─── O AVISO NASCE UMA VEZ, E QUEM GARANTE ISSO É O BANCO ───────────────────
+--
+-- O agente vai propor o mesmo campo a cada turno em que o assunto voltar. Um
+-- `select` antes do `insert` no aplicativo seria check-then-act: dois turnos
+-- concorrentes passam pela janela e a Central ganha o aviso em dobro.
+--
+-- Duas propostas de campos DIFERENTES no mesmo funil são decisões diferentes e
+-- PRECISAM conviver — por isso a chave da idempotência é (org, kind, ref_id,
+-- title), e o título carrega o rótulo proposto. Comparar só por funil engoliria
+-- a segunda sugestão em silêncio, que é o defeito que a 0270 evitou do outro
+-- lado.
+--
+-- `security definer` porque o chamador é a sessão do agente (MCP), que não tem
+-- INSERT direto em `agent_inbox_items` — e não deve ter: um aviso é do sistema,
+-- não do tenant.
+create or replace function public.fn_inbox_item_unico(
+  p_org uuid, p_kind text, p_severity text, p_title text, p_body text,
+  p_ref_kind text default null, p_ref_id uuid default null
+) returns uuid language plpgsql security definer set search_path = public, pg_temp as $fn$
+declare v_id uuid;
+begin
+  insert into public.agent_inbox_items
+    (organization_id, kind, severity, title, body, ref_kind, ref_id)
+  select p_org, p_kind, p_severity, p_title, p_body, p_ref_kind, p_ref_id
+   where not exists (
+     select 1 from public.agent_inbox_items
+      where organization_id = p_org and kind = p_kind and status = 'open'
+        and title = p_title
+        and ref_id is not distinct from p_ref_id
+   )
+  returning id into v_id;
+  -- `null` quando já existia: quem chama distingue "criei" de "já estava lá"
+  -- sem precisar contar linhas nem confiar em exceção.
+  return v_id;
+end $fn$;
+
+-- Função nova em `public` NASCE EXPOSTA, e são TRÊS origens de EXECUTE: o
+-- `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS` do corpo do baseline para
+-- anon, authenticated e service_role (linhas 4877-4879), mais o grant a PUBLIC
+-- que o Postgres dá a qualquer função ao criá-la. Esquecer `authenticated`
+-- deixaria uma função que ESCREVE ao alcance de qualquer usuário logado de
+-- qualquer tenant — foi o vermelho que a 0269 pagou.
+revoke all on function public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid)
+  from public, anon, authenticated;
+grant execute on function public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid)
+  to service_role;
 
 notify pgrst, 'reload schema';
 

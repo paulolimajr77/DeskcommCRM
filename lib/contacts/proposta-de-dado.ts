@@ -156,6 +156,115 @@ export async function proporDadoDoContato(
 }
 
 // ---------------------------------------------------------------------------
+// CAMPO DO FUNIL — a proposta com DESTINO (migration 0270)
+// ---------------------------------------------------------------------------
+
+export interface DadosDaPropostaDeCampoDoFunil {
+  organizationId: string;
+  /** Dono da conversa. A proposta aparece na ficha DELE, como as de contato. */
+  contactId: string;
+  /** PARA ONDE a confirmação escreve: uma chave em `crm_leads.custom_fields`. */
+  leadId: string;
+  /** A chave declarada pela empresa em `pipeline.settings.fields`. */
+  campo: string;
+  valor: string;
+  /** O que estava gravado quando a proposta nasceu — o `from` da L-06. */
+  valorAnterior: string | null;
+  trecho?: string | null;
+  conversationId?: string | null;
+  messageId?: string | null;
+  agentId?: string | null;
+  diasDePrazo?: number;
+}
+
+/**
+ * O AGENTE FOI BARRADO, E O QUE ELE OUVIU NÃO PODE SUMIR.
+ *
+ * A precedência (`_handler.ts`) impede o agente de sobrescrever campo já
+ * preenchido. Descartar ali e seguir seria trocar um dano por outro: o cliente
+ * disse que mudou de segmento, ninguém fica sabendo, e o cadastro guarda o
+ * valor velho para sempre com cara de atual.
+ *
+ * Então o conflito vira PROPOSTA — o mesmo mecanismo que já existe para dado de
+ * contato, com prazo, trecho de origem e motivo de recusa. Quem decide é gente,
+ * na Central, com os dois valores à vista.
+ *
+ * ## Por que uma função irmã e não um parâmetro em `proporDadoDoContato`
+ *
+ * Aquela valida FORMA por campo (`valorAceitavel`) e NORMALIZA (`normalizar`),
+ * porque `email`, `name` e `phone_number` têm forma conhecida. Campo de funil
+ * não tem: o vocabulário é da empresa, e inventar normalização aqui estragaria
+ * o valor que o cliente disse. As duas compartilham a tabela, o prazo e a
+ * idempotência — não a validação, que é justamente o que difere.
+ */
+export async function proporCampoDoFunil(
+  db: SupabaseClient,
+  dados: DadosDaPropostaDeCampoDoFunil,
+): Promise<ResultadoDaProposta> {
+  const valor = dados.valor.trim();
+  // Modesto de propósito: sem forma conhecida, o que dá para recusar é o vazio
+  // e o absurdo de tamanho. O resto é decisão de quem confirma.
+  if (valor === "" || valor.length > 500) {
+    return { criada: false, motivo: "valor_invalido" };
+  }
+  if (dados.valorAnterior !== null && dados.valorAnterior.trim() === valor) {
+    // Nada a decidir — e sem esta recusa o cliente repetir a mesma frase
+    // encheria a Central de propostas que confirmam o que já é verdade.
+    return { criada: false, motivo: "valor_igual_ao_atual" };
+  }
+
+  const { data: contato, error: erroContato } = await db
+    .from("contacts")
+    .select("id,is_anonymized")
+    .eq("organization_id", dados.organizationId)
+    .eq("id", dados.contactId)
+    .maybeSingle();
+  if (erroContato) {
+    return { criada: false, motivo: "erro", detalhe: erroContato.message.slice(0, 120) };
+  }
+  if (!contato) return { criada: false, motivo: "contato_nao_encontrado" };
+  // L-04: quem exerceu o direito ao esquecimento não recebe dado de volta pela
+  // porta dos fundos — nem por campo de funil.
+  if ((contato as { is_anonymized?: boolean }).is_anonymized === true) {
+    return { criada: false, motivo: "contato_anonimizado" };
+  }
+
+  const expiraEm = new Date(
+    Date.now() + (dados.diasDePrazo ?? PRAZO_PADRAO_DIAS) * 24 * 3600_000,
+  ).toISOString();
+
+  const { data: criada, error } = await db
+    .from("contact_field_proposals")
+    .insert({
+      organization_id: dados.organizationId,
+      contact_id: dados.contactId,
+      lead_id: dados.leadId,
+      campo: dados.campo,
+      valor_proposto: valor,
+      valor_anterior: dados.valorAnterior,
+      trecho: dados.trecho ?? null,
+      conversation_id: dados.conversationId ?? null,
+      message_id: dados.messageId ?? null,
+      proposed_by_agent_id: dados.agentId ?? null,
+      expires_at: expiraEm,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // 23505 = o índice único parcial da 0270, agora por (org, contato, campo,
+    // destino). Não é falha: é a idempotência funcionando. O agente vai insistir
+    // no mesmo campo a cada turno, e quem barra é o BANCO.
+    if ((error as { code?: string }).code === "23505") {
+      return { criada: false, motivo: "ja_existe_proposta" };
+    }
+    return { criada: false, motivo: "erro", detalhe: error.message.slice(0, 120) };
+  }
+
+  return { criada: true, id: (criada as { id: string }).id, valorAnterior: dados.valorAnterior };
+}
+
+// ---------------------------------------------------------------------------
 // O VENCIMENTO
 // ---------------------------------------------------------------------------
 

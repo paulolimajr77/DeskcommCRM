@@ -87,12 +87,12 @@ beforeAll(() => {
     values ('${CONTATO}', '${ORG}', 'Quem fala')
     on conflict (id) do nothing;
 
-    insert into public.crm_pipelines (id, organization_id, name)
-    values ('${FUNIL}', '${ORG}', 'Funil do destino')
+    insert into public.crm_pipelines (id, organization_id, name, slug)
+    values ('${FUNIL}', '${ORG}', 'Funil do destino', 'funil-do-destino')
     on conflict (id) do nothing;
 
-    insert into public.crm_stages (id, organization_id, pipeline_id, name, position)
-    values ('${ETAPA}', '${ORG}', '${FUNIL}', 'Primeira', 1)
+    insert into public.crm_stages (id, organization_id, pipeline_id, name, slug, position)
+    values ('${ETAPA}', '${ORG}', '${FUNIL}', 'Primeira', 'primeira-destino', 1)
     on conflict (id) do nothing;
 
     insert into public.crm_leads (id, organization_id, pipeline_id, stage_id, contact_id, title)

@@ -11503,8 +11503,18 @@ create table if not exists public.contact_field_proposals (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   contact_id uuid not null references public.contacts(id) on delete cascade,
 
-  -- QUAL campo. Vocabulário FECHADO por CHECK: o que entra aqui vira escrita em
-  -- `contacts`, e campo livre deixaria a IA propor qualquer coluna.
+  -- PARA ONDE a confirmação escreve (migration 0270). Nulo = campo do contato;
+  -- preenchido = uma chave em `crm_leads.custom_fields` daquele negócio.
+  --
+  -- ⚠️ A COLUNA NASCE AQUI, e não só no apêndice da 0270, porque o CHECK logo
+  -- abaixo a cita: numa instalação NOVA o apêndice só roda no fim do arquivo, e
+  -- a constraint falharia por coluna inexistente. Quem atualiza recebe a coluna
+  -- pelo `add column if not exists` da 0270 — os dois caminhos convergem.
+  lead_id uuid references public.crm_leads(id) on delete cascade,
+
+  -- QUAL campo. O vocabulário depende do DESTINO — ver o CHECK abaixo: fechado
+  -- para contato (o que entra ali vira escrita em `contacts`), aberto para
+  -- campo de funil, que cada empresa inventa em Configurações › Funis.
   campo text not null,
 
   -- O valor proposto e o que existia quando a proposta nasceu. O segundo é o
@@ -11537,11 +11547,36 @@ create table if not exists public.contact_field_proposals (
 comment on table public.contact_field_proposals is
   'Dado do contato que a IA ouviu na conversa e propôs — aguardando confirmação humana (spec 17 §4b). SEMPRE com prazo: proposta que ninguém decide vira badge permanente, que simula atenção e adia a decisão. No vencimento sai da tela e vira item de caixa.';
 
+-- ⛔ A COLUNA VEM ANTES DO CHECK, E ISTO NÃO É REDUNDANTE COM A LINHA DO
+-- `create table` ACIMA.
+--
+-- Os dois caminhos do baseline divergem exatamente aqui. Na instalação NOVA o
+-- `create table` roda e a coluna nasce com ele. Em quem ATUALIZA, o
+-- `if not exists` faz o bloco inteiro ser PULADO — a tabela já existe — e a
+-- coluna não chega. O `drop constraint` abaixo funcionaria, o `add constraint`
+-- falharia por coluna inexistente, e como o `update.sh` roda SEM
+-- `ON_ERROR_STOP` o arquivo seguiria: a tabela terminaria **sem vocabulário
+-- nenhum**, aceitando qualquer campo, em silêncio e com a atualização
+-- reportando sucesso.
+alter table public.contact_field_proposals
+  add column if not exists lead_id uuid references public.crm_leads(id) on delete cascade;
+
 alter table public.contact_field_proposals
   drop constraint if exists contact_field_proposals_campo_check;
+-- A REGRA É SOBRE O PAR (campo, destino) desde a migration 0270.
+--
+-- Sem destino (`lead_id` nulo) vale o vocabulário FECHADO do contato — o que
+-- entra ali vira escrita em `contacts`, e campo livre deixaria a IA propor
+-- qualquer coluna. Com destino, a chave é de `crm_leads.custom_fields`, cujo
+-- vocabulário é ABERTO: cada empresa inventa o seu em Configurações › Funis, e
+-- a doutrina deste repositório proíbe CHECK em vocabulário aberto — a
+-- constraint quebraria o `update.sh` de um clone com campo de nome diferente.
+-- Quem valida a chave de funil é o servidor, na ACEITAÇÃO, contra
+-- `settings.fields` daquele funil.
 alter table public.contact_field_proposals
   add constraint contact_field_proposals_campo_check check (
-    campo = any (array['email', 'name', 'phone_number']::text[])
+    (lead_id is null and campo = any (array['email', 'name', 'phone_number']::text[]))
+    or (lead_id is not null and length(btrim(campo)) between 1 and 64)
   );
 
 alter table public.contact_field_proposals
@@ -25002,7 +25037,13 @@ end $fn$;
 -- baseline (que alcança toda função criada depois dele) e o grant a PUBLIC que
 -- o Postgres dá a qualquer função ao criá-la. Tratar só uma deixa a função
 -- alcançável pela anon key, que vai para o browser.
-revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon;
+-- ⛔ `authenticated` ENTRA NA LISTA, e esquecê-lo custou um vermelho no CI.
+-- O corpo do baseline faz `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS`
+-- para anon, authenticated E service_role (linhas 4877-4879). Revogar só de
+-- `public, anon` deixa esta funcao — que ESCREVE — executavel por qualquer
+-- usuario logado de QUALQUER tenant. Foi o que
+-- `tests/invariants/hardening-definer-varredura.test.ts` acusou.
+revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
 
 comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
@@ -25033,6 +25074,13 @@ comment on column public.contact_field_proposals.lead_id is
 -- O índice velho sai pelo nome: recriá-lo com a mesma assinatura e conteúdo
 -- diferente não é possível, e deixar os dois faria o antigo continuar barrando
 -- proposta de funil legítima.
+-- ⚠️ O `drop` + `create` deixa a tabela sem índice único por um instante. Isso
+-- é seguro AQUI, e o argumento é sobre os dados: o índice novo é mais FROUXO
+-- que o velho — o velho proibia duas linhas com o mesmo (org, contato, campo)
+-- independentemente do destino; o novo permite quando o lead difere. Todo dado
+-- que satisfazia o antigo satisfaz o novo, então o `create` não tem como falhar
+-- por duplicata. Se fosse o contrário, um `create` que falhasse sem
+-- `ON_ERROR_STOP` deixaria a idempotência desarmada com a atualização verde.
 drop index if exists public.uq_contact_field_proposals_uma_viva;
 create unique index if not exists uq_contact_field_proposals_uma_viva
   on public.contact_field_proposals
@@ -25045,13 +25093,18 @@ create index if not exists idx_contact_field_proposals_por_lead
   on public.contact_field_proposals (organization_id, lead_id)
   where status = 'pending' and lead_id is not null;
 
-alter table public.contact_field_proposals
-  drop constraint if exists contact_field_proposals_campo_check;
-alter table public.contact_field_proposals
-  add constraint contact_field_proposals_campo_check check (
-    (lead_id is null and campo = any (array['email', 'name', 'phone_number']::text[]))
-    or (lead_id is not null and length(btrim(campo)) between 1 and 64)
-  );
+-- ⚠️ O CHECK DE `campo` NÃO É RECONSTRUÍDO AQUI, e a ausência é deliberada.
+--
+-- `tests/unit/baseline-constraint-reconstruida.test.ts` cobra UMA constraint,
+-- UM bloco: quando dois blocos a recriam, cada um com o vocabulário da sua
+-- época, o `update.sh` de um banco com dados falha em cadeia nos blocos
+-- antigos e só o último acerta — estado final certo por acidente, com erro na
+-- tela de quem atualiza. Custou sete reconstruções de
+-- `agent_inbox_items_kind_check` para esta regra existir.
+--
+-- Então a forma nova mora onde a constraint sempre morou, mais acima neste
+-- arquivo, junto da tabela. A migration 0270 traz o `alter` para quem aplica a
+-- cadeia; aqui, o bloco original já nasce com a regra final.
 
 notify pgrst, 'reload schema';
 

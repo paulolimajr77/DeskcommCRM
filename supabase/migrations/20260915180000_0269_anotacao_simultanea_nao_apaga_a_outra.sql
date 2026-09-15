@@ -79,7 +79,13 @@ end $fn$;
 -- baseline (que alcança toda função criada depois dele) e o grant a PUBLIC que
 -- o Postgres dá a qualquer função ao criá-la. Tratar só uma deixa a função
 -- alcançável pela anon key, que vai para o browser.
-revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon;
+-- ⛔ `authenticated` ENTRA NA LISTA, e esquecê-lo custou um vermelho no CI.
+-- O corpo do baseline faz `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS`
+-- para anon, authenticated E service_role (linhas 4877-4879). Revogar só de
+-- `public, anon` deixa esta funcao — que ESCREVE — executavel por qualquer
+-- usuario logado de QUALQUER tenant. Foi o que
+-- `tests/invariants/hardening-definer-varredura.test.ts` acusou.
+revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
 
 comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is

@@ -85,12 +85,12 @@ beforeAll(() => {
     values ('${ORG}', 'org-anotacao-simultanea', 'Anotacao Simultanea', 'Anotacao Simultanea', 'active')
     on conflict (id) do nothing;
 
-    insert into public.crm_pipelines (id, organization_id, name)
-    values ('${FUNIL}', '${ORG}', 'Funil da corrida')
+    insert into public.crm_pipelines (id, organization_id, name, slug)
+    values ('${FUNIL}', '${ORG}', 'Funil da corrida', 'funil-da-corrida')
     on conflict (id) do nothing;
 
-    insert into public.crm_stages (id, organization_id, pipeline_id, name, position)
-    values ('${ETAPA}', '${ORG}', '${FUNIL}', 'Primeira', 1)
+    insert into public.crm_stages (id, organization_id, pipeline_id, name, slug, position)
+    values ('${ETAPA}', '${ORG}', '${FUNIL}', 'Primeira', 'primeira-corrida', 1)
     on conflict (id) do nothing;
 
     insert into public.crm_leads (id, organization_id, pipeline_id, stage_id, title, custom_fields)
@@ -114,9 +114,17 @@ describe("anotar campo do funil sob concorrência", () => {
 
     const paraAnon = sql(`
       select count(*) from information_schema.role_routine_grants
-       where routine_name = 'fn_lead_anotar_campos' and grantee in ('anon', 'PUBLIC');
+       where routine_name = 'fn_lead_anotar_campos'
+         and grantee in ('anon', 'PUBLIC', 'authenticated');
     `);
-    expect(paraAnon, "fn_lead_anotar_campos alcançável pela anon key").toBe("0");
+    // `authenticated` na lista NÃO é zelo extra: o baseline concede ALL em
+    // funções para anon, authenticated e service_role por default, e a primeira
+    // versão desta migration revogou só de duas — deixando uma função que
+    // ESCREVE ao alcance de qualquer usuário logado de QUALQUER tenant.
+    expect(
+      paraAnon,
+      "fn_lead_anotar_campos alcançável por anon ou por qualquer usuário logado",
+    ).toBe("0");
   });
 
   it("⛔ duas anotações simultâneas com chaves diferentes: as DUAS sobrevivem", async () => {

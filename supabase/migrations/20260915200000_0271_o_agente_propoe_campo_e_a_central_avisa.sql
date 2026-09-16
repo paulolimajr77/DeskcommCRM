@@ -69,7 +69,7 @@ notify pgrst, 'reload schema';
 -- ─── A CHAVE VOLTA, E AGORA TEM QUEM A LEIA ─────────────────────────────────
 --
 -- `lead_fields_propose_new` foi RETIRADA em 2026-09-15, antes de existir, e o
--- motivo está no cabeçalho da 0261: o mecanismo que a usaria não tinha sido
+-- motivo está no cabeçalho da 0272: o mecanismo que a usaria não tinha sido
 -- construído, e ela nascia sem ninguém que a lesse — um interruptor que o dono
 -- liga, que a tela grava, e que o motor ignora. Quem pegou foi
 -- `tests/unit/knobs-da-versao-publicada-sao-aplicados.test.ts`, cuja régua é
@@ -91,14 +91,14 @@ comment on column public.ai_agent_versions.lead_fields_propose_new is
   'sentido: quem não recebe a definição dos campos não sabe o que já existe, e '
   'proporia o que a empresa já declarou.';
 
--- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — a mesma razão da 0261.
+-- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — a mesma razão da 0272.
 --
 -- `fn_ai_agent_version_content_immutable` ENUMERA as colunas congeladas depois
 -- de publicada. Coluna nova fora da lista fica editável numa versão PUBLICADA,
 -- sem virar versão nova e sem deixar trilha — justamente a promessa que a chave
 -- faz ao morar na versão em vez de em `ai_agents.config`.
 --
--- O corpo abaixo é DERIVADO do que está em vigor (a 0261): recriá-lo de um
+-- O corpo abaixo é DERIVADO do que está em vigor (a 0272): recriá-lo de um
 -- corpo antigo apagaria as colunas que entraram depois, e no baseline isso vira
 -- remoção de proteção no `update.sh` de quem já rodava.
 create or replace function public.fn_ai_agent_version_content_immutable() returns trigger

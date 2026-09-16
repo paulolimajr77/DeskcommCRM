@@ -24927,7 +24927,7 @@ grant  execute on function public.fn_agenda_conexoes_google_do_dono(uuid, uuid) 
 
 notify pgrst, 'reload schema';
 
--- ---- o envio do Meet nao espera para sempre pela trava (migration 0262) ----
+-- ---- o envio do Meet nao espera para sempre pela trava (migration 0273) ----
 -- 0241 — o envio do link do Meet para de esperar para sempre pela trava
 --
 -- MEDIDO em producao em 2026-09-13. "Enviar link ao cliente" falhava com
@@ -25792,7 +25792,7 @@ begin
              add constraint ai_reply_drafts_message_id_fkey
              foreign key (message_id) references public.messages(id) on delete set null';
 end $$;
--- ---- o dono liga os campos do funil no agente (migration 0261) ----
+-- ---- o dono liga os campos do funil no agente (migration 0272) ----
 -- Uma chave na VERSÃO, nascendo `false`: `lead_fields_enabled` — o agente
 -- pergunta e preenche os campos personalizados que a organização declarou em
 -- `pipeline.settings.fields`.
@@ -26009,14 +26009,14 @@ comment on column public.ai_agent_versions.lead_fields_propose_new is
   'sentido: quem não recebe a definição dos campos não sabe o que já existe, e '
   'proporia o que a empresa já declarou.';
 
--- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — a mesma razão da 0261.
+-- ⚠️ CONSERTO OBRIGATÓRIO NO MESMO ARQUIVO — a mesma razão da 0272.
 --
 -- `fn_ai_agent_version_content_immutable` ENUMERA as colunas congeladas depois
 -- de publicada. Coluna nova fora da lista fica editável numa versão PUBLICADA,
 -- sem virar versão nova e sem deixar trilha — justamente a promessa que a chave
 -- faz ao morar na versão em vez de em `ai_agents.config`.
 --
--- O corpo abaixo é DERIVADO do que está em vigor (a 0261): recriá-lo de um
+-- O corpo abaixo é DERIVADO do que está em vigor (a 0272): recriá-lo de um
 -- corpo antigo apagaria as colunas que entraram depois, e no baseline isso vira
 -- remoção de proteção no `update.sh` de quem já rodava.
 create or replace function public.fn_ai_agent_version_content_immutable() returns trigger

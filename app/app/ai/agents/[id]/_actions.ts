@@ -38,7 +38,7 @@ import { VALID_TOOL_IDS } from "@/lib/mcp/tools";
 const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const VERSION_COLUMNS =
-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, cases_enabled, lead_fields_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
+  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, cases_enabled, lead_fields_enabled, lead_fields_propose_new, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
 
 type ActionResult<T = void> =
   | { ok: true; data?: T }
@@ -309,6 +309,7 @@ export async function saveAgentDraftAction(
         handoff_tool_enabled: v.handoff_tool_enabled,
         cases_enabled: v.cases_enabled,
         lead_fields_enabled: v.lead_fields_enabled,
+        lead_fields_propose_new: v.lead_fields_propose_new,
         operator_enabled: v.operator_enabled,
         operator_model: v.operator_model,
         operator_tool_ids: v.operator_tool_ids,
@@ -529,6 +530,9 @@ export async function revertToVersionAction(
     // anterior à 0255 num clone que ainda não aplicou o baseline novo, e ler
     // `undefined` como `false` é melhor que mentir que a coluna sempre veio.
     lead_fields_enabled: boolean | null;
+    // Anulável pela mesma razão, e agora pela 0271: a versão de origem pode
+    // ser anterior à coluna num clone que ainda não aplicou o baseline novo.
+    lead_fields_propose_new: boolean | null;
     operator_enabled: boolean;
     operator_model: string | null;
     operator_tool_ids: string[];
@@ -577,6 +581,7 @@ export async function revertToVersionAction(
         // escopo logo abaixo: voltar para uma versão e NÃO voltar o que ela
         // perguntava seria publicar uma configuração que nunca existiu.
         lead_fields_enabled: src.lead_fields_enabled ?? false,
+        lead_fields_propose_new: src.lead_fields_propose_new ?? false,
         operator_enabled: src.operator_enabled,
         operator_model: src.operator_model,
         operator_tool_ids: src.operator_tool_ids,
@@ -739,6 +744,7 @@ export async function createMcpAgentAction(
     handoff_tool_enabled: v.handoff_tool_enabled,
     cases_enabled: v.cases_enabled,
     lead_fields_enabled: v.lead_fields_enabled,
+    lead_fields_propose_new: v.lead_fields_propose_new,
     split_messages: v.split_messages,
     split_max_chars: v.split_max_chars,
     // O corpo ACEITAVA estes cinco e o INSERT os descartava: criar o assistente

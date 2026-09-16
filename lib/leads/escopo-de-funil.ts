@@ -280,10 +280,31 @@ export async function podeChamarFerramenta(entrada: {
     case "funil_vem_do_lead": {
       const leadId = entrada.argumentos.lead_id;
       if (typeof leadId !== "string") {
-        // A ferramenta aceita alvo por contato (é o caso do follow-up). Sem lead
-        // não há funil a checar — e recusar aqui bloquearia um caminho legítimo.
-        // A consequência está medida em `tests/unit/escopo-de-funil.test.ts`:
-        // com `lead_id` opcional, o escopo vira opcional na prática.
+        // ⛔ QUANDO AQUI SE CHEGA, JÁ É ESCRITA. A leitura saiu no
+        // `if (!entrada.ehEscrita)` acima, então o discriminador NÃO pode ser
+        // ler-vs-escrever — o que decide é: esta chamada tem ALGUM alvo?
+        //
+        // Enquanto `crm_update_lead.lead_id` era OBRIGATÓRIO no schema, este
+        // ramo era INALCANÇÁVEL por ela, e liberar era barato porque não havia
+        // como chegar aqui. Com o campo tornado opcional (tarefa 5), ele vira a
+        // PORTA DE TRÁS: fora da conversa (`input.contactId` é `undefined` em
+        // `alvoDerivadoDaConversa`) a derivação NÃO roda, e o argumento ausente
+        // chega EXATAMENTE aqui — liberar seria deixar toda escrita de lead fora
+        // da conversa passar sem checagem de escopo nenhuma.
+        //
+        // `crm_schedule_followup` e `crm_propose_reactivation` aceitam
+        // `contact_id` e por isso chegam aqui LEGITIMAMENTE sem `lead_id` — o
+        // retorno é marcado por CONTATO, não por negócio, e o follow-up é o
+        // caminho do paciente novo, o caso mais comum de uma clínica. Recusá-las
+        // bloquearia quem está chegando, e a IA deixaria de marcar retorno.
+        //
+        // Sem `lead_id` E sem `contact_id`, não há alvo nenhum. `indisponivel` é
+        // o motivo certo (falta de INFORMAÇÃO, não veredito sobre o card — a
+        // mesma distinção que `podeOperarNoFunil` explica).
+        const temAlvoPorContato = typeof entrada.argumentos.contact_id === "string";
+        if (!temAlvoPorContato) {
+          return { permitido: false, motivo: "indisponivel", detalhe: "escrita sem alvo" };
+        }
         return { permitido: true };
       }
       return resolverPeloLead(entrada, leadId);

@@ -27,6 +27,7 @@ import {
 
 const FUNIL_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const FUNIL_B = "bbbbbbbb-0000-4000-8000-000000000002";
+const CONTATO = "c0a7aaaa-0000-4000-8000-0000000000c1";
 
 /** Resolve o funil sem tocar banco — a decisão é pura, o transporte é do chamador. */
 const resolveFixo = (p: string | null) => async () => p;
@@ -119,19 +120,26 @@ describe("a chamada de ferramenta", () => {
     expect(fora.motivo).toBe("funil_fora_do_escopo");
 
     // ⛔ E AQUI A ACUSAÇÃO DE TEATRO VIRA MEDIÇÃO, em vez de ficar só no
-    // comentário. `crm_schedule_followup` é `funil_vem_do_lead`; dando a ela
-    // exatamente os argumentos que esta ferramenta manda — `pipeline_id` e
-    // nenhum `lead_id` —, ela LIBERA. É esse o desfecho que
-    // `crm_propose_lead_field` teria com aquela classificação: um gate com cara
-    // de escopado que diz sim para o funil de outro time.
+    // comentário. `crm_schedule_followup` é `funil_vem_do_lead`; dando a ela um
+    // alvo LEGÍTIMO por contato — que é o caso do paciente novo —, ela LIBERA.
+    // É esse o desfecho que `crm_propose_lead_field` teria com aquela
+    // classificação: um gate com cara de escopado que diz sim ao funil de outro
+    // time.
+    //
+    // ⚠️ O CONTROLE PASSA `contact_id` DESDE 2026-09-16, e a mudança é o ponto.
+    // A Tarefa 5 fechou o ramo `funil_vem_do_lead` contra ESCRITA SEM ALVO
+    // NENHUM (`pipeline_id` sozinho deixou de liberar), mas preservou o caminho
+    // legítimo: escrita com alvo por contato continua passando. Sem o
+    // `contact_id` aqui, este caso mediria a recusa nova em vez do furo que ele
+    // existe para mostrar — e o `expect` abaixo apodreceria medindo outra coisa.
     const seFosseFunilVemDoLead = await podeChamarFerramenta({
       ...base,
       ferramenta: "crm_schedule_followup",
-      argumentos: { pipeline_id: FUNIL_B },
+      argumentos: { pipeline_id: FUNIL_B, contact_id: CONTATO },
     });
     expect(
       seFosseFunilVemDoLead.permitido,
-      "o controle desta prova apodreceu: `funil_vem_do_lead` deixou de liberar sem `lead_id`",
+      "o controle desta prova apodreceu: `funil_vem_do_lead` com alvo por contato deixou de liberar",
     ).toBe(true);
   });
 

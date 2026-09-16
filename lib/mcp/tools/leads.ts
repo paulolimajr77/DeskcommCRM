@@ -220,7 +220,33 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
 // ---------------------------------------------------------------------------
 
 const updateInputShape = {
-  lead_id: z.string().uuid(),
+  /**
+   * ⛔ OPCIONAL, e a opção é a CONSERTADORA, não uma brecha.
+   *
+   * DENTRO da conversa o valor é DESCARTADO. A fronteira do turno
+   * (`lib/ai/runtime/tools.ts`, `alvoDerivadoDaConversa`) resolve o negócio pelo
+   * CONTATO do job e SOBRESCREVE o que o modelo mandou — porque o caso perigoso
+   * não é o uuid inventado (esse o gate barra), é o uuid REAL E ERRADO de outro
+   * negócio da mesma organização: a resposta de um cliente iria para a ficha de
+   * outro com `success: true` no audit, e ninguém investigaria.
+   *
+   * Exigir era exigir um dado que o sistema já jogava fora. E o modelo, sem o
+   * número, inventava um: medido em produção, `74a0238a-…`, zero linhas no
+   * banco, o gate recusou certo, e a resposta se perdeu.
+   *
+   * FORA da conversa (papel Operador, rota HTTP, automação) `input.contactId` é
+   * `undefined` e a derivação NÃO roda. Aí a ausência do `lead_id` é RECUSADA
+   * pelo gate de escopo (`lib/leads/escopo-de-funil.ts`, motivo `"indisponivel"`)
+   * — em vez de passar sem checagem. As duas pontas andam no MESMO commit:
+   * tornar este campo opcional sem fechar aquele ramo abriria a porta de trás
+   * para toda escrita de lead fora da conversa.
+   *
+   * Não tocar nas irmãs (`crm_move_lead_stage`, `crm_close_demand`,
+   * `crm_get_lead`): o dano delas não é sobrescrever um campo — é dar o negócio
+   * por ganho no card errado, e ali o `lead_id` explícito continua sendo o
+   * contrato.
+   */
+  lead_id: z.string().uuid().optional(),
   title: z.string().min(2).max(200).optional(),
   description: z.string().max(2000).optional(),
   contact_id: z.string().uuid().optional(),
@@ -261,6 +287,26 @@ export const crmUpdateLead: McpToolDefinition<typeof updateInputShape> = {
   requiresScope: "mcp:write",
   handler: async (input, ctx) => {
     const { lead_id, ...rest } = input;
+
+    // ⛔ RECUSA DE NEGÓCIO VOLTA COMO RESPOSTA, NUNCA EXCEÇÃO. Numa rota HTTP
+    // lançar é certo — o wrapper traduz em status. Numa ferramenta MCP a
+    // exceção sobe pela ponte e o assistente EMUDECE na frente do cliente
+    // (`repo-mcp.md` §7.5). O motivo separado (`sem_negocio`) é o que ensina
+    // o modelo a seguir a conversa em vez de tentar de novo — o mesmo desenho
+    // de `alvoDerivadoDaConversa` para as duas recusas dele.
+    //
+    // Quando o fluxo é da conversa, este ramo não roda: a fronteira do turno
+    // já preencheu `lead_id` antes de chamar este handler.
+    if (lead_id === undefined) {
+      return {
+        atualizado: false,
+        motivo: "sem_negocio",
+        mensagem:
+          "não consegui identificar de qual negócio você está falando. Siga a conversa e " +
+          "deixe que alguém da equipe registre.",
+      };
+    }
+
     const parsed = updateLeadSchema.parse(rest);
     const lead = await updateLeadHandler(
       ctx.supabase,

@@ -189,4 +189,63 @@ describe("o negócio vem da conversa", () => {
     await anotar(DE_OUTRO_CLIENTE, null);
     expect(leadQueChegou(), "derivou alvo onde não há conversa").toBe(DE_OUTRO_CLIENTE);
   });
+
+  it("DENTRO da conversa: crm_update_lead sem lead_id grava no negócio da conversa", async () => {
+    // O modelo não precisa mais produzir um identificador de memória para
+    // conseguir gravar. Sem `lead_id` no argumento, `alvoDerivadoDaConversa`
+    // roda (porque `input.contactId` está presente) e preenche o campo antes
+    // de o handler ver. É o conserto do defeito medido: exigir um dado que o
+    // sistema descartava era desenhar para a alucinação.
+    const tools = montarTurno(CONTATO) as unknown as Record<
+      string,
+      { execute: (a: unknown) => Promise<unknown> }
+    >;
+    await tools.crm_update_lead!.execute({
+      custom_fields: { tem_conteudo: "sim" },
+    });
+    expect(vi.mocked(updateLeadHandler)).toHaveBeenCalled();
+    expect(leadQueChegou(), "o negócio da conversa não foi usado").toBe(DA_CONVERSA);
+  });
+
+  it("FORA da conversa: sem contato do turno e sem lead_id, o escopo RECUSA", async () => {
+    // ⛔ ESTE CASO GUARDA O FURO. Fora da conversa (`input.contactId` é
+    // `undefined`) a derivação NÃO roda. Se o gate liberasse `lead_id` ausente,
+    // TODA escrita de lead fora da conversa passaria sem checagem de escopo
+    // nenhuma — é a porta de trás que a opcionalidade abriria sozinha, e por
+    // isso as duas pontas andam no mesmo commit.
+    //
+    // A checagem é feita direto no gate (não via `montarTurno`), porque é
+    // exatamente o ponto onde a decisão mora. `crm_update_lead` é o caso que
+    // NÃO tem `contact_id` no shape: chegar sem `lead_id` é chegar sem alvo
+    // nenhum. O discriminador do gate é a PRESENÇA de `contact_id`, não
+    // ler-vs-escrever — leitura sai antes, no `if (!ehEscrita)`.
+    const { podeChamarFerramenta } = await import("@/lib/leads/escopo-de-funil");
+    const v = await podeChamarFerramenta({
+      ferramenta: "crm_update_lead",
+      argumentos: { custom_fields: { tem_conteudo: "sim" } },
+      escopo: [FUNIL],
+      ehEscrita: true,
+      resolvePipelineDoLead: async () => FUNIL,
+    });
+    expect(v.permitido).toBe(false);
+    if (v.permitido) return;
+    expect(v.motivo).toBe("indisponivel");
+  });
+
+  it("CONTROLE — escrita com alvo por CONTATO continua liberada (o paciente novo)", async () => {
+    // crm_schedule_followup marca retorno por contact_id e nunca recebe lead_id.
+    // Recusá-la aqui bloquearia justamente quem está chegando — o caso mais
+    // comum de uma clínica, e o que o comentário original daquele ramo protegia.
+    // Este caso é o par que impede o conserto de virar parede: sem ele, um
+    // `if` mal colocado recusaria tudo e o caso anterior ainda passaria.
+    const { podeChamarFerramenta } = await import("@/lib/leads/escopo-de-funil");
+    const v = await podeChamarFerramenta({
+      ferramenta: "crm_schedule_followup",
+      argumentos: { contact_id: CONTATO, in_hours: 72 },
+      escopo: [FUNIL],
+      ehEscrita: true,
+      resolvePipelineDoLead: async () => FUNIL,
+    });
+    expect(v.permitido).toBe(true);
+  });
 });

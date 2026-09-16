@@ -42,7 +42,7 @@ vi.mock("@/lib/agenda/consulta", async (original) => {
 });
 
 const { horariosLivresDaOrg } = await import("@/lib/agenda/consulta");
-const { crmFindFreeSlots } = await import("@/lib/mcp/tools/agendamento");
+const { crmFindFreeSlots, horariosLivresObject } = await import("@/lib/mcp/tools/agendamento");
 
 const ctx: McpContext = {
   organizationId: "org-1",
@@ -86,7 +86,15 @@ describe("cerca marcar de ponta a ponta", () => {
     // exclusão. Se o Zod aceitar, o handler devolve recusa sólida, mas o modelo
     // já queimou uma chamada e decide andar para o próximo dia — a caminhada de
     // nove dias medida em produção.
-    const parsed = z.object(crmFindFreeSlots.inputSchema as never).safeParse({
+    // A asserção mede `horariosLivresObject` (o objeto EXPORTADO), e não o
+    // `inputSchema`: o raw shape continua servindo o MCP externo para derivar o
+    // JSON Schema, e a regra cross-field mora no objeto refinado. Medir o raw
+    // shape mediria um contrato que exclui a própria regra.
+    //
+    // Mede também a MENSAGEM do erro, e não o `path`: o `refine` emite um único
+    // issue com `path: ["dia"]`, e a mensagem — que nomeia os dois campos — é o
+    // que o modelo lê para se corrigir.
+    const parsed = horariosLivresObject.safeParse({
       event_type_slug: "consulta",
       dia: "2026-09-13",
       dias_a_frente: 7,
@@ -94,10 +102,9 @@ describe("cerca marcar de ponta a ponta", () => {
 
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
-      const caminhos = parsed.error.issues
-        .map((issue) => issue.path.join("."));
-      expect(caminhos.join(",")).toMatch(/dia/);
-      expect(caminhos.join(",")).toMatch(/dias_a_frente/);
+      const texto = parsed.error.issues.map((issue) => issue.message).join(" | ");
+      expect(texto).toContain("`dia`");
+      expect(texto).toContain("`dias_a_frente`");
     }
   });
 

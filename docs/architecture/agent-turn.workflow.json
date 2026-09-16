@@ -303,9 +303,31 @@
       "type": "service",
       "label": "Entrega da resposta aprovada",
       "sublabel": "Texto autorizado, fronteira e aquisição originais; recibo e liquidação recuperáveis, sem novo LLM"
+    },
+    {
+      "id": "marcacao_compromisso",
+      "lane": "worker",
+      "col": 5,
+      "type": "service",
+      "label": "Marcação de compromisso",
+      "sublabel": "ATENDE: tipo de atendimento + jornada publicada · GRAVA: compromisso com hora no contato da conversa"
     }
   ],
   "edges": [
+    {
+      "id": "turn-marcacao",
+      "from": "turn",
+      "to": "marcacao_compromisso",
+      "label": "o turno informa o tipo de atendimento; a jornada publicada decide o horário livre",
+      "variant": "dashed"
+    },
+    {
+      "id": "marcacao-meet-intent",
+      "from": "marcacao_compromisso",
+      "to": "meet_intent",
+      "label": "compromisso criado na agenda; a intenção Meet fica pendurada nele",
+      "variant": "dashed"
+    },
     {
       "id": "inbound-ingest",
       "from": "inbound",

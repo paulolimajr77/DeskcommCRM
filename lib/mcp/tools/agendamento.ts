@@ -157,7 +157,7 @@ const horariosLivresShape = {
     .min(1)
     .max(MAXIMO_DE_DIAS)
     .optional()
-    .describe(`quantos dias olhar a partir de agora (padrão ${DIAS_PADRAO}). Use ESTE campo se você não sabe a data de hoje.`),
+    .describe(`quantos dias olhar a partir de agora (padrão ${DIAS_PADRAO}). Use ESTE campo se você não sabe a data de hoje. NUNCA use junto com \`dia\` — um OU o outro.`),
   /**
    * A data civil é deliberadamente diferente de um ISO com offset. O modelo sabe
    * que o cliente pediu "dia 13", mas não sabe onde começa esse dia no fuso da
@@ -168,7 +168,7 @@ const horariosLivresShape = {
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "dia deve estar em YYYY-MM-DD")
     .optional()
-    .describe("dia civil pedido pelo cliente, em YYYY-MM-DD. Use para uma data específica; o servidor aplica o fuso da agenda."),
+    .describe("dia civil pedido pelo cliente, em YYYY-MM-DD. Use para uma data específica; o servidor aplica o fuso da agenda. NUNCA use junto com `dias_a_frente` — um OU o outro."),
   owner_user_id: z.string().uuid().optional(),
   limite: z
     .number()
@@ -178,6 +178,37 @@ const horariosLivresShape = {
     .optional()
     .describe(`quantos horários no máximo (padrão ${HORARIOS_PADRAO})`),
 };
+
+/**
+ * A REGRA ENTRE CAMPOS, exportada para a cerca medir sem depender do envelope.
+ *
+ * ═══ O DEFEITO, MEDIDO EM PRODUÇÃO (2026-09-16) ═════════════════════════════
+ *
+ * O cliente escreveu "sim pode agendar uma call". O agente chamou
+ * `crm_find_free_slots` NOVE vezes, recebeu lista vazia nas nove, NUNCA chamou
+ * `crm_book_appointment`, e mudou de assunto. No audit, `success: true` nas nove
+ * — não havia erro para ninguém investigar.
+ *
+ * Nas nove ele mandou `dia` E `dias_a_frente` juntos. O handler recusava essa
+ * combinação e devolvia `{horarios: [], motivo: "periodo_ambiguo", mensagem}` —
+ * mas o schema PERMITIA os dois, nenhum `.describe()` dizia que eram
+ * excludentes, e a prosa da `description` mandava ler `publicou_horarios`, campo
+ * que a recusa não trazia. Duas fontes independentes (a `description` da
+ * ferramenta e a skill de plataforma `agendamento`) apontavam para o motivo;
+ * nove mensagens de erro depois, o modelo repetia a chamada inválida.
+ *
+ * **Enquanto os dois campos puderem ser enviados juntos, alguma conversa vai
+ * enviá-los.** Por isso a regra nasce no SCHEMA — antes do handler rodar — e é
+ * exportada para a cerca poder exercitá-la diretamente.
+ */
+export const horariosLivresObject = z
+  .object(horariosLivresShape)
+  .refine((v) => !(v.dia !== undefined && v.dias_a_frente !== undefined), {
+    message:
+      "escolha UM: `dia` (uma data específica que o cliente nomeou) OU `dias_a_frente` " +
+      "(quantos dias olhar a partir de agora). Os dois juntos não descrevem um período.",
+    path: ["dia"],
+  });
 
 export const crmFindFreeSlots: McpToolDefinition<typeof horariosLivresShape> = {
   name: "crm_find_free_slots",
@@ -205,12 +236,33 @@ export const crmFindFreeSlots: McpToolDefinition<typeof horariosLivresShape> = {
   requiresScope: "mcp:read",
   handler: async (input, ctx) => {
     const agora = new Date();
-    if (input.dia !== undefined && input.dias_a_frente !== undefined) {
-      return {
-        horarios: [],
-        motivo: "periodo_ambiguo",
-        mensagem: "informe um dia específico ou quantos dias olhar, não os dois.",
-      };
+
+    // ⛔ O `.parse` do objeto refinado entra ANTES de tudo. Ele rejeita a
+    // combinação ambígua com uma mensagem que NOMEIA os dois campos — erro de
+    // ARGUMENTO, que o modelo sabe corrigir, em vez de lista vazia
+    // indistinguível do "não tem horário".
+    //
+    // O catch preserva a resposta em CAMPO (`motivo` + `publicou_horarios`)
+    // que `mcp-agendamento-tools.test.ts` exercita chamando o handler direto:
+    // se o erro cru do Zod subisse, aquele teste morreria em vez de medir o
+    // retorno.
+    try {
+      horariosLivresObject.parse(input);
+    } catch (e) {
+      if (input.dia !== undefined && input.dias_a_frente !== undefined) {
+        return {
+          horarios: [],
+          motivo: "periodo_ambiguo",
+          // `null`, NUNCA `false`. `false` significa "o atendente não publicou
+          // jornada" — fato sobre a AGENDA. Aqui o fato é sobre o PEDIDO.
+          // Colapsar os dois faria o modelo dizer ao cliente que ninguém
+          // publicou horário quando o problema era o argumento: trocaria um
+          // defeito silencioso por uma mentira ao cliente.
+          publicou_horarios: null,
+          mensagem: "informe um dia específico ou quantos dias olhar, não os dois.",
+        };
+      }
+      throw e;
     }
 
     // A faixa larga contém o dia civil em QUALQUER fuso. Depois de a coleta
@@ -239,6 +291,13 @@ export const crmFindFreeSlots: McpToolDefinition<typeof horariosLivresShape> = {
       return {
         horarios: [],
         motivo: consulta.codigo,
+        // Mesma regra do ramo acima: `null` aqui porque o problema pode ser
+        // sobre o PEDIDO (a coleta nem chegou a olhar a agenda). `false` seria
+        // dizer que o atendente não publicou jornada — mentira possível quando
+        // o que faltou foi argumento bom. Quando a coleta SOUBE da agenda, ela
+        // traz `publicouHorarios` e nós passamos adiante.
+        publicou_horarios:
+          (consulta as { publicouHorarios?: boolean | null }).publicouHorarios ?? null,
         // A face do CLIENTE, nunca a do operador: `motivoParaOperador` nomeia
         // campo e pessoa, e o modelo repassa o que recebe (DECISÃO 20).
         mensagem: consulta.motivoParaCliente,

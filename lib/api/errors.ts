@@ -68,6 +68,7 @@ export const ApiErrorCodes = {
   no_actions_to_resend: "no_actions_to_resend", // resend de regra que não tem mais nenhuma ação de webhook — reenviar nada não é sucesso
   next_action_absent: "next_action_absent", // decisão sobre proposta que não existe (mais) [wave 4]
   next_action_changed: "next_action_changed", // o agente reescreveu a proposta entre o render e o clique
+  maquina_nao_afirma_fato: "maquina_nao_afirma_fato", // etapa que afirma um fato recusa escrita de máquina — só uma pessoa
   next_action_sem_destino: "next_action_sem_destino", // aprovação não virou tarefa em crm_tasks — o slot fica intacto para nova tentativa
   channel_archived: "channel_archived", // ação sobre canal que o usuário excluiu (a linha só sobrevive como âncora das FKs)
   knowledge_source_type_in_use: "knowledge_source_type_in_use", // já existe fonte ATIVA daquele tipo para o agente (índice ai_knowledge_sources_unique_per_agent)

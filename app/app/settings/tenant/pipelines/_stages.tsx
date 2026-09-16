@@ -337,7 +337,7 @@ export function StagesSection({
         <p className="max-w-3xl text-sm leading-relaxed text-text-muted">
           {t("Algumas colunas")} <strong>{t("afirmam um fato")}</strong>{" "}
           {t(
-            "— «Proposta enviada», «Contrato assinado». Se você ligar a chave na linha de uma delas, mover um negócio para lá passa a exigir que alguém registre a evidência: o documento enviado, ou a confirmação de uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.",
+            "— «Proposta enviada», «Contrato assinado». Ligando a chave numa delas, o assistente e as automações param de mover negócios para essa coluna: quem leva o card até lá é uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.",
           )}
         </p>
       </div>

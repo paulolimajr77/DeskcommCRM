@@ -25,6 +25,7 @@ import { ApiError } from "@/lib/api/types";
 import { audit } from "@/lib/audit";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { podeEntrarNaEtapa } from "@/lib/leads/etapa-que-afirma-fato";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
 
 /** Como a demanda terminou. Não há terceira: encerrar é ganhar ou perder. */
@@ -112,7 +113,7 @@ export async function encerraDemanda(
   const colunaTerminal = input.desfecho === "won" ? "is_won" : "is_lost";
   const { data: stage, error: stErr } = await supabase
     .from("crm_stages")
-    .select("id, name")
+    .select("id, name, afirma_fato")
     .eq("organization_id", ctx.organization_id)
     .eq("pipeline_id", (lead as { pipeline_id: string }).pipeline_id)
     .eq(colunaTerminal, true)
@@ -134,6 +135,31 @@ export async function encerraDemanda(
         input.desfecho === "won"
           ? "Pipeline não tem stage de fechamento como ganho."
           : "Pipeline não tem stage de fechamento como perda.",
+        ctx.idioma ?? "pt-BR",
+      ),
+    );
+  }
+
+  // ── A ETAPA TERMINAL QUE AFIRMA FATO SÓ DEIXA A PESSOA FECHAR ───────────────
+  //
+  // Este módulo é chamado pelas duas rotas de TELA (win/lose, onde `ctx.actor`
+  // é um humano) e pela ferramenta do agente (`lib/mcp/tools/retencao.ts`). Por
+  // isso a recusa olha o ATOR, não a rota: se a etapa de ganho/perda for
+  // «Pagamento recebido» ou «Contrato assinado» e o dono a marcar como etapa
+  // que AFIRMA um fato, a máquina estaria declarando que o pagamento entrou.
+  //
+  // Etapa terminal com `afirma_fato = false` passa direto — é o padrão, e o
+  // estado de 100% das etapas existentes. Fechar negócio continua funcionando
+  // como sempre para quem não marcou nada.
+  const veredito = podeEntrarNaEtapa(stage as { afirma_fato?: boolean | null }, ctx.actor);
+  if (!veredito.permitido) {
+    throw new ApiError(
+      409,
+      "maquina_nao_afirma_fato",
+      undefined,
+      ctx.requestId,
+      traduzir(
+        "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode fechar o negócio aqui — o assistente não encerra nesta coluna.",
         ctx.idioma ?? "pt-BR",
       ),
     );

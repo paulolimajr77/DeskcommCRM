@@ -1,4 +1,5 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
+import { podeEntrarNaEtapa } from "@/lib/leads/etapa-que-afirma-fato";
 import type { RiskBucket } from "@/lib/leads/risk-radar";
 
 /**
@@ -19,6 +20,12 @@ export interface EstagioCandidato {
   name: string;
   agent_stage_hint: string | null;
   is_archived: boolean;
+  /**
+   * A etapa AFIRMA um fato (migration 0274). Opcional e anulável: clone com
+   * baseline antigo devolve a linha sem a chave. O resolvedor só precisa saber
+   * se é `true` — ausência, `null` e `false` são o mesmo para a regra.
+   */
+  afirma_fato?: boolean | null;
 }
 
 export type DestinoDoAgente =
@@ -32,6 +39,15 @@ export type DestinoDoAgente =
    * o agente quis mover.
    */
   | { move: false; motivo: "sem_mapeamento"; passo: string }
+  /**
+   * A etapa de destino afirma um FATO — e a máquina não afirma fato.
+   *
+   * Medido em produção em 2026-09-16: o agente PROMETEU a proposta, o
+   * classificador avançou `lead_state.stage` para "Proposta enviada", e este
+   * resolvedor moveu o card com `.update({ stage_id })` direto. A etapa era a
+   * que diz que algo JÁ aconteceu, e ninguém tinha enviado nada.
+   */
+  | { move: false; motivo: "etapa_afirma_fato"; passo: string }
   /** O agente está no passo que o negócio já ocupa: nada a fazer, e não é falha. */
   | { move: false; motivo: "ja_esta_la"; passo: string };
 
@@ -55,6 +71,13 @@ export function resolveDestinoDoAgente(
 ): DestinoDoAgente {
   const alvo = estagios.find((e) => !e.is_archived && e.agent_stage_hint === passo);
   if (!alvo) return { move: false, motivo: "sem_mapeamento", passo };
+
+  // O resolvedor existe SÓ para o agente — logo o ator é `ai_agent` literal.
+  // A regra é pura e devolve recusa para máquina; sem isto, o card deslizaria
+  // para "Proposta enviada" a partir de uma promessa.
+  const veredito = podeEntrarNaEtapa(alvo, { type: "ai_agent" });
+  if (!veredito.permitido) return { move: false, motivo: "etapa_afirma_fato", passo };
+
   if (alvo.id === estagioAtualId) return { move: false, motivo: "ja_esta_la", passo };
   return { move: true, stageId: alvo.id, stageName: alvo.name };
 }
@@ -111,6 +134,14 @@ export interface ResultadoDaSincronizacao {
      * regra funcionou.
      */
     | "fora_do_escopo"
+    /**
+     * A etapa de destino afirma que algo JÁ aconteceu — e quem afirma um fato
+     * é uma pessoa, não a máquina. O agente quis mover e não moveu: não porque
+     * falte configuração (`sem_mapeamento`) nem porque um humano tenha chegado
+     * antes (`conflito_humano`), mas porque esta coluna não aceita afirmação de
+     * máquina. O card não andou e ninguém errou.
+     */
+    | "etapa_afirma_fato"
     | "falha_de_escrita"
     | "indisponivel";
   leadId?: string;
@@ -209,7 +240,7 @@ export async function sincronizaEstagioDoAgente(
 
   const { data: stageRows, error: erroStages } = await admin
     .from("crm_stages")
-    .select("id, name, agent_stage_hint, is_archived")
+    .select("id, name, agent_stage_hint, is_archived, afirma_fato")
     .eq("pipeline_id", lead.pipeline_id);
   // Mesmo motivo do SELECT acima: sem esta linha, banco fora = pipeline sem
   // hint nenhum = "sem_mapeamento", e o incidente se disfarça de configuração.

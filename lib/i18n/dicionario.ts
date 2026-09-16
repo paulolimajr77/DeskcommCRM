@@ -4420,10 +4420,19 @@ export const DICIONARIO: Traducoes = {
   },
   "Algumas colunas": { es: "Algunas columnas" },
   "afirmam um fato": { es: "afirman un hecho" },
-  "— «Proposta enviada», «Contrato assinado». Se você ligar a chave na linha de uma delas, mover um negócio para lá passa a exigir que alguém registre a evidência: o documento enviado, ou a confirmação de uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.": {
-    es: "— «Propuesta enviada», «Contrato firmado». Si enciendes el interruptor en la fila de una de ellas, mover un negocio allí empieza a exigir que alguien registre la evidencia: el documento enviado, o la confirmación de una persona. Sirve para donde la tarjeta adelantada engaña más que la tarjeta parada.",
+  "— «Proposta enviada», «Contrato assinado». Ligando a chave numa delas, o assistente e as automações param de mover negócios para essa coluna: quem leva o card até lá é uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.": {
+    es: "— «Propuesta enviada», «Contrato firmado». Al encender el interruptor en una de ellas, el asistente y las automatizaciones dejan de mover negocios a esa columna: quien lleva la tarjeta hasta allí es una persona. Sirve para donde la tarjeta adelantada engaña más que la tarjeta parada.",
   },
   "Chegar aqui AFIRMA que algo já aconteceu": { es: "Llegar aquí AFIRMA que algo ya sucedió" },
+  "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode criar o negócio nela — a máquina não.": {
+    es: "Esta etapa afirma que algo ya sucedió, entonces solo una persona puede crear el negocio en ella — la máquina no.",
+  },
+  "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode trazer o negócio para cá — o assistente não move o card para esta coluna.": {
+    es: "Esta etapa afirma que algo ya sucedió, entonces solo una persona puede traer el negocio hasta aquí — el asistente no mueve la tarjeta a esta columna.",
+  },
+  "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode fechar o negócio aqui — o assistente não encerra nesta coluna.": {
+    es: "Esta etapa afirma que algo ya sucedió, entonces solo una persona puede cerrar el negocio aquí — el asistente no cierra en esta columna.",
+  },
   "Virou tarefa, com você como responsável — está em Tarefas.": {
     es: "Se convirtió en tarea, contigo como responsable — está en Tareas.",
   },

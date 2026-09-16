@@ -1,6 +1,7 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { podeEntrarNaEtapa } from "@/lib/leads/etapa-que-afirma-fato";
 import { logger } from "@/lib/logger";
 import { emitLeadActivity, stageChangeReason } from "@/lib/leads/activity-emitter";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
@@ -35,7 +36,8 @@ export interface ResultadoDoMovimentoDeAgendamento {
     | "lead_fechado"
     | "conflito_humano"
     | "falha_de_escrita"
-    | "indisponivel";
+    | "indisponivel"
+    | "etapa_afirma_fato";
 }
 
 export async function moverLeadParaEtapaDeAgendamento(
@@ -84,7 +86,7 @@ export async function moverLeadParaEtapaDeAgendamento(
 
   const { data: etapa, error: erroEtapa } = await admin
     .from("crm_stages")
-    .select("id, name")
+    .select("id, name, afirma_fato")
     .eq("pipeline_id", leadRow.pipeline_id)
     .eq("slug", slugAlvo)
     .eq("is_archived", false)
@@ -100,11 +102,18 @@ export async function moverLeadParaEtapaDeAgendamento(
   if (!etapa) {
     return { moveu: false, motivo: "sem_etapa_mapeada" };
   }
-  const etapaRow = etapa as { id: string; name: string };
+  const etapaRow = etapa as { id: string; name: string; afirma_fato?: boolean | null };
 
   if (leadRow.stage_id === etapaRow.id) {
     return { moveu: false, motivo: "ja_esta_la" };
   }
+
+  // Marcar consulta não prova que a proposta saiu. Se a etapa de destino
+  // afirma um fato, quem o afirma é uma pessoa — este movedor é máquina
+  // (`webhook_source`). Etapa com `afirma_fato = false` passa direto: é o
+  // padrão, e o estado de 100% das etapas existentes.
+  const veredito = podeEntrarNaEtapa(etapaRow, { type: "webhook_source" });
+  if (!veredito.permitido) return { moveu: false, motivo: "etapa_afirma_fato" };
 
   // Nome da origem só enfeita o texto da timeline — erro descartado de
   // propósito, mesmo raciocínio de `agent-stage-sync.ts` e `handoff-stage-move.ts`.

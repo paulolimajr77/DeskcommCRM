@@ -1,6 +1,7 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { proporCampoDoFunil } from "@/lib/contacts/proposta-de-dado";
+import { podeEntrarNaEtapa } from "@/lib/leads/etapa-que-afirma-fato";
 /**
  * Core handlers para /api/v1/leads.
  *
@@ -312,7 +313,7 @@ export async function createLeadHandler(
   // Validate stage belongs to pipeline within active org.
   const { data: stage, error: stageErr } = await supabase
     .from("crm_stages")
-    .select("id, pipeline_id, organization_id")
+    .select("id, pipeline_id, organization_id, afirma_fato")
     .eq("id", input.stage_id)
     .maybeSingle();
 
@@ -335,6 +336,23 @@ export async function createLeadHandler(
       undefined,
       ctx.requestId,
       traduzir("Stage não pertence ao pipeline informado.", ctx.idioma ?? "pt-BR"),
+    );
+  }
+
+  // Nascer numa etapa que afirma fato é a MESMA afirmação que chegar ali
+  // movendo: a coluna diz que algo JÁ aconteceu, e nenhuma máquina pode
+  // garantir isso no momento da criação. A PESSOA pode.
+  const veredito = podeEntrarNaEtapa(stage as { afirma_fato?: boolean | null }, ctx.actor);
+  if (!veredito.permitido) {
+    throw new ApiError(
+      409,
+      "maquina_nao_afirma_fato",
+      undefined,
+      ctx.requestId,
+      traduzir(
+        "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode criar o negócio nela — a máquina não.",
+        ctx.idioma ?? "pt-BR",
+      ),
     );
   }
 
@@ -743,30 +761,6 @@ export interface MoveLeadAdminInput {
   /** Optional fractional position. If omitted, append at end (max + 1000). */
   position_in_stage?: number;
   reason?: string;
-  /**
-   * A prova de que o FATO afirmado pela etapa realmente aconteceu.
-   *
-   * Só é olhado quando a etapa de destino tem `afirma_fato = true` (coluna da
-   * migration 0274): nessas etapas, o nome diz que algo JÁ aconteceu, e o
-   * handler exige que alguém consiga conferir que aconteceu — em vez de mover o
-   * card a partir de uma promessa ou de uma leitura do classificador.
-   *
-   * ⚠️ OPCIONAL, e não por preguiça: toda chamada existente passa sem ele, e
-   * etapa com `afirma_fato = false` (o padrão, e é o estado de TODAS as etapas
-   * existentes hoje) não consulta este campo. Exigi-lo quebraria todo chamador
-   * de uma vez, para um comportamento que ninguém ligou ainda.
-   *
-   * Medido: NÃO existe tabela de proposta, orçamento ou quote neste produto
-   * (`information_schema`). Então as duas formas abaixo são as únicas
-   * evidências que o produto consegue produzir hoje.
-   */
-  evidencia?: {
-    /** `documento_enviado` = um arquivo foi enviado na conversa. */
-    /** `confirmado_por_pessoa` = alguém confirmou na tela que o fato aconteceu. */
-    tipo: "documento_enviado" | "confirmado_por_pessoa";
-    /** O id da mensagem que carrega o documento, quando `tipo = documento_enviado`. */
-    referencia?: string;
-  };
 }
 
 export async function moveLeadHandler(
@@ -821,7 +815,7 @@ export async function moveLeadHandler(
     );
   }
 
-  // ── A ETAPA QUE AFIRMA FATO SÓ É ATINGIDA COM EVIDÊNCIA ─────────────────────
+  // ── A ETAPA QUE AFIRMA FATO SÓ DEIXA A PESSOA PASSAR ──────────────────────────
   //
   // Medido em produção em 2026-09-16: o card foi movido para "Proposta enviada"
   // a partir da mensagem em que o agente PROMETEU a proposta. Ninguém enviou
@@ -835,24 +829,27 @@ export async function moveLeadHandler(
   // substantivo significa coisas diferentes em empresas diferentes —
   // reconhecer por nome acerta uma empresa e erra todas as outras.
   //
-  // As duas fronteiras da regra, ditas em voz alta porque quem ler daqui a seis
-  // meses vai perguntar:
+  // A DECISÃO DO PRODUTO: a máquina não afirma fato; a pessoa sim. Quem arrasta
+  // o card É a confirmação de que aquilo aconteceu — não há campo de evidência
+  // nem tela nova; a própria presença da pessoa é a prova. O classificador do
+  // agente avança `lead_state.stage` e o card vai junto; ele lê INTENÇÃO como
+  // FATO, e é por isso que máquina nenhuma atravessa esta etapa.
   //
-  //   - etapa com `afirma_fato = false` passa DIRETO, sem nenhuma verificação.
-  //     É o padrão, e é o estado de 100% das etapas existentes hoje — ninguém
-  //     sente diferença até marcar a caixa;
-  //   - a recusa é de NEGÓCIO, não defeito: o 409 diz o que fazer (registrar a
-  //     evidência antes de mover), e o card NÃO se move. Recusar e mover mesmo
-  //     assim seria pior que não recusar.
-  const afirmaFato = (stage as { afirma_fato?: boolean }).afirma_fato === true;
-  if (afirmaFato && input.evidencia === undefined) {
+  // As fronteiras da regra, porque quem ler daqui a seis meses vai perguntar:
+  //   - etapa com `afirma_fato = false` passa DIRETO, sem olhar o ator. É o
+  //     padrão, e o estado de 100% das etapas existentes hoje — ninguém sente
+  //     diferença até marcar a caixa;
+  //   - a recusa é de NEGÓCIO, não defeito: o 409 diz o porquê, e o card NÃO
+  //     se move.
+  const veredito = podeEntrarNaEtapa(stage as { afirma_fato?: boolean | null }, ctx.actor);
+  if (!veredito.permitido) {
     throw new ApiError(
       409,
-      "stage_requires_evidence",
+      "maquina_nao_afirma_fato",
       undefined,
       ctx.requestId,
       traduzir(
-        "Esta etapa afirma que algo já aconteceu. Registre a evidência (documento enviado, ou confirmação de alguém) antes de mover o card.",
+        "Esta etapa afirma que algo já aconteceu, então só uma pessoa pode trazer o negócio para cá — o assistente não move o card para esta coluna.",
         ctx.idioma ?? "pt-BR",
       ),
     );

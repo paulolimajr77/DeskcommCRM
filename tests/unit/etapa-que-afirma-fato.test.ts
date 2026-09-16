@@ -1,60 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-/**
- * A ETAPA QUE AFIRMA FATO SÓ É ATINGIDA COM EVIDÊNCIA.
- *
- * ═══ O DEFEITO, MEDIDO EM PRODUÇÃO (2026-09-16) ═════════════════════════════
- *
- * Às 09:45 o negócio foi movido de "Entendendo a necessidade" para "Proposta
- * enviada" a partir da mensagem em que o agente PROMETEU a proposta. Ninguém
- * enviou proposta nenhuma — o classificador leu INTENÇÃO como FATO.
- *
- * No quadro, o negócio agora aparece ADIANTADO, e isso é pior que aparecer
- * parado: um card em "Proposta enviada" não chama a atenção de ninguém, e o
- * Radar de Risco só o alcançaria quando o cliente já tivesse desistido.
- *
- * A coluna `crm_stages.afirma_fato` (migration 0274) deixa o DONO marcar quais
- * etapas afirmam que algo já aconteceu. Quando a etapa afirma fato, o handler
- * só move o card COM EVIDÊNCIA — documento enviado na conversa, ou confirmação
- * explícita de uma pessoa. Sem evidência, o card NÃO se move.
- *
- * ═══ POR QUE A REGRA LÊ A COLUNA, NUNCA O NOME ═════════════════════════════
- *
- * A tentação era reconhecer por nome ("se a etapa se chama 'Proposta enviada',
- * então…") — e ela é errada por construção. A lista de etapas é escrita pelo
- * dono, em qualquer nicho: "Proposta enviada", "Contrato assinado", "Pagamento
- * recebido", "Laudo entregue", "Chaves entregues", "Consulta realizada". Cada
- * nicho tem as suas, e o mesmo substantivo significa coisas diferentes em
- * empresas diferentes. Uma lista de nomes no código acerta a empresa que foi
- * medida e erra todas as outras.
- *
- * O caso 4 é a DOUTRINA em forma de teste: a etapa chamada "Proposta enviada"
- * com `afirma_fato: false` MOVE sem evidência; a etapa chamada "Etapa 4" com
- * `afirma_fato: true` RECUSA. Se a regra olhasse o nome, os dois resultados
- * seriam o oposto.
- *
- * ═══ POR QUE O CAMPO `evidencia` É OPCIONAL ════════════════════════════════
- *
- * Toda chamada que existe hoje passa sem ele, e etapa com `afirma_fato = false`
- * (o padrão — e é o de TODAS as etapas existentes) não olha o campo. Exigi-lo
- * quebraria todo chamador de uma vez, para um comportamento que ninguém ligou
- * ainda.
- *
- * ═══ POR QUE A MONTAGEM VEM DO HELPER `stages-db-double.ts` ════════════════
- *
- * `tests/helpers/stages-db-double.ts` é o dublê OFICIAL de `moveLeadHandler` e
- * irmãos: ele APLICA os filtros `eq`, projeta o `select()` e registra cada
- * escrita (tipo, tabela, patch e filtros). Reconstruir um segundo dublê aqui
- * faria os dois divergirem no primeiro ajuste — e o teste passaria a medir um
- * aparelho que ninguém usa em produção. O `create-or-move-lead.test.ts` já o
- * usa contra o MESMO handler; a montagem (incluindo os `vi.mock` do topo) segue
- * aquele arquivo.
- */
-
-// Mocks mínimos — mesmos de `create-or-move-lead.test.ts`. O `stages-db-double`
-// importa `createClient` e `requireRole` de verdade (para poder usar
-// `vi.mocked(...).mockResolvedValue(...)`); sem estes mocks, a importação real
-// de `lib/auth/server` valida env no boot e explode antes do teste rodar.
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => {
@@ -73,152 +18,270 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-// Mock ESPALHADO (não substituição) do `activity-emitter`: o módulo exporta oito
-// coisas, e o handler usa mais de uma (`emitLeadActivity` e `stageChangeReason`).
-// Substituir o módulo inteiro apagaria os demais exports — foi o primeiro erro
-// medido nesta cerca. `emitLeadActivity` vira no-op, porque o teste mede o
-// MOVIMENTO do card, não o rastro; e porque sem o dublê o caminho pós-movimento
-// tentaria `emit_event` contra a rede de verdade.
 vi.mock("@/lib/leads/activity-emitter", async (orig) => ({
   ...(await orig<typeof import("@/lib/leads/activity-emitter")>()),
   emitLeadActivity: vi.fn(async () => ({ ok: true })),
 }));
 
-import { moveLeadHandler } from "@/app/api/v1/leads/_handler";
-import { ORG_ID, etapa, makeDb, negocio, type Escrita } from "@/tests/helpers/stages-db-double";
+import { createLeadHandler, moveLeadHandler } from "@/app/api/v1/leads/_handler";
+import { ORG_ID, PIPE, etapa, makeDb, negocio } from "@/tests/helpers/stages-db-double";
+
+/**
+ * A ETAPA QUE AFIRMA FATO SÓ DEIXA A PESSOA PASSAR.
+ *
+ * ─── O DEFEITO, MEDIDO EM PRODUÇÃO (2026-09-16) ─────────────────────────
+ *
+ * O agente PROMETEU a proposta, o classificador leu INTENÇÃO como FATO, e o
+ * card foi para «Proposta enviada» — sem ninguém ter enviado nada. No quadro
+ * ele aparece ADIANTADO, e isso é pior que parado: um card adiantado não chama
+ * a atenção de ninguém.
+ *
+ * ─── A TRAVA NASCEU NO LUGAR ERRADO ──────────────────────────────────────
+ *
+ * A primeira trava foi posta só no `moveLeadHandler`. Medido depois: seis
+ * caminhos escrevem `crm_leads.stage_id`, e ela cobria UM. O defeito real
+ * passou por `lib/leads/agent-stage-sync.ts`, que a trava nem tocava. E o
+ * campo `evidencia` que a primeira versão pedia não tinha UM ÚNICO EMISSOR:
+ * nem o schema nem a rota de move o enviavam. Campo sem emissor, anti-pattern
+ * nº 3 do CLAUDE.md em espelho.
+ *
+ * ─── A REGRA NOVA ────────────────────────────────────────────────────────
+ *
+ * A máquina não afirma fato; a pessoa sim. `quem.type === "user"` passa —
+ * arrastar o card É a confirmação. `ai_agent`, `api_token` e `webhook_source`
+ * são recusados com 409 `maquina_nao_afirma_fato`. Etapa com `afirma_fato !==
+ * true` passa para todos, sem olhar o ator.
+ *
+ * A regra pura vive em `lib/leads/etapa-que-afirma-fato.ts` e tem 7 testes
+ * próprios. Este arquivo não a repete: aqui se mede o HANDLER, com dublê de
+ * banco de verdade, que é a camada que a função pura sozinha não prova.
+ *
+ * ─── POR QUE A REGRA LÊ A COLUNA, NUNCA O NOME ───────────────────────────
+ *
+ * A lista de etapas é escrita pelo dono, em qualquer nicho. «Proposta
+ * enviada» numa imobiliária é um fato; noutra, é um rótulo vago. Reconhecer
+ * por nome acerta a empresa medida e erra todas as outras. O caso 6 é a
+ * doutrina em forma de teste.
+ */
 
 const LEAD = "lead-1";
+const CONTATO = "contato-1";
 const ETAPA_A = "stage-a";
 const ETAPA_B = "stage-b";
 
 /**
- * Contexto mínimo que `moveLeadHandler` lê.
+ * Contexto mínimo que os handlers leem.
  *
- * `serviceOrigin` é fornecido de propósito: com ele presente, o handler NÃO
- * chama `observeServiceOrigin(createAdminClient(), …)` — economiza o mock de
- * admin do módulo inteiro e evita qualquer tentativa de rede no caminho.
+ * `serviceOrigin` é fornecido para o handler NÃO chamar
+ * `observeServiceOrigin(createAdminClient(), …)` — o mock de admin existe,
+ * mas um contexto completo não deveria depender de rede.
  */
-function ctxFalso() {
+function ctx(actor: { type: string }) {
   return {
     organization_id: ORG_ID,
-    actor: { type: "user", id: "u-1" },
+    actor: { ...actor, id: "actor-id", role: "agent" },
     requestId: "req-teste",
     idioma: "pt-BR",
     serviceOrigin: { kind: "lead", id: LEAD },
   } as never;
 }
 
-function leadBase() {
-  return negocio(LEAD, "stage-origem");
+/** Só as escritas de movimento/criação do lead — o fim da cadeia. */
+function escritasDoLead(db: ReturnType<typeof makeDb>) {
+  return db.escritas.filter((e) => e.table === "crm_leads");
 }
 
-/** Só as atualizações em `crm_leads` — é o fim da cadeia que importa. */
-function updatesDoLead(escritas: Array<Escrita>) {
-  return escritas.filter((e) => e.tipo === "update" && e.table === "crm_leads");
+function baseDeLead() {
+  return { leads: [negocio(LEAD, "stage-origem")] };
 }
 
-describe("etapa que afirma fato exige evidência", () => {
-  it("etapa com `afirma_fato: true` e SEM evidência: RECUSA, e o card NÃO se move", async () => {
-    // ⛔ A SEGUNDA METADE É O PONTO. Uma implementação que lançasse a exceção
-    // DEPOIS de já ter chamado `.update()` passaria na primeira asserção e
-    // deixaria o card adiantado mesmo assim — o defeito que esta coluna
-    // existe para fechar. O helper registra CADA escrita em `db.escritas`, e é
-    // por ali que a segunda metade se prova.
+describe("etapa que afirma fato: a máquina não passa", () => {
+  it("⭐ etapa que afirma fato + ator `ai_agent`: RECUSA, e o card NÃO se move", async () => {
+    // É o defeito de produção em forma de teste: o classificador leu INTENÇÃO
+    // como FATO. A segunda metade é o ponto — recusar e mover mesmo assim seria
+    // pior que não recusar.
     const db = makeDb({
-      leads: [leadBase()],
+      ...baseDeLead(),
       stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
     });
 
     await expect(
-      moveLeadHandler(db.client as never, ctxFalso(), LEAD, { to_stage_id: ETAPA_A }),
-    ).rejects.toMatchObject({ status: 409, code: "stage_requires_evidence" });
+      moveLeadHandler(db.client as never, ctx({ type: "ai_agent" }), LEAD, {
+        to_stage_id: ETAPA_A,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
 
-    expect(
-      updatesDoLead(db.escritas),
-      "o card foi movido apesar da recusa",
-    ).toEqual([]);
+    expect(escritasDoLead(db), "o card foi movido apesar da recusa").toEqual([]);
   });
 
-  it("etapa com `afirma_fato: true` e COM evidência: move", async () => {
+  it("etapa que afirma fato + ator `user`: MOVE", async () => {
+    // A pessoa que move É a evidência — a regra do dono do produto em ação.
     const db = makeDb({
-      leads: [leadBase()],
+      ...baseDeLead(),
       stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
     });
 
-    await moveLeadHandler(db.client as never, ctxFalso(), LEAD, {
+    await moveLeadHandler(db.client as never, ctx({ type: "user" }), LEAD, {
       to_stage_id: ETAPA_A,
-      evidencia: { tipo: "documento_enviado", referencia: "msg-123" },
     });
 
-    const update = updatesDoLead(db.escritas)[0];
-    expect(update, "o card não foi movido mesmo com evidência").toBeDefined();
-    expect((update?.patch as Record<string, unknown>).stage_id).toBe(ETAPA_A);
+    const escrita = escritasDoLead(db)[0];
+    expect(escrita, "o card não foi movido").toBeDefined();
+    expect((escrita?.patch as Record<string, unknown>).stage_id).toBe(ETAPA_A);
   });
 
-  it("CONTROLE — etapa comum (`afirma_fato: false`, o padrão) move sem evidência", async () => {
-    // Sem este caso, uma implementação que recusasse SEMPRE passaria nos dois
-    // primeiros casos, e o produto pararia de mover card em todo mundo que
-    // nunca ligou a caixa — 100% das etapas existentes hoje.
+  it("etapa que afirma fato + ator `webhook_source`: RECUSA", async () => {
+    // É o ator que a automação, o webhook de entrada e os três movedores de
+    // `lib/leads/` usam — cinco dos seis escritores. Sem este caso, uma
+    // implementação que só barrasse `ai_agent` passaria no caso 1.
     const db = makeDb({
-      leads: [leadBase()],
-      stages: [etapa({ id: ETAPA_A, name: "Entendendo a necessidade", afirma_fato: false })],
+      ...baseDeLead(),
+      stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
     });
 
-    await moveLeadHandler(db.client as never, ctxFalso(), LEAD, { to_stage_id: ETAPA_A });
+    await expect(
+      moveLeadHandler(db.client as never, ctx({ type: "webhook_source" }), LEAD, {
+        to_stage_id: ETAPA_A,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
+  });
 
-    const update = updatesDoLead(db.escritas)[0];
-    expect(update, "o gate de evidência vazou para etapa comum").toBeDefined();
+  it("etapa que afirma fato + ator `api_token`: RECUSA", async () => {
+    const db = makeDb({
+      ...baseDeLead(),
+      stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
+    });
+
+    await expect(
+      moveLeadHandler(db.client as never, ctx({ type: "api_token" }), LEAD, {
+        to_stage_id: ETAPA_A,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
+  });
+
+  it("CONTROLE — etapa comum (`afirma_fato: false`) move para TODOS os quatro atores", async () => {
+    // Sem este caso, uma implementação que recusasse SEMPRE passaria nos de
+    // recusa. Etapa comum é o padrão: 100% das etapas existentes hoje.
+    for (const tipo of ["user", "ai_agent", "api_token", "webhook_source"]) {
+      const db = makeDb({
+        ...baseDeLead(),
+        stages: [etapa({ id: ETAPA_A, name: "Entendendo a necessidade", afirma_fato: false })],
+      });
+
+      await moveLeadHandler(db.client as never, ctx({ type: tipo }), LEAD, {
+        to_stage_id: ETAPA_A,
+      });
+
+      expect(
+        escritasDoLead(db).length,
+        `a etapa comum não moveu para o ator ${tipo}`,
+      ).toBe(1);
+    }
   });
 
   it("CONTROLE DE NICHO — a regra lê a COLUNA, nunca o NOME", async () => {
-    // ⛔ A DOUTRINA EM FORMA DE TESTE. Os dois nomes são os opostos do que uma
-    // lista hardcoded diria: "Proposta enviada" com `afirma_fato: false` MOVE;
-    // "Etapa 4" (nome genérico) com `afirma_fato: true` RECUSA. É o que
-    // acontece na vida real — a lista de etapas é escrita pelo dono, em
-    // qualquer nicho, e o mesmo substantivo significa coisas diferentes em
-    // empresas diferentes. Se a regra olhasse o nome, os resultados seriam o
-    // oposto.
-    const bancoNomeEnganoso = makeDb({
-      leads: [leadBase()],
+    // A doutrina em forma de teste. «Proposta enviada» com `afirma_fato: false`
+    // MOVE para o agente; «Etapa 4» (nome genérico) com `afirma_fato: true`
+    // RECUSA. Se a regra olhasse o nome, os dois resultados seriam o oposto.
+    const dbNomeEnganoso = makeDb({
+      leads: [negocio(LEAD, "stage-origem")],
       stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: false })],
     });
-    await moveLeadHandler(bancoNomeEnganoso.client as never, ctxFalso(), LEAD, { to_stage_id: ETAPA_A });
+
+    await moveLeadHandler(dbNomeEnganoso.client as never, ctx({ type: "ai_agent" }), LEAD, {
+      to_stage_id: ETAPA_A,
+    });
     expect(
-      updatesDoLead(bancoNomeEnganoso.escritas)[0],
-      "reconheceu a etapa pelo nome (Proposta enviada deveria MOVER com afirma_fato=false)",
+      escritasDoLead(dbNomeEnganoso)[0],
+      "reconheceu a etapa pelo nome",
     ).toBeDefined();
 
-    const bancoNomeNeutro = makeDb({
-      leads: [leadBase()],
+    const dbNomeNeutro = makeDb({
+      leads: [negocio(LEAD, "stage-origem")],
       stages: [etapa({ id: ETAPA_B, name: "Etapa 4", afirma_fato: true })],
     });
+
     await expect(
-      moveLeadHandler(bancoNomeNeutro.client as never, ctxFalso(), LEAD, { to_stage_id: ETAPA_B }),
-    ).rejects.toMatchObject({ status: 409, code: "stage_requires_evidence" });
+      moveLeadHandler(dbNomeNeutro.client as never, ctx({ type: "ai_agent" }), LEAD, {
+        to_stage_id: ETAPA_B,
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
+    expect(escritasDoLead(dbNomeNeutro), "nome neutro escapou da regra").toEqual([]);
+  });
+
+  it("⭐ CRIAR direto numa etapa que afirma fato: RECUSA para máquina", async () => {
+    // Nascer ali é a MESMA afirmação que chegar ali movendo. Este caminho não
+    // tinha trava nenhuma, e é alcançável — a automação, o webhook de entrada e
+    // a ferramenta do agente criam lead já apontando `stage_id`.
+    const db = makeDb({
+      leads: [],
+      stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
+    });
+
+    await expect(
+      createLeadHandler(
+        db.client as never,
+        ctx({ type: "ai_agent" }),
+        {
+          pipeline_id: PIPE,
+          stage_id: ETAPA_A,
+          contact_id: CONTATO,
+          name: "Novo negócio",
+          custom_fields: {},
+          source_metadata: {},
+        } as never,
+      ),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
+
     expect(
-      updatesDoLead(bancoNomeNeutro.escritas),
-      "nome neutro (Etapa 4) escapou da regra de evidência com afirma_fato=true",
+      escritasDoLead(db).filter((e) => e.tipo === "insert"),
+      "máquina criou lead em etapa que afirma fato",
     ).toEqual([]);
   });
 
-  it("a evidência `confirmado_por_pessoa` vale tanto quanto `documento_enviado`", async () => {
-    // Medido: NÃO existe tabela de proposta, orçamento ou quote neste produto
-    // (verificado no `information_schema`). Então a confirmação humana é uma
-    // das duas únicas evidências possíveis hoje — junto com o documento já
-    // enviado na conversa. Recusar essa forma seria inventar uma camada de
-    // prova que o produto não tem.
+  it("⭐ CRIAR direto numa etapa que afirma fato: PASSA para pessoa", async () => {
     const db = makeDb({
-      leads: [leadBase()],
-      stages: [etapa({ id: ETAPA_A, name: "Contrato assinado", afirma_fato: true })],
+      leads: [],
+      stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
     });
 
-    await moveLeadHandler(db.client as never, ctxFalso(), LEAD, {
+    await createLeadHandler(
+      db.client as never,
+      ctx({ type: "user" }),
+      {
+        pipeline_id: PIPE,
+        stage_id: ETAPA_A,
+        contact_id: CONTATO,
+        name: "Novo negócio",
+        custom_fields: {},
+        source_metadata: {},
+      } as never,
+    );
+
+    expect(
+      escritasDoLead(db).filter((e) => e.tipo === "insert"),
+      "pessoa não conseguiu criar lead na etapa que afirma fato",
+    ).toHaveLength(1);
+  });
+
+  it("CONTROLE DE CLONE ANTIGO — etapa cuja linha vem SEM a coluna move para máquina", async () => {
+    // Clone que ainda não aplicou o baseline novo não manda a chave. Ele não
+    // pode travar sozinho: ausência, `null` e `false` são o mesmo para a regra.
+    const db = makeDb({
+      ...baseDeLead(),
+      stages: [
+        etapa({
+          id: ETAPA_A,
+          name: "Etapa sem a coluna",
+          afirma_fato: undefined,
+        }),
+      ],
+    });
+
+    await moveLeadHandler(db.client as never, ctx({ type: "ai_agent" }), LEAD, {
       to_stage_id: ETAPA_A,
-      evidencia: { tipo: "confirmado_por_pessoa" },
     });
 
-    const update = updatesDoLead(db.escritas)[0];
-    expect(update, "confirmação humana não foi aceita como evidência").toBeDefined();
-    expect((update?.patch as Record<string, unknown>).stage_id).toBe(ETAPA_A);
+    expect(escritasDoLead(db).length, "clone antigo travou sozinho").toBe(1);
   });
 });

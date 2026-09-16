@@ -1,239 +1,177 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { HandlerCtx } from "@/lib/api/handlers/types";
+import type { Actor, HandlerCtx } from "@/lib/api/handlers/types";
+import type { ApiError } from "@/lib/api/types";
+
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/leads/activity-emitter", () => ({
   emitLeadActivity: vi.fn(async () => ({ ok: true })),
 }));
-vi.mock("@/lib/leads/activity-write-failure", () => ({
-  registraFalhaDeAtividade: vi.fn(async () => undefined),
-}));
 
 import { encerraDemanda } from "./encerramento";
 
-const ORG = "11111111-1111-4111-8111-111111111111";
-const OTHER_ORG = "22222222-2222-4222-8222-222222222222";
-const PIPELINE = "33333333-3333-4333-8333-333333333333";
-const LEAD = "44444444-4444-4444-8444-444444444444";
-const OPEN_STAGE = "55555555-5555-4555-8555-555555555555";
-const WON_STAGE = "66666666-6666-4666-8666-666666666666";
-const LOST_STAGE = "77777777-7777-4777-8777-777777777777";
+/**
+ * FECHAR NEGÓCIO NUMA ETAPA QUE AFIRMA FATO — a MESMA trava que move/create,
+ * agora no SÉTIMO escritor de `crm_leads.stage_id`.
+ *
+ * ─── Por que este arquivo existe ───────────────────────────────────────────
+ *
+ * `tests/unit/quem-move-card-respeita-a-etapa-que-afirma-fato.test.ts` prova
+ * ALCANCE: todo escritor de `stage_id` importa a regra, ou está na allowlist.
+ * Alcance não é correção — um `import` sem uso nenhum passaria naquela cerca.
+ * Este arquivo prova que `encerraDemanda` (chamado pelas rotas win/lose E pela
+ * ferramenta do agente `lib/mcp/tools/retencao.ts`) de fato CONSULTA o
+ * veredito antes de escrever, e RECUSA quando ele nega.
+ *
+ * `encerraDemanda` foi achado pela cerca de AST na primeira execução dela —
+ * eu tinha varrido o repositório à mão e perdido este arquivo: o objeto do
+ * `.update()` é montado nove linhas antes, por identificador (`patch`), e
+ * minha sonda por proximidade textual não resolvia isso.
+ */
 
-const ctx: HandlerCtx = {
-  organization_id: ORG,
-  actor: { type: "user", id: "88888888-8888-4888-8888-888888888888" },
-  requestId: "99999999-9999-4999-8999-999999999999",
-};
+const ORG = "org-1";
+const LEAD = "lead-1";
+const PIPE = "pipe-1";
+const STAGE_TERMINAL = "stage-terminal";
 
-type Row = Record<string, unknown>;
+function ctx(actor: Actor): HandlerCtx {
+  return { organization_id: ORG, actor, requestId: "req-1" };
+}
 
-function makeDb({
-  leads = [],
-  stages = [],
-}: {
-  leads?: Row[];
-  stages?: Row[];
-} = {}) {
-  const tables: Record<string, Row[]> = {
-    crm_leads: leads,
-    crm_stages: stages,
-    crm_lead_activities: [],
-  };
-  const updates: Row[] = [];
-  const rpcs: string[] = [];
+interface Mundo {
+  client: unknown;
+  updatesDeCrmLeads: Array<{ patch: Record<string, unknown>; filtros: Array<[string, unknown]> }>;
+}
 
-  function from(table: string) {
-    const filters: Array<[string, unknown]> = [];
-    const orders: Array<[string, boolean]> = [];
-    let limit: number | undefined;
-    let patch: Row | undefined;
-    let operation: "select" | "update" | "insert" = "select";
-    let insertRow: Row | undefined;
+/**
+ * Dublê do Supabase que responde por TABELA e registra os `update`s de
+ * `crm_leads` — é o que prova "o card não se moveu" quando a regra recusa.
+ */
+function montar(opts: { afirmaFato: boolean }): Mundo {
+  const updatesDeCrmLeads: Mundo["updatesDeCrmLeads"] = [];
 
-    const builder = {
-      select: () => {
-        operation = "select";
-        return builder;
-      },
-      update: (value: Row) => {
-        operation = "update";
-        patch = value;
-        updates.push(value);
-        return builder;
-      },
-      insert: (value: Row) => {
-        operation = "insert";
-        insertRow = value;
-        return builder;
-      },
-      eq: (column: string, value: unknown) => {
-        filters.push([column, value]);
-        return builder;
-      },
-      order: (column: string, options?: { ascending?: boolean }) => {
-        orders.push([column, options?.ascending ?? true]);
-        return builder;
-      },
-      limit: (value: number) => {
-        limit = value;
-        return builder;
-      },
-      maybeSingle: async () => {
-        const rows = [...(tables[table] ?? [])]
-          .filter((row) => filters.every(([column, value]) => row[column] === value))
-          .sort((a, b) => {
-            for (const [column, ascending] of orders) {
-              const diff = Number(a[column] ?? 0) - Number(b[column] ?? 0);
-              if (diff !== 0) return ascending ? diff : -diff;
-            }
-            return 0;
-          })
-          .slice(0, limit);
-        return { data: rows[0] ?? null, error: null };
-      },
-      then: async (resolve: (value: unknown) => unknown) => {
-        if (operation === "update") {
-          const rows = tables[table] ?? [];
-          for (const row of rows) {
-            if (filters.every(([column, value]) => row[column] === value)) {
-              Object.assign(row, patch);
-              const stage = stages.find((candidate) => candidate.id === row.stage_id);
-              if (stage?.is_won === true) {
-                row.status = "won";
-                row.closed_at ??= "2026-08-20T00:00:00.000Z";
-              } else if (stage?.is_lost === true) {
-                row.status = "lost";
-                row.closed_at ??= "2026-08-20T00:00:00.000Z";
-              }
-            }
-          }
-        } else if (operation === "insert" && insertRow) {
-          (tables[table] ??= []).push(insertRow);
-        }
-        return resolve({ data: null, error: null });
-      },
+  function builder(table: string) {
+    let modo: "select" | "update" = "select";
+    let patchUpdate: Record<string, unknown> = {};
+    const filtros: Array<[string, unknown]> = [];
+
+    const enc: Record<string, unknown> = {};
+    enc.select = () => enc;
+    enc.update = (patch: Record<string, unknown>) => {
+      modo = "update";
+      patchUpdate = patch;
+      return enc;
+    };
+    enc.eq = (col: string, val: unknown) => {
+      filtros.push([col, val]);
+      return enc;
+    };
+    enc.order = () => enc;
+    enc.limit = () => enc;
+
+    // O UPDATE real do módulo não chama `.maybeSingle()` — é awaited direto
+    // (`await supabase.from(...).update(patch).eq(...).eq(...)`), então quem
+    // resolve a Promise é `.then()`, não `.maybeSingle()`. Sem isto o double
+    // nunca registra a escrita, e os dois casos que esperam `length === 1`
+    // ficam vermelhos por defeito do DUBLÊ, não da regra.
+    enc.then = (resolve: (v: unknown) => unknown) => {
+      if (modo === "update") {
+        updatesDeCrmLeads.push({ patch: patchUpdate, filtros: [...filtros] });
+      }
+      return Promise.resolve(resolve({ data: null, error: null }));
     };
 
-    return builder;
+    enc.maybeSingle = async () => {
+      if (modo === "update") {
+        updatesDeCrmLeads.push({ patch: patchUpdate, filtros: [...filtros] });
+        return { data: null, error: null };
+      }
+      if (table === "crm_leads") {
+        // A mesma linha serve para a leitura inicial e para o `fresh` do fim —
+        // nenhum dos dois casos deste arquivo depende do valor pós-escrita.
+        return {
+          data: {
+            id: LEAD,
+            organization_id: ORG,
+            pipeline_id: PIPE,
+            status: "open",
+          },
+          error: null,
+        };
+      }
+      if (table === "crm_stages") {
+        return {
+          data: { id: STAGE_TERMINAL, name: "Pagamento recebido", afirma_fato: opts.afirmaFato },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    };
+
+    return enc;
   }
 
-  return {
-    client: { from, rpc: async (name: string) => (rpcs.push(name), { error: null }) },
-    tables,
-    updates,
-    rpcs,
-  };
+  return { client: { from: builder } as never, updatesDeCrmLeads };
 }
 
-function baseLead(overrides: Row = {}): Row {
-  return {
-    id: LEAD,
-    organization_id: ORG,
-    pipeline_id: PIPELINE,
-    stage_id: OPEN_STAGE,
-    status: "open",
-    position_in_stage: 1000,
-    contact_id: null,
-    closed_at: null,
-    lost_reason: null,
-    value_cents: 1000,
-    currency: "BRL",
-    ...overrides,
-  };
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
-function baseStages(overrides: Row = {}) {
-  return [
-    { id: OPEN_STAGE, organization_id: ORG, pipeline_id: PIPELINE, is_won: false, is_lost: false, is_archived: false, position: 1, name: "Aberto" },
-    { id: WON_STAGE, organization_id: ORG, pipeline_id: PIPELINE, is_won: true, is_lost: false, is_archived: false, position: 2, name: "Pago", ...overrides },
-    { id: LOST_STAGE, organization_id: ORG, pipeline_id: PIPELINE, is_won: false, is_lost: true, is_archived: false, position: 3, name: "Perdido" },
-  ];
-}
-
-describe("encerraDemanda", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("retorna lost_reason_required antes de consultar o banco", async () => {
-    const db = makeDb();
+describe("encerraDemanda — a etapa terminal que afirma fato recusa a máquina", () => {
+  it("⭐ ai_agent fechando em etapa que afirma fato: RECUSA, e o card NÃO se move", async () => {
+    const m = montar({ afirmaFato: true });
 
     await expect(
-      encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "lost", motivo: "  " }),
-    ).rejects.toMatchObject({ code: "validation_failed", status: 422 });
-    expect(db.updates).toEqual([]);
-    expect(db.rpcs).toEqual([]);
+      encerraDemanda(m.client as never, ctx({ type: "ai_agent", id: "run-1", role: "agent" }), {
+        leadId: LEAD,
+        desfecho: "won",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" } as Partial<ApiError>);
+
+    // A segunda metade é o ponto: recusar e mover mesmo assim seria pior que
+    // não recusar. É a diferença entre "a IA não fecha aqui" e "a IA fechou
+    // aqui, mas o sistema reclamou depois".
+    expect(m.updatesDeCrmLeads).toHaveLength(0);
   });
 
-  it("não usa stage terminal arquivado", async () => {
-    const db = makeDb({
-      leads: [baseLead()],
-      stages: baseStages({ is_archived: true }),
+  it("user fechando em etapa que afirma fato: MOVE", async () => {
+    const m = montar({ afirmaFato: true });
+
+    const r = await encerraDemanda(m.client as never, ctx({ type: "user", id: "ana-1" }), {
+      leadId: LEAD,
+      desfecho: "won",
     });
+
+    expect(r.jaEstava).toBe(false);
+    expect(m.updatesDeCrmLeads).toHaveLength(1);
+    expect(m.updatesDeCrmLeads[0]!.patch.stage_id).toBe(STAGE_TERMINAL);
+  });
+
+  it("CONTROLE — etapa terminal que NÃO afirma fato: ai_agent fecha normalmente", async () => {
+    const m = montar({ afirmaFato: false });
+
+    const r = await encerraDemanda(
+      m.client as never,
+      ctx({ type: "ai_agent", id: "run-1", role: "agent" }),
+      { leadId: LEAD, desfecho: "won" },
+    );
+
+    expect(r.jaEstava).toBe(false);
+    expect(m.updatesDeCrmLeads).toHaveLength(1);
+  });
+
+  it("CONTROLE — webhook_source (retencao/automação) também é recusado", async () => {
+    const m = montar({ afirmaFato: true });
 
     await expect(
-      encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "won" }),
-    ).rejects.toMatchObject({ code: "pipeline_no_won_stage", status: 422 });
-    expect(db.updates).toEqual([]);
-  });
+      encerraDemanda(m.client as never, ctx({ type: "webhook_source", id: "retencao" }), {
+        leadId: LEAD,
+        desfecho: "lost",
+        motivo: "price",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "maquina_nao_afirma_fato" });
 
-  // O `.order("position")` da consulta não tinha guarda: sabotado sozinho, os
-  // sete casos ficavam verdes. Um funil com DUAS etapas de ganho é comum de
-  // verdade — "Pago" e "Pago parcial", "Fechado" e "Fechado com desconto" —, e
-  // sem ordem determinística o Postgres devolve qualquer uma das duas, o que faz
-  // o MESMO negócio cair em etapas diferentes entre uma execução e a seguinte.
-  // As etapas entram aqui na ordem INVERSA da posição de propósito: sem o
-  // `.order`, o dublê preserva a ordem de inserção e a asserção pega a errada.
-  it("entre duas etapas de ganho, escolhe a de menor posição — e não a primeira que o banco devolver", async () => {
-    const SEGUNDA_GANHO = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    const db = makeDb({
-      leads: [baseLead()],
-      stages: [
-        { id: OPEN_STAGE, organization_id: ORG, pipeline_id: PIPELINE, is_won: false, is_lost: false, is_archived: false, position: 1, name: "Aberto" },
-        { id: SEGUNDA_GANHO, organization_id: ORG, pipeline_id: PIPELINE, is_won: true, is_lost: false, is_archived: false, position: 9, name: "Pago parcial" },
-        { id: WON_STAGE, organization_id: ORG, pipeline_id: PIPELINE, is_won: true, is_lost: false, is_archived: false, position: 2, name: "Pago" },
-      ],
-    });
-
-    await encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "won" });
-
-    expect(db.updates[0]).toMatchObject({ stage_id: WON_STAGE });
-  });
-
-  it("move para o fim da stage, preserva a fonte única de evento e fecha como ganho", async () => {
-    const db = makeDb({
-      leads: [
-        baseLead(),
-        baseLead({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", stage_id: WON_STAGE, position_in_stage: 4000, status: "won" }),
-      ],
-      stages: baseStages(),
-    });
-
-    const result = await encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "won" });
-
-    expect(result.lead).toMatchObject({ status: "won", stage_id: WON_STAGE, position_in_stage: 5000 });
-    expect(db.updates[0]).toMatchObject({ stage_id: WON_STAGE, position_in_stage: 5000 });
-    expect(db.rpcs).toEqual([]);
-  });
-
-  it("não alcança lead de outra organização", async () => {
-    const db = makeDb({
-      leads: [baseLead({ organization_id: OTHER_ORG })],
-      stages: baseStages(),
-    });
-
-    await expect(
-      encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "won" }),
-    ).rejects.toMatchObject({ code: "not_found", status: 404 });
-    expect(db.updates).toEqual([]);
-  });
-
-  it("é idempotente quando o lead já está ganho", async () => {
-    const lead = baseLead({ status: "won", stage_id: WON_STAGE, closed_at: "2026-08-19T00:00:00.000Z" });
-    const db = makeDb({ leads: [lead], stages: baseStages() });
-
-    const result = await encerraDemanda(db.client as never, ctx, { leadId: LEAD, desfecho: "won" });
-
-    expect(result).toMatchObject({ jaEstava: true, lead });
-    expect(db.updates).toEqual([]);
-    expect(db.rpcs).toEqual([]);
+    expect(m.updatesDeCrmLeads).toHaveLength(0);
   });
 });

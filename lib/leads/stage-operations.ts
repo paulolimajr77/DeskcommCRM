@@ -51,7 +51,7 @@ export interface DepsDeEtapa {
 
 /** As colunas que a tela e as regras usam. `position` entra: a reordenação calcula em cima dela. */
 const COLUNAS =
-  "id, name, slug, position, is_won, is_lost, is_archived, agent_stage_hint, last_change_actor_kind, last_change_at";
+  "id, name, slug, position, is_won, is_lost, is_archived, agent_stage_hint, last_change_actor_kind, last_change_at, afirma_fato";
 
 /** A etapa como sai para quem lê — inclui a autoria da última mudança de configuração. */
 export interface EtapaVisivel {
@@ -61,6 +61,8 @@ export interface EtapaVisivel {
   position: number;
   is_won: boolean;
   is_lost: boolean;
+  /** A etapa afirma um fato consumado (migration 0274). */
+  afirma_fato: boolean;
   /** `user` | `ai` | `system` — `null` nas etapas anteriores a esta coluna. */
   last_change_actor_kind: string | null;
   last_change_at: string | null;
@@ -69,6 +71,22 @@ export interface EtapaVisivel {
 type EtapaLida = EtapaEditavel & {
   last_change_actor_kind: string | null;
   last_change_at: string | null;
+  /**
+   * A etapa AFIRMA um fato consumado (proposta enviada, contrato assinado).
+   * Migration 0274 — `crm_stages.afirma_fato`.
+   *
+   * Opcional e anulável de propósito: um clone que ainda não aplicou o baseline
+   * novo devolve a linha SEM a chave, e o `corpo()` faz `=== true` para
+   * transformar ausência e `null` no mesmo valor que a tela entende (false).
+   *
+   * ⚠️ NÃO entra em `EtapaEditavel` nem em `EtapaDoMapa`: aqueles dois são o
+   * contrato das REGRAS DE EDIÇÃO (`validarMarcacao`, `updatesDeMarcacao`,
+   * `validarNomeDeEtapa`), e este campo não participa de nenhuma. Ele não
+   * disputa índice único, não tem exclusividade por funil e nenhuma regra o
+   * consulta — carregá-lo lá incharia o contrato com algo que ele nunca lê.
+   * É o mesmo raciocínio da autoria, que também fica fora de `EtapaDoMapa`.
+   */
+  afirma_fato?: boolean | null;
 };
 
 /**
@@ -119,6 +137,10 @@ export function corpo(etapas: EtapaLida[]): { etapas: EtapaVisivel[] } {
         position: e.position,
         is_won: e.is_won,
         is_lost: e.is_lost,
+        // `=== true` e não o valor cru: clone com baseline antigo devolve a
+        // linha SEM a chave, e `undefined` some no JSON. A tela precisa receber
+        // booleano — nunca sumir o campo com a caixa desmarcada.
+        afirma_fato: e.afirma_fato === true,
         last_change_actor_kind: e.last_change_actor_kind ?? null,
         last_change_at: e.last_change_at ?? null,
       })),
@@ -277,6 +299,15 @@ export interface PedidoDeEdicao {
   is_won?: boolean;
   is_lost?: boolean;
   /**
+   * `true` = a etapa afirma que algo já aconteceu. Migration 0274.
+   *
+   * NÃO passa por `validarMarcacao` nem por `updatesDeMarcacao`: aqueles dois
+   * cuidam de `is_won`/`is_lost`, que disputam índices únicos PARCIAIS por
+   * funil (uma etapa de ganho só). `afirma_fato` não disputa nada: quantas
+   * etapas do funil afirmarem fato, todas podem.
+   */
+  afirma_fato?: boolean;
+  /**
    * O vizinho da ESQUERDA (`null` = primeira coluna), não um número de posição:
    * quem arrasta a coluna sabe onde ela caiu, não qual fração de `position` isso
    * vira. Mandar o número duplicaria a conta que `posicaoEntre` já faz — e as
@@ -333,8 +364,14 @@ export async function atualizarEtapa(
     }
   }
 
-  const patchDoAlvo: PatchDeMarcacao & { name?: string; position?: number } = {};
+  // `afirma_fato` entra no patch do alvo e NÃO passa por `validarMarcacao` nem
+  // por `updatesDeMarcacao`. Aqueles dois cuidam de `is_won`/`is_lost`, que
+  // disputam índices únicos PARCIAIS por funil. `afirma_fato` não disputa nada:
+  // quantas etapas afirmarem fato, todas podem. Meter o campo naquela máquina
+  // inventaria uma exclusividade que ninguém pediu.
+  const patchDoAlvo: PatchDeMarcacao & { name?: string; position?: number; afirma_fato?: boolean } = {};
   if (pedido.name !== undefined) patchDoAlvo.name = pedido.name.trim();
+  if (pedido.afirma_fato !== undefined) patchDoAlvo.afirma_fato = pedido.afirma_fato;
 
   if (pedido.depois_de !== undefined) {
     // Só as ativas compõem a régua: arquivada não ocupa lugar no quadro.

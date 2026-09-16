@@ -36,6 +36,7 @@ export interface PatchDeEtapa {
   name?: string;
   is_won?: boolean;
   is_lost?: boolean;
+  afirma_fato?: boolean;
   depois_de?: string | null;
 }
 

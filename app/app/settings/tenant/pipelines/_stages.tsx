@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -332,6 +334,12 @@ export function StagesSection({
             "é onde ele se perde. Cada funil precisa de uma de cada — por isso a marcação se muda de lugar, não se apaga.",
           )}
         </p>
+        <p className="max-w-3xl text-sm leading-relaxed text-text-muted">
+          {t("Algumas colunas")} <strong>{t("afirmam um fato")}</strong>{" "}
+          {t(
+            "— «Proposta enviada», «Contrato assinado». Se você ligar a chave na linha de uma delas, mover um negócio para lá passa a exigir que alguém registre a evidência: o documento enviado, ou a confirmação de uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.",
+          )}
+        </p>
       </div>
 
       {/* ⚠️ O CABEÇALHO NÃO É ENFEITE. Sem ele a linha tem um campo de texto sem
@@ -474,6 +482,19 @@ export function StagesSection({
                 em={etapa.last_change_at ?? null}
                 className={`etapa-autoria-${etapa.id}`}
               />
+
+              <div className="flex items-center justify-between gap-3 rounded-md border border-border p-2">
+                <Label htmlFor={`afirma-fato-${etapa.id}`}>
+                  {t("Chegar aqui AFIRMA que algo já aconteceu")}
+                </Label>
+                <Switch
+                  id={`afirma-fato-${etapa.id}`}
+                  data-testid={`afirma-fato-${etapa.id}`}
+                  checked={etapa.afirma_fato === true}
+                  disabled={ocupado}
+                  onCheckedChange={(v) => aplicar(etapa.id, { afirma_fato: v })}
+                />
+              </div>
 
               {passo && (
                 <p className="text-xs text-text-muted" data-testid={`passo-de-${etapa.id}`}>

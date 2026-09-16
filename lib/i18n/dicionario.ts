@@ -4418,6 +4418,12 @@ export const DICIONARIO: Traducoes = {
   "é onde ele se perde. Cada funil precisa de uma de cada — por isso a marcação se muda de lugar, não se apaga.": {
     es: "es donde se pierde. Cada embudo necesita una de cada — por eso la marca se cambia de lugar, no se borra.",
   },
+  "Algumas colunas": { es: "Algunas columnas" },
+  "afirmam um fato": { es: "afirman un hecho" },
+  "— «Proposta enviada», «Contrato assinado». Se você ligar a chave na linha de uma delas, mover um negócio para lá passa a exigir que alguém registre a evidência: o documento enviado, ou a confirmação de uma pessoa. Serve para onde o card adiantado engana mais do que o card parado.": {
+    es: "— «Propuesta enviada», «Contrato firmado». Si enciendes el interruptor en la fila de una de ellas, mover un negocio allí empieza a exigir que alguien registre la evidencia: el documento enviado, o la confirmación de una persona. Sirve para donde la tarjeta adelantada engaña más que la tarjeta parada.",
+  },
+  "Chegar aqui AFIRMA que algo já aconteceu": { es: "Llegar aquí AFIRMA que algo ya sucedió" },
   Mover: { es: "Mover" },
   "uma coluna para trás": { es: "una columna hacia atrás" },
   "uma coluna para frente": { es: "una columna hacia adelante" },

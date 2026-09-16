@@ -255,11 +255,16 @@ describe("GET /api/v1/pipelines/[id]/agent-mapping", () => {
     // A autoria viaja junto (migration 0101) e é `null` na fixture, que é o
     // estado honesto de uma etapa anterior à coluna. Fica no `toEqual` exato de
     // propósito: é o que impede a projeção de crescer sem ninguém decidir.
+    //
+    // A fixture NÃO traz `afirma_fato` — o `false` aqui é a NORMALIZAÇÃO do
+    // `corpo()` em ação: prova que um clone com baseline antigo recebe booleano,
+    // e não `undefined`.
     expect(body.data.etapas[0]).toEqual({
       id: "e1",
       name: "Novo",
       is_won: false,
       is_lost: false,
+      afirma_fato: false,
       last_change_actor_kind: null,
       last_change_at: null,
     });

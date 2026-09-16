@@ -24,6 +24,8 @@ export interface EtapaDoFunil {
   name: string;
   is_won: boolean;
   is_lost: boolean;
+  /** A etapa AFIRMA um fato (proposta enviada, contrato assinado). Migration 0274. */
+  afirma_fato?: boolean;
   /** Quem mexeu nesta etapa por último (migration 0101). `null` antes dela. */
   last_change_actor_kind?: string | null;
   last_change_at?: string | null;

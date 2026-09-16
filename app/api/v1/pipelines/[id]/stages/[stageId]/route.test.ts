@@ -321,6 +321,73 @@ describe("PATCH /api/v1/pipelines/[id]/stages/[stageId]", () => {
     ]);
   });
 
+  it("⭐ `afirma_fato: true` → um update só, com o campo no patch e os filtros de tenant", async () => {
+    authOk();
+    const db = makeDb({ stages: funil() });
+    const { PATCH } = await import("./route");
+    const res = await PATCH(reqPatch({ afirma_fato: true }), ctx());
+
+    expect(res.status).toBe(200);
+    expect(db.escritas).toHaveLength(1);
+    // Igualdade EXATA: é o que pega o campo descartado. `toHaveProperty`
+    // passaria numa implementação que gravasse o campo e mais alguma coisa
+    // junto, e continuaria verde se o valor `true` fosse engolido em silêncio.
+    expect(db.escritas[0]?.patch).toEqual(comAutoria({ afirma_fato: true }));
+    expect(db.escritas[0]?.filtros).toContainEqual(["id", "e2"]);
+    expect(db.escritas[0]?.filtros).toContainEqual(["organization_id", ORG_ID]);
+    expect(db.escritas[0]?.filtros).toContainEqual(["pipeline_id", PIPE]);
+  });
+
+  it("`afirma_fato: false` → grava `false`, não some", async () => {
+    // Etapa alvo começa MARCADA; mandar false precisa desligar. Uma
+    // implementação com `if (pedido.afirma_fato)` (truthy em vez de
+    // `!== undefined`) engoliria o `false` e o dono nunca conseguiria
+    // DESLIGAR a caixa.
+    authOk();
+    const stages = funil().map((e) => (e.id === "e2" ? { ...e, afirma_fato: true } : e));
+    const db = makeDb({ stages });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(reqPatch({ afirma_fato: false }), ctx());
+
+    expect(res.status).toBe(200);
+    expect(db.escritas).toHaveLength(1);
+    expect(db.escritas[0]?.patch).toEqual(comAutoria({ afirma_fato: false }));
+  });
+
+  it("CONTROLE — `afirma_fato` junto com `name` viaja no MESMO update, não num segundo", async () => {
+    authOk();
+    const db = makeDb({ stages: funil() });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(reqPatch({ name: "Orçamento", afirma_fato: true }), ctx());
+
+    expect(res.status).toBe(200);
+    expect(db.escritas).toHaveLength(1);
+    expect(db.escritas[0]?.patch).toEqual(
+      comAutoria({ name: "Orçamento", afirma_fato: true }),
+    );
+  });
+
+  it("CONTROLE — `afirma_fato` NÃO é marcação de papel: não mexe em nenhuma outra etapa", async () => {
+    // `is_won`/`is_lost` disputam índices únicos parciais por funil e produzem
+    // DOIS updates (liberar a antiga, ocupar a nova). `afirma_fato` não disputa
+    // nada: quantas etapas afirmarem fato, todas podem. Se o campo passasse por
+    // `updatesDeMarcacao`, a outra etapa seria desmarcada — e só este caso
+    // pegaria.
+    authOk();
+    const stages = funil().map((e) => (e.id === "e1" ? { ...e, afirma_fato: true } : e));
+    const db = makeDb({ stages });
+    const { PATCH } = await import("./route");
+
+    const res = await PATCH(reqPatch({ afirma_fato: true }), ctx());
+
+    expect(res.status).toBe(200);
+    expect(db.escritas).toHaveLength(1);
+    expect(db.escritas[0]?.patch).toEqual(comAutoria({ afirma_fato: true }));
+    expect(db.escritas[0]?.filtros).toContainEqual(["id", "e2"]);
+  });
+
   it("audita pipeline.stage_updated", async () => {
     authOk();
     makeDb({ stages: funil() });

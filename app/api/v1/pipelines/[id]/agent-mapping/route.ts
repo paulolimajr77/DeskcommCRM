@@ -92,6 +92,13 @@ const bodySchema = z.object({
 type EtapaComAutoria = EtapaDoMapa & {
   last_change_actor_kind: string | null;
   last_change_at: string | null;
+  /**
+   * A coluna é `not null default false`, mas um clone com o baseline antigo
+   * devolve a linha SEM a chave. O tipo da linha LIDA não pode prometer que ela
+   * existe — por isso opcional e anulável. O `=== true` no `corpo()` é quem
+   * normaliza, entregando sempre booleano para a tela.
+   */
+  afirma_fato?: boolean | null;
 };
 
 async function lerFunil(
@@ -113,7 +120,7 @@ async function lerFunil(
     // A autoria entra na MESMA leitura que a tela de etapas já faz. Uma segunda
     // consulta só para ela seria um round-trip por render numa tela de
     // configuração — e um caminho a mais para a lista e a autoria divergirem.
-    .select("id, name, is_won, is_lost, agent_stage_hint, last_change_actor_kind, last_change_at")
+    .select("id, name, is_won, is_lost, agent_stage_hint, last_change_actor_kind, last_change_at, afirma_fato")
     .eq("organization_id", orgId)
     .eq("pipeline_id", pipelineId)
     .eq("is_archived", false)
@@ -145,6 +152,10 @@ function corpo(etapas: EtapaComAutoria[]) {
       name: e.name,
       is_won: e.is_won,
       is_lost: e.is_lost,
+      // `=== true` e não o valor cru: a coluna é `not null default false`, mas
+      // um clone com o baseline antigo devolve a linha SEM a chave — e
+      // `undefined` no JSON some, deixando a tela com a caixa indefinida.
+      afirma_fato: e.afirma_fato === true,
       last_change_actor_kind: e.last_change_actor_kind ?? null,
       last_change_at: e.last_change_at ?? null,
     })),

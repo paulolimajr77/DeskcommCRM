@@ -1,9 +1,11 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
+import { useT } from "@/hooks/i18n/useT";
 
 export interface PropostaPendente {
   lead_id: string;
@@ -54,6 +56,7 @@ export function useProposals() {
  */
 export function useDecidirProposta() {
   const qc = useQueryClient();
+  const t = useT();
 
   return useMutation({
     mutationFn: async (args: {
@@ -61,10 +64,19 @@ export function useDecidirProposta() {
       decision: "approve" | "dismiss";
       seq: number;
     }) =>
-      apiClient.post<{ data: { lead_id: string; decision: string } }>(
+      apiClient.post<{ data: { lead_id: string; decision: string; task_id: string | null } }>(
         `/api/v1/leads/${args.leadId}/next-action`,
         { decision: args.decision, approved_seq: args.seq },
       ),
+    onSuccess: (res) => {
+      // O aviso é condicionado ao `task_id`, não ao `decision`: descartar não
+      // cria trabalho e não deve anunciar nada — e se um dia a rota deixar de
+      // criar a tarefa, o aviso some junto com o fato em vez de sobreviver como
+      // frase mentirosa.
+      if (res.data.task_id) {
+        toast.success(t("Virou tarefa, com você como responsável — está em Tarefas."));
+      }
+    },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
         qc.invalidateQueries({ queryKey: QUERY_KEY });

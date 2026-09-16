@@ -4424,6 +4424,9 @@ export const DICIONARIO: Traducoes = {
     es: "— «Propuesta enviada», «Contrato firmado». Si enciendes el interruptor en la fila de una de ellas, mover un negocio allí empieza a exigir que alguien registre la evidencia: el documento enviado, o la confirmación de una persona. Sirve para donde la tarjeta adelantada engaña más que la tarjeta parada.",
   },
   "Chegar aqui AFIRMA que algo já aconteceu": { es: "Llegar aquí AFIRMA que algo ya sucedió" },
+  "Virou tarefa, com você como responsável — está em Tarefas.": {
+    es: "Se convirtió en tarea, contigo como responsable — está en Tareas.",
+  },
   Mover: { es: "Mover" },
   "uma coluna para trás": { es: "una columna hacia atrás" },
   "uma coluna para frente": { es: "una columna hacia adelante" },

@@ -7,6 +7,12 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  * "O humano viu e disse não" é o que impede o agente de repropor o mesmo; sem
  * registro, a IA insiste no que já foi negado.
  *
+ * Aprovar também CRIA a tarefa em `crm_tasks`, antes de limpar o slot.
+ * Descartar continua só registrando e limpando — é uma decisão COMPLETA: a
+ * pessoa disse que não é para fazer, e não sobra trabalho. Aprovar não é: ela
+ * disse que É para fazer, e alguém tem de fazer. Enquanto aprovar só limpava o
+ * slot, a demanda ficava invisível pelo próprio ato de cuidar dela.
+ *
  * A trava de autorização compara o TEXTO, não o `updated_at`. Entre o render e
  * o clique, o agente pode reescrever `next_action`: sem trava, o sistema
  * executaria a proposta NOVA em nome de quem autorizou a ANTIGA. E o texto é o
@@ -21,6 +27,7 @@ import { fail, ok } from "@/lib/api/wrappers";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { tarefaDaAprovacao } from "@/lib/leads/tarefa-da-aprovacao";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +97,11 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     );
   }
 
+  // Captura logo depois da guarda: a partir do primeiro `await`, o
+  // estreitamento de `row.contact_id` por propriedade deixa de valer, e a
+  // criação da tarefa (mais abaixo) precisa de um `string` sem recorrer a `as`.
+  const contactId = row.contact_id;
+
   const { data: estado, error: estadoErr } = await supabase
     .from("lead_state")
     .select("next_action, next_action_seq")
@@ -134,9 +146,55 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     });
   }
 
+  // ⛔ A ORDEM É A GARANTIA, E ELA É O CONSERTO INTEIRO.
+  //
+  // Em 2026-09-16, aprovar uma proposta produzia somente a linha de timeline e o
+  // `update lead_state set next_action = null` — nenhuma tarefa, nenhum dono,
+  // nenhum prazo. O sino ficava em zero, e a demanda ficava invisível pelo
+  // próprio ato de cuidar dela.
+  //
+  // Limpar primeiro e criar depois devolve exatamente o defeito que este bloco
+  // conserta, agora com um erro na tela para disfarçar.
+  //
+  // E a ATIVIDADE vem antes da TAREFA de propósito: se o insert da tarefa
+  // falhar, o que se repete numa nova tentativa é a linha de timeline —
+  // registro duplicado de uma decisão real, inócuo — e nunca a tarefa, que
+  // seria trabalho duplicado que alguém faria duas vezes.
+  let tarefaId: string | null = null;
+  if (decision === "approve") {
+    const { data: tarefa, error: tarefaErr } = await supabase
+      .from("crm_tasks")
+      .insert(
+        tarefaDaAprovacao({
+          organizationId: row.organization_id,
+          leadId: row.id,
+          contactId,
+          textoAprovado: atual,
+          quemAprovou: user.id,
+          agora: new Date(),
+        }),
+      )
+      .select("id")
+      .single();
+    if (tarefaErr || !tarefa) {
+      return fail(
+        "next_action_sem_destino",
+        t(
+          "Não consegui criar a tarefa desta aprovação. Nada foi alterado, e a proposta continua na tela; tente de novo.",
+        ),
+        500,
+        { requestId },
+      );
+    }
+    tarefaId = (tarefa as { id: string }).id;
+  }
+
   // Decidida é decidida: a proposta sai de cena nos dois casos, senão o card
   // continuaria pedindo a mesma decisão que a pessoa acabou de tomar. O que
-  // ficou registrado foi a DECISÃO, na timeline.
+  // ficou registrado foi a DECISÃO, na timeline — e, no `approve`, a TAREFA
+  // correspondente, criada acima nesta ordem. Descartar não cria tarefa e
+  // continua limpando na hora: descartar é uma decisão COMPLETA — a pessoa
+  // disse que NÃO é para fazer.
   const { error: limpaErr } = await supabase
     .from("lead_state")
     .update({ next_action: null })
@@ -144,5 +202,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     .eq("contact_id", row.contact_id);
   if (limpaErr) return fail("internal_error", limpaErr.message, 500, { requestId });
 
-  return ok({ lead_id: row.id, decision, next_action: atual }, { requestId });
+  // `task_id` é null no dismiss — informação, não buraco: quem chama sabe que
+  // descartar não gerou trabalho.
+  return ok({ lead_id: row.id, decision, next_action: atual, task_id: tarefaId }, { requestId });
 }

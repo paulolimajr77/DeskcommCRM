@@ -1,9 +1,11 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
+import { useT } from "@/hooks/i18n/useT";
 import { liberarEcoLocal, marcarEcoLocal } from "@/lib/kanban/local-echo";
 
 interface DecidirArgs {
@@ -24,6 +26,7 @@ interface DecidirArgs {
 export function useDecidirProximaAcao(pipelineId: string) {
   const qc = useQueryClient();
   const queryKey = ["board", pipelineId] as const;
+  const t = useT();
 
   return useMutation({
     mutationFn: async ({ leadId, decision, approvedSeq }: DecidirArgs) => {
@@ -31,10 +34,19 @@ export function useDecidirProximaAcao(pipelineId: string) {
       // eco local como qualquer outra mutação — senão o card pulsa na cara de
       // quem acabou de clicar.
       marcarEcoLocal(leadId);
-      return apiClient.post<{ data: { lead_id: string; decision: string } }>(
+      return apiClient.post<{ data: { lead_id: string; decision: string; task_id: string | null } }>(
         `/api/v1/leads/${leadId}/next-action`,
         { decision, approved_seq: approvedSeq },
       );
+    },
+    onSuccess: (res) => {
+      // O aviso é condicionado ao `task_id`, não ao `decision`: descartar não
+      // cria trabalho e não deve anunciar nada — e se um dia a rota deixar de
+      // criar a tarefa, o aviso some junto com o fato em vez de sobreviver como
+      // frase mentirosa.
+      if (res.data.task_id) {
+        toast.success(t("Virou tarefa, com você como responsável — está em Tarefas."));
+      }
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {

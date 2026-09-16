@@ -117,6 +117,8 @@ import {
   promessasEmAberto,
   type DeclaracaoDoTurno,
 } from './declaracao';
+import { declaracaoComPromessaDetectada } from './promessa-declarada';
+import { detectHumanPromise } from '../guardrails/human-promise';
 import {
   projetarContexto,
   projetarRetornoDeTool,
@@ -2320,6 +2322,21 @@ async function executarTurnoDoAgente(
   // 1º veto no turno é erro-de-ensino (o modelo re-tenta); persistir uma 2ª vez aciona o
   // auto-abre-caso (ver send_message.execute). Por turno (closure), nunca cross-turno.
   let casePromiseVetoCount = 0;
+
+  // ⛔ Tarefa 9 — REGISTRA A PROMESSA FLAGRADA NESTE TURNO.
+  //
+  // O contador acima conta VETOS, e o veto só acontece quando NÃO há caso
+  // aberto — se o contato JÁ tinha um caso, o gate libera na primeira linha e o
+  // contador nunca sobe, mesmo havendo promessa. Esta variável é a memória que
+  // o sistema precisa para COMPLETAR a declaração do modelo antes de gravar o
+  // checkpoint: guarda a promessa flagrada (com o corpo da mensagem) e é lida
+  // em `insertCheckpoint`, onde o sistema preenche o que o modelo omitiu. Quem
+  // faz a costura é `declaracaoComPromessaDetectada` (`promessa-declarada.ts`).
+  let promessaFlagradaEsteTurno: { houve: boolean; texto: string } = {
+    houve: false,
+    texto: '',
+  };
+
   // Contador do fail-safe do gate de vazamento de vocabulário interno
   // (`internal_vocabulary_leak`): 1º veto no turno ensina o modelo a reescrever; persistir
   // solta o envio com registro. Por turno (closure), nunca cross-turno.
@@ -2857,6 +2874,49 @@ async function executarTurnoDoAgente(
               openedCaseThisTurn: true,
             });
           }
+
+          // Tarefa 9 — REGISTRA A PROMESSA FLAGRADA NESTE TURNO. O sistema completa
+          // a declaração do modelo antes de gravar o checkpoint (ver
+          // `promessa-declarada.ts`). O sinal vem de DUAS fontes somadas em OU:
+          //
+          //  (1) O CONTADOR de vetos (`casePromiseVetoCount`) — cobre as DUAS
+          //      camadas (léxica + semântica), porque o contador só sobe quando o
+          //      `casePromiseGate` decidiu, e ele já leu
+          //      `ctx.semanticPromise?.prometeuRetornoHumano`.
+          //
+          //  (2) `detectHumanPromise(body)` chamado DIRETO aqui, SEMPRE — e é a
+          //      fonte que fecha o buraco que importa. Medido: o gate sai na
+          //      PRIMEIRA linha quando já existe caso aberto
+          //      (`if (ctx.hasOpenCase || ctx.openedCaseThisTurn) return { pass:
+          //      true }`); nesse caminho NÃO HÁ VETO (o contador fica em 0) — e é
+          //      exatamente o caminho em que a promessa nova fica pendurada num
+          //      caso ALHEIO, sobre outro assunto, cujo dono não sabe dela.
+          //      Depender só do contador deixaria esse caso de fora, que é o
+          //      oposto do objetivo.
+          //
+          // `detectHumanPromise` é PURA (sem banco, sem modelo, sem custo) e vem
+          // por import ESTÁTICO no topo: o módulo é folha (não importa nada do
+          // agente, então não há ciclo a evitar), e isto roda no caminho de TODO
+          // envio — um `await` a mais por mensagem enviada seria caro para
+          // importar uma função que custa nada.
+          //
+          // ⚠️ LIMITAÇÃO MEDIDA, escrita aqui e não escondida: no caminho SEM caso
+          // aberto, o veto cobre as duas camadas; no caminho COM caso aberto sobra
+          // só o LÉXICO, porque o veredito semântico (`prometeuRetornoHumano`) não
+          // sai do `runBeforeSend` — ele nasce na FASE DE CARGA da cadeia e não
+          // volta no resultado. Levar o sinal semântico até aqui é mudança de
+          // contrato da cadeia e não entra nesta tarefa.
+          //
+          // ⚠️ E ESTE BLOCO VIVE DEPOIS do fail-safe de propósito: há uma cerca de
+          // texto-fonte que mede a janela a partir do `if` do veto e procura
+          // `openedCaseThisTurn = true;` e `moverParaHandoffBestEffort(` dentro
+          // dela. Código inserido entre aquele `if` e essas linhas empurra o alvo
+          // para fora do limite medido — a cerca cai sem o defeito ter voltado.
+          // Depois do bloco inteiro, os dois continuam a distância curta.
+          if (casePromiseVetoCount > 0 || detectHumanPromise(body)) {
+            promessaFlagradaEsteTurno = { houve: true, texto: body };
+          }
+
           if (chain.status === 'vetoed' && chain.code === 'internal_vocabulary_leak') {
             // Fail-safe do gate de vazamento — O CLIENTE NUNCA FICA SEM RESPOSTA.
             //
@@ -3801,6 +3861,34 @@ async function executarTurnoDoAgente(
     // tela com "a IA pensou" e enterraria a única linha que muda o que alguém
     // faria a seguir.
     const checkpointAnterior = await latestCheckpoint(pool, tenantId, leadId);
+
+    // Tarefa 9 — antes de gravar, o SISTEMA completa o que o modelo omitiu.
+    //
+    // O gate de promessa rodou ANTES (ver o ponto do envio, acima) e deixou em
+    // `promessaFlagradaEsteTurno` se ELE flagrou uma promessa neste turno — vindo
+    // do VETO (que cobre as duas camadas, léxica e semântica) ou do léxico
+    // chamado direto (que cobre o caminho com caso já aberto, onde o veto não
+    // dispara). Se o modelo esqueceu de declarar a promessa,
+    // `declaracaoComPromessaDetectada` a acrescenta; se declarou, nada muda; se
+    // não houve, nada é inventado.
+    //
+    // ⚠️ A MESMA propriedade `content.declaracao` é lida por `promessasEmAberto`
+    // no enfileiramento do Operador logo abaixo — por isso a reatribuição do
+    // CAMPO `content.declaracao` ANTES do insert, e não só do objeto local. Sem
+    // a reatribuição, o Operador continuaria vendo a declaração vazia e o
+    // vazamento que esta tarefa fecha seguiria de pé no caminho paralelo.
+    //
+    // O `?? undefined` converte `null` para `undefined`: aqui os dois significam
+    // a MESMA coisa — "não houve declaração" — e o campo do checkpoint usa
+    // `undefined`. A função pura devolve `| null` (é o contrato dela, com 7
+    // casos verdes), e o round-trip é fiel: a entrada já passa `?? null`, então
+    // `null` na saída só acontece quando a entrada era ausente.
+    content.declaracao =
+      declaracaoComPromessaDetectada(
+        content.declaracao ?? null,
+        promessaFlagradaEsteTurno,
+      ) ?? undefined;
+
     await insertCheckpoint(pool, { tenantId, leadId, jobId: liveJob().id, content });
 
     // ── O TURNO DO OPERADOR (spec 16 §3.2) ─────────────────────────────────────

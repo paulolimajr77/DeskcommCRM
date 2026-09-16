@@ -23,15 +23,23 @@
  * `inbound-turn.ts`) passa a ser alcançável — o veto deixa de ser um filtro de
  * formulação e vira a trava que o desenho sempre prometeu.
  *
- * ═══ POR QUE ESTA TAREFA É SÓ A CERCA ═══
+ * ═══ O QUE A TAREFA 9 ACRESCENTOU, E O QUE ESTA CERCA GUARDA ═══
  *
- * A régua da spec já está satisfeita pelo código que existe: nenhuma conversa
- * termina com promessa ao cliente e zero linhas em `agent_cases`, `cron_jobs` e
- * `agent_inbox_items`. O que NÃO existe é a PROVA — medido: o identificador
- * `guardrail_autofallback` (a origem que o fail-safe grava no caso que abre)
- * aparece só em código de produção, em NENHUM teste. O fail-safe existia e
- * ninguém o vigiava. Acrescentar código a um caminho que já funciona é o erro
- * que a spec inteira denuncia; então esta tarefa é vigilância, não conserto.
+ * O mecanismo de avisar "o assistente prometeu e ninguém ficou responsável" já
+ * existe inteiro (declaração → Operador → aviso na Central). O que faltava era
+ * o sistema CONFERIR a declaração do modelo contra o que ele mesmo detectou: o
+ * modelo pode omitir a promessa, o Zod preenche `promessas: []`, e o Operador lê
+ * "nada a fazer". A Tarefa 9 fez o turno registrar a promessa flagrada lendo
+ * DUAS fontes em OU — o contador de vetos (`casePromiseVetoCount > 0`) e o
+ * detector léxico (`detectHumanPromise(body)`) —, e completar a declaração antes
+ * de gravar o checkpoint.
+ *
+ * A SEGUNDA FONTE é a que cobre o caminho em que o contato JÁ TEM caso aberto:
+ * ali o gate libera na primeira linha, não há veto, e o contador nunca sobe. É
+ * o caminho em que a promessa nova fica pendurada num caso ALHEIO, sobre outro
+ * assunto, cujo dono não sabe dela. Medido em 2026-09-16: tirar essa metade
+ * deixou **182 testes verdes**. Sem cerca, a próxima sessão apaga a linha sem
+ * saber o que perdeu — e é por isso que os casos abaixo existem.
  *
  * ═══ POR QUE A MEDIÇÃO É NO TEXTO, E NÃO DE PONTA A PONTA ═══
  *
@@ -50,15 +58,8 @@
  * A régua lê o FONTE de `inbound-turn.ts`, extrai o bloco do veto pela AST
  * (nunca por regex sobre o arquivo inteiro — a palavra `case_promise_without_case`
  * aparece também em comentário, e um regex pegaria o lugar errado), e assere
- * cada item do contrato do fail-safe.
- *
- * ═══ O CONTROLE NEGATIVO É OBRIGATÓRIO ═══
- *
- * Um detector que procura strings no texto pode ficar VERDE por não medir nada —
- * uma busca cujo alvo foi renomeado devolve `false` para tudo e passa. O controle
- * negativo roda O MESMO detector sobre uma fonte FALSA, que tem o veto mas NÃO
- * tem o fail-safe, e exige que o detector a REPROVE. Sem ele, este arquivo seria
- * decoração.
+ * cada item do contrato do fail-safe. Os casos do REGISTRO da promessa (segundo
+ * `describe`) usam a mesma técnica, com o mesmo controle negativo obrigatório.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -271,6 +272,199 @@ describe("o fail-safe de promessa de retorno tem destino", () => {
     expect(
       temDestino(a),
       "detector aprovou um fail-safe inexistente — os casos positivos estavam medindo o vazio",
+    ).toBe(false);
+  });
+});
+
+/**
+ * ═══ O REGISTRO DA PROMESSA FLAGRADA (Tarefa 9) ═══
+ *
+ * O turno grava `promessaFlagradaEsteTurno = { houve: true, texto: body }` para
+ * o sistema completar a declaração do modelo antes de gravar o checkpoint. O
+ * sinal vem de DUAS fontes somadas em OU: o CONTADOR de vetos e o DETECTOR
+ * LÉXICO. A segunda cobre o caminho em que o contato JÁ TEM caso aberto (sem
+ * veto, o contador fica em zero) — é a metade que a sabotagem derruba, medida
+ * em 2026-09-16, e por isso tem asserção própria e controle negativo.
+ *
+ * A extração é pela AST, mesma razão do `blocoDoVeto`: `promessaFlagradaEsteTurno`
+ * aparece em três pontos (a declaração, a atribuição aqui, o consumo em
+ * `insertCheckpoint`), e um regex pegaria o lugar errado.
+ */
+
+/** O bloco do registro: a fonte do `if` inteira e a CONDIÇÃO, separadas. */
+interface BlocoDoRegistro {
+  texto: string;
+  condicao: string;
+}
+
+/**
+ * Extrai o bloco do registro da promessa.
+ *
+ * Procura o `IfStatement` cuja CONDIÇÃO menciona `casePromiseVetoCount` E cujo
+ * TEXTO menciona `detectHumanPromise` e `promessaFlagradaEsteTurno`. As três
+ * juntas distinguem o registro do resto: o `if (casePromiseVetoCount < 2)` do
+ * fail-safe tem a mesma variável mas nenhuma das outras duas strings, e por
+ * isso não é escolhido.
+ */
+function blocoDoRegistro(fonte: string): BlocoDoRegistro | null {
+  const ast = ts.createSourceFile("inbound.ts", fonte, ts.ScriptTarget.Latest, true);
+  let encontrado: BlocoDoRegistro | null = null;
+  function visit(node: ts.Node): void {
+    if (encontrado !== null) return;
+    if (ts.isIfStatement(node)) {
+      const condicao = node.expression.getText(ast);
+      const texto = node.getText(ast);
+      if (
+        condicao.includes("casePromiseVetoCount") &&
+        texto.includes("detectHumanPromise") &&
+        texto.includes("promessaFlagradaEsteTurno")
+      ) {
+        encontrado = { texto, condicao };
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  return encontrado;
+}
+
+interface AchadosDoRegistro {
+  leContador: boolean;
+  leLexico: boolean;
+  somaEmOu: boolean;
+}
+
+const REGISTRO_ZERADO: AchadosDoRegistro = {
+  leContador: false,
+  leLexico: false,
+  somaEmOu: false,
+};
+
+/**
+ * O DETECTOR do registro. Roda sobre o bloco extraído — ou sobre a fonte falsa,
+ * no controle negativo. Um só, pela mesma razão do detector do veto: dois
+ * instrumentos separados deixariam o controle negativo medindo um aparelho que
+ * ninguém usa em produção.
+ */
+function analisaRegistro(b: BlocoDoRegistro | null): AchadosDoRegistro {
+  if (b === null) return REGISTRO_ZERADO;
+  const leContador = b.condicao.includes("casePromiseVetoCount > 0");
+  const leLexico = b.condicao.includes("detectHumanPromise(");
+  // O OU é o que faz as duas fontes se completarem: o contador cobre o caminho
+  // do veto; o léxico cobre o caminho com caso já aberto. Exigir as duas faria a
+  // segunda nunca disparar sozinha.
+  const somaEmOu = b.condicao.includes("||") && !b.condicao.includes("&&");
+  return { leContador, leLexico, somaEmOu };
+}
+
+/** O veredito agregado do registro — as três chaves ao mesmo tempo. */
+function temRegistroCompleto(b: BlocoDoRegistro | null): boolean {
+  const a = analisaRegistro(b);
+  return a.leContador && a.leLexico && a.somaEmOu;
+}
+
+describe("o registro da promessa flagrada lê as duas fontes", () => {
+  const REGISTRO = blocoDoRegistro(FONTE);
+
+  it("0. CONTROLE DE ANCORAGEM — o bloco do registro foi mesmo encontrado", () => {
+    // Sem esta guarda, um extrator quebrado devolveria `null` e os casos abaixo
+    // passariam por VÁCUO — a mesma armadilha que `blocoDoVeto` evita no
+    // primeiro `describe`.
+    expect(REGISTRO, "a AST não achou o `if` do registro da promessa").not.toBeNull();
+    expect((REGISTRO?.texto ?? "").length, "o bloco do registro é vazio").toBeGreaterThan(0);
+  });
+
+  it("1. o registro lê o CONTADOR de vetos", () => {
+    // Primeira das duas fontes. Cobre o caminho em que o gate de promessa vetou —
+    // e é o único caminho que a sabotagem de 2026-09-16 deixava coberto.
+    expect(analisaRegistro(REGISTRO).leContador).toBe(true);
+  });
+
+  it("2. o registro TAMBÉM lê o detector léxico — a metade que a sabotagem derruba", () => {
+    // ⛔ ESTA É A ASSERÇÃO QUE A SABOTAGEM DERRUBA. Medido em 2026-09-16: tirar
+    // esta metade deixou 182 testes VERDES — a suíte inteira. Ela cobre o
+    // caminho em que o contato JÁ TEM caso aberto: ali o gate sai na primeira
+    // linha (`if (ctx.hasOpenCase || ctx.openedCaseThisTurn) return { pass:
+    // true }`), não há veto, e o contador nunca sobe. Se a única fonte fosse o
+    // contador, a promessa flagrada naquele caminho ficaria invisível — e é
+    // exatamente o caminho em que ela fica pendurada num caso ALHEIO, sobre
+    // outro assunto, cujo dono não sabe dela. Sem cerca, a próxima sessão
+    // apaga esta linha sem saber o que perdeu.
+    expect(analisaRegistro(REGISTRO).leLexico).toBe(true);
+  });
+
+  it("3. as duas fontes são somadas em OU, não em E", () => {
+    // Exigir as duas faria o conserto não consertar nada: o contador só sobe no
+    // caminho em que há veto, e o léxico é a única fonte no caminho com caso
+    // aberto. Um `&&` entre elas deixaria ambos os caminhos sem registro — o
+    // buraco original com a aparência de coberto.
+    const a = analisaRegistro(REGISTRO);
+    expect(a.somaEmOu).toBe(true);
+  });
+
+  it("4. o registro vive DEPOIS do tratamento do veto", () => {
+    // Há uma cerca de texto-fonte em `tests/unit/handoff-fernando-fiacao.test.ts`
+    // que mede uma janela de 1800 bytes a partir do `if` do veto e exige
+    // `openedCaseThisTurn = true;` seguido de `moverParaHandoffBestEffort(`
+    // dentro dela. Código inserido entre aquele `if` e essas linhas empurra o
+    // alvo para fora do limite — foi o que aconteceu na primeira tentativa
+    // desta tarefa, e custou 1866 bytes contra os 1800 permitidos. O registro
+    // vive depois do bloco do veto INTEIRO para não mexer nessa janela.
+    const idxRegistro = FONTE.indexOf("casePromiseVetoCount > 0");
+    const idxOpen = FONTE.indexOf("await openCase(");
+    expect(idxRegistro, "o registro não foi achado no arquivo").toBeGreaterThan(-1);
+    expect(idxOpen, "o `openCase` do fail-safe não foi achado no arquivo").toBeGreaterThan(-1);
+    expect(
+      idxRegistro,
+      "o registro subiu para dentro do bloco do veto — a cerca do handoff do Fernando cai",
+    ).toBeGreaterThan(idxOpen);
+  });
+
+  it("5. a declaração é completada ANTES de o checkpoint ser gravado", () => {
+    // Se a ordem inverter, o sistema grava a declaração vazia e completa um
+    // objeto que ninguém mais lê — o Operador continua vendo `promessas: []`, e
+    // o vazamento que a Tarefa 9 fecha segue de pé, silencioso.
+    const idxCompletar = FONTE.indexOf("declaracaoComPromessaDetectada(");
+    const idxGravar = FONTE.indexOf("await insertCheckpoint(");
+    expect(idxCompletar, "o módulo completador não foi achado").toBeGreaterThan(-1);
+    expect(idxGravar, "o `insertCheckpoint` não foi achado").toBeGreaterThan(-1);
+    expect(
+      idxCompletar,
+      "o checkpoint é gravado ANTES de a declaração ser completada — o Operador lê o vazio",
+    ).toBeLessThan(idxGravar);
+  });
+
+  it("6. CONTROLE NEGATIVO — o detector fica vermelho numa fonte SEM o registro", () => {
+    // ⛔ SEM ESTE CASO, o verde dos casos 1 a 3 não significaria nada. Um
+    // detector que procura strings pode ficar verde por NÃO MEDIR NADA — uma
+    // busca cujo alvo foi renomeado devolve `false` para tudo e passa. Aqui, a
+    // MESMA função é rodada sobre uma fonte FALSA que tem o fail-safe (com
+    // `casePromiseVetoCount += 1`, `openCase(...)` e a re-chamada da cadeia)
+    // mas SEM a atribuição de `promessaFlagradaEsteTurno`. Se o detector
+    // aprovasse essa fonte, ele estaria quebrado.
+    const FALSA_SEM_REGISTRO = [
+      "async function f() {",
+      "  let chain = await runBeforeSend(beforeSendArgs);",
+      "  if (chain.status === 'vetoed' && chain.code === 'case_promise_without_case') {",
+      "    casePromiseVetoCount += 1;",
+      "    if (casePromiseVetoCount < 2) {",
+      "      return { ok: false, error: { code: chain.code, message: chain.message } };",
+      "    }",
+      "    await openCase(pool, ids, { source: 'guardrail_autofallback' });",
+      "    chain = await runBeforeSend({ ...beforeSendArgs, hasOpenCase: true });",
+      "  }",
+      "}",
+    ].join("\n");
+
+    const blocoFalso = blocoDoRegistro(FALSA_SEM_REGISTRO);
+    expect(
+      blocoFalso,
+      "o extrator achou um registro na fonte que não tem — o detector mede o vazio",
+    ).toBeNull();
+    expect(
+      temRegistroCompleto(blocoFalso),
+      "detector aprovou um registro inexistente — os casos 1 a 3 estavam medindo o vazio",
     ).toBe(false);
   });
 });

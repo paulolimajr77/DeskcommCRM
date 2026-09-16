@@ -15,6 +15,7 @@ import type { Queryable } from '../../queue/queue';
 import type { CrmEdgeConfig } from './mcp-client';
 import { deriveLgpdFromContact, type LgpdInput } from '../../guardrails/lgpd/legal-basis';
 import { isoLocalComOffset } from '@/lib/tempo/agora';
+import { negocioDaConversa } from './negocio-da-conversa';
 
 /**
  * Heurística conservadora de contagem: ~3,5 chars/token para pt-br (BPE real fica
@@ -86,6 +87,42 @@ export interface LeadContext {
    * precisa dele.
    */
   contact_id?: string;
+  /**
+   * O id do NEGÓCIO desta conversa — a oportunidade do funil, não a pessoa.
+   *
+   * É a resposta para a pergunta que o modelo não sabia fazer: ele recebia
+   * `lead_id` (que carrega o CONTATO), concluía que era o negócio, e o
+   * repassava às ferramentas de agenda como se fosse. As duas conversas medidas
+   * em 2026-09-16 terminaram com uuid inventado ou com o dado perdido: zero
+   * vezes o modelo achou o negócio certo.
+   *
+   * `null` é INFORMAÇÃO, não ausência: significa "não há um único negócio
+   * aberto para esta pessoa", e `negocio_situacao` (abaixo) diz qual dos dois
+   * casos — o modelo precisa saber se PERGUNTA ou se SEGUE.
+   *
+   * OPCIONAL pelo MESMO motivo de `contact_id` e `nome_confirmado` acima:
+   * exigir obrigaria a editar fixtures em `tests/invariants/**`, que é
+   * CONGELADO por `loop/hooks/freeze-invariants.sh` — e o commit que os
+   * consertasse seria BLOQUEADO pelo próprio hook. A produção (logo abaixo)
+   * SEMPRE preenche; quem monta contexto à mão num teste não precisa. Quem lê
+   * deve tratar ausente como "não calculado".
+   */
+  negocio_id?: string | null;
+  /**
+   * POR QUE não há `negocio_id` — a diferença entre PERGUNTAR e SEGUIR.
+   *
+   * `"nenhum"` = esta pessoa ainda não tem negócio aberto: siga a conversa e
+   * não invente. `"varios"` = ela tem mais de um e não dá para saber a qual
+   * este turno pertence: pergunte, ou deixe para a equipe. `"um"` é o caminho
+   * feliz — `negocio_id` está preenchido.
+   *
+   * Sem este campo, `negocio_id: null` seria indistinguível de "o cálculo
+   * falhou", e o modelo trataria as duas hipóteses igual — a pior delas é
+   * chutar um negócio, que é o defeito que esta wave existe para matar.
+   *
+   * OPCIONAL pela mesma razão do irmão acima.
+   */
+  negocio_situacao?: "um" | "nenhum" | "varios";
   contact: {
     name: string | null;
     /**
@@ -300,6 +337,16 @@ export async function getLeadContext(
      where d.organization_id=$1 and dc.conversation_id=$2 and d.fechada_em is not null limit 5`,
     [input.tenantId, conversationId]);
 
+  // O caminho até o NEGÓCIO desta conversa mora numa função própria — a MESMA
+  // regra que o roteamento de atividade, o gate de escopo de funil e a
+  // fronteira de escrita já usam. Quatro consumidores da mesma pergunta;
+  // um quinto reimplementando faria as partes discordarem sobre o mesmo
+  // cliente. Ver `negocio-da-conversa.ts`.
+  const negocio = await negocioDaConversa(db, {
+    tenantId: input.tenantId,
+    contactId: input.leadId,
+  });
+
   const context = fitToBudget(
     {
       previous_service: { label: 'Histórico encerrado. Desfechos anteriores não são tarefas ou compromissos pendentes.', outcomes: previousOutcomes.map((d) => d.desfecho) },
@@ -314,6 +361,24 @@ export async function getLeadContext(
       // acertar; as descrições das ferramentas apontam para ela.
       lead_id: input.leadId,
       contact_id: input.leadId,
+      // ⛔ O CAMPO NOVO É A PORTA PARA O MODELO ACERTAR — e o preço de não
+      // tê-lo está medido em 2026-09-16: o agente perguntou os campos, o cliente
+      // respondeu, e nenhum foi gravado. `negocio_id` é o id do NEGÓCIO (a
+      // oportunidade), não o do contato — `lead_id` acima mente, e o modelo o
+      // repassava às ferramentas de agenda. `null` é informação, não ausência:
+      // significa que não há UM negócio aberto, e `negocio_situacao` diz se é
+      // `"nenhum"` (siga a conversa, não invente) ou `"varios"` (pergunte, ou
+      // deixe para a equipe). A regra de qual negócio é qual NÃO nasce aqui:
+      // `negocioDaConversa` chama `resolveActiveLeadForContact`, a MESMA regra
+      // que o roteamento de atividade, o gate de escopo e a fronteira de escrita
+      // usam — reimplementar faria as partes discordarem sobre o mesmo cliente.
+      //
+      // Os dois campos são OPCIONAIS pela mesma razão de `contact_id` e
+      // `nome_confirmado` acima: `tests/invariants/**` é CONGELADO por hook, e
+      // exigir obrigaria a editar fixtures de lá — o commit que as consertasse
+      // seria BLOQUEADO.
+      negocio_id: negocio.tipo === 'um' ? negocio.leadId : null,
+      negocio_situacao: negocio.tipo,
       contact: {
         name: contact.display_name ?? contact.name,
         nome_confirmado: nomeFoiConfirmado(contact.name),

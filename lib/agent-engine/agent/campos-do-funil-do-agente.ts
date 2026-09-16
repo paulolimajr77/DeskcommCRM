@@ -198,11 +198,12 @@ export function renderCamposDoFunil(
   if (podeAnotar) {
     linhas.push(
       '--- como preencher ---',
-      '1. Uma pergunta por vez, na linguagem do cliente. Despejar a lista inteira vira formulário, e formulário faz o cliente abandonar a conversa.',
-      '2. Anote assim que ouvir, sem esperar o fim da conversa: conversa que cai no meio leva junto tudo o que não foi anotado.',
-      '3. Grave somente o que foi dito. Se a frase não contém a resposta, o campo fica vazio. "Ele falou em clínica, logo o segmento é saúde" é dedução, e dedução enche o cadastro de dado errado com cara de certo.',
-      '4. Não sobrescreva campo já preenchido. Se o que o cliente disser hoje divergir do que está gravado, mantenha o gravado e siga.',
-      '5. Não pergunte o que já está na ficha.',
+      '1. O negócio desta conversa é o campo `negocio_id` do contexto. Se ele vier `null`, leia `negocio_situacao`: `"nenhum"` significa que esta pessoa ainda não tem negócio aberto — siga a conversa e não invente; `"varios"` significa que ela tem mais de um e você não sabe a qual isto pertence — pergunte, ou deixe para a equipe.',
+      '2. Uma pergunta por vez, na linguagem do cliente. Despejar a lista inteira vira formulário, e formulário faz o cliente abandonar a conversa.',
+      '3. Anote assim que ouvir, sem esperar o fim da conversa: conversa que cai no meio leva junto tudo o que não foi anotado.',
+      '4. Grave somente o que foi dito. Se a frase não contém a resposta, o campo fica vazio. "Ele falou em clínica, logo o segmento é saúde" é dedução, e dedução enche o cadastro de dado errado com cara de certo.',
+      '5. Não sobrescreva campo já preenchido. Se o que o cliente disser hoje divergir do que está gravado, mantenha o gravado e siga.',
+      '6. Não pergunte o que já está na ficha.',
     );
   } else {
     // PERGUNTAR CONTINUA VALENDO, e por isso o bloco não some: a resposta do

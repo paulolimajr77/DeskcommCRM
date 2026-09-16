@@ -47,11 +47,72 @@ export interface PickToolsInput {
    * direção segura é agir de menos.
    */
   pipelineIds?: readonly string[];
+  /**
+   * DE QUEM É ESTA CONVERSA — e, por tabela, de que NEGÓCIO se está falando.
+   *
+   * Opcional porque o papel Operador (que roda DEPOIS da conversa, sobre a
+   * organização inteira) não tem um contato único. Quando vem, toda escrita que
+   * mira um negócio passa a mirar o negócio DESTA conversa — ver
+   * `alvoDerivadoDaConversa` abaixo.
+   */
+  contactId?: string;
   /** Mutable signal — runtime checks after each step. */
   handoffSignal: RuntimeHandoffSignal;
 }
 
 const HANDOFF_TOOL_NAME = "crm_request_human_handoff";
+
+/**
+ * O NEGÓCIO DESTA CONVERSA — derivado do contato, nunca do modelo.
+ *
+ * Usa `resolveActiveLeadForContact`, a MESMA regra que o roteamento de
+ * atividade e o escopo de funil já usam. Reimplementar "qual negócio da pessoa
+ * está em jogo" faria duas partes do sistema discordarem sobre o mesmo cliente.
+ *
+ * ⚠️ O que isto NÃO resolve, declarado: a conversa guarda o CONTATO, não o
+ * negócio (medido: `conversations` só tem `contact_id`, e `crm_lead_links` não
+ * é populado para conversa). Então duas conversas em paralelo com a MESMA
+ * pessoa sobre negócios diferentes resolvem para o mesmo — a mesma fronteira
+ * que `funil_vem_do_contato` já aceita para a agenda.
+ */
+async function alvoDerivadoDaConversa(
+  input: PickToolsInput,
+  contactId: string,
+): Promise<
+  { ok: true; leadId: string } | { ok: false; motivo: string; mensagem: string }
+> {
+  const { data, error } = await input.supabase
+    .from("crm_leads")
+    .select("id, organization_id, pipeline_id, status, last_activity_at, created_at")
+    .eq("organization_id", input.ctx.organizationId)
+    .eq("contact_id", contactId);
+  if (error) {
+    // Falha de INFRAESTRUTURA nunca vira "não é seu negócio": o modelo leria isso
+    // como veredito e pararia de tentar para sempre. Mesma disciplina do gate.
+    return {
+      ok: false,
+      motivo: "indisponivel",
+      mensagem: "não consegui identificar o negócio desta conversa agora; tente de novo.",
+    };
+  }
+  const r = resolveActiveLeadForContact((data ?? []) as LeadCandidate[]);
+  if (r.routed) return { ok: true, leadId: r.leadId };
+  if (r.reason === "ambiguous_open_leads") {
+    return {
+      ok: false,
+      motivo: "negocio_ambiguo",
+      mensagem:
+        "esta pessoa tem mais de um negócio aberto e eu não sei a qual deles isto pertence — " +
+        "siga a conversa e deixe que alguém da equipe registre.",
+    };
+  }
+  return {
+    ok: false,
+    motivo: "sem_negocio",
+    mensagem:
+      "ainda não há um negócio aberto para esta pessoa — siga a conversa normalmente.",
+  };
+}
 
 function shapeToZodObject(shape: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
   // The MCP tool inputSchema is a Zod *raw shape* (object of zod types).
@@ -97,6 +158,59 @@ function wrapMcpTool(
       try {
         ensureScope(input.auth.scopes, def.requiresScope);
         ensureRole(input.auth.role, def.requiresRole);
+
+        // ── DE QUE NEGÓCIO ESTAMOS FALANDO — a conversa responde, o modelo não ──
+        //
+        // ⛔ MEDIDO EM PRODUÇÃO (2026-09-15): o agente ouviu "sim, já tenho os
+        // textos", entendeu que era campo do funil, chamou `crm_update_lead`
+        // com a chave certa… e um `lead_id` que ELE INVENTOU
+        // (`74a0238a-…`, zero linhas no banco). O gate recusou, certo, e a
+        // resposta do cliente se perdeu.
+        //
+        // A causa não é o modelo ser desatento: ele NUNCA recebe o id do
+        // negócio. O turno conhece o CONTATO; o negócio é derivado. Pedir a um
+        // modelo que produza um identificador de memória é desenhar para o
+        // fracasso — e ele produz, porque produzir texto é o que ele faz.
+        //
+        // ⚠️ E O CASO PERIGOSO NÃO É O UUID INVENTADO, É O UUID REAL E ERRADO.
+        // Um id que NÃO existe o gate barra. Um id de OUTRO negócio da mesma
+        // organização, no mesmo funil, o gate deixa passar — e a resposta de um
+        // cliente vai para a ficha de outro, com `success: true` no audit e
+        // ninguém para ver. Por isso aqui não se "corrige quando está errado":
+        // aqui o alvo é DERIVADO, e o que o modelo mandou é descartado.
+        //
+        // Vale só para o caminho do AGENTE: a rota HTTP e as automações chamam
+        // os handlers direto e seguem com o `lead_id` que o humano escolheu.
+        // ⛔ SÓ ESCRITA. `category === "write"` não é zelo: `crm_list_followups` e
+        // `crm_list_appointments` também têm `lead_id`, e são LEITURAS. Derivar ali
+        // faria o modelo perguntar por um negócio e receber outro, sem erro — o
+        // mesmo defeito que este bloco conserta, reaparecendo do outro lado.
+        // Achado revisando o diff, antes de empurrar.
+        if (input.contactId && def.category === "write" && "lead_id" in def.inputSchema) {
+          const alvo = await alvoDerivadoDaConversa(input, input.contactId);
+          if (!alvo.ok) {
+            void auditMcpToolCall({
+              ctx: input.ctx,
+              toolName: def.name,
+              args: argsRecord,
+              durationMs: Date.now() - startedAt,
+              success: false,
+              errorMessage: `negocio_da_conversa:${alvo.motivo}`,
+            });
+            return { permitido: false, motivo: alvo.motivo, mensagem: alvo.mensagem };
+          }
+          if (argsRecord.lead_id !== alvo.leadId) {
+            // Não é cosmético: é a única forma de descobrir que o modelo chuta,
+            // e com que frequência. Sem esta linha o defeito se cura em
+            // silêncio e ninguém sabe que ele existiu.
+            logger.info("lead_id do modelo trocado pelo negócio da conversa", {
+              tool: def.name,
+              enviado: typeof argsRecord.lead_id === "string" ? argsRecord.lead_id : "(ausente)",
+              usado: alvo.leadId,
+            });
+          }
+          argsRecord.lead_id = alvo.leadId;
+        }
 
         // ── ESCOPO DE FUNIL (spec 17 passo 3) ────────────────────────────────
         //

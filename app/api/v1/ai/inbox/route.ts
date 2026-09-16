@@ -61,6 +61,20 @@ export async function GET(req: NextRequest): Promise<Response> {
     .eq("organization_id", org.orgId)
     .eq("status", "open");
 
+  // O SINO olha o NOVO, não o ACERVO.
+  //
+  // Medido: com volume, oito avisos antigos e um crítico novo produzem o mesmo
+  // número de ontem, e quem olha aprende a não olhar. `seen_at` (migration 0275)
+  // separa "aberto" de "aberto e NINGUÉM VIU": a contagem abaixo é a que o sino
+  // mostra. O acervo NÃO desaparece em lugar nenhum — a aba "Abertos" da Central
+  // continua contando e mostrando todo `status = 'open'`, visto ou não.
+  const { count: unseenCount } = await admin
+    .from("agent_inbox_items")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", org.orgId)
+    .eq("status", "open")
+    .is("seen_at", null);
+
   const items = await resolverDestinosDosAvisos(await createClient(), org.orgId, org.role, data ?? []);
-  return ok({ items, open_count: openCount ?? 0 }, { requestId });
+  return ok({ items, open_count: openCount ?? 0, unseen_count: unseenCount ?? 0 }, { requestId });
 }

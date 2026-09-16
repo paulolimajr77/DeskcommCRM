@@ -552,6 +552,7 @@ export type Database = {
           ref_id: string | null
           ref_kind: string | null
           resolved_at: string | null
+          seen_at: string | null
           severity: string
           status: string
           title: string
@@ -567,6 +568,7 @@ export type Database = {
           ref_id?: string | null
           ref_kind?: string | null
           resolved_at?: string | null
+          seen_at?: string | null
           severity?: string
           status?: string
           title: string
@@ -582,6 +584,7 @@ export type Database = {
           ref_id?: string | null
           ref_kind?: string | null
           resolved_at?: string | null
+          seen_at?: string | null
           severity?: string
           status?: string
           title?: string

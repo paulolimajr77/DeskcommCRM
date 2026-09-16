@@ -26303,3 +26303,24 @@ comment on column public.crm_stages.afirma_fato is
   '"proposta enviada" só é fato quando a proposta de fato saiu. Nasce '
   'DESLIGADA para toda etapa — quem já opera não percebe mudança nenhuma até '
   'marcar a caixa na própria etapa, no vocabulário do nicho dele.';
+
+
+-- ---- o sino conta o que ninguém olhou (migration 0275) ----
+-- Prevenção: a Central desta organização tem ZERO avisos abertos hoje. O sino
+-- do header contava `status = 'open'` (acervo); com volume, oito avisos
+-- antigos e um crítico novo produzem o mesmo número de ontem. O acervo
+-- continua inteiro na tela da Central — esta coluna muda só o SINO.
+alter table public.agent_inbox_items
+  add column if not exists seen_at timestamptz;
+
+comment on column public.agent_inbox_items.seen_at is
+  'Quando alguém da organização abriu a Central depois deste aviso nascer. '
+  'NULL = ninguém olhou ainda. Independente de `status`: um aviso pode estar '
+  '`open` e já visto (alguém decidiu não agir ainda), ou `resolved` sem nunca '
+  'ter sido visto (resolvido por um processo automático). O sino do header '
+  'conta `status = ''open'' and seen_at is null` — o que ninguém olhou —, '
+  'nunca o acervo inteiro, que continua na tela da Central.';
+
+create index if not exists idx_agent_inbox_items_nao_vistos
+  on public.agent_inbox_items (organization_id, created_at desc)
+  where status = 'open' and seen_at is null;

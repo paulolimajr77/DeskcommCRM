@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocaleDeData } from "@/hooks/i18n/useLocaleDeData";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useAgentInbox,
+  useMarkInboxSeen,
   useResolveAllInboxItems,
   useUpdateInboxItem,
   type AgentInboxItem,
@@ -34,6 +35,23 @@ export function AgentInboxList({ canResolve }: { canResolve: boolean }) {
   const data = acessoNegado ? undefined : cachedData;
   const update = useUpdateInboxItem();
   const resolveAll = useResolveAllInboxItems();
+  const marcarVistos = useMarkInboxSeen();
+
+  // ⛔ UMA vez por montagem, e não a cada refetch. A aba "Abertos"/"Resolvidos"
+  // já causa refetch do `useAgentInbox`, e disparar a marcação junto chamaria a
+  // rota a cada troca de aba sem necessidade — ela é idempotente
+  // (`is("seen_at", null)`), mas seria trabalho e rede a mais por clique. O que
+  // este efeito diz é "a pessoa abriu a Central AGORA", não "a lista mudou".
+  //
+  // O erro da marcação não vira toast nem banner: é side effect passivo. Se
+  // falhar, o sino continua contando o não-visto até alguém reabrir a Central —
+  // degradação aceitável, e não pior que o estado de hoje.
+  useEffect(() => {
+    marcarVistos.mutate();
+    // O `marcarVistos` é recriado a cada render; incluí-lo aqui faria o efeito
+    // disparar em loop. A intenção é explicitamente uma vez por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">

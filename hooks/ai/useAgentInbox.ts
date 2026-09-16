@@ -21,6 +21,8 @@ export interface AgentInboxItem {
 export interface AgentInboxData {
   items: AgentInboxItem[];
   open_count: number;
+  /** Avisos ABERTOS que ninguém viu (`seen_at is null`) — a contagem do sino. */
+  unseen_count: number;
 }
 
 /** Central de avisos do runtime (F1). Polling 60s — avisos nascem no worker. */
@@ -60,6 +62,22 @@ export function useResolveAllInboxItems() {
       "/api/v1/ai/inbox/resolve-all",
       {},
     ),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["agent-inbox"] }),
+  });
+}
+
+/**
+ * Marca como VISTOS todos os avisos ABERTOS ainda não vistos da organização.
+ *
+ * Chamada pela Central ao abrir, não pelo sino (o sino só LÊ). Marcar visto é
+ * dizer "alguém olhou" — não é resolução, e não apaga nada: a linha continua
+ * na aba "Abertos", só sai da contagem do sino.
+ */
+export function useMarkInboxSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post<{ data: { marked_count: number } }>("/api/v1/ai/inbox/mark-seen", {}),
     onSettled: () => qc.invalidateQueries({ queryKey: ["agent-inbox"] }),
   });
 }

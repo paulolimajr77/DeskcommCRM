@@ -26,7 +26,7 @@ export function AlertsBell() {
 function VisibleAlertsBell() {
   const t = useT();
   const { data } = useAgentInbox("open");
-  const count = data?.open_count ?? 0;
+  const count = data?.unseen_count ?? 0;
 
   return (
     <Link

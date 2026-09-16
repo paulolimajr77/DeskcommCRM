@@ -553,6 +553,9 @@ export const AUDIT_ACTIONS = [
   // porque toda leitura de `admin/` é auditada neste repo — e porque aqui o
   // operador enxerga o agente publicado na organização de outra pessoa.
   "platform_admin.tenant_agents_viewed",
+  // A Central marca como vistos todos os avisos ABERTOS ainda não vistos da
+  // organização, ao abrir a tela — não é resolução, é só "alguém olhou".
+  "ai.inbox_items_marked_seen",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

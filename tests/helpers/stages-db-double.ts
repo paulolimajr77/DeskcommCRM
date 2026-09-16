@@ -32,6 +32,17 @@ export interface StageRow {
   is_lost: boolean;
   is_archived: boolean;
   agent_stage_hint: string | null;
+  /**
+   * A etapa afirma um FATO consumado (migration 0274 — `crm_stages.afirma_fato`).
+   *
+   * OPCIONAL aqui de propósito, embora a coluna no banco seja `not null default
+   * false`: tornar o campo obrigatório quebraria todo `StageRow` montado à mão
+   * nos testes que não exercitam o gate de evidência. Quem não preenche fica
+   * com `undefined`, que é LIDO pela regra como "não afirma fato" — o mesmo
+   * efeito do `false` que a coluna carrega no banco. O gate só dispara quando
+   * o valor é EXATAMENTE `true`.
+   */
+  afirma_fato?: boolean;
   pipeline_id: string;
   organization_id: string;
 }
@@ -44,6 +55,9 @@ export function etapa(over: Partial<StageRow> & { id: string; name: string }): S
     is_lost: false,
     is_archived: false,
     agent_stage_hint: null,
+    // Espelha o default da COLUNA (migration 0274): nasce desligado para toda
+    // etapa, e nenhum teste que não pedir explicitamente vê o gate disparar.
+    afirma_fato: false,
     pipeline_id: PIPE,
     organization_id: ORG_ID,
     ...over,

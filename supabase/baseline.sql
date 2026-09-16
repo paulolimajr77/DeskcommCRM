@@ -26283,3 +26283,23 @@ drop trigger if exists trg_platform_meta_app_updated_at on public.platform_meta_
 create trigger trg_platform_meta_app_updated_at
   before update on public.platform_meta_app
   for each row execute function public.fn_set_updated_at();
+
+-- ---- a etapa que afirma um fato consumado (migration 0274) ----
+-- O dono marca quais etapas do funil afirmam que algo JÁ aconteceu ("proposta
+-- enviada", "contrato assinado", "pagamento recebido"), para o motor não
+-- adiantar o card a partir de uma PROMESSA. Nasce DESLIGADA para toda etapa —
+-- quem já opera não percebe mudança nenhuma até marcar a caixa na própria etapa.
+alter table public.crm_stages
+  add column if not exists afirma_fato boolean not null default false;
+
+comment on column public.crm_stages.afirma_fato is
+  'A etapa afirma que um FATO JÁ ACONTECEU — e dá para conferir se aconteceu: '
+  '"proposta enviada", "contrato assinado", "pagamento recebido", "chaves '
+  'entregues", "consulta realizada". NÃO afirma fato a etapa cujo nome descreve '
+  'um ESTADO ou uma FASE, sem alegar evento nenhum: "negociando", "em '
+  'qualificação", "aguardando retorno", "novo contato". O motor lê esta marca '
+  'para NÃO adiantar o card a partir de uma promessa: quem prometeu "vou enviar '
+  'a proposta" declarou intenção, e intenção não vira carimbo — a etapa '
+  '"proposta enviada" só é fato quando a proposta de fato saiu. Nasce '
+  'DESLIGADA para toda etapa — quem já opera não percebe mudança nenhuma até '
+  'marcar a caixa na própria etapa, no vocabulário do nicho dele.';

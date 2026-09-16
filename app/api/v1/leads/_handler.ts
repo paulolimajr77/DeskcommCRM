@@ -743,6 +743,30 @@ export interface MoveLeadAdminInput {
   /** Optional fractional position. If omitted, append at end (max + 1000). */
   position_in_stage?: number;
   reason?: string;
+  /**
+   * A prova de que o FATO afirmado pela etapa realmente aconteceu.
+   *
+   * Só é olhado quando a etapa de destino tem `afirma_fato = true` (coluna da
+   * migration 0274): nessas etapas, o nome diz que algo JÁ aconteceu, e o
+   * handler exige que alguém consiga conferir que aconteceu — em vez de mover o
+   * card a partir de uma promessa ou de uma leitura do classificador.
+   *
+   * ⚠️ OPCIONAL, e não por preguiça: toda chamada existente passa sem ele, e
+   * etapa com `afirma_fato = false` (o padrão, e é o estado de TODAS as etapas
+   * existentes hoje) não consulta este campo. Exigi-lo quebraria todo chamador
+   * de uma vez, para um comportamento que ninguém ligou ainda.
+   *
+   * Medido: NÃO existe tabela de proposta, orçamento ou quote neste produto
+   * (`information_schema`). Então as duas formas abaixo são as únicas
+   * evidências que o produto consegue produzir hoje.
+   */
+  evidencia?: {
+    /** `documento_enviado` = um arquivo foi enviado na conversa. */
+    /** `confirmado_por_pessoa` = alguém confirmou na tela que o fato aconteceu. */
+    tipo: "documento_enviado" | "confirmado_por_pessoa";
+    /** O id da mensagem que carrega o documento, quando `tipo = documento_enviado`. */
+    referencia?: string;
+  };
 }
 
 export async function moveLeadHandler(
@@ -772,7 +796,7 @@ export async function moveLeadHandler(
 
   const { data: stage, error: stageErr } = await supabase
     .from("crm_stages")
-    .select("id, pipeline_id, organization_id, name")
+    .select("id, pipeline_id, organization_id, name, afirma_fato")
     .eq("id", input.to_stage_id)
     .maybeSingle();
   if (stageErr) {
@@ -794,6 +818,43 @@ export async function moveLeadHandler(
       undefined,
       ctx.requestId,
       traduzir("Move cross-pipeline não é permitido.", ctx.idioma ?? "pt-BR"),
+    );
+  }
+
+  // ── A ETAPA QUE AFIRMA FATO SÓ É ATINGIDA COM EVIDÊNCIA ─────────────────────
+  //
+  // Medido em produção em 2026-09-16: o card foi movido para "Proposta enviada"
+  // a partir da mensagem em que o agente PROMETEU a proposta. Ninguém enviou
+  // nada. No quadro, o negócio aparece ADIANTADO — e isso é pior que aparecer
+  // parado, porque um card em "Proposta enviada" não chama a atenção de
+  // ninguém.
+  //
+  // A COLUNA `afirma_fato` (migration 0274) deixa o dono marcar quais etapas do
+  // funil dele afirmam que algo já aconteceu. A regra lê a COLUNA, NUNCA o
+  // nome: a lista de etapas é escrita pelo dono, em qualquer nicho, e o mesmo
+  // substantivo significa coisas diferentes em empresas diferentes —
+  // reconhecer por nome acerta uma empresa e erra todas as outras.
+  //
+  // As duas fronteiras da regra, ditas em voz alta porque quem ler daqui a seis
+  // meses vai perguntar:
+  //
+  //   - etapa com `afirma_fato = false` passa DIRETO, sem nenhuma verificação.
+  //     É o padrão, e é o estado de 100% das etapas existentes hoje — ninguém
+  //     sente diferença até marcar a caixa;
+  //   - a recusa é de NEGÓCIO, não defeito: o 409 diz o que fazer (registrar a
+  //     evidência antes de mover), e o card NÃO se move. Recusar e mover mesmo
+  //     assim seria pior que não recusar.
+  const afirmaFato = (stage as { afirma_fato?: boolean }).afirma_fato === true;
+  if (afirmaFato && input.evidencia === undefined) {
+    throw new ApiError(
+      409,
+      "stage_requires_evidence",
+      undefined,
+      ctx.requestId,
+      traduzir(
+        "Esta etapa afirma que algo já aconteceu. Registre a evidência (documento enviado, ou confirmação de alguém) antes de mover o card.",
+        ctx.idioma ?? "pt-BR",
+      ),
     );
   }
 

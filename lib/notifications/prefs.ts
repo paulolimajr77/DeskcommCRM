@@ -6,6 +6,7 @@ export const NOTIFY_UI_CATEGORIES = [
   "lead_won",
   "lead_lost",
   "mention",
+  "assistente_precisa_de_voce",
 ] as const;
 
 export type NotifyCategory = (typeof NOTIFY_UI_CATEGORIES)[number];
@@ -30,6 +31,7 @@ export function prefsPadrao(): NotifyPrefs {
     lead_won: { in_app: true, push: true },
     lead_lost: { in_app: true, push: true },
     mention: { in_app: true, push: true },
+    assistente_precisa_de_voce: { in_app: true, push: true },
   };
 }
 
@@ -99,6 +101,7 @@ const PREFS_DO_SERVIDOR: NotifyPrefs = {
   lead_won: { in_app: true, push: true },
   lead_lost: { in_app: true, push: true },
   mention: { in_app: true, push: true },
+  assistente_precisa_de_voce: { in_app: true, push: true },
 };
 
 /**

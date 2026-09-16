@@ -129,6 +129,7 @@ export const NOTIFICATION_CATEGORIES = [
   "lead_won",
   "lead_lost",
   "mention",
+  "assistente_precisa_de_voce",
 ] as const;
 export const NOTIFICATION_CHANNELS = ["email", "in_app", "push"] as const;
 

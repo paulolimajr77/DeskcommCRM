@@ -126,6 +126,13 @@ describe("notificationPrefsSchema", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it("accepts the new assistant-needs-you category", () => {
+    const r = notificationPrefsSchema.safeParse({
+      prefs: [{ category: "assistente_precisa_de_voce", channel: "in_app", enabled: true }],
+    });
+    expect(r.success).toBe(true);
+  });
 });
 
 describe("pipelineConfigPatchSchema", () => {

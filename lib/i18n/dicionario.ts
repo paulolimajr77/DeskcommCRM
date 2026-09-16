@@ -4203,6 +4203,7 @@ export const DICIONARIO: Traducoes = {
   "Lead ganho": { es: "Lead ganado" },
   "Lead perdido": { es: "Lead perdido" },
   "Você foi mencionado": { es: "Te mencionaron" },
+  "O assistente precisa de você": { es: "El asistente necesita de ti" },
   Email: { es: "Correo" },
   "In-app": { es: "En la app" },
   Push: { es: "Push" },

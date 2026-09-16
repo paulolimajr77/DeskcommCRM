@@ -51,7 +51,7 @@ const OITO_ANTIGOS_VISTOS: AgentInboxItem[] = Array.from({ length: 8 }, (_, i) =
   ref_id: null,
   status: "open",
   created_at: "2026-09-01T10:00:00Z",
-  destination: { estado: "indisponivel", orientacao: null } as AgentInboxItem["destination"],
+  destination: { estado: "indisponivel", orientacao: "" } as AgentInboxItem["destination"],
 }));
 
 const UM_CRITICAL_NOVO: AgentInboxItem = {
@@ -64,7 +64,7 @@ const UM_CRITICAL_NOVO: AgentInboxItem = {
   ref_id: null,
   status: "open",
   created_at: "2026-09-16T09:00:00Z",
-  destination: { estado: "indisponivel", orientacao: null } as AgentInboxItem["destination"],
+  destination: { estado: "indisponivel", orientacao: "" } as AgentInboxItem["destination"],
 };
 
 function montarQueryClient() {

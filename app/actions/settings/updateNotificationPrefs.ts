@@ -7,8 +7,17 @@ export type UpdateNotificationPrefsResult =
   | { ok: false; error: string; details?: unknown };
 
 /**
- * STUB — `notification_prefs` table is not yet migrated. Wave 5 of EPIC-10
- * ships UI only. When the table exists, replace this body with a real upsert.
+ * STUB — a tabela `notification_prefs` não existe. Medido em 2026-09-16: esta
+ * ação devolve `feature_not_yet_available` para QUALQUER entrada, e a tela
+ * `Configurações › Notificações` é UI sem servidor desde a Wave 5 do EPIC-10.
+ *
+ * O caminho que FUNCIONA é o outro: `lib/notifications/prefs.ts`, com
+ * `NOTIFY_UI_CATEGORIES` em `localStorage` — por navegador, in-app e push.
+ *
+ * ⚠️ DÍVIDA DECLARADA, fora do escopo deste plano: a preferência não atravessa
+ * navegador nem dispositivo, e o canal de e-mail segue `disabled` no código.
+ * O que NÃO podia continuar é a categoria não existir — aí nem quem quer ser
+ * avisado consegue pedir.
  */
 export async function updateNotificationPrefs(
   input: NotificationPrefsInput,

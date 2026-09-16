@@ -3414,7 +3414,13 @@ async function executarTurnoDoAgente(
         }
         const mcp = await buildMcpTurnTools(
           deps.crmCfg,
-          { organizationId: tenantId, jobId: preview?.runId ?? liveJob().id },
+          {
+            organizationId: tenantId,
+            jobId: preview?.runId ?? liveJob().id,
+            // `leadId` aqui é o CONTATO do job (ver a atribuição dele acima) — o
+            // negócio é derivado dele, e é isso que impede o modelo de inventar um.
+            contactId: leadId === '' ? undefined : leadId,
+          },
           configDoTurno,
           runLog,
           preview ? { readOnly: true } : undefined,

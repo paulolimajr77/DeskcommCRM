@@ -1504,6 +1504,64 @@ export async function avisarCapacidadesAusentes(
 }
 
 /**
+ * O TETO DE PASSOS DEIXA DE SER UM `return` MUDO.
+ *
+ * `inbound-turn.ts` chama o modelo com um teto (`stopWhen: stepCountIs(maxSteps)`,
+ * em `run-model-call.ts`). Quando o modelo bate nele NO MEIO de uma tarefa —
+ * ainda queria chamar ferramenta, não terminou naturalmente — o AI SDK para de
+ * gerar passos, e nada no sistema sabia disso: o cliente via a conversa
+ * terminar sem resposta útil, e ninguém tinha como saber que o teto foi a
+ * causa. Medido: zero leitura de `steps.length`/`finishReason` no arquivo
+ * inteiro antes desta função.
+ *
+ * A régua — `steps.length >= maxSteps && finishReason !== 'stop'` — é a MESMA
+ * que `lib/ai/runtime/agent.ts` (o motor irmão) já usa para o mesmo julgamento;
+ * não inventa uma segunda.
+ *
+ * Grava em `ai_agent_runs` (as colunas já existem no schema; é o registro
+ * mínimo desta peça — o turno real ainda não abre/fecha um registro completo
+ * para TODA execução, isso é uma peça futura) e abre aviso na Central
+ * (`passos_esgotados`), no MESMO padrão best-effort de `avisarCapacidadesAusentes`
+ * acima: falha de observabilidade nunca derruba o atendimento do cliente.
+ */
+export async function avisarTetoDePassos(
+  db: pg.Pool,
+  ids: { tenantId: string; agentId: string; versionId: string; conversationId: string },
+  turno: { stepsCount: number; maxSteps: number; finishReason: string | undefined },
+  log: Logger,
+): Promise<void> {
+  if (turno.stepsCount < turno.maxSteps || turno.finishReason === 'stop') return;
+  try {
+    await db.query(
+      `insert into ai_agent_runs
+         (organization_id, agent_id, agent_version_id, conversation_id, status,
+          abort_reason, steps_count, is_dry_run)
+       values ($1, $2, $3, $4, 'aborted', 'max_steps', $5, false)`,
+      [ids.tenantId, ids.agentId, ids.versionId, ids.conversationId, turno.stepsCount],
+    );
+    await db.query(
+      `insert into agent_inbox_items (organization_id, kind, severity, title, body, ref_kind, ref_id)
+       select $1, 'passos_esgotados', 'critical', $2, $3, 'conversation', $4
+        where not exists (
+          select 1 from agent_inbox_items
+           where organization_id = $1 and kind = 'passos_esgotados' and status = 'open'
+        )`,
+      [
+        ids.tenantId,
+        'O assistente bateu no teto de passos no meio de uma tarefa',
+        `O turno gastou ${turno.stepsCount} de ${turno.maxSteps} passos permitidos e parou sem ` +
+          'terminar naturalmente — a conversa pode ter ficado sem resposta útil ao cliente.',
+        ids.conversationId,
+      ],
+    );
+  } catch (err) {
+    log.warn('aviso de teto de passos não foi gravado', {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 120),
+    });
+  }
+}
+
+/**
  * O NÚCLEO DO TURNO, SEMPRE SOB A ESCOLTA DO ORÇAMENTO.
  *
  * Esta função é o único ponto do produto por onde os três kinds de turno de
@@ -3766,6 +3824,27 @@ async function executarTurnoDoAgente(
       },
       { registry: deps.registry, log: runLog },
     );
+
+    if (agentConfig !== null) {
+      // Fire-and-forget: mesma disciplina de avisarCapacidadesAusentes — a
+      // observabilidade do teto não pode atrasar nem derrubar a resposta ao
+      // cliente, que já foi decidida pelas linhas seguintes deste turno.
+      void avisarTetoDePassos(
+        pool,
+        {
+          tenantId,
+          agentId: agentConfig.agentId,
+          versionId: agentConfig.versionId,
+          conversationId: input.conversationId,
+        },
+        {
+          stepsCount: turn.result.steps.length,
+          maxSteps,
+          finishReason: turn.result.finishReason,
+        },
+        runLog,
+      );
+    }
 
     // F4-04: correlação dos dois sinais do MESMO turno — jailbreak ALTO + tentativa de
     // promessa fora de tabela (F4-01). Ambos estão determinados aqui (o jailbreak rodou na

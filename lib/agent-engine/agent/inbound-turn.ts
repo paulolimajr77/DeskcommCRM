@@ -5,6 +5,7 @@ import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './prev
 import { deveIdentificar, IDENTIFICACAO_SYSTEM_BLOCK } from './identificacao';
 import {
   carregarCamposDoFunilDoAgente,
+  podeAnotarCampos,
   renderCamposDoFunil,
 } from './campos-do-funil-do-agente';
 import { claimOfJob } from '../queue/claim';
@@ -1980,17 +1981,19 @@ async function executarTurnoDoAgente(
   if (agentConfig !== null && agentConfig.leadFieldsEnabled) {
     // ⛔ QUEM SABE DA FERRAMENTA É O TURNO, e por isso ele é quem diz.
     //
-    // `lead_fields_enabled` e `crm_update_lead` são interruptores SEPARADOS, em
-    // telas diferentes: ligar os campos não dá a ferramenta. Sem esta linha o
-    // bloco mandaria "anote assim que ouvir" a um modelo que não tem com o quê
-    // — e o que sai disso não é silêncio, é ele dizendo ao cliente que anotou.
+    // `lead_fields_enabled` (a chave simples) AUTO-INJETA `crm_update_lead` em
+    // `pickToolsFromMcp` desde a Peça 5 — mas o texto do bloco ficou para trás
+    // dessa mudança por uma sessão inteira: `podeAnotar` só olhava `toolIds` (a
+    // lista escolhida à MÃO no modo avançado), e quem ligava só a chave simples
+    // ganhava a ferramenta no motor e continuava lendo "você NÃO tem ferramenta
+    // para gravar". `podeAnotarCampos` reconhece as DUAS origens.
     //
-    // `toolIds` é a lista da versão PUBLICADA, constante enquanto a versão for
-    // a mesma: o bloco continua cacheável no prefixo, e não varia por lead.
+    // `agentConfig` inteiro é da versão PUBLICADA, constante enquanto a versão
+    // for a mesma: o bloco continua cacheável no prefixo, e não varia por lead.
     const blocoDosCampos = renderCamposDoFunil(
       await carregarCamposDoFunilDoAgente(pool, tenantId, agentConfig.pipelineIds),
       {
-        podeAnotar: agentConfig.toolIds.includes('crm_update_lead'),
+        podeAnotar: podeAnotarCampos(agentConfig),
         // ⛔ PROPOR EXIGE RECEBER A DEFINIÇÃO, e por isso a conjunção.
         //
         // `leadFieldsProposeNew` sozinho faria o agente propor o que a empresa

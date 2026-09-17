@@ -3,6 +3,7 @@ import type pg from 'pg';
 
 import {
   carregarCamposDoFunilDoAgente,
+  podeAnotarCampos,
   renderCamposDoFunil,
   type CamposPorFunil,
 } from './campos-do-funil-do-agente';
@@ -374,5 +375,46 @@ describe('quando o dono liga "propor campo novo"', () => {
     expect(renderCamposDoFunil(UM_FUNIL, { podePropor: false })).not.toContain(
       'crm_propose_lead_field',
     );
+  });
+});
+
+describe('podeAnotarCampos', () => {
+  /**
+   * O TEXTO DO PROMPT FICOU PARA TRÁS DA FERRAMENTA, medido agora (Tarefa 14,
+   * continuação).
+   *
+   * `pickToolsFromMcp` passou a auto-injetar `crm_update_lead` quando a chave
+   * simples `leadFieldsEnabled` está ligada. O TEXTO do prompt que dizia ao
+   * modelo "você PODE anotar" continuava olhando só `toolIds` (a lista que o
+   * dono escolhe à MÃO no modo avançado). Resultado: dono liga só a chave
+   * simples, a ferramenta chega ao motor, e o prompt diz "você NÃO tem
+   * ferramenta para gravar" — o modelo nunca tenta a ferramenta que agora tem.
+   *
+   * É o MESMO defeito de D3, do lado do texto em vez do lado da montagem:
+   * duas origens possíveis (chave simples OU lista manual), e o prompt só
+   * reconhecia uma. As duas agora passam pela mesma função, e a função mora ao
+   * lado de quem a consome.
+   */
+  it('a lista manual (modo avançado) sozinha já bastava e continua bastando', () => {
+    expect(
+      podeAnotarCampos({ toolIds: ['crm_update_lead'], leadFieldsEnabled: false }),
+    ).toBe(true);
+  });
+
+  it('⭐ a chave simples sozinha TAMBÉM basta — o caso que faltava', () => {
+    // É a razão desta correção existir: sem esta linha, o dono que liga só a
+    // chave simples ganha a ferramenta no motor e continua recebendo o texto
+    // "você NÃO tem ferramenta para gravar".
+    expect(podeAnotarCampos({ toolIds: [], leadFieldsEnabled: true })).toBe(true);
+  });
+
+  it('CONTROLE — sem nenhuma das duas origens, NÃO pode', () => {
+    expect(podeAnotarCampos({ toolIds: [], leadFieldsEnabled: false })).toBe(false);
+  });
+
+  it('CONTROLE — as duas juntas não quebram (a função é OU, não XOR)', () => {
+    expect(
+      podeAnotarCampos({ toolIds: ['crm_update_lead'], leadFieldsEnabled: true }),
+    ).toBe(true);
   });
 });

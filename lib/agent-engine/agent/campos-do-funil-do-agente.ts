@@ -108,11 +108,11 @@ function formaDaResposta(campo: CustomFieldDef): string {
 /**
  * ⛔ `podeAnotar` NÃO É ENFEITE: sem ele o bloco manda anotar quem não tem com o quê.
  *
- * `lead_fields_enabled` (a chave da versão) e `crm_update_lead` (a ferramenta)
- * são interruptores SEPARADOS, em telas diferentes. Nada obriga os dois a
- * andarem juntos, e com os campos ligados e a ferramenta ausente o que sai não
- * é silêncio: é o modelo dizendo ao cliente que anotou. Mesmo defeito que
- * derrubou `lead_fields_propose_new` — a tela grava, o motor ignora.
+ * `lead_fields_enabled` (a chave simples) hoje AUTO-INJETA `crm_update_lead`
+ * em `pickToolsFromMcp` — mas nem sempre injetou, e o dono ainda pode ter
+ * escolhido a ferramenta à mão no modo avançado (`toolIds`) sem ligar a chave.
+ * `podeAnotarCampos` (acima) reconhece as duas origens; quem chama este bloco
+ * passa o resultado dela, nunca uma das duas checagens sozinha.
  *
  * Padrão `true` de propósito: vários testes montam este bloco, e um padrão que
  * negasse a capacidade mudaria todos eles em silêncio. Quem sabe da ferramenta
@@ -236,4 +236,26 @@ export function renderCamposDoFunil(
   }
 
   return linhas.join('\n');
+}
+
+/**
+ * PODE ANOTAR = a ferramenta `crm_update_lead` VAI CHEGAR ao turno.
+ *
+ * Duas origens, e as DUAS bastam: o dono escolheu a ferramenta à mão no modo
+ * avançado (`toolIds`), OU ligou a chave simples "usar campos personalizados"
+ * (`leadFieldsEnabled`) — que agora AUTO-INJETA a mesma ferramenta em
+ * `pickToolsFromMcp` (Tarefa 14, Peça 5). Antes desta função, só a primeira
+ * origem valia aqui: o dono que ligava só a chave simples ganhava a ferramenta
+ * no motor e continuava recebendo o texto "você NÃO tem ferramenta para
+ * gravar" — o mesmo defeito de D3, do lado do texto.
+ *
+ * As DUAS origens SEMPRE precisam concordar com quem decide se a ferramenta
+ * chega (`pickToolsFromMcp`, em `lib/ai/runtime/tools.ts`) — são a mesma
+ * pergunta feita duas vezes, em dois arquivos, e por isso mora numa função só.
+ */
+export function podeAnotarCampos(agentConfig: {
+  toolIds: readonly string[];
+  leadFieldsEnabled: boolean;
+}): boolean {
+  return agentConfig.toolIds.includes('crm_update_lead') || agentConfig.leadFieldsEnabled;
 }

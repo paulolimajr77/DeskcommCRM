@@ -7735,6 +7735,14 @@ export const DICIONARIO: Traducoes = {
     es: "Devuelva la llamada cuando pueda — quien llamó no fue atendido.",
   },
   "Ligar de volta": { es: "Devolver la llamada" },
+  "O assistente parou no meio de uma tarefa": { es: "El asistente se detuvo en medio de una tarea" },
+  "O assistente parou no meio de uma tarefa sem terminar naturalmente — confira a conversa e continue de onde ele parou.": {
+    es: "El asistente se detuvo en medio de una tarea sin terminar naturalmente — revise la conversación y continúe donde él se detuvo.",
+  },
+  "O assistente parou de completar o que promete": { es: "El asistente dejó de cumplir lo que promete" },
+  "Uma das medidas de acompanhamento do assistente caiu de forma sustentada — revise o que ele deveria estar completando.": {
+    es: "Una de las medidas de seguimiento del asistente cayó de forma sostenida — revise lo que él debería estar completando.",
+  },
   // Diálogo de exclusão de canal (`frasesDoImpacto`): singular e plural.
   "chamada de voz": { es: "llamada de voz" },
   "chamadas de voz": { es: "llamadas de voz" },

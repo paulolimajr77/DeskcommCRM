@@ -93,6 +93,11 @@ function bancoFalso(customFieldsAtuais: Record<string, unknown>) {
     tags: [],
     custom_fields: customFieldsAtuais,
   };
+  // Sincroniza a variável que a RPC dublê mescla — sem isto, o caso que NÃO
+  // seta `campoDoBancoFalso` à mão (PATCH sem `custom_fields`) faria a
+  // releitura do handler ver `{}` (o valor zerado pelo `beforeEach`) em vez do
+  // estado inicial real.
+  campoDoBancoFalso = { ...customFieldsAtuais };
   let patchEnviado: Record<string, unknown> | null = null;
 
   const consulta = {
@@ -106,8 +111,15 @@ function bancoFalso(customFieldsAtuais: Record<string, unknown>) {
       Object.assign(linha, patch);
       return consulta;
     },
-    maybeSingle: async () => ({ data: { ...linha }, error: null }),
-    single: async () => ({ data: { ...linha }, error: null }),
+    // `custom_fields` reflete `campoDoBancoFalso` (a mesma variável que o dublê
+    // da RPC atualiza), não `linha.custom_fields` diretamente: o handler faz
+    // uma RELEITURA do banco depois do UPDATE (issue #916), e no Postgres real
+    // essa releitura veria o valor que a RPC já mesclou na mesma tabela. Um
+    // dublê que devolvesse `linha.custom_fields` (nunca tocado pela RPC, que
+    // grava só na variável separada) simularia um banco onde SELECT e RPC leem
+    // tabelas diferentes — e o campo recém-mesclado desapareceria na resposta.
+    maybeSingle: async () => ({ data: { ...linha, custom_fields: campoDoBancoFalso }, error: null }),
+    single: async () => ({ data: { ...linha, custom_fields: campoDoBancoFalso }, error: null }),
   };
 
   return {

@@ -28,6 +28,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { AgentInboxList } from "@/app/app/ai/inbox/_components/AgentInboxList";
 import {
   useAgentInbox,
+  useMarkInboxSeen,
   useResolveAllInboxItems,
   useUpdateInboxItem,
   type AgentInboxItem,
@@ -37,6 +38,7 @@ vi.mock("@/hooks/ai/useAgentInbox", () => ({
   useAgentInbox: vi.fn(),
   useUpdateInboxItem: vi.fn(),
   useResolveAllInboxItems: vi.fn(),
+  useMarkInboxSeen: vi.fn(),
 }));
 /** Todo texto que passar pelo tradutor sai marcado. O que não passar, sai cru. */
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (texto: string) => `ES:${texto}` }));
@@ -80,6 +82,10 @@ beforeEach(() => {
     mutate: resolverTodos,
     isPending: false,
   } as unknown as ReturnType<typeof useResolveAllInboxItems>);
+  vi.mocked(useMarkInboxSeen).mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false,
+  } as unknown as ReturnType<typeof useMarkInboxSeen>);
 });
 
 describe("Central de avisos: o dado sai como veio", () => {

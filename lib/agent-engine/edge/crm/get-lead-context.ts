@@ -16,6 +16,7 @@ import type { CrmEdgeConfig } from './mcp-client';
 import { deriveLgpdFromContact, type LgpdInput } from '../../guardrails/lgpd/legal-basis';
 import { isoLocalComOffset } from '@/lib/tempo/agora';
 import { negocioDaConversa } from './negocio-da-conversa';
+import { nomeDoContato } from '@/lib/contacts/rotulo-do-contato';
 
 /**
  * Heurística conservadora de contagem: ~3,5 chars/token para pt-br (BPE real fica
@@ -380,7 +381,7 @@ export async function getLeadContext(
       negocio_id: negocio.tipo === 'um' ? negocio.leadId : null,
       negocio_situacao: negocio.tipo,
       contact: {
-        name: contact.display_name ?? contact.name,
+        name: nomeDoContato(contact),
         nome_confirmado: nomeFoiConfirmado(contact.name),
         phone: contact.phone_number,
         email: contact.email,

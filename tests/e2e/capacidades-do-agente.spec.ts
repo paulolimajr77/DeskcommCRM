@@ -76,7 +76,7 @@ const TOOLS_DO_SEED = [
   // "faltam 1 vaga". Com teto 25 essas mesmas 21 passam, a recusa nunca acontece
   // e o caso vira um clique que sempre dá certo — verde sem medir nada.
   //
-  // Oito reproduzem a MESMA aritmética no teto novo: 8 + 18 = 26 > 25, recusa
+  // Oito reproduziam a MESMA aritmética no teto de 25: 8 + 18 = 26 > 25, recusa
   // por 1 vaga; desligar uma deixa 7 + 18 = 25, que é o teto exato e passa.
   //
   // As escolhidas ficam FORA do pacote "Atender" de propósito — se alguma
@@ -87,6 +87,12 @@ const TOOLS_DO_SEED = [
   "crm_book_appointment",
   "crm_reschedule_appointment",
   "crm_list_pipelines",
+  // ⚠️ A NONA ENTROU COM O TETO INDO DE 25 PARA 26 (identificação + campos do
+  // funil somaram ao catálogo). Nove reproduzem a MESMA aritmética no teto
+  // novo: 9 + 18 = 27 > 26, recusa por 1 vaga; desligar uma deixa 8 + 18 = 26,
+  // que é o teto exato e passa. `crm_list_human_cases` é só do pacote
+  // "escalar" (nunca de "Atender"), pela mesma razão das quatro de agenda.
+  "crm_list_human_cases",
 ];
 
 /** A capacidade que não pode entrar por pacote. */
@@ -214,13 +220,15 @@ test.describe("Configurar o que o agente pode fazer", () => {
     // O TETO ENTRA NA JORNADA (issue #162), e entra antes do clique.
     //
     // "Atender" exige 18 vagas (17 automáticas + a crítica que o pacote
-    // deliberadamente NÃO liga). Com as 8 do seed dá 26, acima do teto.
+    // deliberadamente NÃO liga). Com as 9 do seed dá 27, acima do teto.
     //
-    // ⚠️ AS 8 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
-    // teto de 20. Quando o teto foi para 25 essas mesmas 21 passaram a caber: a
-    // recusa nunca aconteceria e o caso viraria um clique que sempre dá certo —
-    // verde sem medir nada, que é o pior desfecho para um teste de recusa.
-    // As 5 novas estão FORA de "Atender", senão a união seria menor que a soma.
+    // ⚠️ AS 9 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
+    // teto de 20. Quando o teto foi para 25 essas mesmas 21 passaram a caber; ao ir
+    // para 26, as 8 (3 + 5) também passaram a caber (8 + 18 = 26, o teto exato) —
+    // e cada vez que isso acontece, a recusa deixa de existir e o caso vira um
+    // clique que sempre dá certo, verde sem medir nada, o pior desfecho para um
+    // teste de recusa. As 6 novas (5 de agenda + 1 de escalação) estão FORA de
+    // "Atender", senão a união seria menor que a soma.
     //
     // Antes da correção a tela aceitava o pacote, chegava a 20 exatas e deixava
     // o checkbox da crítica DESABILITADO — prometia uma escolha que o produto

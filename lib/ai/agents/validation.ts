@@ -160,17 +160,18 @@ const versionShapeSchema = z
     // `.nullable()` e não opcional: null é o valor que SIGNIFICA "herda o modelo
     // do Conversador". Omitir seria indistinguível de "ainda não decidi".
     operator_model: z.string().trim().min(1).max(120).nullable().default(null),
-    // Teto PRÓPRIO, não compartilhado com `tool_ids`: o Operador tem as 25 vagas
-    // dele, o Conversador as dele, e nenhum come a lista do outro.
+    // Teto PRÓPRIO, não compartilhado com `tool_ids`: o Operador tem as
+    // `TETO_TOOLS_POR_AGENTE` vagas dele, o Conversador as dele, e nenhum come
+    // a lista do outro.
     //
     // ⚠️ A FRASE ANTERIOR VENCEU e está reescrita: ela dizia que separar os
     // papéis resolve o estouro "por divisão em vez de aumentar o número", e o
-    // número FOI aumentado (20 → 25) quando o dono do produto ficou sem como
-    // ligar as capacidades de agenda. Uma coisa não invalida a outra — a divisão
-    // continua sendo o que impede os dois papéis de disputarem vaga —, mas
-    // deixar escrito que o número nunca sobe faria a próxima sessão medir contra
-    // uma régua que já não existe. O porquê do 25 está em
-    // `lib/mcp/tools/selecao-por-pacote.ts`, junto da constante.
+    // número já foi aumentado duas vezes (20 → 25 → 26) quando o catálogo
+    // cresceu. Uma coisa não invalida a outra — a divisão continua sendo o que
+    // impede os dois papéis de disputarem vaga —, mas deixar escrito um valor
+    // fixo faria a próxima sessão medir contra uma régua que já não existe. O
+    // porquê do valor atual está em `lib/mcp/tools/selecao-por-pacote.ts`,
+    // junto da constante.
     operator_tool_ids: z
       .array(z.string().min(1).max(80))
       .max(TETO_TOOLS_POR_AGENTE)

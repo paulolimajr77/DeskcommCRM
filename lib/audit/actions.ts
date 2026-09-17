@@ -534,6 +534,18 @@ export const AUDIT_ACTIONS = [
   "crm_task.created",
   "crm_task.updated",
   "crm_task.deleted",
+
+  // A proposta comercial (migration 0275, docs/superpowers/specs/2026-09-16-
+  // proposta-comercial-design.md). Rascunho, edição, ajuste pelo assistente,
+  // envio e decisão do cliente — cada um muda o que o negócio vale ou o que
+  // foi oferecido, e é disputa comum entre quem atende e quem fecha.
+  "proposal.drafted",
+  "proposal.edited",
+  "proposal.assistant_applied",
+  "proposal.sent",
+  "proposal.aceita",
+  "proposal.recusada",
+
   "organization.switched",
 
   // Chamada de voz WhatsApp (spec 18, migration 0234). Ligá-la vincula um

@@ -151,9 +151,33 @@ test("ligar 'Clientes pela agenda' transforma quem tem horário marcado em clien
   const dias = await irParaASemanaSeguinte(page);
   await page.getByRole("button", { name: /novo agendamento/i }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible({ timeout: 15_000 });
-  const quem = page.getByLabel("Quem será atendido");
-  await expect(quem.locator(`option[value="${f.contato}"]`)).toHaveCount(1, { timeout: 15_000 });
-  await quem.selectOption(f.contato);
+  // ⚠️ ADAPTAÇÃO DE FORK — o campo daqui não é o `select` da `main`.
+  //
+  // O spec veio do lote 12 e escolhia o cliente por `getByLabel("Quem será
+  // atendido").selectOption(id)`: um `<select>` com uma `<option>` por contato.
+  // Nesta branch aquele campo não existe — os dois campos ("Buscar cliente" e
+  // "Quem será atendido") viraram UM só em 2026-09-12 (`EscolhaDoCliente`),
+  // porque o seletor herdava o cliente da abertura anterior e o compromisso
+  // saía no nome de quem ninguém escolheu.
+  //
+  // O que o spec PROVA não muda com isso: ele é sobre "clientes pela agenda"
+  // transformar quem tem horário em cliente, não sobre a forma do seletor. Só
+  // a maneira de escolher muda — digitar e clicar na opção, em vez de
+  // `selectOption`.
+  //
+  // Custo do jeito 2, e ele é recorrente: quando o Rafael mexer neste spec, o
+  // merge traz a versão dele e esta adaptação precisa ser refeita.
+  const quem = page.getByLabel("Cliente do compromisso");
+  // O clique antes do texto não é cerimônia: a lista só é desenhada com o campo
+  // ABERTO (`aberto && contatos.length > 0`), e o `focus` é o que a abre.
+  await quem.click();
+  await quem.fill("Bruna");
+  await page.getByRole("option", { name: "Bruna Tatuada" }).click({ timeout: 15_000 });
+  // A escolha trocou o campo pela ficha de quem foi escolhido — é assim que o
+  // `EscolhaDoCliente` confirma na tela que o cliente está preso à marcação.
+  await expect(page.getByRole("button", { name: /Tirar o cliente/ })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByRole("button", { name: /^Sessão de estúdio/ }).click();
   await escolherDiaDesenhado(page, dias);
   await page.locator('[data-testid^="horario-"]').first().click();

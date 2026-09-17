@@ -23,6 +23,7 @@ export const REFERENCIAS_DE_AVISO = {
   channel_session: { tabela: "channel_sessions", papel: "admin", rotulo: "Revisar conexão", href: () => "/app/connections", ativo: true },
   ai_knowledge_source: { tabela: "ai_knowledge_sources", papel: "manager", rotulo: "Abrir base de conhecimento", href: () => "/app/ai/knowledge/sources" },
   agent_case: { tabela: "agent_cases", papel: "agent", rotulo: "Abrir atendimento", href: (id: string) => `/app/ai/cases?caso=${id}` },
+  proposal: { tabela: "crm_proposals", papel: "agent", rotulo: "Abrir proposta", href: (id: string) => `/app/proposals/${id}` },
 } satisfies Record<string, Alvo>;
 
 export type InboxRefKind = keyof typeof REFERENCIAS_DE_AVISO | "organization" | "ai_budget" | "job_queue" | "cron_jobs";
@@ -70,6 +71,18 @@ export const POLITICAS_DE_AVISO = {
   // cai em "sem destino" com a orientação abaixo: o telefone está no corpo do
   // aviso, escrito pelo worker.
   voice_call_missed: { refs: ["contact"], orientacao: "Retorne a ligação quando puder — quem ligou não foi atendido." },
+  proposal_expired_notice: {
+    refs: ["proposal"],
+    orientacao: "A validade passou sem decisão do cliente. Confirme se ainda vale a pena manter a oferta ou revise o preço.",
+  },
+  proposal_acceptance_rate_drop: {
+    refs: ["organization"],
+    orientacao: "A proporção de propostas aceitas caiu de forma sustentada — revise preço, prazo ou o texto padrão.",
+  },
+  proposal_promised_not_created: {
+    refs: ["lead"],
+    orientacao: "Uma promessa de proposta venceu sem que a proposta tenha sido criada. Abra o negócio e monte o rascunho.",
+  },
   other: { refs: ["lead", "channel_session", "appointment", "ai_agent"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
 } satisfies Record<InboxKind, Politica>;
 

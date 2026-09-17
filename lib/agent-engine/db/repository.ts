@@ -72,6 +72,9 @@ export type InboxKind =
   // não distingue "tocou e ninguém pegou" de "o operador recusou", e para quem
   // lê a Central os dois pedem a mesma coisa: alguém precisa ligar de volta.
   | 'voice_call_missed'
+  | 'proposal_expired_notice'
+  | 'proposal_acceptance_rate_drop'
+  | 'proposal_promised_not_created'
   | 'other';
 
 export interface InboxItemRow {

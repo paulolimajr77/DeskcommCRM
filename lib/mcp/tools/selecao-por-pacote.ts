@@ -52,8 +52,19 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  * degradação que a heurística prevê. O lugar de observá-la é
  * `app/api/v1/ai/agents/[id]/tool-usage` e o log de invocação do run, com
  * "ferramenta errada escolhida" como sinal. Quem for subir de novo mede antes.
+ *
+ * ═══ Segunda subida: 25 → 26 (2026-09-16) ═══════════════════════════════════
+ *
+ * O catálogo cresceu de novo (57 → 63). Medido: a partir do padrão do
+ * onboarding (`vender`, 21 capacidades), NENHUM segundo pacote cabia em 25 —
+ * evoluir exigia 26, reter 27, escalar 33, atender 35, organizar 37. Mesmo
+ * beco da v1.7.0, mesma régua: o MENOR passo que resolve, não o maior. 26 dá
+ * `evoluir` como segundo pacote e mantém os outros quatro fora — subir até 37
+ * daria todos, mas é quase dobrar o teto original (20) sem o instrumento de
+ * degradação que ainda não existe. Quem for destravar os outros quatro mede a
+ * degradação primeiro, ou aceita o mesmo argumento não medido de novo.
  */
-export const TETO_TOOLS_POR_AGENTE = 25;
+export const TETO_TOOLS_POR_AGENTE = 26;
 
 /** O mínimo que a regra precisa saber de uma capacidade. */
 export interface CapacidadeSelecionavel {

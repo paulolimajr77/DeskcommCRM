@@ -27087,6 +27087,39 @@ create index if not exists crm_proposal_items_proposal_idx
 create index if not exists crm_proposal_items_org_idx
   on public.crm_proposal_items(organization_id);
 
+-- A policy de write de crm_proposal_items (abaixo) filtra direto por
+-- `organization_id` da PRÓPRIA linha — desde a correção do Important 4 da
+-- revisão, ela não confere mais, sozinha, que esse organization_id bate com o
+-- dono real da proposta referenciada por `proposal_id`. Sem esta trava, um
+-- INSERT com organization_id = A e proposal_id de uma proposta que pertence a
+-- B passaria pela RLS (que só olha o organization_id da linha) e quebraria o
+-- isolamento entre tenants — não há FK composta nem CHECK que amarre as duas
+-- colunas. Mesmo padrão já usado em `fn_validate_activity_lead_org`
+-- (crm_lead_activities.lead_id → crm_leads.organization_id). A cláusula
+-- "not found" não é necessária aqui: `proposal_id` já tem FK not null para
+-- crm_proposals(id), então a linha referenciada sempre existe no momento do
+-- INSERT/UPDATE.
+create or replace function public.fn_verificar_org_do_item_da_proposta()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_org uuid;
+begin
+  select organization_id into v_org from public.crm_proposals where id = new.proposal_id;
+  if v_org is distinct from new.organization_id then
+    raise exception 'crm_proposal_item_org_mismatch' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_crm_proposal_items_org_consistente on public.crm_proposal_items;
+create trigger trg_crm_proposal_items_org_consistente
+  before insert or update on public.crm_proposal_items
+  for each row execute function public.fn_verificar_org_do_item_da_proposta();
+
 alter table public.crm_proposals enable row level security;
 alter table public.crm_proposal_items enable row level security;
 

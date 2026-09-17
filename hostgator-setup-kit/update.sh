@@ -262,7 +262,22 @@ if [ -f supabase/baseline.sql ]; then
     "create extension if not exists vector with schema public; create extension if not exists citext with schema public; create extension if not exists pg_trgm with schema public;" \
     >/dev/null 2>&1 || true
 
-  if reaplicar_baseline "$PROJECT_DIR/supabase/baseline.sql"; then
+  # ── O LOG DO BANCO FICA GUARDADO ──────────────────────────────────────────
+  #
+  # Medido em 2026-09-12, numa instalação real: duas regras de isolamento
+  # sumiram durante uma atualização, o funil ficou vazio para todo mundo, e não
+  # houve como saber por quê — a evidência (a saída bruta do psql) tinha sido
+  # jogada fora. O que o agente guarda em `system_update_runs.log_tail` é a
+  # CAUDA da atualização — Docker e reinício —, e o banco acontece antes disso.
+  #
+  # ⚠️ NÃO capture `$raw` aqui fora: `reaplicar_baseline` (`_common.sh`) a
+  # declara `local` — ela não existe neste escopo, e `set -u` derruba o script
+  # com "raw: unbound variable" (medido: quebrou silenciosamente a atualização
+  # inteira depois do merge que moveu a aplicação para a função). A função já
+  # recebe um caminho de log como 2º argumento, e escreve nele a saída de
+  # TODAS as passadas, cada uma com cabeçalho — melhor que a única passada que
+  # a captura antiga guardava.
+  if reaplicar_baseline "$PROJECT_DIR/supabase/baseline.sql" "$PROJECT_DIR/.deskcomm-banco.log"; then
     if [ "$BASELINE_PASSADAS" -gt 1 ]; then
       c_grn "✓ banco atualizado na passada $BASELINE_PASSADAS — as anteriores não aplicaram tudo (banco ocupado ou conexão instável; o que faltou está listado acima)."
     else
@@ -279,18 +294,6 @@ if [ -f supabase/baseline.sql ]; then
     c_ylw "  O app pode ainda funcionar."
     orientar_banco_incompleto
   fi
-
-  # ── O LOG DO BANCO FICA GUARDADO ──────────────────────────────────────────
-  #
-  # Ele era descartado: `raw` servia só para o filtro acima e morria com a
-  # função. O que o agente guarda em `system_update_runs.log_tail` é a CAUDA da
-  # atualização — Docker e reinício —, e o banco acontece antes disso.
-  #
-  # Medido em 2026-09-12, numa instalação real: duas regras de isolamento
-  # sumiram durante uma atualização, o funil ficou vazio para todo mundo, e não
-  # houve como saber por quê — a evidência tinha sido jogada fora. A única coisa
-  # que restou foi a hipótese.
-  printf '%s\n' "$raw" > "$PROJECT_DIR/.deskcomm-banco.log" 2>/dev/null || true
 
   # ── E AS REGRAS DE ISOLAMENTO SÃO CONFERIDAS ──────────────────────────────
   #

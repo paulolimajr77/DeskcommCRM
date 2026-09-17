@@ -37,7 +37,7 @@ compartilhada do agent-engine) · Next.js 16 Route Handlers · Supabase/Postgres
 |---|---|---|
 | G1 | **Multi-tenant:** toda query que cruza tabela tenant-aware filtra `organization_id` explicitamente. Cada organização é um cliente pagante — número sem filtro não é medição | `CLAUDE.md` › Multi-tenancy |
 | G2 | **Migration sai como TRIPLA:** arquivo em `supabase/migrations/`, apêndice idempotente em `supabase/baseline.sql`, linha em `supabase/migrations/MANIFEST.md` | doutrina de Migrations do `CLAUDE.md` |
-| G3 | **Próximo `NNNN` nesta branch (`vps/pljr-combinada`) é `0279`** — medido: `ls supabase/migrations/*.sql \| sed -E 's/.*_([0-9]{4})_.*/\1/' \| sort -n \| tail -1` → `0278`. **`origin/main` só chegou a `0274`** — esta branch já tem 0275-0278 que o upstream não tem ainda. Se este trabalho for para o Rafael, renumerar a partir de `origin/main` é passo separado (ver Tarefa 0 do plano do funil como precedente) | medido em 2026-09-17 |
+| G3 | **`NNNN` desatualiza SOZINHO enquanto a fila roda — meça de novo em CADA tarefa que cria migration, nunca confie num número escrito neste plano.** Medido na escrita do plano: próximo livre era `0279` nesta branch (`worktree feat/proposta-comercial`, nascida de `origin/main`); a Tarefa 0, ao executar, mediu de novo e achou `0274` como o maior real (duas migrations do upstream chegaram à branch entre a escrita do plano e o dispatch) — usou `0275`, e todo texto deste plano que ainda cita `0279`/`0280`/`0281` está desatualizado nesse sentido. Comando de medição, sempre antes de nomear o arquivo: `ls supabase/migrations/*.sql \| sed -E 's/.*_([0-9]{4})_.*/\1/' \| sort -n \| tail -1` | medido em 2026-09-17; corrigido durante a execução da Tarefa 0 (commit `5362dc8f`) |
 | G4 | **`agent_inbox_items.kind` mexe em QUATRO lugares, não só a constraint:** (a) o CHECK no fim do apêndice do `baseline.sql`, reconstruído por bloco ÚNICO — nunca um segundo `add constraint`; (b) a migration mais recente que o reconstrói, com a lista **idêntica**; (c) a união `InboxKind` em `lib/agent-engine/db/repository.ts:28`; (d) os dois `Record<InboxKind, ...>` exaustivos — `POLITICAS_DE_AVISO` (`lib/ai/inbox-destino.ts`) e o mapa de títulos em `lib/ai/agent-inbox-copy.ts`. Faltar (c) ou (d) quebra o `tsc`, não um teste | `tests/unit/kind-check-migration-x-baseline.test.ts`; `satisfies Record<InboxKind, ...>` nos dois arquivos |
 | G5 | **Valor novo em `agent_inbox_items.kind` entra perto do FIM da lista**, com comentário curto (não um bloco de 20 linhas) — `tests/unit/midia-nao-lida.test.ts` exige que um `kind` específico apareça nos primeiros 2000 caracteres a partir de `add constraint agent_inbox_items_kind_check`; um comentário longo empurra tudo pra fora da janela | `tests/unit/midia-nao-lida.test.ts:66-76,116-122` |
 | G6 | **`crm_lead_activities.type` é vocabulário ABERTO, sem CHECK.** Tipo novo entra só como literal na união `ActivityType` + chave em `ACTIVITY_LABELS`, ambos em `lib/leads/activity-vocabulary.ts` — nunca string solta no emissor | `lib/leads/activity-vocabulary.ts:16-18` |
@@ -90,8 +90,8 @@ gh api repos/paulolimajr77/DeskcommCRM/actions/jobs/<job-id>/logs
 | `lib/mcp/tools/propostas.ts` | Ferramenta `crm_draft_proposal` |
 | `lib/tarefas/vocabulario-de-origem.ts` | `TaskSourceKind` (`'promised_proposal'`, `'promised_followup'`) — vocabulário aberto, mesmo padrão de `activity-vocabulary.ts` |
 | `lib/schemas/propostas.ts` | `propostaItemSchema`/`propostaCreateSchema` compartilhados tela+rota |
-| `supabase/migrations/*_0280_proposta_ai_draft_enabled.sql` | Coluna `ai_agent_versions.proposal_ai_draft_enabled` (Tarefa 13) |
-| `supabase/migrations/*_0281_configuracoes_de_propostas.sql` | Seed de `organizations.settings.proposals`, nasce desligada (Tarefa 16) |
+| `supabase/migrations/*_proposta_ai_draft_enabled.sql` | Coluna `ai_agent_versions.proposal_ai_draft_enabled` (Tarefa 13 — NNNN medido na hora, ver G3) |
+| `supabase/migrations/*_configuracoes_de_propostas.sql` | Seed de `organizations.settings.proposals`, nasce desligada (Tarefa 16 — NNNN medido na hora, ver G3) |
 | `app/api/v1/proposals/route.ts` | `GET` lista, `POST` cria rascunho |
 | `app/api/v1/proposals/[id]/route.ts` | `GET` detalhe, `PATCH` edita itens/campos (revision otimista) |
 | `app/api/v1/proposals/[id]/assistant/route.ts` | `POST` gera lista de mudanças (não aplica) |
@@ -414,7 +414,7 @@ Em `supabase/migrations/MANIFEST.md`, acrescente (formato medido: uma linha, tim
 crases, nome do arquivo sem extensão entre crases, texto livre começando em negrito):
 
 ```
-| `20260917000000` | `0279_proposta_comercial` | **A proposta comercial ganha tabela própria — `crm_proposals`/`crm_proposal_items`, RLS, numeração sequencial por organização/ano alocada só no envio, e versionamento onde a revisão de uma proposta enviada cria uma v2 que herda o número.** Bucket `propostas` privado. Dois `kind` novos em `agent_inbox_items` para o anti-morte e o laço de retorno. |
+| `20260917000000` | `0279_proposta_comercial` | **A proposta comercial ganha tabela própria — `crm_proposals`/`crm_proposal_items`, RLS, numeração sequencial por organização/ano alocada só no envio, e versionamento onde a revisão de uma proposta enviada cria uma v2 que herda o número.** Bucket `propostas` privado. Três `kind` novos em `agent_inbox_items` (vencimento, laço de retorno, promessa não cumprida) e `crm_tasks.source_kind` (vocabulário aberto, para a promessa virar tarefa). |
 ```
 
 - [ ] **Passo 5: commit**
@@ -2903,7 +2903,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 exatamente o padrão medido de `leadFieldsEnabled → crm_update_lead` (`lib/ai/runtime/tools.ts:395-399`).
 
 **Files:**
-- Criar: `supabase/migrations/20260917000100_0280_proposta_ai_draft_enabled.sql`
+- Criar: `supabase/migrations/<timestamp>_<NNNN>_proposta_ai_draft_enabled.sql` (NNNN medido no Passo 0 — NÃO use `0280`, esse número está desatualizado, ver G3)
 - Modificar: `supabase/baseline.sql`, `supabase/migrations/MANIFEST.md`
 - Criar: `lib/mcp/tools/propostas.ts` + `lib/mcp/tools/propostas.test.ts`
 - Modificar: `lib/ai/runtime/tools.ts`
@@ -2913,10 +2913,20 @@ exatamente o padrão medido de `leadFieldsEnabled → crm_update_lead` (`lib/ai/
 - Consome: `pickToolsFromMcp` (padrão de auto-injeção).
 - Produz: ferramenta `crm_draft_proposal(lead_id, titulo, itens)` → cria rascunho com `drafted_by_agent_id` preenchido.
 
+- [ ] **Passo 0: medir o NNNN real ANTES de nomear o arquivo (G3 — obrigatório, não pule)**
+
+```bash
+ls supabase/migrations/*.sql | sed -E 's/.*_([0-9]{4})_.*/\1/' | sort -n | tail -1
+```
+
+O número deste plano (`0280`) foi escrito antes da Tarefa 0 medir de novo e achar `0274` como
+maior real (não `0278` como o plano supunha) — a Tarefa 0 saiu como `0275`. Use o valor medido
+AGORA + 1, também confira se outra tarefa deste mesmo dispatch já reservou o seguinte.
+
 - [ ] **Passo 1: migration da chave**
 
 ```sql
--- 20260917000100_0280_proposta_ai_draft_enabled.sql
+-- <timestamp>_<NNNN>_proposta_ai_draft_enabled.sql — NNNN do Passo 0
 alter table public.ai_agent_versions
   add column if not exists proposal_ai_draft_enabled boolean not null default false;
 comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
@@ -2924,7 +2934,11 @@ comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
 ```
 
 Cole o mesmo bloco no apêndice do `baseline.sql`, rotulado
-`-- ---- o agente pode rascunhar proposta sozinho (migration 0280) ----`, e a linha no MANIFEST.
+`-- ---- o agente pode rascunhar proposta sozinho (migration <NNNN>) ----`, e a linha no MANIFEST.
+**Antes de colar**, releia como a Tarefa 0 resolveu o caso de constraint reconstruída em bloco
+único (`tests/unit/baseline-constraint-reconstruida.test.ts`) — esta migration só adiciona coluna
+nova (`add column if not exists`), não mexe em nenhum CHECK existente, então não deve ter o mesmo
+problema, mas confirme lendo o comentário que a Tarefa 0 deixou no baseline antes de assumir.
 
 - [ ] **Passo 2: teste da ferramenta (vermelho)**
 
@@ -3066,7 +3080,7 @@ npx vitest run lib/mcp/tools/propostas.test.ts 2>&1 | grep -aE "Tests "
 - [ ] **Passo 8: commit**
 
 ```bash
-git add supabase/migrations/20260917000100_0280_proposta_ai_draft_enabled.sql supabase/baseline.sql supabase/migrations/MANIFEST.md lib/mcp/tools/propostas.ts lib/mcp/tools/propostas.test.ts lib/ai/runtime/tools.ts app/app/ai/agents/\[id\]/_components/AgentForm.tsx app/app/ai/agents/\[id\]/_actions.ts
+git add supabase/migrations/<timestamp>_<NNNN>_proposta_ai_draft_enabled.sql supabase/baseline.sql supabase/migrations/MANIFEST.md lib/mcp/tools/propostas.ts lib/mcp/tools/propostas.test.ts lib/ai/runtime/tools.ts app/app/ai/agents/\[id\]/_components/AgentForm.tsx app/app/ai/agents/\[id\]/_actions.ts
 git commit -m "feat(proposta): agente pode rascunhar sozinho, com chave para desligar
 
 crm_draft_proposal e ferramenta MCP auto-injetada por
@@ -3546,7 +3560,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 # Tarefa 16 — Configurações › Propostas
 
 **Files:**
-- Criar: `supabase/migrations/20260917000200_0281_configuracoes_de_propostas.sql`
+- Criar: `supabase/migrations/<timestamp>_<NNNN>_configuracoes_de_propostas.sql` (NNNN medido no Passo 0 — NÃO use `0281`, desatualizado, ver G3)
 - Modificar: `supabase/baseline.sql`, `supabase/migrations/MANIFEST.md`
 - Criar: `app/app/settings/tenant/proposals/page.tsx`, `_client.tsx`
 - Modificar: `app/api/v1/proposals/route.ts` (POST usa a validade padrão quando `valid_until` não vem)
@@ -3556,10 +3570,19 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
   sobrescrever sem merge).
 - Produz: `organizations.settings.proposals = { enabled, default_valid_days, default_conditions }`.
 
+- [ ] **Passo 0: medir o NNNN real ANTES de nomear o arquivo (G3 — obrigatório, não pule)**
+
+```bash
+ls supabase/migrations/*.sql | sed -E 's/.*_([0-9]{4})_.*/\1/' | sort -n | tail -1
+```
+
+Se a Tarefa 13 já rodou nesta mesma fila, o número que ela usou está reservado — confira o
+`ls supabase/migrations/` real, não deduza de cabeça.
+
 - [ ] **Passo 1: migration — nasce DESLIGADA por organização (G da doutrina §14.4/§15.1 da spec)**
 
 ```sql
--- 20260917000200_0281_configuracoes_de_propostas.sql
+-- <timestamp>_<NNNN>_configuracoes_de_propostas.sql — NNNN do Passo 0
 -- A capacidade nasce DESLIGADA: atualizar nao muda nada em organizacao
 -- nenhuma ate alguem ligar a regra (mesmo criterio do PR "Clientes pela
 -- agenda", aceito pelo Rafael — ver NOSSA-REGRA.md/CHANGELOG 1.28.0).
@@ -3698,7 +3721,7 @@ ler `organizations.settings.proposals.default_valid_days` e calcular `hoje + N d
 - [ ] **Passo 5: commit**
 
 ```bash
-git add supabase/migrations/20260917000200_0281_configuracoes_de_propostas.sql supabase/baseline.sql supabase/migrations/MANIFEST.md app/app/settings/tenant/proposals/ app/api/v1/settings/proposals/route.ts app/api/v1/proposals/route.ts lib/navigation/catalogo.ts
+git add supabase/migrations/<timestamp>_<NNNN>_configuracoes_de_propostas.sql supabase/baseline.sql supabase/migrations/MANIFEST.md app/app/settings/tenant/proposals/ app/api/v1/settings/proposals/route.ts app/api/v1/proposals/route.ts lib/navigation/catalogo.ts
 git commit -m "feat(proposta): Configuracoes > Propostas — nasce DESLIGADA
 
 enabled=false por padrao (atualizar nao muda nada ate alguem ligar —

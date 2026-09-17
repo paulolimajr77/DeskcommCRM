@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  *
  * ─── O defeito que este arquivo existe para impedir ─────────────────────────
  *
- * `lead_fields_propose_new` (migration 0271) nasceu completa por dentro: coluna
+ * `lead_fields_propose_new` (migration 0268) nasceu completa por dentro: coluna
  * no banco, carregada na config, e o motor decidindo por ela em
  * `inbound-turn.ts`. Faltava a única coisa que a tornava útil — **um jeito de
  * ligar**. Não havia interruptor na tela, ela não entrava no schema que valida

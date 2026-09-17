@@ -23,7 +23,7 @@ export const REFERENCIAS_DE_AVISO = {
   channel_session: { tabela: "channel_sessions", papel: "admin", rotulo: "Revisar conexão", href: () => "/app/connections", ativo: true },
   ai_knowledge_source: { tabela: "ai_knowledge_sources", papel: "manager", rotulo: "Abrir base de conhecimento", href: () => "/app/ai/knowledge/sources" },
   agent_case: { tabela: "agent_cases", papel: "agent", rotulo: "Abrir atendimento", href: (id: string) => `/app/ai/cases?caso=${id}` },
-  // O FUNIL, para a sugestão de campo (migration 0271). O destino é a tela onde
+  // O FUNIL, para a sugestão de campo (migration 0268). O destino é a tela onde
   // a decisão ACONTECE — Configurações › Funis, que é onde o campo é criado à
   // mão. Um aviso que não leva ao lugar da decisão vira recado.
   pipeline: { tabela: "crm_pipelines", papel: "admin", rotulo: "Abrir Configurações › Funis", href: () => "/app/settings/tenant/pipelines" },

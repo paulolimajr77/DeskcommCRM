@@ -3194,6 +3194,8 @@ export type Database = {
           birthday_md: number | null
           blocked_at: string | null
           blocked_reason: string | null
+          client_recognized_at: string | null
+          client_tag_by_system: string | null
           consent: Json
           cpf_encrypted: string | null
           custom_fields: Json
@@ -3204,6 +3206,7 @@ export type Database = {
           email: string | null
           email_normalized: string | null
           force_human: boolean
+          first_service_at: string | null
           id: string
           is_anonymized: boolean
           is_blocked: boolean
@@ -3231,6 +3234,8 @@ export type Database = {
           birthdate?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          client_recognized_at?: string | null
+          client_tag_by_system?: string | null
           consent?: Json
           cpf_encrypted?: string | null
           custom_fields?: Json
@@ -3241,6 +3246,7 @@ export type Database = {
           email?: string | null
           email_normalized?: string | null
           force_human?: boolean
+          first_service_at?: string | null
           id?: string
           is_anonymized?: boolean
           is_blocked?: boolean
@@ -3268,6 +3274,8 @@ export type Database = {
           birthdate?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          client_recognized_at?: string | null
+          client_tag_by_system?: string | null
           consent?: Json
           cpf_encrypted?: string | null
           custom_fields?: Json
@@ -3278,6 +3286,7 @@ export type Database = {
           email?: string | null
           email_normalized?: string | null
           force_human?: boolean
+          first_service_at?: string | null
           id?: string
           is_anonymized?: boolean
           is_blocked?: boolean
@@ -3997,6 +4006,7 @@ export type Database = {
           id: string
           is_archived: boolean
           is_default: boolean
+          is_client_pipeline: boolean
           name: string
           organization_id: string
           position: number
@@ -4011,6 +4021,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_default?: boolean
+          is_client_pipeline?: boolean
           name: string
           organization_id: string
           position?: number
@@ -4025,6 +4036,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_default?: boolean
+          is_client_pipeline?: boolean
           name?: string
           organization_id?: string
           position?: number
@@ -7615,7 +7627,7 @@ export type Database = {
         Relationships: Database["public"]["Tables"]["calendar_appointments"]["Relationships"]
       }
       calendar_selected_external_events: {
-        Row: Omit<Database["public"]["Tables"]["calendar_external_events"]["Row"], "starts_at" | "ends_at"> & { starts_at: string; ends_at: string }
+        Row: Omit<Database["public"]["Tables"]["calendar_external_events"]["Row"], "starts_at" | "ends_at" | "title"> & { starts_at: string; ends_at: string }
         Relationships: Database["public"]["Tables"]["calendar_external_events"]["Relationships"]
       }
 
@@ -7758,6 +7770,7 @@ export type Database = {
       fn_appointment_confirmation_sweep: { Args: { p_limit?: number; p_now?: string }; Returns: number }
       fn_appointment_enrollment_current: { Args: { p_org: string; p_id: string; p_node?: string | null }; Returns: boolean }
       fn_agenda_settings: { Args: { p_org: string; p_config: Json }; Returns: Json }
+      fn_definir_cliente_pela_agenda: { Args: { p_ligado: boolean; p_org: string }; Returns: Json }
       fn_followup_patch: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json }; Returns: number }
       fn_followup_apply_step: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json; p_event: Json }; Returns: number }
       fn_followup_inline_settle: { Args: { p_org: string; p_id: string; p_worker: string; p_done: boolean; p_error?: string | null; p_retry_at?: string | null; p_hold?: boolean; p_acquired_at?: string }; Returns: boolean }
@@ -7898,7 +7911,7 @@ export type Database = {
       fn_start_support: { Args: { p_actor: string; p_session: string; p_org: string; p_previous: string | null; p_mode?: string; p_ttl?: number }; Returns: string }
       fn_end_support: { Args: { p_actor: string; p_session: string }; Returns: Json }
 
-      /** Migration 0269 — mescla campos do funil DENTRO do banco, sob trava de linha. */
+      /** Migration 0266 — mescla campos do funil DENTRO do banco, sob trava de linha. */
       fn_lead_anotar_campos: {
         Args: { p_org: string; p_lead: string; p_campos: Json }
         Returns: Json
@@ -8147,7 +8160,12 @@ export type Database = {
         Returns: Json
       }
       fn_mover_leads_em_lote: {
-        Args: { p_lead_ids: string[]; p_organization_id: string; p_stage_id: string }
+        Args: {
+          p_lead_ids: string[]
+          p_lost_reason?: string
+          p_organization_id: string
+          p_stage_id: string
+        }
         Returns: {
           from_stage_id: string
           lead_id: string

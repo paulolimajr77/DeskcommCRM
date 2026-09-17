@@ -290,7 +290,14 @@ const moveInputShape = {
 export const crmMoveLeadStage: McpToolDefinition<typeof moveInputShape> = {
   name: "crm_move_lead_stage",
   description:
-    "Move um lead para outro stage dentro do MESMO pipeline. Cross-pipeline é proibido (use clone). Audit registra from/to stage e reason.",
+    "Move um lead para outro stage dentro do MESMO pipeline. Audit registra from/to stage e reason. " +
+    // "use clone" apontava para uma porta que o agente NÃO tem: não existe tool
+    // de clone em lib/mcp/tools/, e ele não faz HTTP autenticado por cookie de
+    // sessão. Instrução que não pode ser cumprida faz o modelo prometer ao
+    // cliente uma ação que nunca acontece — o mesmo defeito da #922, do outro
+    // lado. A tool de clone é fatia própria; até lá, a saída honesta é o humano.
+    "Levar o negócio para OUTRO funil é proibido aqui e ainda não é uma ferramenta sua: " +
+    "não prometa ao cliente que você vai mudar o funil — diga que vai passar para a equipe.",
   inputSchema: moveInputShape,
   category: "write",
   requiresRole: "agent",
@@ -315,7 +322,7 @@ export const crmMoveLeadStage: McpToolDefinition<typeof moveInputShape> = {
 };
 
 // ---------------------------------------------------------------------------
-// O AGENTE PROPÕE UM CAMPO QUE A EMPRESA AINDA NÃO DECLAROU (migration 0271)
+// O AGENTE PROPÕE UM CAMPO QUE A EMPRESA AINDA NÃO DECLAROU (migration 0268)
 // ---------------------------------------------------------------------------
 
 const propostaDeCampoShape = {
@@ -346,7 +353,7 @@ const propostaDeCampoShape = {
  * Tudo o que ela precisa já existe ali: fila de decisão humana, quem resolveu,
  * e uma tela que as pessoas abrem todo dia. Uma tabela irmã duplicaria worker
  * de vencimento, RLS e tela — e as duas divergiriam no primeiro conserto feito
- * de um lado só. Mesmo argumento que a 0270 fez para a proposta de VALOR.
+ * de um lado só. Mesmo argumento que a 0267 fez para a proposta de VALOR.
  *
  * ## A idempotência é do BANCO, não do modelo
  *

@@ -134,7 +134,7 @@ const versionShapeSchema = z
     // ligar o preenchimento automático é decisão de quem administra, nunca
     // herança de um agente que já existia.
     lead_fields_enabled: z.boolean().default(false),
-    // A SUGESTÃO de campo NOVO (migration 0271) é uma chave separada, e a
+    // A SUGESTÃO de campo NOVO (migration 0268) é uma chave separada, e a
     // separação é o ponto: preencher o que a empresa JÁ declarou é trabalho de
     // atendimento; sugerir o que ela ainda NÃO declarou é opinar sobre a
     // configuração da casa. Quem quer o primeiro quase nunca quer o segundo

@@ -114,7 +114,7 @@ describe("proposta com destino × idempotência", () => {
       select count(*) from information_schema.columns
        where table_name = 'contact_field_proposals' and column_name = 'lead_id';
     `);
-    expect(coluna, "contact_field_proposals.lead_id não existe — migration 0270 não aplicada?").toBe("1");
+    expect(coluna, "contact_field_proposals.lead_id não existe — migration 0267 não aplicada?").toBe("1");
 
     // E o índice indexa a EXPRESSÃO, não a coluna crua. É essa a diferença
     // entre idempotência viva e idempotência furada.

@@ -75,7 +75,7 @@ function versionPayloadFrom(src: Record<string, unknown>) {
     // `false`, e o dono vê o agente parar de perguntar sem ninguém ter mexido
     // no interruptor. O `?? false` cobre a linha de origem anterior à 0255.
     lead_fields_enabled: src.lead_fields_enabled ?? false,
-    // Mesma razão, mesma armadilha (0271): sem esta linha, reverter para uma
+    // Mesma razão, mesma armadilha (0268): sem esta linha, reverter para uma
     // versão anterior DESLIGA a sugestão em silêncio, e o clone simplesmente
     // para de propor na Central sem ninguém ter mexido em interruptor nenhum.
     lead_fields_propose_new: src.lead_fields_propose_new ?? false,

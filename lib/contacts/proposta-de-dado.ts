@@ -156,7 +156,7 @@ export async function proporDadoDoContato(
 }
 
 // ---------------------------------------------------------------------------
-// CAMPO DO FUNIL — a proposta com DESTINO (migration 0270)
+// CAMPO DO FUNIL — a proposta com DESTINO (migration 0267)
 // ---------------------------------------------------------------------------
 
 export interface DadosDaPropostaDeCampoDoFunil {
@@ -252,7 +252,7 @@ export async function proporCampoDoFunil(
     .single();
 
   if (error) {
-    // 23505 = o índice único parcial da 0270, agora por (org, contato, campo,
+    // 23505 = o índice único parcial da 0267, agora por (org, contato, campo,
     // destino). Não é falha: é a idempotência funcionando. O agente vai insistir
     // no mesmo campo a cada turno, e quem barra é o BANCO.
     if ((error as { code?: string }).code === "23505") {

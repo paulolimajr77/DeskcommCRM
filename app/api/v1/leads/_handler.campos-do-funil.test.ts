@@ -37,7 +37,7 @@ vi.mock("@/lib/audit", () => ({
 /**
  * O DUBLÊ DO BANCO PRECISA MESCLAR DE VERDADE.
  *
- * O merge saiu do handler e foi para `fn_lead_anotar_campos` (migration 0269),
+ * O merge saiu do handler e foi para `fn_lead_anotar_campos` (migration 0266),
  * porque no aplicativo ele perdia escrita concorrente em silêncio. Um dublê que
  * devolvesse `null` faria este arquivo medir o mock, não o produto — então ele
  * faz o que a função faz: `||` raso sobre o que já está na linha.
@@ -106,8 +106,15 @@ function bancoFalso(customFieldsAtuais: Record<string, unknown>) {
       Object.assign(linha, patch);
       return consulta;
     },
-    maybeSingle: async () => ({ data: { ...linha }, error: null }),
-    single: async () => ({ data: { ...linha }, error: null }),
+    // ⚠️ `custom_fields` vem de `campoDoBancoFalso`, não de `linha`: a issue
+    // #916 fez o handler reler o banco DEPOIS do merge de `fn_lead_anotar_campos`
+    // (a releitura prova o `updated_at` pós-trigger), e no Postgres real essa
+    // releitura já enxerga o que a RPC gravou — os dois são a MESMA tabela. Se
+    // esta leitura falsa devolvesse `linha.custom_fields` (nunca tocado pelo
+    // `update(patch)`, que propositalmente não carrega a coluna), a releitura
+    // final apagaria o merge da RPC — sintoma do mock, não do handler.
+    maybeSingle: async () => ({ data: { ...linha, custom_fields: campoDoBancoFalso }, error: null }),
+    single: async () => ({ data: { ...linha, custom_fields: campoDoBancoFalso }, error: null }),
   };
 
   return {
@@ -235,7 +242,7 @@ describe("campos personalizados do funil sobrevivem a anotação em pingue-pongu
       entrada({ custom_fields: {} }),
     );
 
-    // ⚠️ ATUALIZADO NA 0269: a coluna NÃO entra mais no patch (quem mescla é o
+    // ⚠️ ATUALIZADO NA 0266: a coluna NÃO entra mais no patch (quem mescla é o
     // banco), e por isso o item 2 do comentário acima deixou de valer. O resto
     // vale igual, e por um caminho melhor: `{}` chega à função, o `||` devolve
     // o que existia, e como nada mudou nenhuma atividade é escrita.

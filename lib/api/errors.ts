@@ -71,7 +71,7 @@ export const ApiErrorCodes = {
   maquina_nao_afirma_fato: "maquina_nao_afirma_fato", // etapa que afirma um fato recusa escrita de máquina — só uma pessoa
   next_action_sem_destino: "next_action_sem_destino", // aprovação não virou tarefa em crm_tasks — o slot fica intacto para nova tentativa
   channel_archived: "channel_archived", // ação sobre canal que o usuário excluiu (a linha só sobrevive como âncora das FKs)
-  knowledge_source_type_in_use: "knowledge_source_type_in_use", // já existe fonte ATIVA daquele tipo para o agente (índice ai_knowledge_sources_unique_per_agent)
+  knowledge_source_type_in_use: "knowledge_source_type_in_use", // fonte ATIVA do mesmo tipo no agente — era o índice ai_knowledge_sources_unique_per_agent, que a 0181 derrubou; nenhuma rota emite mais este código
   voice_already_paired: "voice_already_paired", // POST /voice/sessions/pair com aparelho já vinculado — a saída é DELETE /voice/sessions, nunca re-parear por cima (ver a rota)
 
   // 422 — semântica

@@ -78,6 +78,8 @@ export const POLITICAS_DE_AVISO = {
   // cai em "sem destino" com a orientação abaixo: o telefone está no corpo do
   // aviso, escrito pelo worker.
   voice_call_missed: { refs: ["contact"], orientacao: "Retorne a ligação quando puder — quem ligou não foi atendido." },
+  passos_esgotados: { refs: ["conversation"], orientacao: "O assistente parou no meio de uma tarefa sem terminar naturalmente — confira a conversa e continue de onde ele parou." },
+  laco_de_retorno_caiu: { refs: ["organization"], orientacao: "Uma das medidas de acompanhamento do assistente caiu de forma sustentada — revise o que ele deveria estar completando." },
   other: { refs: ["lead", "channel_session", "appointment", "ai_agent"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
 } satisfies Record<InboxKind, Politica>;
 

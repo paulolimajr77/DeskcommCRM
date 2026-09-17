@@ -74,6 +74,14 @@ export type InboxKind =
   // não distingue "tocou e ninguém pegou" de "o operador recusou", e para quem
   // lê a Central os dois pedem a mesma coisa: alguém precisa ligar de volta.
   | 'voice_call_missed'
+  // (migration 0276) O turno bateu no teto de passos e parou no meio, sem
+  // terminar naturalmente — o `return` mudo de antes virava conversa sem
+  // resposta e ninguém sabia a causa.
+  | 'passos_esgotados'
+  // (migration 0276) Uma das duas contagens do laço de retorno da organização
+  // caiu de forma sustentada. Reservado para uma tarefa futura (Peça 11); a
+  // constraint do banco já aceita o valor.
+  | 'laco_de_retorno_caiu'
   | 'other';
 
 export interface InboxItemRow {

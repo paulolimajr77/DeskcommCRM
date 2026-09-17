@@ -58,7 +58,7 @@ compartilhada do agent-engine) · Next.js 16 Route Handlers · Supabase/Postgres
 | G24 | **A saída estruturada do assistente NÃO usa `generateObject` solto.** Medido: toda chamada de IA do produto passa por `runModelCall` (BYOK, orçamento via `LlmBudgetExceededError`, allowlist de egress anti-SSRF, auditoria em `llm_calls`), que só expõe `generateText`. O desenho correto é tool-calling forçado dentro de `runModelCall`, copiando o precedente de `app/api/v1/ai/routers/[id]/test/route.ts` (`getSkillsPool()` + `llmEdgeConfigFromEnv`) | medido 2026-09-17, ANTES de despachar a Tarefa 9, ver Tarefas 9/10 |
 | G21 | **"Proposta prometida e não criada" (sinal 4 do laço de retorno, §9 da spec) ENTRA neste plano** — decisão do dono em 2026-09-17, revertendo a exclusão inicial. O pré-requisito que a spec assume pronto (promessa vira `crm_tasks` com dono e prazo) **não existia** — medido, `crm_tasks` não era referenciado em `lib/agent-engine/` nem `lib/ai/`, só a detecção e o aviso sem-dono (`promise_unfulfilled`) existiam. Este plano constrói o elo que faltava (Tarefa 1) como parte de si mesmo, **não** inventando o sinal: a PESSOA que resolve o aviso é quem declara "isto é uma promessa de proposta" e escolhe o prazo — a máquina não classifica o texto sozinha. Mesmo princípio de P6 do plano do funil ("a máquina não afirma fato; a pessoa sim") | decisão do dono, 2026-09-17 |
 | G22 | **Onda 7 da spec (link público de aceite) não entra** — a própria spec já a adia ("depois, se houver demanda"). Este plano cobre só a Onda 1 do aceite: humano registra manualmente | spec §8 |
-| G23 | **"Rascunho automático pela IA" é uma FERRAMENTA MCP nova (`crm_draft_proposal`), não um hook no meio do turno.** Decisão de design deste plano: mexer em `inbound-turn.ts` para disparar geração automática é a superfície de maior risco do agent-engine; o padrão de ferramenta injetada por chave (`leadFieldsEnabled` → `crm_update_lead`, medido em `lib/ai/runtime/tools.ts:395-399`) já resolve "o agente pode rascunhar quando o cliente pede" sem cirurgia no pipeline de decisão | decisão deste plano, com precedente medido |
+| G23 | **"Rascunho automático pela IA" é uma FERRAMENTA MCP nova (`crm_draft_proposal`), não um hook no meio do turno.** Decisão de design deste plano: mexer em `inbound-turn.ts` para disparar geração automática é a superfície de maior risco do agent-engine; o padrão de ferramenta injetada por chave (`handoffToolEnabled` → `crm_request_human_handoff`, medido em `lib/ai/runtime/tools.ts:257-264`, neste worktree/`origin/main`) já resolve "o agente pode rascunhar quando o cliente pede" sem cirurgia no pipeline de decisão. **Correção 2026-09-17:** o plano citava originalmente `leadFieldsEnabled` como precedente — essa chave só existe na branch `vps/pljr-combinada` (trabalho do plano do funil, ainda não chegou a `origin/main`, onde este worktree nasceu); medido pela Tarefa 1, que achou o mesmo tipo de ausência para `negocioDaConversa`. `handoffToolEnabled` é o precedente real, disponível aqui | corrigido em 2026-09-17, ver ledger da Tarefa 1 |
 
 **Gates ao fim de cada tarefa** (executados pelo CI do fork — G12):
 
@@ -2927,10 +2927,16 @@ AGORA + 1, também confira se outra tarefa deste mesmo dispatch já reservou o s
 
 ```sql
 -- <timestamp>_<NNNN>_proposta_ai_draft_enabled.sql — NNNN do Passo 0
+--
+-- default TRUE, de propósito (spec §16 decisão 3 + §15.1, linhas 578-583):
+-- "quem ligou Propostas quer proposta; obrigar a achar uma segunda chave é o
+-- jeito de o recurso morrer desligado". Não confundir com a capacidade
+-- "Propostas" da ORGANIZAÇÃO (Tarefa 16), que nasce DESLIGADA — são dois
+-- níveis diferentes, e só o de cima (organização) nasce off.
 alter table public.ai_agent_versions
-  add column if not exists proposal_ai_draft_enabled boolean not null default false;
+  add column if not exists proposal_ai_draft_enabled boolean not null default true;
 comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
-  'O agente pode rascunhar uma proposta sozinho quando ligado. A pessoa sempre revisa e envia (spec §3).';
+  'O agente pode rascunhar uma proposta sozinho quando ligado. Default TRUE dentro de quem ligou a capacidade "Propostas" — a pessoa sempre revisa e envia (spec §3, §16 decisão 3).';
 ```
 
 Cole o mesmo bloco no apêndice do `baseline.sql`, rotulado
@@ -3038,9 +3044,14 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
 Onde as ferramentas são catalogadas (mesmo lugar de `agendamento.ts:176`), adicione
 `crmDraftProposal` com `pacotes: ["vender"]`.
 
-- [ ] **Passo 5: auto-injeção por chave — copiar o padrão de `leadFieldsEnabled`**
+- [ ] **Passo 5: auto-injeção por chave — copiar o padrão de `handoffToolEnabled`**
 
-Em `lib/ai/runtime/tools.ts`, logo após o bloco de `input.leadFieldsEnabled` (linha ~395-399):
+**Correção 2026-09-17:** o precedente original citado (`leadFieldsEnabled`) não existe neste
+worktree — confirme com `grep -c "leadFieldsEnabled" lib/ai/runtime/tools.ts` (deve dar 0). O
+precedente real, medido, é `handoffToolEnabled` → `crm_request_human_handoff`.
+
+Em `lib/ai/runtime/tools.ts`, logo após o bloco de auto-injeção do handoff (linha ~257-264, dentro
+de `pickToolsFromMcp`):
 
 ```ts
   if (input.proposalAiDraftEnabled && !result["crm_draft_proposal"]) {
@@ -3051,13 +3062,20 @@ Em `lib/ai/runtime/tools.ts`, logo após o bloco de `input.leadFieldsEnabled` (l
   }
 ```
 
-Adicione `proposalAiDraftEnabled: boolean` a `PickToolsInput` e propague de onde
-`leadFieldsEnabled` já é lido da versão publicada do agente até aqui (mesmo caminho).
+Adicione `proposalAiDraftEnabled: boolean` à interface de input de `pickToolsFromMcp` (confira o
+nome exato dela no arquivo — pode não se chamar `PickToolsInput` neste worktree, meça antes de
+escrever) e propague de onde `handoffToolEnabled` já é lido da versão publicada do agente até
+aqui (mesmo caminho — `grep -n "handoffToolEnabled" lib/ai/runtime/tools.ts` para achar todos os
+pontos de propagação, não só o de auto-injeção).
 
 - [ ] **Passo 6: toggle na tela do agente**
 
-Em `app/app/ai/agents/[id]/_components/AgentForm.tsx`, ao lado do bloco `lead_fields_enabled`
-(linha ~1138-1192), mesmo padrão de `Switch` + `patch()`:
+**Correção 2026-09-17:** mesmo problema — `lead_fields_enabled` não existe em
+`app/app/ai/agents/[id]/_components/AgentForm.tsx` neste worktree (`grep -c "lead_fields_enabled"`
+dá 0). O precedente real, medido, é o bloco "Handoff" (linhas ~1122-1135): um `Card` com `Switch` +
+`Label`, usando `form.handoff_tool_enabled`/`patch({ handoff_tool_enabled: v })`. Copie essa
+estrutura (não precisa do `Card` inteiro nem do `HandoffKeywordsInput` que vem depois — só o padrão
+`Switch` + `patch()`):
 
 ```tsx
 <Switch
@@ -3068,8 +3086,17 @@ Em `app/app/ai/agents/[id]/_components/AgentForm.tsx`, ao lado do bloco `lead_fi
 />
 ```
 
-E a coluna nova entra na lista persistida por `_actions.ts` (mesmo ponto onde
-`lead_fields_enabled` é gravado).
+Adicione `proposal_ai_draft_enabled` ao tipo do formulário (mesmo lugar onde `handoff_tool_enabled:
+boolean` está declarado, ~linha 164) e ao estado inicial (~linha 230), com default
+`version?.proposal_ai_draft_enabled ?? true` — **ligado**, não desligado. A spec é explícita sobre
+isso (`docs/superpowers/specs/2026-09-16-proposta-comercial-design.md:578-583`): há DOIS níveis de
+"nasce desligado" que não se confundem — a capacidade "Propostas" da ORGANIZAÇÃO nasce desligada
+(Tarefa 16, `enabled: false` em `organizations.settings.proposals`), mas o rascunho automático da
+IA, **dentro de quem já ligou Propostas**, nasce ligado: "quem ligou Propostas quer proposta;
+obrigar a achar uma segunda chave é o jeito de o recurso morrer desligado". A migration do Passo 1
+já reflete isso (`default true`) — não altere para `false` aqui achando que está sendo mais
+conservador; seria uma contradição com a própria spec. A coluna nova entra na lista persistida por
+`_actions.ts` (mesmo ponto onde `handoff_tool_enabled` é gravado, ~linha 286).
 
 - [ ] **Passo 7: rodar e confirmar verde**
 

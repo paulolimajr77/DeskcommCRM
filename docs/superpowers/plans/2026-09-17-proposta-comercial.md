@@ -811,83 +811,93 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 # Tarefa 3 — Isolamento RLS: proposta entra no seed do invariante
 
+**Correção 2026-09-17 (antes de despachar):** este texto original assumia que `crm_proposal_items`
+NÃO tinha `organization_id` direto, e por isso pedia um caso especial "via join". Isso mudou na
+própria Tarefa 0: a revisão dela (achado Important 4) obrigou a adicionar `organization_id` direto
+a `crm_proposal_items` (com trigger de consistência contra `crm_proposals`, para a trava de
+suporte da migration 0274 alcançar a tabela). **Confirme isso primeiro** (`grep -n "organization_id"
+supabase/baseline.sql | grep -A3 "create table if not exists public.crm_proposal_items"`) — se
+bateu, as duas tabelas entram na lista GENÉRICA `TABLES`, sem caso especial nenhum; o passo 3
+original (caso via join) foi removido deste brief.
+
 **Files:**
 - Modificar: `tests/invariants/rls-isolation.test.ts`
 
 **Interfaces:**
 - Consome: `TABLES` (array), o bloco `DO $seed$` já existente.
-- Produz: cobertura de `crm_proposals` no invariante geral + 2 casos extras (padrão `ai_reply_drafts`) para `crm_proposal_items`, que não tem `organization_id` direto.
+- Produz: cobertura de `crm_proposals` E `crm_proposal_items` no invariante genérico (ambas têm `organization_id` próprio agora).
 
-- [ ] **Passo 1: acrescentar `crm_proposals` a `TABLES`**
+- [ ] **Passo 1: acrescentar `crm_proposals` E `crm_proposal_items` a `TABLES`**
 
 Em `tests/invariants/rls-isolation.test.ts`, no array `TABLES` (linha ~286), logo após
 `"crm_tasks"`:
 
 ```ts
-  // migration 0279 — a proposta comercial. Read/write org-scoped sem gate de
+  // migration 0275 — a proposta comercial. Read/write org-scoped sem gate de
   // papel além de fn_role_at_least('agent'); o gate de ENVIO (manager) é
   // medido na rota, não aqui (mesmo eixo separado de catalog_products acima).
   "crm_proposals",
+  // crm_proposal_items ganhou organization_id próprio na revisão da Tarefa 0
+  // (Important 4 — sem isso a tabela escapava da trava de suporte da 0274).
+  // Confirmado com trigger de consistência contra crm_proposals.organization_id.
+  "crm_proposal_items",
 ```
 
 - [ ] **Passo 2: seed dentro do bloco `DO $seed$`**
 
-Logo após o bloco de `crm_leads` (linha ~167-170), acrescente:
+Logo após o bloco de `crm_leads` (linha ~167-170), acrescente (confirme o nome exato da variável de
+contato em escopo — pode ser `v_contact` ou outro nome; releia o `DO $seed$` antes de assumir):
 
 ```sql
         if not exists (select 1 from public.crm_proposals where organization_id = v_org) then
           insert into public.crm_proposals
             (organization_id, lead_id, contact_id, titulo, total_cents)
           select v_org, id, v_contact, 'RLS invariant proposal', 1000
-          from public.crm_leads where organization_id = v_org limit 1;
+          from public.crm_leads where organization_id = v_org limit 1
+          returning id into v_proposta;
+        end if;
+
+        if v_proposta is not null and not exists (
+          select 1 from public.crm_proposal_items where proposal_id = v_proposta
+        ) then
+          insert into public.crm_proposal_items
+            (proposal_id, organization_id, descricao, quantidade, preco_unitario_cents, position)
+          values (v_proposta, v_org, 'RLS invariant item', 1, 1000, 1000);
         end if;
 ```
 
-`v_contact` já existe no escopo do `DO` (usado pelo bloco de `ai_reply_drafts`). Confirme que ele
-ainda está em escopo no ponto de inserção — se o `DO` já saiu do bloco do `contact`, releia o
-`v_contact` com um `select ... into v_contact` antes.
+Declare `v_proposta uuid;` junto com as outras variáveis do `DO` (procure o bloco `declare` no topo
+do `DO $seed$`). **Atenção:** se a proposta já existia de uma rodada anterior do seed (idempotência
+— `if not exists`), `v_proposta` fica `null` nessa passada e o item não é inserido de novo; troque
+o primeiro `if not exists` por um `select id into v_proposta from crm_proposals where
+organization_id = v_org and titulo = 'RLS invariant proposal'` ANTES do `if not exists`, para
+`v_proposta` estar sempre preenchido nas rodadas seguintes (mesmo padrão que os outros blocos do
+seed já usam para tabelas idempotentes — releia como o bloco de `crm_leads` faz isso, se fizer).
 
-- [ ] **Passo 3: casos extras para `crm_proposal_items` (padrão `ai_reply_drafts`)**
-
-Depois do bloco `it("ai_reply_drafts: ...")` (linha ~366), acrescente:
-
-```ts
-  it("crm_proposal_items: org A não lê os itens da proposta de B (via join)", () => {
-    const crossTenant = countAs(
-      USER_A,
-      `select count(*) from public.crm_proposal_items i
-       join public.crm_proposals p on p.id = i.proposal_id
-       where p.organization_id = '${ORG_B}';`,
-    );
-    expect(crossTenant).toBe(0);
-  });
-```
-
-(Sem seed adicional de itens é necessário para este caso — a ausência de linhas cross-tenant já
-prova isolamento; um item nasce como parte da Tarefa 5/6, quando a rota de criação existir. Se
-quiser positivo aqui, insira 1 item por org no Passo 2 também — opcional, não bloqueia esta tarefa.)
-
-- [ ] **Passo 4: empurrar e conferir no CI**
+- [ ] **Passo 3: empurrar e conferir no CI**
 
 Esta suíte não roda localmente (G11). Empurre e cheque o job `invariants`:
 
 ```bash
 git add tests/invariants/rls-isolation.test.ts
-git commit -m "test(invariants): crm_proposals entra no seed de isolamento RLS
+git commit -m "test(invariants): crm_proposals e crm_proposal_items entram no seed de isolamento RLS
 
-Adiciona a tabela ao loop generico de TABLES (org A nao le linha de B,
-org A le a propria) e um caso extra para crm_proposal_items, que nao
-tem organization_id direto e depende do join com crm_proposals.
+Adiciona as duas tabelas ao loop generico de TABLES (org A nao le
+linha de B, org A le a propria) — as duas tem organization_id proprio
+desde a revisao da Tarefa 0, entao nao precisam de caso especial via
+join.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 git push fork <branch>
 gh run list --repo paulolimajr77/DeskcommCRM --branch <branch> --limit 3
 ```
 
-**Sabotagem (G14):** depois de verde no CI, comente a policy `crm_proposals_select` numa branch
-local descartável (`create policy ... using (true)`), rode o job de novo, confirme que os dois
-casos novos ficam vermelhos, reverta. Se o CI não acusar, a policy real está fraca — pare e
-investigue antes de seguir.
+**Sabotagem (G14):** depois de verde no CI, comente a policy `crm_proposal_items_select` numa
+branch local descartável (`create policy ... using (true)`), rode o job de novo, confirme que o
+caso de `crm_proposal_items` fica vermelho, reverta. Se o CI não acusar, a policy real está fraca —
+pare e investigue antes de seguir. (A policy de `crm_proposals_select` já foi coberta por este
+mesmo tipo de checagem quando a Tarefa 0 foi revisada — não precisa repetir aqui, mas não custa
+conferir de novo se sobrar tempo.)
 
 ---
 

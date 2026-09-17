@@ -44,13 +44,27 @@ create index if not exists crm_proposals_org_lead_idx
 create index if not exists crm_proposals_org_status_idx
   on public.crm_proposals(organization_id, status);
 -- Só uma proposta pode ocupar um número por organização/ano — parcial porque
--- rascunho nunca tem numero/ano.
+-- rascunho nunca tem numero/ano. `status <> 'substituida'` de propósito: é o
+-- que permite a v2 herdar o MESMO numero/ano da v1 quando uma proposta
+-- ENVIADA é revisada (spec §5.4) — a v1 continua existindo como linha
+-- legível, marcada `substituida`, e sai da unicidade para abrir espaço para a
+-- v2. Quem cria a v2 (Tarefa 14) marca a v1 como substituida ANTES de, ou na
+-- mesma operação que, grava o numero em v2 — senão o índice ainda bloqueia
+-- por uma fração de segundo. Responsabilidade de quem escrever a Tarefa 14.
+drop index if exists crm_proposals_numero_ano_org_uidx;
 create unique index if not exists crm_proposals_numero_ano_org_uidx
-  on public.crm_proposals(organization_id, ano, numero) where numero is not null;
+  on public.crm_proposals(organization_id, ano, numero)
+  where numero is not null and status <> 'substituida';
 
 create table if not exists public.crm_proposal_items (
   id uuid primary key default gen_random_uuid(),
   proposal_id uuid not null references public.crm_proposals(id) on delete cascade,
+  -- Desnormalizado de crm_proposals.organization_id: toda tabela tenant-aware
+  -- precisa da própria coluna (CLAUDE.md) para a trava de suporte
+  -- (fn_aplicar_travas_de_suporte, migration 0274) alcançar esta tabela — a
+  -- função seleciona por `pg_attribute.attname = 'organization_id'`, e uma
+  -- tabela sem a coluna cai fora da trava (nem protegida, nem exempta).
+  organization_id uuid not null references public.organizations(id) on delete cascade,
   product_id uuid references public.catalog_products(id) on delete set null,
   descricao text not null,
   quantidade numeric not null default 1,
@@ -65,6 +79,8 @@ create table if not exists public.crm_proposal_items (
 );
 create index if not exists crm_proposal_items_proposal_idx
   on public.crm_proposal_items(proposal_id, position);
+create index if not exists crm_proposal_items_org_idx
+  on public.crm_proposal_items(organization_id);
 
 alter table public.crm_proposals enable row level security;
 alter table public.crm_proposal_items enable row level security;
@@ -73,9 +89,13 @@ alter table public.crm_proposal_items enable row level security;
 -- e deixa pronto (spec §16, decisão 2). O ENVIO exige `manager`/`admin`, mas
 -- isso é gate DE ROTA (Tarefa 14), não de RLS — a RLS não distingue "criar
 -- rascunho" de "marcar enviada" dentro de um UPDATE genérico.
+-- SELECT tem o bypass de suporte da plataforma (molde de catalog_products);
+-- WRITE não tem, de propósito — só gestor/agent da própria org edita.
 drop policy if exists crm_proposals_select on public.crm_proposals;
 create policy crm_proposals_select on public.crm_proposals
-  for select using (organization_id in (select public.fn_user_org_ids()));
+  for select using (
+    (organization_id in (select public.fn_user_org_ids())) or public.fn_is_platform_admin()
+  );
 
 drop policy if exists crm_proposals_write on public.crm_proposals;
 create policy crm_proposals_write on public.crm_proposals
@@ -85,35 +105,21 @@ create policy crm_proposals_write on public.crm_proposals
   with check (organization_id in (select public.fn_user_org_ids())
               and public.fn_role_at_least(organization_id, 'agent'));
 
+-- organization_id direto na linha (não mais join com crm_proposals): mais
+-- simples, mais rápido, e é o que a trava de suporte (0274) precisa medir.
 drop policy if exists crm_proposal_items_select on public.crm_proposal_items;
 create policy crm_proposal_items_select on public.crm_proposal_items
   for select using (
-    exists (
-      select 1 from public.crm_proposals p
-      where p.id = crm_proposal_items.proposal_id
-        and p.organization_id in (select public.fn_user_org_ids())
-    )
+    (organization_id in (select public.fn_user_org_ids())) or public.fn_is_platform_admin()
   );
 
 drop policy if exists crm_proposal_items_write on public.crm_proposal_items;
 create policy crm_proposal_items_write on public.crm_proposal_items
   for all
-  using (
-    exists (
-      select 1 from public.crm_proposals p
-      where p.id = crm_proposal_items.proposal_id
-        and p.organization_id in (select public.fn_user_org_ids())
-        and public.fn_role_at_least(p.organization_id, 'agent')
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.crm_proposals p
-      where p.id = crm_proposal_items.proposal_id
-        and p.organization_id in (select public.fn_user_org_ids())
-        and public.fn_role_at_least(p.organization_id, 'agent')
-    )
-  );
+  using (organization_id in (select public.fn_user_org_ids())
+         and public.fn_role_at_least(organization_id, 'agent'))
+  with check (organization_id in (select public.fn_user_org_ids())
+              and public.fn_role_at_least(organization_id, 'agent'));
 
 revoke all on public.crm_proposals from anon;
 revoke all on public.crm_proposal_items from anon;
@@ -133,6 +139,8 @@ comment on column public.crm_proposals.numero is
   'Nasce NULL. Alocado só no ENVIO — rascunho descartado não queima número (spec §5.3).';
 comment on column public.crm_proposals.versao is
   'v2 herda numero/ano da v1 quando uma proposta ENVIADA é revisada (spec §5.4).';
+comment on column public.crm_proposals.revision is
+  'Concorrência otimista do EDITOR: incrementa a cada PATCH de rascunho ou aplicação do assistente. Diferente de `versao`, que é a versão pós-envio, visível ao cliente no PDF.';
 
 -- Numeração: aloca dentro da MESMA transação do envio. A rota que chama isto
 -- (Tarefa 14) captura 23505 (unique_violation do índice parcial acima) e
@@ -149,12 +157,17 @@ as $$
   where organization_id = p_org and ano = p_ano;
 $$;
 
+-- Só service_role chama (a rota de envio, Tarefa 14, usa createAdminClient()).
+-- NUNCA authenticated: a função não confere se p_org pertence a quem chama —
+-- exposta a authenticated seria RPC cross-tenant (qualquer usuário logado
+-- aprenderia a numeração de outra organização passando o organization_id dela).
 revoke all on function public.fn_proposta_aloca_numero(uuid, int) from public, anon;
-grant execute on function public.fn_proposta_aloca_numero(uuid, int) to authenticated, service_role;
+grant execute on function public.fn_proposta_aloca_numero(uuid, int) to service_role;
 
--- Bucket privado, URL sempre assinada — mesmo padrão de `lgpd-exports`.
-insert into storage.buckets (id, name, public)
-values ('propostas', 'propostas', false)
+-- Bucket privado, URL sempre assinada — mesmo padrão de `lgpd-exports`
+-- (file_size_limit/allowed_mime_types inclusive; só PDF faz sentido aqui).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('propostas', 'propostas', false, 52428800, array['application/pdf'])
 on conflict (id) do nothing;
 
 drop policy if exists "propostas: leitura por organizacao" on storage.objects;

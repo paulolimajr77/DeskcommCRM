@@ -94,7 +94,14 @@ describe("o update.sh guarda a evidência e confere o resultado", () => {
     // janela sem disputa. E o trap é o que impede um erro no meio de deixar a
     // instalação pela metade.
     const pausa = UPDATE.indexOf("pausar_o_que_fala_com_o_banco");
-    const aplica = UPDATE.indexOf("psql \"$(url_do_schema)\" -f /b.sql");
+    // ⚠️ A aplicação do SQL foi extraída para `reaplicar_baseline` (função
+    // compartilhada em `_common.sh`, chamada por install E update); o
+    // `psql ... -f /b.sql` inline não existe mais AQUI, só dentro dela. A
+    // CHAMADA da função continua neste arquivo, na mesma ordem — é ela que
+    // prova que a aplicação acontece depois da pausa. `indexOf` da string
+    // exata da chamada, não só do nome da função: o nome também aparece antes,
+    // num comentário (linha do topo do arquivo), o que daria falso negativo.
+    const aplica = UPDATE.indexOf('reaplicar_baseline "$PROJECT_DIR/supabase/baseline.sql"');
     expect(pausa).toBeGreaterThan(-1);
     expect(aplica).toBeGreaterThan(pausa);
     expect(UPDATE).toMatch(/trap restaurar_servicos EXIT/);

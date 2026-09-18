@@ -1,4 +1,4 @@
--- 20260918031215_0276_proposta_ai_draft_enabled.sql
+-- 20260918031215_0312_proposta_ai_draft_enabled.sql
 --
 -- default TRUE, de propósito (spec §16 decisão 3 + §15.1, linhas 578-583):
 -- "quem ligou Propostas quer proposta; obrigar a achar uma segunda chave é o

@@ -9993,7 +9993,7 @@ alter table public.agent_inbox_items
     -- ou pedidos de agendamento x compromissos criados. Emitido por uma tarefa
     -- futura (Peça 11) — a constraint aceita o valor desde já.
     'laco_de_retorno_caiu',
-    -- proposta comercial (migration 0275): vencimento, laço de retorno, promessa não cumprida.
+    -- proposta comercial (migration 0311): vencimento, laço de retorno, promessa não cumprida.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
     'other'
   ));
@@ -28720,7 +28720,7 @@ end $f$;
 -- EXECUTE sai das duas origens e dos papéis que o default ACL do Supabase alcança.
 revoke execute on function public.fn_aplicar_travas_de_suporte() from public, anon, authenticated, service_role;
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0275) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0311) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -28939,10 +28939,11 @@ create policy "propostas: leitura por organizacao" on storage.objects
     and (split_part(name, '/', 1))::uuid in (select public.fn_user_org_ids())
   );
 
-drop policy if exists "propostas: escrita por service_role" on storage.objects;
-create policy "propostas: escrita por service_role" on storage.objects
-  for all using (bucket_id = 'propostas' and auth.role() = 'service_role')
-  with check (bucket_id = 'propostas' and auth.role() = 'service_role');
+-- Sem policy de escrita: `service_role` ignora RLS (é o papel que faz bypass),
+-- então uma policy aqui seria decorativa — mesmo padrão dos outros buckets do
+-- produto (`lgpd-exports`, `skill-assets`), nenhum deles tem uma. `auth.role()`
+-- também não existe fora de um projeto Supabase real, e quebrava o Postgres
+-- efêmero do CI (test:db) ao aplicar o baseline.
 
 -- A tarefa gravada a partir de um aviso de promessa (Tarefa 1) precisa dizer
 -- DE ONDE veio, sem exigir que toda `crm_tasks` tenha origem — vocabulário
@@ -29188,14 +29189,14 @@ alter table public.ai_reply_drafts
 
 notify pgrst, 'reload schema';
 
--- ---- o agente pode rascunhar proposta sozinho (migration 0276) ----
+-- ---- o agente pode rascunhar proposta sozinho (migration 0312) ----
 alter table public.ai_agent_versions
   add column if not exists proposal_ai_draft_enabled boolean not null default true;
 
 comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
   'O agente pode rascunhar uma proposta sozinho quando ligado. Default TRUE dentro de quem ligou a capacidade "Propostas" — a pessoa sempre revisa e envia (spec §3, §16 decisão 3).';
 
--- ---- configuracoes de propostas (migration 0277) ----
+-- ---- configuracoes de propostas (migration 0313) ----
 update public.organizations
 set settings = jsonb_set(
   coalesce(settings, '{}'::jsonb),

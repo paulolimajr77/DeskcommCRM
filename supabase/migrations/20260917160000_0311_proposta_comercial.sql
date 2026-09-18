@@ -1,4 +1,4 @@
--- 20260917160000_0275_proposta_comercial.sql
+-- 20260917160000_0311_proposta_comercial.sql
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -210,10 +210,11 @@ create policy "propostas: leitura por organizacao" on storage.objects
     and (split_part(name, '/', 1))::uuid in (select public.fn_user_org_ids())
   );
 
-drop policy if exists "propostas: escrita por service_role" on storage.objects;
-create policy "propostas: escrita por service_role" on storage.objects
-  for all using (bucket_id = 'propostas' and auth.role() = 'service_role')
-  with check (bucket_id = 'propostas' and auth.role() = 'service_role');
+-- Sem policy de escrita: `service_role` ignora RLS (é o papel que faz bypass),
+-- então uma policy aqui seria decorativa — mesmo padrão dos outros buckets do
+-- produto (`lgpd-exports`, `skill-assets`), nenhum deles tem uma. `auth.role()`
+-- também não existe fora de um projeto Supabase real, e quebrava o Postgres
+-- efêmero do CI (test:db) ao aplicar o baseline.
 
 -- Três `kind` novos em agent_inbox_items. Medido em 2026-09-17 contra
 -- supabase/baseline.sql: `agent_inbox_items_kind_check` reconstruída aqui com
@@ -235,7 +236,7 @@ alter table public.agent_inbox_items
     'channel_template_review', 'channel_number_alert', 'promise_unfulfilled',
     'contact_proposal_expired', 'budget_warning', 'conhecimento_nao_indexado',
     'voice_call_missed', 'case_stale',
-    -- proposta comercial (migration 0275):
+    -- proposta comercial (migration 0311):
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
     'other'
   ));

@@ -1,4 +1,4 @@
--- ---- configuracoes de propostas (migration 0277) ----
+-- ---- configuracoes de propostas (migration 0313) ----
 -- A capacidade nasce DESLIGADA: atualizar nao muda nada em organizacao
 -- nenhuma ate alguem ligar a regra (mesmo criterio do PR "Clientes pela
 -- agenda", aceito pelo Rafael — ver NOSSA-REGRA.md/CHANGELOG 1.28.0).

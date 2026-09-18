@@ -240,6 +240,7 @@ export const AUDIT_ACTIONS = [
   "leads.bulk_assigned",
   "attendant.availability_changed",
   "routing.config_changed",
+  "proposals.config_changed",
   // Mudar a régua do abandono (spec 16 §5.2) muda como TODO período passa a ser
   // lido — é mutação relevante, não preferência de exibição.
   "metrics.atrito_regua_changed",
@@ -534,6 +535,23 @@ export const AUDIT_ACTIONS = [
   "crm_task.created",
   "crm_task.updated",
   "crm_task.deleted",
+
+  // A proposta comercial (migration 0275, docs/superpowers/specs/2026-09-16-
+  // proposta-comercial-design.md). Rascunho, edição, ajuste pelo assistente,
+  // envio e decisão do cliente — cada um muda o que o negócio vale ou o que
+  // foi oferecido, e é disputa comum entre quem atende e quem fecha.
+  "proposal.drafted",
+  "proposal.edited",
+  "proposal.assistant_applied",
+  "proposal.sent",
+  "proposal.aceita",
+  "proposal.recusada",
+  // Cron de vencimento (Tarefa 17) — lote, sem resourceId de uma linha só.
+  "proposal.expired_batch",
+  // Ultimos dois sinais do laco de retorno (Tarefa 18) — cron em lote.
+  "proposal.promise_not_created_batch",
+  "proposal.acceptance_rate_batch",
+
   "organization.switched",
 
   // Chamada de voz WhatsApp (spec 18, migration 0234). Ligá-la vincula um

@@ -123,6 +123,7 @@ export async function buildMcpTurnTools(
     auth,
     toolIds: allowed,
     handoffToolEnabled: false,
+    proposalAiDraftEnabled: agentConfig.proposalAiDraftEnabled,
     handoffSignal,
     // "Em que negócios ele pode mexer" — o campo é OPCIONAL na interface, e
     // omiti-lo não é neutro: `escopo ?? []` e vazio significa NENHUM. Este

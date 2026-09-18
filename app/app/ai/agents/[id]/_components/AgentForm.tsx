@@ -162,6 +162,7 @@ interface FormState {
   history_token_window: number;
   handoff_keywords: string[];
   handoff_tool_enabled: boolean;
+  proposal_ai_draft_enabled: boolean;
   cases_enabled: boolean;
   lead_fields_enabled: boolean;
   lead_fields_propose_new: boolean;
@@ -230,6 +231,7 @@ function buildState(args: {
       "pessoa real",
     ],
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
+    proposal_ai_draft_enabled: version?.proposal_ai_draft_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
     // `?? false` = agente novo nasce sem perguntar nada dos campos do funil,
     // como o banco. Ligar é ato de quem administra, nunca padrão herdado.
@@ -290,6 +292,7 @@ function toVersionPayload(s: FormState) {
     history_token_window: s.history_token_window,
     handoff_keywords: s.handoff_keywords,
     handoff_tool_enabled: s.handoff_tool_enabled,
+    proposal_ai_draft_enabled: s.proposal_ai_draft_enabled,
     cases_enabled: s.cases_enabled,
     lead_fields_enabled: s.lead_fields_enabled,
     lead_fields_propose_new: s.lead_fields_propose_new,
@@ -1229,6 +1232,22 @@ export function AgentForm(props: Props) {
                 "Quando o cliente disser algo importante que não cabe em nenhum campo, o agente abre um aviso na Central sugerindo o campo — com a frase do cliente, para você conferir. Ele NUNCA cria o campo sozinho e nunca promete ao cliente que criou.",
               )}
             </p>
+          </Card>
+
+          {/* Propostas comerciais */}
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-medium">{t("Propostas comerciais")}</h3>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="proposal_ai_draft_enabled"
+                checked={form.proposal_ai_draft_enabled}
+                onCheckedChange={(v) => patch({ proposal_ai_draft_enabled: v })}
+                disabled={disabled}
+              />
+              <Label htmlFor="proposal_ai_draft_enabled">
+                {t("Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento")}
+              </Label>
+            </div>
           </Card>
 
           {/* Follow-up */}

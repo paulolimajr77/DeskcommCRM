@@ -23,6 +23,7 @@ export interface AgentVersionRow {
   history_token_window: number;
   handoff_keywords: string[];
   handoff_tool_enabled: boolean;
+  proposal_ai_draft_enabled: boolean;
   cases_enabled: boolean;
   lead_fields_enabled: boolean;
   lead_fields_propose_new: boolean;

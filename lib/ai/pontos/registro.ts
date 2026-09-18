@@ -222,6 +222,18 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     registraEm: "llm_calls",
   },
   {
+    id: "proposal_assistant",
+    rotulo: "Ajustar proposta por instrução",
+    oQueFaz:
+      "Interpreta um pedido curto ('baixa 10% e tira a hospedagem') e monta as mudanças na proposta comercial, para uma pessoa revisar antes de aplicar.",
+    papel: "atender",
+    exige: { tools: true },
+    emissor: "lib/propostas/assistente.ts",
+    sintomaDeFalha:
+      "O botão de ajustar a proposta por instrução não devolve nenhuma mudança, e quem está editando precisa mexer campo por campo à mão.",
+    registraEm: "llm_calls",
+  },
+  {
     id: "bot_respond",
     rotulo: "Responder (motor antigo)",
     oQueFaz:

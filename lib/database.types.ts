@@ -747,6 +747,7 @@ export type Database = {
           followup: Json
           handoff_keywords: string[]
           handoff_tool_enabled: boolean
+          proposal_ai_draft_enabled: boolean
           history_message_window: number
           history_token_window: number
           id: string
@@ -785,6 +786,7 @@ export type Database = {
           followup?: Json
           handoff_keywords?: string[]
           handoff_tool_enabled?: boolean
+          proposal_ai_draft_enabled?: boolean
           history_message_window?: number
           history_token_window?: number
           id?: string
@@ -823,6 +825,7 @@ export type Database = {
           followup?: Json
           handoff_keywords?: string[]
           handoff_tool_enabled?: boolean
+          proposal_ai_draft_enabled?: boolean
           history_message_window?: number
           history_token_window?: number
           id?: string

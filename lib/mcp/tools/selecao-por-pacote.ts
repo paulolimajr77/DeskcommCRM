@@ -47,6 +47,11 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  * escolhido no olho — subir mais seria apostar contra um argumento que continua
  * de pé só porque ninguém o mediu.
  *
+ * O catálogo `vender` cresceu de novo, de 17 para 18 tools (`crm_draft_proposal`,
+ * Tarefa 13 da proposta comercial — rascunhar proposta é trabalho do atendente,
+ * mesmo raciocínio de `crm_create_lead`). Mesmo defeito D3 que motivou subir de
+ * 20 para 25, um degrau adiante.
+ *
  * ═══ 25 → 26: o catálogo cresceu de novo (identificação + campos do funil) ═══
  *
  * As capacidades novas de identificar o cliente e preencher os campos

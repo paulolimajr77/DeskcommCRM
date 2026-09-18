@@ -1403,6 +1403,44 @@ export const DICIONARIO: Traducoes = {
   Execuções: { es: "Ejecuciones" },
   Histórico: { es: "Historial" },
   Propostas: { es: "Propuestas" },
+  "Nova proposta": { es: "Nueva propuesta" },
+  "Falha ao listar propostas.": { es: "No se pudieron listar las propuestas." },
+  "Nenhuma proposta cadastrada ainda.": { es: "Todavía no hay propuestas registradas." },
+  Número: { es: "Número" },
+  Aceita: { es: "Aceptada" },
+  Recusada: { es: "Rechazada" },
+  Vencida: { es: "Vencida" },
+  "Fechar a venda": { es: "Cerrar la venta" },
+  "Rascunhe, revise e envie propostas comerciais — do orçamento ao aceite.": {
+    es: "Redacta, revisa y envía propuestas comerciales — del presupuesto a la aceptación.",
+  },
+  "A proposta mudou desde que você abriu. Recarregue antes de editar.": {
+    es: "La propuesta cambió desde que la abriste. Recarga antes de editar.",
+  },
+  "Título da proposta": { es: "Título de la propuesta" },
+  Condições: { es: "Condiciones" },
+  "Ex: Prazo de 30 dias, 50% adiantado": { es: "Ej: Plazo de 30 días, 50% adelantado" },
+  Qtd: { es: "Cant." },
+  "Preço unit.": { es: "Precio unit." },
+  Desconto: { es: "Descuento" },
+  Subtotal: { es: "Subtotal" },
+  "+ Item à mão": { es: "+ Ítem manual" },
+  "Buscar produto no catálogo…": { es: "Buscar producto en el catálogo…" },
+  Total: { es: "Total" },
+  "Propostas comerciais": { es: "Propuestas comerciales" },
+  "Abrir proposta": { es: "Abrir propuesta" },
+  "A validade passou sem decisão do cliente. Confirme se ainda vale a pena manter a oferta ou revise o preço.": {
+    es: "La validez venció sin decisión del cliente. Confirma si todavía vale la pena mantener la oferta o revisa el precio.",
+  },
+  "A proporção de propostas aceitas caiu de forma sustentada — revise preço, prazo ou o texto padrão.": {
+    es: "La proporción de propuestas aceptadas cayó de forma sostenida — revisa precio, plazo o el texto estándar.",
+  },
+  "Uma promessa de proposta venceu sem que a proposta tenha sido criada. Abra o negócio e monte o rascunho.": {
+    es: "Una promesa de propuesta venció sin que la propuesta haya sido creada. Abre el negocio y arma el borrador.",
+  },
+  "Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento": {
+    es: "Dejar que el agente redacte una propuesta cuando el cliente pida un presupuesto",
+  },
   // ─── Follow-up: lista de fluxos ───
   "Fluxos automáticos de reengajamento — silêncio, mudança de etapa ou fim de conversa disparam mensagens sem intervenção manual.": {
     es: "Flujos automáticos de reenganche — el silencio, un cambio de etapa o el fin de la conversación disparan mensajes sin intervención manual.",
@@ -9350,6 +9388,33 @@ export const DICIONARIO: Traducoes = {
   "Entendi": { es: "Entendido" },
   "e-mail do convidado inválido": { es: "correo del invitado no válido" },
 
+  // AssistantPanel (Tarefa 11 — assistente de propostas)
+  "Assistente": { es: "Asistente" },
+  'Ex.: "baixa 10% e tira a hospedagem"': { es: 'Ej: "baja 10% y quita el alojamiento"' },
+  "Gerar": { es: "Generar" },
+  "Não consegui gerar as mudanças agora.": { es: "No pude generar los cambios ahora." },
+  "A proposta mudou desde que você gerou as sugestões — gere de novo.": { es: "La propuesta cambió desde que generaste las sugerencias — genera de nuevo." },
+  "item": { es: "artículo" },
+  "REMOVIDO": { es: "ELIMINADO" },
+  "(sem valor)": { es: "(sin valor)" },
+  "Aplicar": { es: "Aplicar" },
+  "Aplicando…": { es: "Aplicando…" },
+  "Não entendi o que mudar nesta proposta.": { es: "No entendí qué cambiar en esta propuesta." },
+
+  // Rota de decisão (Tarefa 15 — envio e aceite/recusa)
+  "Enviar ao cliente": { es: "Enviar al cliente" },
+  "Marcar como aceita": { es: "Marcar como aceptada" },
+  "Marcar como recusada": { es: "Marcar como rechazada" },
+  "Motivo da recusa (opcional):": { es: "Motivo del rechazo (opcional):" },
+  "Não foi possível enviar. Confira se você tem papel de gestor.": {
+    es: "No se pudo enviar. Confirma que tienes el rol de gestor.",
+  },
+  // Configurações de propostas (Tarefa 16)
+  "Ligar propostas comerciais para esta organização": {
+    es: "Activar propuestas comerciales para esta organización",
+  },
+  "Validade padrão (dias)": { es: "Validez predeterminada (días)" },
+  "Condições padrão": { es: "Condiciones predeterminadas" },
   // ─── issue #924 — a origem de quem chega pelo site ───
   // app/app/settings/conversoes/page.tsx (a explicação do link) e
   // app/app/contacts/_client.tsx (o filtro de origem que passou a ter "Site").

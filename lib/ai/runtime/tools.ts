@@ -39,6 +39,7 @@ export interface PickToolsInput {
   auth: McpAuthResult;
   toolIds: string[];
   handoffToolEnabled: boolean;
+  proposalAiDraftEnabled?: boolean;
   /**
    * Duas chaves independentes da tela do agente, lidas do banco por
    * `agent-config.ts` (`leadFieldsEnabled`/`leadFieldsProposeNew`). Opcionais
@@ -72,6 +73,7 @@ export interface PickToolsInput {
 }
 
 const HANDOFF_TOOL_NAME = "crm_request_human_handoff";
+const DRAFT_PROPOSAL_TOOL_NAME = "crm_draft_proposal";
 
 /**
  * O NEGÓCIO DESTA CONVERSA — derivado do contato, nunca do modelo.
@@ -402,6 +404,14 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     const propor = allTools.find((t) => t.name === "crm_propose_lead_field");
     if (propor) {
       result["crm_propose_lead_field"] = wrapMcpTool(propor, input);
+    }
+  }
+
+  // Auto-inject proposal draft tool when enabled — G23 design decision.
+  if (input.proposalAiDraftEnabled && !result[DRAFT_PROPOSAL_TOOL_NAME]) {
+    const draft = allTools.find((t) => t.name === DRAFT_PROPOSAL_TOOL_NAME);
+    if (draft) {
+      result[DRAFT_PROPOSAL_TOOL_NAME] = wrapMcpTool(draft, input);
     }
   }
 

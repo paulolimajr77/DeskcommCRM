@@ -125,6 +125,7 @@ const versionShapeSchema = z
       .max(20)
       .default(["falar com humano", "atendente", "pessoa real"]),
     handoff_tool_enabled: z.boolean().default(true),
+    proposal_ai_draft_enabled: z.boolean().default(true),
     cases_enabled: z.boolean().default(false),
     // ── Campos do funil (migration 0255) ────────────────────────────────────
     // O agente enxerga os campos personalizados declarados em

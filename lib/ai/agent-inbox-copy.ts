@@ -79,6 +79,9 @@ export const KIND_LABEL = {
   voice_call_missed: "Alguém ligou e ninguém atendeu",
   passos_esgotados: "O assistente parou no meio de uma tarefa",
   laco_de_retorno_caiu: "O assistente parou de completar o que promete",
+  proposal_expired_notice: "Uma proposta venceu sem decisão",
+  proposal_acceptance_rate_drop: "A taxa de aceite de propostas caiu",
+  proposal_promised_not_created: "Uma proposta prometida não foi criada",
   other: "Aviso do assistente",
 } as const satisfies Record<InboxKind, string>;
 

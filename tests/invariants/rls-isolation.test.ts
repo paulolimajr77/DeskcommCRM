@@ -102,6 +102,7 @@ beforeAll(() => {
       v_agent uuid;
       v_version uuid;
       v_boundary jsonb;
+      v_proposta uuid;
     begin
       foreach v_org in array array['${ORG_A}'::uuid, '${ORG_B}'::uuid] loop
         select id into v_sess from public.channel_sessions where organization_id = v_org limit 1;
@@ -167,6 +168,31 @@ beforeAll(() => {
         if not exists (select 1 from public.crm_leads where organization_id = v_org) then
           insert into public.crm_leads (organization_id, pipeline_id, stage_id, title)
             values (v_org, v_pipe, v_stage, 'RLS invariant lead');
+        end if;
+
+        -- crm_proposals/crm_proposal_items (migration 0275): a proposta comercial.
+        -- crm_proposal_items ganhou organization_id proprio na revisao da Tarefa 0
+        -- (Important 4), com trigger de consistencia contra crm_proposals.organization_id
+        -- (fn_verificar_org_do_item_da_proposta) — o insert abaixo usa v_org nos dois
+        -- lados de proposito, para nao bater na trava. Select-then-if-null-insert, mesmo
+        -- padrao de v_pipe/v_stage acima: precisa de v_proposta preenchido em toda
+        -- passada do loop (o seed roda 2x, uma por org), nao só na primeira.
+        select id into v_proposta from public.crm_proposals
+          where organization_id = v_org and titulo = 'RLS invariant proposal';
+        if v_proposta is null then
+          insert into public.crm_proposals
+            (organization_id, lead_id, contact_id, titulo, total_cents)
+          select v_org, id, v_contact, 'RLS invariant proposal', 1000
+          from public.crm_leads where organization_id = v_org limit 1
+          returning id into v_proposta;
+        end if;
+
+        if not exists (
+          select 1 from public.crm_proposal_items where proposal_id = v_proposta
+        ) then
+          insert into public.crm_proposal_items
+            (proposal_id, organization_id, descricao, quantidade, preco_unitario_cents, position)
+          values (v_proposta, v_org, 'RLS invariant item', 1, 1000, 1000);
         end if;
 
         if not exists (select 1 from public.org_guardrail_layers where organization_id = v_org) then
@@ -320,6 +346,14 @@ export const TABLES = [
   // controle positivo passaria por acerto. Quem mede a escrita é a rota, em
   // `tests/unit/tarefas-rota-nao-tem-porta-dos-fundos.test.ts`.
   "crm_tasks",
+  // migration 0275 — a proposta comercial. Read/write org-scoped sem gate de
+  // papel além de fn_role_at_least('agent'); o gate de ENVIO (manager) é
+  // medido na rota, não aqui (mesmo eixo separado de catalog_products acima).
+  "crm_proposals",
+  // crm_proposal_items ganhou organization_id próprio na revisão da Tarefa 0
+  // (Important 4 — sem isso a tabela escapava da trava de suporte da 0274).
+  // Confirmado com trigger de consistência contra crm_proposals.organization_id.
+  "crm_proposal_items",
   // 0227 — texto de sugestões: org + visibilidade da conversa por authenticated.
   "ai_reply_drafts",
   // 0232/0235 — chamada de voz. Guarda `peer_phone` (telefone da outra ponta) e

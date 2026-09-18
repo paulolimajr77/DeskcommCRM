@@ -82,6 +82,9 @@ export type InboxKind =
   // caiu de forma sustentada. Reservado para uma tarefa futura (Peça 11); a
   // constraint do banco já aceita o valor.
   | 'laco_de_retorno_caiu'
+  | 'proposal_expired_notice'
+  | 'proposal_acceptance_rate_drop'
+  | 'proposal_promised_not_created'
   | 'other';
 
 export interface InboxItemRow {

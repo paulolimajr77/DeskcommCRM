@@ -236,6 +236,9 @@ alter table public.agent_inbox_items
     'channel_template_review', 'channel_number_alert', 'promise_unfulfilled',
     'contact_proposal_expired', 'budget_warning', 'conhecimento_nao_indexado',
     'voice_call_missed', 'case_stale',
+    -- campos do funil (migrations 0284, 0287 — chegaram depois desta migration
+    -- ter sido escrita, no merge de feat/o-agente-preenche-os-campos-do-funil):
+    'lead_field_proposed', 'passos_esgotados', 'laco_de_retorno_caiu',
     -- proposta comercial (migration 0311):
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
     'other'

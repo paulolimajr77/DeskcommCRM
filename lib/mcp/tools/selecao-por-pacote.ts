@@ -47,11 +47,6 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  * escolhido no olho — subir mais seria apostar contra um argumento que continua
  * de pé só porque ninguém o mediu.
  *
- * O catálogo `vender` cresceu de novo, de 17 para 18 tools (`crm_draft_proposal`,
- * Tarefa 13 da proposta comercial — rascunhar proposta é trabalho do atendente,
- * mesmo raciocínio de `crm_create_lead`). Mesmo defeito D3 que motivou subir de
- * 20 para 25, um degrau adiante.
- *
  * ═══ 25 → 26: o catálogo cresceu de novo (identificação + campos do funil) ═══
  *
  * As capacidades novas de identificar o cliente e preencher os campos
@@ -76,8 +71,15 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  * daria todos, mas é quase dobrar o teto original (20) sem o instrumento de
  * degradação que ainda não existe. Quem for destravar os outros quatro mede a
  * degradação primeiro, ou aceita o mesmo argumento não medido de novo.
+ *
+ * ═══ Terceira subida: 26 → 27 (proposta comercial) ══════════════════════════
+ *
+ * `crm_draft_proposal` somou ao catálogo `vender` (17 → 18). Medido de novo:
+ * NENHUM segundo pacote cabia em 26 — atender exigia 36, escalar 34, organizar
+ * 38, evoluir 27, reter 28. `evoluir` (27) é de novo o menor — mesma régua, um
+ * degrau adiante.
  */
-export const TETO_TOOLS_POR_AGENTE = 26;
+export const TETO_TOOLS_POR_AGENTE = 27;
 
 /** O mínimo que a regra precisa saber de uma capacidade. */
 export interface CapacidadeSelecionavel {

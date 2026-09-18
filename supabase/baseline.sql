@@ -27407,6 +27407,16 @@ alter table public.ai_agent_versions
 comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
   'O agente pode rascunhar uma proposta sozinho quando ligado. Default TRUE dentro de quem ligou a capacidade "Propostas" — a pessoa sempre revisa e envia (spec §3, §16 decisão 3).';
 
+-- ---- configuracoes de propostas (migration 0277) ----
+update public.organizations
+set settings = jsonb_set(
+  coalesce(settings, '{}'::jsonb),
+  '{proposals}',
+  '{"enabled": false, "default_valid_days": 15, "default_conditions": null}'::jsonb,
+  true
+)
+where settings->'proposals' is null;
+
 -- ---- travas do modo somente leitura do suporte, depois de toda tabela (migration 0274) ----
 --
 -- ⚠️ ESTA CHAMADA É O ÚLTIMO BLOCO DO ARQUIVO. Tabela nova, coluna

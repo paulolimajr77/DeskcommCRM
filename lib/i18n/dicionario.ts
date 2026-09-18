@@ -9216,6 +9216,12 @@ export const DICIONARIO: Traducoes = {
   "Não foi possível enviar. Confira se você tem papel de gestor.": {
     es: "No se pudo enviar. Confirma que tienes el rol de gestor.",
   },
+  // Configurações de propostas (Tarefa 16)
+  "Ligar propostas comerciais para esta organização": {
+    es: "Activar propuestas comerciales para esta organización",
+  },
+  "Validade padrão (dias)": { es: "Validez predeterminada (días)" },
+  "Condições padrão": { es: "Condiciones predeterminadas" },
 };
 
 /**

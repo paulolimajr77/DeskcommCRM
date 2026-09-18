@@ -104,6 +104,22 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
       if (tabela === "crm_lead_activities") {
         return { insert: async () => ({ error: null }) };
       }
+      if (tabela === "organizations") {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () => ({
+                data: {
+                  settings: {
+                    proposals: { enabled: false, default_valid_days: 15, default_conditions: null },
+                  },
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       throw new Error(`tabela não mockada neste teste: ${tabela}`);
     },
   };

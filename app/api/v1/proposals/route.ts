@@ -84,6 +84,15 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const totalCents = calcularTotal(input.itens);
 
+  let validUntil = input.valid_until;
+  if (validUntil === undefined) {
+    const { data: org } = await supabase.from("organizations").select("settings").eq("id", authz.org.orgId).single();
+    const dias = ((org?.settings as Record<string, unknown> | null)?.proposals as { default_valid_days?: number } | undefined)?.default_valid_days ?? 15;
+    const data = new Date();
+    data.setDate(data.getDate() + dias);
+    validUntil = data.toISOString().slice(0, 10);
+  }
+
   const { data: proposta, error: propErr } = await supabase
     .from("crm_proposals")
     .insert({
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       contact_id: lead.contact_id,
       titulo: input.titulo,
       condicoes: input.condicoes ?? null,
-      valid_until: input.valid_until ?? null,
+      valid_until: validUntil ?? null,
       total_cents: totalCents,
       status: "rascunho",
     })

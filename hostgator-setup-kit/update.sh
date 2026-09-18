@@ -152,42 +152,23 @@ if ! git checkout --quiet "$TARGET_TAG" 2>&1; then
   die "Não consegui trocar para a versão $TARGET_TAG (parece haver mudanças locais que divergem).
      Rode 'git status' pra ver, ou peça ajuda. NÃO mexi no banco — está tudo como estava."
 fi
-# Na SEGUNDA volta (depois do re-exec) estes dois passos ja foram
-# reportados. Reportar de novo faria a tela de quem esta olhando andar
-# PARA TRAS por um instante, e voltar atras numa barra de progresso le-se
-# como "deu errado e recomecou".
-[ -z "${DESKCOMM_UPDATE_REEXEC:-}" ] && [ -n "${DESKCOMM_AGENT_REPORT:-}" ] && eval "${DESKCOMM_AGENT_REPORT_CMD}" codigo
 
-# ── DAQUI PRA FRENTE, QUEM MANDA E A VERSAO NOVA ─────────────────────────────
+# As funções do kit são carregadas na linha 16, ANTES deste checkout — então,
+# sem esta releitura, o resto desta atualização roda com as funções da versão
+# ANTIGA, e todo conserto que viva numa função do kit só chega na atualização
+# SEGUINTE. Foi medido numa VPS de produção em 17/09/2026: depois de atualizar
+# para a versão que conserta a linha do cron (que deixava um segredo escrito no
+# crontab, e portanto no syslog), a linha antiga continuava lá — o conserto
+# existia no disco e não tinha rodado. Duas passadas para aplicar um conserto é
+# o mesmo que exigir passo manual de quem opera a VPS, e a doutrina de
+# packaging proíbe.
 #
-# MEDIDO na instalacao real em 2026-09-13, e e um defeito de anos, nao de uma
-# entrega: a v1.17.15 trouxe uma pausa dos servicos antes de mexer no banco, e
-# depois de atualizar as tres pecas do Supabase estavam de pe havia duas horas e
-# meia. A pausa nao rodou.
-#
-# Por que: `source _common.sh` acontece na PRIMEIRA linha deste arquivo, e o
-# `git checkout` da versao nova so aqui, na etapa 3. Quem executa a atualizacao
-# e a versao ANTERIOR — aplicando o banco da versao nova. Ou seja, TODA correcao
-# do instalador chegava um update atrasada: a versao que traz o conserto era
-# instalada pela versao que ainda tem o defeito.
-#
-# E ha uma segunda aresta na mesma pedra: o `git checkout` troca o arquivo deste
-# script ENQUANTO o interpretador o le, e ele acompanha o arquivo por posicao em
-# BYTES. Arquivo novo de tamanho diferente = retomada no meio de uma linha.
-# Sobreviver a isso e sorte, nao desenho. O `exec` fecha as duas de uma vez.
-#
-# As flags nao sao enfeite:
-#   --to      o alvo ja foi decidido; redecidir arriscaria escolher outro
-#   --force   depois do checkout, HEAD JA E a tag alvo, e sem isto a segunda
-#             volta diria "voce ja esta na versao mais recente" e sairia sem
-#             tocar no banco — exatamente o passo que precisa rodar
-#   --skip-backup  o backup ja foi feito na primeira volta, e refaze-lo dobraria
-#             o tempo da atualizacao sem proteger mais ninguem
-if [ -z "${DESKCOMM_UPDATE_REEXEC:-}" ]; then
-  export DESKCOMM_UPDATE_REEXEC=1
-  c_ylw "Seguindo com o instalador da propria versao $TARGET_TAG."
-  exec bash "$KIT_DIR/update.sh" --to "$TARGET_TAG" --force --skip-backup
-fi
+# `_common.sh` só define funções e constantes no topo (`set -euo pipefail`,
+# COMPOSE, cores, REFUSED_RC), então reler é idempotente: nada é reexecutado
+# com efeito. O que muda é de onde vêm as funções daqui para baixo.
+source "$KIT_DIR/_common.sh"
+
+[ -n "${DESKCOMM_AGENT_REPORT:-}" ] && eval "${DESKCOMM_AGENT_REPORT_CMD}" codigo
 
 # ── 4. Banco: schema + correções de dados (schema ANTES do app) ──────────────
 # O baseline é idempotente e auto-curativo. Re-aplicar numa base que JÁ existe
@@ -519,7 +500,8 @@ if ! dc pull; then
   # frase tranquilizadora sobre o caso errado é o pior desfecho possível: o
   # `worker` e o `scheduler` têm `build:` ao lado do `image:` e o `up -d` os
   # constrói; o `app` NÃO tem, então se for a imagem dele que falta, o `up -d`
-  # morre logo abaixo — e dizer "sigo assim mesmo" teria sido mentira.
+  # falha logo abaixo e a guarda dele constrói a versão aqui — e dizer "sigo
+  # assim mesmo" teria sido mentira.
   if dc pull app >/dev/null 2>&1; then
     c_ylw "⚠ Não consegui puxar todas as imagens da versão ${VERSAO_ALVO}."
     c_ylw "  A do app veio; o que faltar é construído aqui (mais lento, mesmo resultado)."
@@ -548,7 +530,30 @@ garantir_rede_do_proxy
 # `docker rm -f ... || true`, idempotente de proposito, e la ele cobre o caminho
 # de ERRO, onde este ponto aqui nunca chega a ser alcancado.
 manutencao_desce
-dc up -d
+# O `up -d` falha por imagem ausente no disco e, com ele, a atualização inteira:
+# numa VPS de arquitetura diferente da das imagens publicadas o `pull` acima não
+# traz nada, e o `app` — ao contrário do worker e do scheduler — não tem `build:`
+# ao lado do `image:`, então o Compose não tem como construí-lo. Sem esta guarda
+# o script terminava como se tivesse dado certo e o dono ficava na versão velha
+# sem saber; pelo botão "Atualizar" do site, pior: o agente roda sozinho no cron
+# e não há ninguém lendo a tela para desconfiar.
+#
+# O gatilho é o CÓDIGO DE SAÍDA, nunca o texto do erro — arquitetura da VPS, tag
+# ainda publicando, pacote privado no registro e registro fora do ar caem no
+# mesmo caminho, sem depender de casar em inglês uma frase que o Docker muda. O
+# custo é o pior caso: um `up -d` que falhe por outro motivo gasta o build antes
+# de desistir. É o preço de não adivinhar.
+CONSTRUIU_AQUI=""
+if ! dc up -d; then
+  if construir_aqui_e_subir "$VERSAO_ALVO"; then
+    CONSTRUIU_AQUI=1
+  else
+    c_red "✖ A atualização não terminou: nem as imagens prontas desta versão nem a construção aqui funcionaram."
+    c_ylw "  O CRM segue no ar, na versão anterior. O erro está logo acima;"
+    c_ylw "  para reproduzir só a construção: docker compose $(dc_files) -f ${COMPOSE_BUILD} build"
+    exit 1
+  fi
+fi
 
 # O Caddyfile entra no container por bind mount de UM ARQUIVO, e bind mount de
 # arquivo fica preso ao inode. O `git pull` não edita o arquivo: escreve outro e
@@ -586,6 +591,15 @@ if [ -n "$ok" ]; then
     c_ylw "⚠ App no ar e saudável, mas o banco NÃO terminou limpo — o que fazer está no fim desta saída."
   else
     c_grn "✓ Atualização concluída — app no ar e saudável."
+    # Dito AQUI, no fim, porque é o que sobra na tela do site: o agent.sh manda o
+    # rabo da saída, e o build local encheu as linhas de cima com a própria
+    # construção. Sem esta frase o dono lê "concluída" e não faz ideia de que a
+    # VPS dele passou 20 minutos construindo imagens.
+    if [ -n "$CONSTRUIU_AQUI" ]; then
+      c_ylw "  (as três imagens desta versão foram construídas aqui nesta VPS: as"
+      c_ylw "   prontas não servem para a arquitetura dela. Toda atualização aqui"
+      c_ylw "   segue o mesmo caminho — é mais lento e não precisa de nada manual.)"
+    fi
   fi
   # Dito no fim, e não no início, porque é aqui que o dono lê. Se a execução
   # anterior deixou o pin pela metade, ele nunca soube — a tela dizia "concluída"

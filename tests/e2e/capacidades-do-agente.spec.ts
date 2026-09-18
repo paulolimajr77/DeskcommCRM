@@ -69,32 +69,45 @@ const TOOLS_DO_SEED = [
   "crm_get_lead",
   "crm_move_lead_stage",
   "crm_list_leads",
-  // ⚠️ AS SEIS ABAIXO ENTRARAM COM O TETO INDO DE 20 PARA 25 E DEPOIS PARA 26,
-  // e não são enfeite.
+  // ⚠️ AS SETE ABAIXO NÃO SÃO ENFEITE: elas existem para o cenário ESTOURAR.
   //
-  // A jornada do teto (issue #162) só existe se o cenário ESTOURAR: eram 3 do
-  // seed + 18 de "Atender" = 21 contra teto 20, e a tela recusava dizendo
+  // A jornada do teto (issue #162) só existe se a soma passar do teto: eram 3
+  // do seed + 18 de "Atender" = 21 contra teto 20, e a tela recusava dizendo
   // "faltam 1 vaga". Com teto 25 essas mesmas 21 passam, a recusa nunca acontece
   // e o caso vira um clique que sempre dá certo — verde sem medir nada. Oito
   // reproduziram a MESMA aritmética no teto 25: 8 + 18 = 26 > 25, recusa por 1
-  // vaga. Quando o teto subiu de novo (25 → 26, 2026-09-16), 8 + 18 = 26 deixou
-  // de estourar — mesmo defeito, terceira vez.
+  // vaga.
   //
-  // Nove reproduzem a aritmética no teto atual: 9 + 18 = 27 > 26, recusa por 1
-  // vaga; desligar uma deixa 8 + 18 = 26, que é o teto exato e passa.
+  // DUAS mudanças em paralelo, cada uma quebrando a conta de um jeito diferente:
+  // o teto subiu de novo (25 → 26, 2026-09-16), o que por si só já zerava a
+  // folga; e a #528 tirou `crm_send_whatsapp_message` da conta de "Atender"
+  // (o motor descarta a capacidade, e o pacote parou de contá-la), derrubando
+  // "Atender" de 18 para 17. Nenhuma das duas sozinha muda o desfecho — juntas,
+  // 8 + 17 = 25 < 26 não estoura mais.
+  //
+  // Sete reproduzem a aritmética com os dois números atuais: 7 + 17 = 24, e com
+  // os 3 do seed, 10 + 17 = 27 > 26, recusa por 1 vaga; desligar uma das sete
+  // deixa 9 + 17 = 26, que é o teto exato e passa.
   //
   // As escolhidas ficam FORA do pacote "Atender" de propósito — se alguma
   // estivesse dentro, a união seria menor que a soma e a conta acima não valeria.
-  // Quatro são a família de agenda, que é o assunto do defeito que subiu o teto.
+  // Cinco são a família de agenda/funil, que é o assunto do defeito que subiu o
+  // teto; as duas últimas são leitura pura de outro pacote, para a aritmética
+  // continuar estourando depois da #528 — sem elas o cenário de recusa vira um
+  // clique que sempre dá certo.
   "crm_find_free_slots",
   "crm_list_appointments",
   "crm_book_appointment",
   "crm_reschedule_appointment",
   "crm_list_pipelines",
   "crm_list_event_types",
+  "crm_list_knowledge_sources",
 ];
 
-/** A capacidade que não pode entrar por pacote. */
+/**
+ * A capacidade que não pode entrar por pacote — nem por clique (#528): o motor
+ * a descarta em todo turno, então a tela mostra o motivo e não deixa marcar.
+ */
 const ENVIO = "crm_send_whatsapp_message";
 /** Uma que entra: leitura pura, dentro de "Atender e responder". */
 const LEITURA = "crm_get_conversation_history";
@@ -218,14 +231,17 @@ test.describe("Configurar o que o agente pode fazer", () => {
 
     // O TETO ENTRA NA JORNADA (issue #162), e entra antes do clique.
     //
-    // "Atender" exige 18 vagas (17 automáticas + a crítica que o pacote
-    // deliberadamente NÃO liga). Com as 8 do seed dá 26, acima do teto.
+    // "Atender" exige 17 vagas: 17 automáticas e nenhuma crítica — a única que
+    // ele tinha (o envio de WhatsApp) deixou de ser oferecida na #528, e com ela
+    // saiu uma vaga da conta. Com as 9 do seed dá 26, acima do teto de 25.
     //
-    // ⚠️ AS 8 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
+    // ⚠️ AS 9 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
     // teto de 20. Quando o teto foi para 25 essas mesmas 21 passaram a caber: a
     // recusa nunca aconteceria e o caso viraria um clique que sempre dá certo —
-    // verde sem medir nada, que é o pior desfecho para um teste de recusa.
-    // As 5 novas estão FORA de "Atender", senão a união seria menor que a soma.
+    // verde sem medir nada, que é o pior desfecho para um teste de recusa. As 5
+    // novas entraram aí; a NONA entrou com a #528, que tirou uma vaga do pacote
+    // (8 + 17 = 25 exatas: o pacote caberia e a recusa sumiria de novo).
+    // Todas estão FORA de "Atender", senão a união seria menor que a soma.
     //
     // Antes da correção a tela aceitava o pacote, chegava a 20 exatas e deixava
     // o checkbox da crítica DESABILITADO — prometia uma escolha que o produto
@@ -261,30 +277,28 @@ test.describe("Configurar o que o agente pode fazer", () => {
     await page.getByTestId("lista-avancada").waitFor({ state: "visible" });
     await expect.poll(() => estaMarcada(page, LEITURA), { timeout: 5_000 }).toBe(true);
 
-    // …e a que fala com o cliente de verdade, não.
+    // …e a que fala com o cliente de verdade, não — e desde a #528 nem poderia:
+    // ela deixou de ser oferecível, por clique ou por pacote.
     expect(await estaMarcada(page, ENVIO)).toBe(false);
 
-    // Ela aparece separada, pedindo a marcação individual.
-    const bloco = page.getByTestId("criticas-atender");
-    await expect(bloco).toBeVisible();
-    await expect(bloco).toContainText(/o pacote não liga por você/i);
-    await expect(bloco).toContainText("Enviar mensagem no WhatsApp");
+    // Sem crítica oferecível não há bloco de crítica. Ele existia porque o envio
+    // ERA a crítica do pacote — que o pacote oferecia para o motor descartar.
+    await expect(page.getByTestId("criticas-atender")).toHaveCount(0);
+
+    // Mas a capacidade continua NA TELA, com o motivo escrito e o checkbox
+    // travado: sumir com ela esconderia do dono um caminho que ele já viu na
+    // configuração publicada. O que a #528 proíbe é oferecer sem poder cumprir.
+    await expect(page.getByTestId(`motivo-nao-marcavel-${ENVIO}`)).toBeVisible();
+    await expect(capacidade(page, ENVIO).locator("input[type=checkbox]")).toBeDisabled();
 
     expect(await consumo(page)).not.toBe(antes);
     await page
       .getByTestId("tool-picker")
       .screenshot({ path: path.join(EVIDENCIA, "w1-pacote-ligado-sem-envio.png") });
 
-    // Marcar à mão funciona — o humano pode, o pacote não.
-    await page
-      .getByTestId("criticas-atender")
-      .getByTestId(`capacidade-${ENVIO}`)
-      .locator("input[type=checkbox]")
-      .click();
-    await expect.poll(() => estaMarcada(page, ENVIO), { timeout: 5_000 }).toBe(true);
-
-    // E desligar a jornada leva a crítica junto: declarar que a jornada acabou
-    // e ficar com o direito de enviar mensagem seria a pior surpresa possível.
+    // Desligar a jornada desfaz o que ela ligou — e o envio segue fora, como
+    // sempre esteve: declarar que a jornada acabou e ficar com o direito de
+    // mandar mensagem seria a pior surpresa possível.
     await page.getByTestId("switch-pacote-atender").click();
     await expect.poll(() => estaMarcada(page, ENVIO), { timeout: 5_000 }).toBe(false);
     await expect.poll(() => estaMarcada(page, LEITURA), { timeout: 5_000 }).toBe(false);

@@ -560,6 +560,22 @@ export const AUDIT_ACTIONS = [
   // A Central marca como vistos todos os avisos ABERTOS ainda não vistos da
   // organização, ao abrir a tela — não é resolução, é só "alguém olhou".
   "ai.inbox_items_marked_seen",
+  "extension.catalog_admitted",
+  "extension.installed",
+  "extension.install_failed",
+  "extension.configured",
+  "extension.deactivated",
+  "extension.preparation_cancelled",
+  // Troca de versão, desfazer a última troca e remoção da instalação. A remoção grava, além
+  // da linha da instância, um `extension.deactivated_by_removal` por organização desligada, com
+  // `metadata.reason = "installation_removed"`.
+  "extension.updated",
+  "extension.update_failed",
+  "extension.reverted",
+  "extension.removed",
+  // Nome próprio, e não `extension.deactivated`: na auditoria da organização, "nós desligamos" e
+  // "o responsável pela instalação removeu" precisam ser distinguíveis sem abrir os metadados.
+  "extension.deactivated_by_removal",
   // "Cliente pela agenda" ligada ou desligada (migration 0262). Ligar reescreve
   // etiquetas de toda a organização; metadata leva as contagens.
   "crm.cliente_pela_agenda_alterado",
@@ -572,6 +588,11 @@ export const AUDIT_ACTIONS = [
   // Mover um card para OUTRO funil (issue #922) clona o negócio no destino e
   // encerra o original: é a escrita que mexe em DOIS funis de uma vez.
   "lead.moved_to_pipeline",
+  // A chave de IA girada NO LUGAR (PATCH /ai/credentials/:id). Distinto de
+  // `ai.credential_created` e `ai.credential_revalidated`: aqui o id não muda, e
+  // "quando esta chave foi trocada, e por quem" é a pergunta que só esta linha
+  // responde — a coluna `updated_at` se move por qualquer motivo.
+  "ai.credential_updated",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

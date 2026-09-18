@@ -113,29 +113,39 @@ async function main(): Promise<void> {
     "crm_get_lead",
     "crm_move_lead_stage",
     "crm_list_leads",
-    // ⚠️ AS SEIS ABAIXO ENTRARAM COM O TETO INDO DE 20 PARA 25 E DEPOIS PARA 26,
-    // e não são enfeite.
+    // ⚠️ AS SETE ABAIXO NÃO SÃO ENFEITE: elas existem para o cenário ESTOURAR.
     //
-    // A jornada do teto (issue #162) só existe se o cenário ESTOURAR: eram 3 do
-    // seed + 18 de "Atender" = 21 contra teto 20, e a tela recusava dizendo
+    // A jornada do teto (issue #162) só existe se a soma passar do teto: eram 3
+    // do seed + 18 de "Atender" = 21 contra teto 20, e a tela recusava dizendo
     // "faltam 1 vaga". Com teto 25 essas mesmas 21 passam, a recusa nunca acontece
     // e o caso vira um clique que sempre dá certo — verde sem medir nada. Oito
     // reproduziram a MESMA aritmética no teto 25: 8 + 18 = 26 > 25, recusa por 1
-    // vaga. Quando o teto subiu de novo (25 → 26, 2026-09-16), 8 + 18 = 26 deixou
-    // de estourar — mesmo defeito, terceira vez.
+    // vaga.
     //
-    // Nove reproduzem a aritmética no teto atual: 9 + 18 = 27 > 26, recusa por 1
-    // vaga; desligar uma deixa 8 + 18 = 26, que é o teto exato e passa.
+    // DUAS mudanças em paralelo, cada uma quebrando a conta de um jeito diferente:
+    // o teto subiu de novo (25 → 26, 2026-09-16), o que por si só já zerava a
+    // folga; e a #528 tirou `crm_send_whatsapp_message` da conta de "Atender"
+    // (o motor descarta a capacidade, e o pacote parou de contá-la), derrubando
+    // "Atender" de 18 para 17. Nenhuma das duas sozinha muda o desfecho — juntas,
+    // 8 + 17 = 25 < 26 não estoura mais.
+    //
+    // Sete reproduzem a aritmética com os dois números atuais: com os 3 do seed,
+    // 10 + 17 = 27 > 26, recusa por 1 vaga; desligar uma das sete deixa
+    // 9 + 17 = 26, que é o teto exato e passa.
     //
     // As escolhidas ficam FORA do pacote "Atender" de propósito — se alguma
     // estivesse dentro, a união seria menor que a soma e a conta acima não valeria.
-    // Quatro são a família de agenda, que é o assunto do defeito que subiu o teto.
+    // Cinco são a família de agenda/funil, que é o assunto do defeito que subiu o
+    // teto; as duas últimas são leitura pura de outro pacote, para a aritmética
+    // continuar estourando depois da #528 — sem elas o cenário de recusa vira um
+    // clique que sempre dá certo.
     "crm_find_free_slots",
     "crm_list_appointments",
     "crm_book_appointment",
     "crm_reschedule_appointment",
     "crm_list_pipelines",
     "crm_list_event_types",
+    "crm_list_knowledge_sources",
   ];
 
   // REPÕE TODAS AS VERSÕES DRAFT DESTE AGENTE, não só a de maior número.

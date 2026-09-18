@@ -304,6 +304,9 @@ jobs:
     env:
       # Provider controlado; preview/assistência executam core, ferramentas e gates reais.
       INTERNAL_AGENT_RUN_STUB: "true"
+      # Única exceção HTTP do laboratório de extensões. O servidor é iniciado
+      # pela própria spec, em loopback, com SQLite e PID exclusivos.
+      EXTENSIONS_LOCAL_CATALOG_ORIGIN: "http://127.0.0.1:56331"
       SPECS_PARTE_1: >-
         pre-go-live-whatsapp.spec.ts
         smoke.spec.ts auth.spec.ts error-pages.spec.ts
@@ -410,6 +413,8 @@ jobs:
         agenda-tipos-de-agendamento.spec.ts
         cliente-pela-agenda.spec.ts
         agenda-grade-interativa.spec.ts
+        agenda-papel-de-leitura.spec.ts
+        agenda-busca-cliente-pelo-nome-do-perfil.spec.ts
         agente-novo-e-uso.spec.ts
         agente-organiza-operacao.spec.ts
         central-de-avisos-capacidades.spec.ts
@@ -649,6 +654,10 @@ jobs:
         qa-sugestao-rejeitada-e-motivo.spec.ts
         qa-l12-agenda-contatos.spec.ts
         qa-l12-tags-radar.spec.ts
+        extensoes-declarativas.spec.ts
+        extensoes-recuperacao.spec.ts
+        extensoes-versao.spec.ts
+        motivo-do-publicar-na-tela.spec.ts
       # ── PARTE 4 ────────────────────────────────────────────────────────────
       #
       # A QUARTA PARTE NASCEU DO TETO, NAO DE GOSTO. Em 2026-09-15 a parte 3

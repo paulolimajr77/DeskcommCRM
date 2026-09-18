@@ -546,6 +546,8 @@ export const AUDIT_ACTIONS = [
   "proposal.sent",
   "proposal.aceita",
   "proposal.recusada",
+  // Cron de vencimento (Tarefa 17) — lote, sem resourceId de uma linha só.
+  "proposal.expired_batch",
 
   "organization.switched",
 

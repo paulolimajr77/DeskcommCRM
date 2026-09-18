@@ -28936,7 +28936,7 @@ drop policy if exists "propostas: leitura por organizacao" on storage.objects;
 create policy "propostas: leitura por organizacao" on storage.objects
   for select using (
     bucket_id = 'propostas'
-    and (storage.foldername(name))[1]::uuid in (select public.fn_user_org_ids())
+    and (split_part(name, '/', 1))::uuid in (select public.fn_user_org_ids())
   );
 
 drop policy if exists "propostas: escrita por service_role" on storage.objects;

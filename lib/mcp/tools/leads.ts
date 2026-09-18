@@ -368,7 +368,7 @@ export const crmMoveLeadStage: McpToolDefinition<typeof moveInputShape> = {
 };
 
 // ---------------------------------------------------------------------------
-// O AGENTE PROPÕE UM CAMPO QUE A EMPRESA AINDA NÃO DECLAROU (migration 0271)
+// O AGENTE PROPÕE UM CAMPO QUE A EMPRESA AINDA NÃO DECLAROU (migration 0268)
 // ---------------------------------------------------------------------------
 
 const propostaDeCampoShape = {
@@ -399,7 +399,7 @@ const propostaDeCampoShape = {
  * Tudo o que ela precisa já existe ali: fila de decisão humana, quem resolveu,
  * e uma tela que as pessoas abrem todo dia. Uma tabela irmã duplicaria worker
  * de vencimento, RLS e tela — e as duas divergiriam no primeiro conserto feito
- * de um lado só. Mesmo argumento que a 0270 fez para a proposta de VALOR.
+ * de um lado só. Mesmo argumento que a 0267 fez para a proposta de VALOR.
  *
  * ## A idempotência é do BANCO, não do modelo
  *

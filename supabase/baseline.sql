@@ -11377,13 +11377,13 @@ create table if not exists public.contact_field_proposals (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   contact_id uuid not null references public.contacts(id) on delete cascade,
 
-  -- PARA ONDE a confirmação escreve (migration 0270). Nulo = campo do contato;
+  -- PARA ONDE a confirmação escreve (migration 0267). Nulo = campo do contato;
   -- preenchido = uma chave em `crm_leads.custom_fields` daquele negócio.
   --
-  -- ⚠️ A COLUNA NASCE AQUI, e não só no apêndice da 0270, porque o CHECK logo
+  -- ⚠️ A COLUNA NASCE AQUI, e não só no apêndice da 0267, porque o CHECK logo
   -- abaixo a cita: numa instalação NOVA o apêndice só roda no fim do arquivo, e
   -- a constraint falharia por coluna inexistente. Quem atualiza recebe a coluna
-  -- pelo `add column if not exists` da 0270 — os dois caminhos convergem.
+  -- pelo `add column if not exists` da 0267 — os dois caminhos convergem.
   lead_id uuid references public.crm_leads(id) on delete cascade,
 
   -- QUAL campo. O vocabulário depende do DESTINO — ver o CHECK abaixo: fechado
@@ -11432,7 +11432,7 @@ comment on table public.contact_field_proposals is
 -- `ON_ERROR_STOP` o arquivo seguiria: a tabela terminaria **sem vocabulário
 -- nenhum**, aceitando qualquer campo, em silêncio e com a atualização
 -- reportando sucesso.
--- A REGRA DO CHECK É SOBRE O PAR (campo, destino) desde a migration 0270.
+-- A REGRA DO CHECK É SOBRE O PAR (campo, destino) desde a migration 0267.
 --
 -- Sem destino (`lead_id` nulo) vale o vocabulário FECHADO do contato — o que
 -- entra ali vira escrita em `contacts`, e campo livre deixaria a IA propor
@@ -25911,7 +25911,6 @@ grant select on public.calendar_selected_external_events to authenticated, servi
 
 notify pgrst, 'reload schema';
 
-
 -- ---- a anotação simultânea não apaga a outra (migration 0269) ----
 -- Racional completo no cabeçalho da migration 0269. Em uma frase: o merge de
 -- `custom_fields` era read-modify-write no aplicativo, e duas escritas
@@ -26150,7 +26149,6 @@ grant execute on function public.fn_inbox_item_unico(uuid, text, text, text, tex
   to service_role;
 
 notify pgrst, 'reload schema';
-
 -- ---- cliente pela agenda (migration 0262) ----
 --
 -- Derivado de supabase/migrations/20260915180000_0262_cliente_pela_agenda.sql (a

@@ -525,7 +525,7 @@ export async function updateLeadHandler(
   // O PostgREST não sabe dizer `custom_fields = custom_fields || $1` — só sabe
   // mandar um valor pronto, que é justamente o valor calculado da leitura
   // velha. Então o merge foi para onde a trava de linha existe: a migration
-  // 0269 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
+  // 0266 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
   //
   // ⚠️ POR QUE DEPOIS, E NÃO ANTES: o `update` é quem prova que o lead existe e
   // é desta organização (o 404). Anotar antes gravaria campo num lead que a
@@ -651,10 +651,10 @@ export async function updateLeadHandler(
   // inteiro a cada salvamento, entao `Object.keys(input)` acusava cinco campos
   // quando a pessoa mexeu em um. Detalhe em lib/leads/campos-alterados.ts.
   // `custom_fields` entra por fora porque não passou pelo `patch`: quem mescla
-  // é o banco (0269). Sem esta linha, anotar um campo do funil não deixaria
+  // é o banco (0266). Sem esta linha, anotar um campo do funil não deixaria
   // rastro nenhum na auditoria nem na timeline — invisível é pior que errado.
   // As chaves do funil entram por FORA porque não passaram pelo `patch`: quem
-  // mescla é o banco (0269). Sem esta linha, anotar um campo do funil não
+  // mescla é o banco (0266). Sem esta linha, anotar um campo do funil não
   // deixaria rastro nenhum na auditoria nem na timeline — invisível é pior que
   // errado. E entram pelo NOME DA CHAVE (`segmento`), nunca pelo nome da coluna.
   const fields = [

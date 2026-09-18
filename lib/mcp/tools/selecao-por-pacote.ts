@@ -43,10 +43,18 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  *    default de hoje NENHUM segundo pacote cabia: evoluir exigia 21, reter 22,
  *    escalar 28, atender 30, organizar 32.
  *
- * 25 é o MENOR passo que resolve: dá a um agente cheio as 5 vagas da família de
- * agenda e mantém `vender` inteiro com folga real. Não é número redondo
+ * 25 era o MENOR passo que resolvia naquele catálogo. Não é número redondo
  * escolhido no olho — subir mais seria apostar contra um argumento que continua
  * de pé só porque ninguém o mediu.
+ *
+ * ═══ 25 → 26: o catálogo cresceu de novo (identificação + campos do funil) ═══
+ *
+ * As capacidades novas de identificar o cliente e preencher os campos
+ * personalizados do funil somaram ao catálogo, e o mesmo teste de guarda
+ * (`tests/unit/pacote-reserva-vaga-da-critica.test.ts`) voltou a medir ZERO
+ * pacotes cabendo depois do onboarding: atender exigia 35, escalar 33,
+ * organizar 37, evoluir 26, reter 27, contra o teto de 25. `evoluir` (26) é o
+ * menor deles — 26 é de novo o MENOR passo que resolve.
  *
  * ⚠️ O QUE FALTA, e é honesto dizer: não há instrumento para observar a
  * degradação que a heurística prevê. O lugar de observá-la é

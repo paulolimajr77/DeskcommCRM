@@ -27,7 +27,7 @@ export type { InboxRefKind } from '@/lib/ai/inbox-destino';
  */
 export type InboxKind =
   | 'case_stale'
-  /** migration 0271 — o agente sugere um campo de funil que ainda não existe. */
+  /** migration 0268 — o agente sugere um campo de funil que ainda não existe. */
   | 'lead_field_proposed'
   | 'appointment_outcome_required'
   | 'appointment_recovery_review'

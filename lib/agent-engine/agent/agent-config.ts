@@ -90,7 +90,7 @@ export interface PublishedAgentConfig {
    */
   leadFieldsEnabled: boolean;
   /**
-   * O agente PROPÕE campo que ainda não existe (migration 0271).
+   * O agente PROPÕE campo que ainda não existe (migration 0268).
    *
    * ⚠️ Só faz sentido com `leadFieldsEnabled`: quem não recebe a definição dos
    * campos não sabe o que já existe, e proporia o que a empresa já declarou —

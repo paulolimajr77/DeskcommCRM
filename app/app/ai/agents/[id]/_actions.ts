@@ -530,7 +530,7 @@ export async function revertToVersionAction(
     // anterior à 0255 num clone que ainda não aplicou o baseline novo, e ler
     // `undefined` como `false` é melhor que mentir que a coluna sempre veio.
     lead_fields_enabled: boolean | null;
-    // Anulável pela mesma razão, e agora pela 0271: a versão de origem pode
+    // Anulável pela mesma razão, e agora pela 0268: a versão de origem pode
     // ser anterior à coluna num clone que ainda não aplicou o baseline novo.
     lead_fields_propose_new: boolean | null;
     operator_enabled: boolean;

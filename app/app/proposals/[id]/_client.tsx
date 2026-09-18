@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ApiSuccess } from "@/lib/api/wrappers";
 import { formatCents } from "@/lib/money";
 import type { ProposalStatus } from "@/lib/propostas/tipos";
+import { AssistantPanel } from "./_components/AssistantPanel";
 
 interface ProposalItem {
   id?: string;
@@ -296,6 +297,18 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           </tbody>
         </table>
       </div>
+
+      {editavel && (
+        <AssistantPanel
+          propostaId={id}
+          revision={proposta.revision}
+          onAplicado={(r) => {
+            setProposta((p) => p && { ...p, revision: r.revision, total_cents: r.total_cents });
+            // recarrega a proposta inteira para refletir os itens que o assistente mudou
+            apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`).then((res) => setProposta(res.data));
+          }}
+        />
+      )}
 
       {editavel && (
         <div className="flex flex-wrap gap-2">

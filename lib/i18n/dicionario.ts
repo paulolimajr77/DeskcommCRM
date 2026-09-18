@@ -9190,6 +9190,19 @@ export const DICIONARIO: Traducoes = {
   "o compromisso": { es: "la cita" },
   "Entendi": { es: "Entendido" },
   "e-mail do convidado inválido": { es: "correo del invitado no válido" },
+
+  // AssistantPanel (Tarefa 11 — assistente de propostas)
+  "Assistente": { es: "Asistente" },
+  'Ex.: "baixa 10% e tira a hospedagem"': { es: 'Ej: "baja 10% y quita el alojamiento"' },
+  "Gerar": { es: "Generar" },
+  "Não consegui gerar as mudanças agora.": { es: "No pude generar los cambios ahora." },
+  "A proposta mudou desde que você gerou as sugestões — gere de novo.": { es: "La propuesta cambió desde que generaste las sugerencias — genera de nuevo." },
+  "item": { es: "artículo" },
+  "REMOVIDO": { es: "ELIMINADO" },
+  "(sem valor)": { es: "(sin valor)" },
+  "Aplicar": { es: "Aplicar" },
+  "Aplicando…": { es: "Aplicando…" },
+  "Não entendi o que mudar nesta proposta.": { es: "No entendí qué cambiar en esta propuesta." },
 };
 
 /**

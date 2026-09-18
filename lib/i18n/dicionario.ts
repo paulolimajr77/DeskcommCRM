@@ -1366,6 +1366,10 @@ export const DICIONARIO: Traducoes = {
   "+ Item à mão": { es: "+ Ítem manual" },
   "Buscar produto no catálogo…": { es: "Buscar producto en el catálogo…" },
   Total: { es: "Total" },
+  "Propostas comerciais": { es: "Propuestas comerciales" },
+  "Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento": {
+    es: "Dejar que el agente redacte una propuesta cuando el cliente pida un presupuesto",
+  },
   // ─── Follow-up: lista de fluxos ───
   "Fluxos automáticos de reengajamento — silêncio, mudança de etapa ou fim de conversa disparam mensagens sem intervenção manual.": {
     es: "Flujos automáticos de reenganche — el silencio, un cambio de etapa o el fin de la conversación disparan mensajes sin intervención manual.",

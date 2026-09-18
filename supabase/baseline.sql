@@ -27400,6 +27400,13 @@ create trigger trg_platform_meta_app_updated_at
   before update on public.platform_meta_app
   for each row execute function public.fn_set_updated_at();
 
+-- ---- o agente pode rascunhar proposta sozinho (migration 0276) ----
+alter table public.ai_agent_versions
+  add column if not exists proposal_ai_draft_enabled boolean not null default true;
+
+comment on column public.ai_agent_versions.proposal_ai_draft_enabled is
+  'O agente pode rascunhar uma proposta sozinho quando ligado. Default TRUE dentro de quem ligou a capacidade "Propostas" — a pessoa sempre revisa e envia (spec §3, §16 decisão 3).';
+
 -- ---- travas do modo somente leitura do suporte, depois de toda tabela (migration 0274) ----
 --
 -- ⚠️ ESTA CHAMADA É O ÚLTIMO BLOCO DO ARQUIVO. Tabela nova, coluna

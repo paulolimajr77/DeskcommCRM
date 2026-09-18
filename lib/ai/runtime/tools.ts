@@ -39,6 +39,7 @@ export interface PickToolsInput {
   auth: McpAuthResult;
   toolIds: string[];
   handoffToolEnabled: boolean;
+  proposalAiDraftEnabled?: boolean;
   /**
    * Funis em que ESTE agente pode escrever (`ai_agent_versions.pipeline_ids`).
    *
@@ -52,6 +53,7 @@ export interface PickToolsInput {
 }
 
 const HANDOFF_TOOL_NAME = "crm_request_human_handoff";
+const DRAFT_PROPOSAL_TOOL_NAME = "crm_draft_proposal";
 
 function shapeToZodObject(shape: Record<string, z.ZodTypeAny>): z.ZodTypeAny {
   // The MCP tool inputSchema is a Zod *raw shape* (object of zod types).
@@ -260,6 +262,14 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     const handoff = allTools.find((t) => t.name === HANDOFF_TOOL_NAME);
     if (handoff) {
       result[HANDOFF_TOOL_NAME] = wrapMcpTool(handoff, input);
+    }
+  }
+
+  // Auto-inject proposal draft tool when enabled — G23 design decision.
+  if (input.proposalAiDraftEnabled && !result[DRAFT_PROPOSAL_TOOL_NAME]) {
+    const draft = allTools.find((t) => t.name === DRAFT_PROPOSAL_TOOL_NAME);
+    if (draft) {
+      result[DRAFT_PROPOSAL_TOOL_NAME] = wrapMcpTool(draft, input);
     }
   }
 

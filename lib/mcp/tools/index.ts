@@ -86,6 +86,7 @@ import {
   crmCloseDemand,
   crmProposeReactivation,
 } from "./retencao";
+import { crmDraftProposal } from "./propostas";
 
 // Cast via `unknown` porque McpToolDefinition<TInput> nao e covariante
 // em TInput (handler usa TInput em posicao contravariante). Coletar
@@ -160,6 +161,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmAddCaseNote,
   crmCloseHumanCase,
   crmResumeAiAttendance,
+  crmDraftProposal,
   // handoff (special)
   crmRequestHumanHandoff,
 ] as unknown as ReadonlyArray<McpToolDefinition>;

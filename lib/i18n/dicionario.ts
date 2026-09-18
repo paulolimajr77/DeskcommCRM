@@ -1342,6 +1342,17 @@ export const DICIONARIO: Traducoes = {
   Execuções: { es: "Ejecuciones" },
   Histórico: { es: "Historial" },
   Propostas: { es: "Propuestas" },
+  "Nova proposta": { es: "Nueva propuesta" },
+  "Falha ao listar propostas.": { es: "No se pudieron listar las propuestas." },
+  "Nenhuma proposta cadastrada ainda.": { es: "Todavía no hay propuestas registradas." },
+  Número: { es: "Número" },
+  Aceita: { es: "Aceptada" },
+  Recusada: { es: "Rechazada" },
+  Vencida: { es: "Vencida" },
+  "Fechar a venda": { es: "Cerrar la venta" },
+  "Rascunhe, revise e envie propostas comerciais — do orçamento ao aceite.": {
+    es: "Redacta, revisa y envía propuestas comerciales — del presupuesto a la aceptación.",
+  },
   // ─── Follow-up: lista de fluxos ───
   "Fluxos automáticos de reengajamento — silêncio, mudança de etapa ou fim de conversa disparam mensagens sem intervenção manual.": {
     es: "Flujos automáticos de reenganche — el silencio, un cambio de etapa o el fin de la conversación disparan mensajes sin intervención manual.",

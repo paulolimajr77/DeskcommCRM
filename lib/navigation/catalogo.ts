@@ -224,6 +224,14 @@ export const NAV_CATALOG = [
     // Inbox e o funil, que continuam no menu.
   },
   {
+    href: "/app/proposals",
+    label: "Propostas",
+    description: "Rascunhe, revise e envie propostas comerciais — do orçamento ao aceite.",
+    icon: "FileText",
+    group: "crm",
+    section: "Fechar a venda",
+  },
+  {
     // A promessa que o comentário da Agenda fazia desde que ela nasceu. Aqui se
     // decide O QUE se pode marcar, quanto dura e quem atende — e é isto que a
     // tela de marcar e o agente de IA oferecem ao cliente.

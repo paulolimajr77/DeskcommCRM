@@ -548,6 +548,9 @@ export const AUDIT_ACTIONS = [
   "proposal.recusada",
   // Cron de vencimento (Tarefa 17) — lote, sem resourceId de uma linha só.
   "proposal.expired_batch",
+  // Ultimos dois sinais do laco de retorno (Tarefa 18) — cron em lote.
+  "proposal.promise_not_created_batch",
+  "proposal.acceptance_rate_batch",
 
   "organization.switched",
 

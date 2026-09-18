@@ -1353,6 +1353,19 @@ export const DICIONARIO: Traducoes = {
   "Rascunhe, revise e envie propostas comerciais — do orçamento ao aceite.": {
     es: "Redacta, revisa y envía propuestas comerciales — del presupuesto a la aceptación.",
   },
+  "A proposta mudou desde que você abriu. Recarregue antes de editar.": {
+    es: "La propuesta cambió desde que la abriste. Recarga antes de editar.",
+  },
+  "Título da proposta": { es: "Título de la propuesta" },
+  Condições: { es: "Condiciones" },
+  "Ex: Prazo de 30 dias, 50% adiantado": { es: "Ej: Plazo de 30 días, 50% adelantado" },
+  Qtd: { es: "Cant." },
+  "Preço unit.": { es: "Precio unit." },
+  Desconto: { es: "Descuento" },
+  Subtotal: { es: "Subtotal" },
+  "+ Item à mão": { es: "+ Ítem manual" },
+  "Buscar produto no catálogo…": { es: "Buscar producto en el catálogo…" },
+  Total: { es: "Total" },
   // ─── Follow-up: lista de fluxos ───
   "Fluxos automáticos de reengajamento — silêncio, mudança de etapa ou fim de conversa disparam mensagens sem intervenção manual.": {
     es: "Flujos automáticos de reenganche — el silencio, un cambio de etapa o el fin de la conversación disparan mensajes sin intervención manual.",

@@ -9207,6 +9207,15 @@ export const DICIONARIO: Traducoes = {
   "Aplicar": { es: "Aplicar" },
   "Aplicando…": { es: "Aplicando…" },
   "Não entendi o que mudar nesta proposta.": { es: "No entendí qué cambiar en esta propuesta." },
+
+  // Rota de decisão (Tarefa 15 — envio e aceite/recusa)
+  "Enviar ao cliente": { es: "Enviar al cliente" },
+  "Marcar como aceita": { es: "Marcar como aceptada" },
+  "Marcar como recusada": { es: "Marcar como rechazada" },
+  "Motivo da recusa (opcional):": { es: "Motivo del rechazo (opcional):" },
+  "Não foi possível enviar. Confira se você tem papel de gestor.": {
+    es: "No se pudo enviar. Confirma que tienes el rol de gestor.",
+  },
 };
 
 /**

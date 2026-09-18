@@ -183,6 +183,34 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
     }
   }
 
+  async function enviar() {
+    setSalvando(true);
+    setErro(null);
+    try {
+      await apiClient.post<ApiSuccess<{ id: string; numero: number; ano: number; message_id: string }>>(
+        `/api/v1/proposals/${id}/send`,
+        {},
+      );
+      const res = await apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`);
+      setProposta(res.data);
+    } catch (e) {
+      setErro(t("Não foi possível enviar. Confira se você tem papel de gestor."));
+      showApiError(e);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function decidir(decisao: "aceita" | "recusada", motivo?: string) {
+    try {
+      await apiClient.post(`/api/v1/proposals/${id}/decide`, { decisao, motivo });
+      const res = await apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`);
+      setProposta(res.data);
+    } catch (e) {
+      showApiError(e);
+    }
+  }
+
   const editavel = podeEditar && proposta.status === "rascunho";
 
   return (
@@ -352,6 +380,27 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         <div className="text-2xl font-bold tabular-nums">{formatCents(total, proposta.moeda)}</div>
       </div>
 
+      {proposta.status === "rascunho" && (
+        <Button onClick={enviar} disabled={salvando} className="w-full">
+          {t("Enviar ao cliente")}
+        </Button>
+      )}
+      {proposta.status === "enviada" && (
+        <div className="flex gap-2">
+          <Button onClick={() => decidir("aceita")}>
+            {t("Marcar como aceita")}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const motivo = prompt(t("Motivo da recusa (opcional):")) ?? undefined;
+              void decidir("recusada", motivo);
+            }}
+          >
+            {t("Marcar como recusada")}
+          </Button>
+        </div>
+      )}
       {editavel && (
         <Button onClick={salvar} disabled={salvando} className="w-full">
           {salvando ? t("Salvando…") : t("Salvar")}

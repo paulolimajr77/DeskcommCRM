@@ -28923,7 +28923,7 @@ $$;
 -- NUNCA authenticated: a função não confere se p_org pertence a quem chama —
 -- exposta a authenticated seria RPC cross-tenant (qualquer usuário logado
 -- aprenderia a numeração de outra organização passando o organization_id dela).
-revoke all on function public.fn_proposta_aloca_numero(uuid, int) from public, anon;
+revoke all on function public.fn_proposta_aloca_numero(uuid, int) from public, anon, authenticated;
 grant execute on function public.fn_proposta_aloca_numero(uuid, int) to service_role;
 
 -- Bucket privado, URL sempre assinada — mesmo padrão de `lgpd-exports`

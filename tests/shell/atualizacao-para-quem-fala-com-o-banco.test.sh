@@ -499,7 +499,11 @@ echo "caso 30 — ⛔ o aviso desce no PROPRIO update.sh, antes do 'up -d' que t
 # abrisse continuava vendo "estamos atualizando" por minutos. Aviso que mente e
 # pior que aviso nenhum.
 q_desce="$(printf '%s' "$UP" | grep -n "^manutencao_desce$" | head -1 | cut -d: -f1)"
-q_up="$(printf '%s' "$UP" | grep -n "^dc up -d$" | head -1 | cut -d: -f1)"
+# `dc up -d` pode vir dentro de `if ! dc up -d; then` — a guarda de recuperação
+# de arquitetura incompatível (`construir_aqui_e_subir`) precisa do código de
+# saída, e sob `set -e` isso exige que a chamada esteja na condição de um `if`,
+# nunca numa linha solta cujo erro derrubaria o script antes do "then".
+q_up="$(printf '%s' "$UP" | grep -nE '^ *(if ! *)?dc up -d' | head -1 | cut -d: -f1)"
 if [ -n "$q_desce" ] && [ -n "$q_up" ] && [ "$q_desce" -lt "$q_up" ]; then
   ok "desce antes do 'dc up -d' do proprio script"
 else

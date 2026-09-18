@@ -94,7 +94,7 @@ export function AssistantPanel({
   }
 
   return (
-    <div className="rounded border p-4 space-y-3">
+    <div className="rounded-md border p-4 space-y-3">
       <h2 className="font-semibold">{t("Assistente")}</h2>
       <div className="flex gap-2">
         <Input

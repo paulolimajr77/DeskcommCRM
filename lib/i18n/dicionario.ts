@@ -1367,6 +1367,16 @@ export const DICIONARIO: Traducoes = {
   "Buscar produto no catálogo…": { es: "Buscar producto en el catálogo…" },
   Total: { es: "Total" },
   "Propostas comerciais": { es: "Propuestas comerciales" },
+  "Abrir proposta": { es: "Abrir propuesta" },
+  "A validade passou sem decisão do cliente. Confirme se ainda vale a pena manter a oferta ou revise o preço.": {
+    es: "La validez venció sin decisión del cliente. Confirma si todavía vale la pena mantener la oferta o revisa el precio.",
+  },
+  "A proporção de propostas aceitas caiu de forma sustentada — revise preço, prazo ou o texto padrão.": {
+    es: "La proporción de propuestas aceptadas cayó de forma sostenida — revisa precio, plazo o el texto estándar.",
+  },
+  "Uma promessa de proposta venceu sem que a proposta tenha sido criada. Abra o negócio e monte o rascunho.": {
+    es: "Una promesa de propuesta venció sin que la propuesta haya sido creada. Abre el negocio y arma el borrador.",
+  },
   "Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento": {
     es: "Dejar que el agente redacte una propuesta cuando el cliente pida un presupuesto",
   },

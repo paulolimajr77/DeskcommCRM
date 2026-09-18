@@ -13,6 +13,7 @@ import { decidirVersao } from "@/lib/propostas/versao";
 import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
 import { marcaDaSaida } from "@/lib/branding/saida";
+import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -132,7 +133,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
     totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
     marca: { app_name: marca.nome, accent_hex: marca.accent, logo_path: marca.logoUrl },
-    destinatario: { nome: contato?.display_name ?? contato?.name ?? "Cliente", email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
+    destinatario: { nome: rotuloDoContato(contato, t), email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
   });
   const { path: pdfPath, signedUrl } = await salvarPdfDaProposta(admin, {
     orgId: authz.org.orgId, propostaId: propostaAlvo.id, buffer: pdfBuffer,

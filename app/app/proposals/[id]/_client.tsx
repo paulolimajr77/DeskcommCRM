@@ -217,7 +217,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
     <div className="mx-auto w-full max-w-5xl space-y-4 p-6">
       <header>
         <input
-          className="text-2xl font-semibold w-full border rounded px-2 py-1"
+          className="text-2xl font-semibold w-full border rounded-md px-2 py-1"
           value={proposta.titulo}
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, titulo: e.target.value })}
@@ -232,9 +232,9 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
       )}
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">{t("Condições")}</label>
+        <label className="block text-sm font-medium">{t("Condições")}</label>
         <textarea
-          className="w-full rounded border p-2 text-sm disabled:bg-gray-100"
+          className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
           value={proposta.condicoes ?? ""}
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, condicoes: e.target.value || null })}
@@ -244,10 +244,10 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">{t("Válido até")}</label>
+        <label className="block text-sm font-medium">{t("Válido até")}</label>
         <input
           type="date"
-          className="w-full rounded border p-2 text-sm disabled:bg-gray-100"
+          className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
           value={proposta.valid_until ?? ""}
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, valid_until: e.target.value || null })}
@@ -272,7 +272,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                 <tr key={it.id ?? idx}>
                   <td className="p-3">
                     <input
-                      className="w-full border rounded px-2 py-1 text-sm disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm disabled:bg-gray-100"
                       value={it.descricao}
                       disabled={!editavel}
                       onChange={(e) => atualizarItem(idx, { descricao: e.target.value })}
@@ -282,7 +282,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
                       value={it.quantidade}
                       disabled={!editavel}
                       onChange={(e) => atualizarItem(idx, { quantidade: Number(e.target.value) || 0 })}
@@ -293,7 +293,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
                       value={it.preco_unitario_cents / 100}
                       disabled={!editavel}
                       onChange={(e) =>
@@ -306,7 +306,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
                       value={it.desconto_cents / 100}
                       disabled={!editavel}
                       onChange={(e) =>
@@ -346,7 +346,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           <div className="flex-1">
             <input
               type="text"
-              className="w-full rounded border px-3 py-2 text-sm"
+              className="w-full rounded-md border px-3 py-2 text-sm"
               placeholder={t("Buscar produto no catálogo…")}
               value={buscaProdutos}
               onChange={(e) => {

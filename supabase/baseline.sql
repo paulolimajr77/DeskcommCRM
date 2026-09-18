@@ -27920,6 +27920,46 @@ as $$
 $$;
 revoke all on function public.fn_attendant_metrics(uuid,timestamptz,timestamptz,uuid) from public, anon;
 grant execute on function public.fn_attendant_metrics(uuid,timestamptz,timestamptz,uuid) to authenticated, service_role;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PAÍS DA ORGANIZAÇÃO (migration 20260918014500_0277) — issue #1033
+--
+-- Derivado de supabase/migrations/20260918014500_0277_pais_da_organizacao.sql;
+-- o porquê inteiro (o defeito medido, o que entra e o que NÃO entra) está no
+-- cabeçalho de lá.
+--
+-- Idempotente: `add column if not exists` + `drop constraint if exists` antes
+-- do `add constraint` — quem ATUALIZA (a coluna já existe) precisa da trava de
+-- forma tanto quanto quem instala do zero.
+--
+-- NENHUM backfill e NENHUM default: `null` é Brasil, que é o comportamento de
+-- antes desta migration. Nenhuma linha existente é reescrita. Nada de RLS,
+-- grant ou policy: a coluna nasce na tabela que já tem as regras dela.
+--
+-- ⚠️ ENTRA ANTES do bloco da VARREDURA anon, que é de propósito o último do
+-- arquivo (esta migration não cria função, mas o apêndice segue a ordem).
+-- ────────────────────────────────────────────────────────────────────────────
+-- 1 · o país, na organização
+-- ────────────────────────────────────────────────────────────────────────────
+alter table public.organizations
+  add column if not exists country text;
+
+alter table public.organizations
+  drop constraint if exists organizations_country_check;
+
+alter table public.organizations
+  add constraint organizations_country_check
+  check (country is null or country ~ '^[A-Z]{2}$');
+
+comment on column public.organizations.country is
+  'O país DA ORGANIZAÇÃO (ISO-3166 alpha-2, maiúsculas; null = Brasil), de onde saem o rótulo e a '
+  'validação do documento do contato, a lei citada no PDF de acesso ao titular, o calendário de dias '
+  'úteis do prazo desse direito e os padrões de dado pessoal que o anonimizador redige antes de a '
+  'conversa ir para o modelo. Resolvido por lib/legal/perfil-do-pais.ts — nenhuma rota lê esta coluna '
+  'inline, pela mesma razão escrita em lib/catalogo/moeda-da-org.ts: duas leituras divergem no dia em '
+  'que uma ganhar fallback e a outra não, e aqui a divergência prometeria a lei de um país com o prazo '
+  'de outro. Sem default e sem backfill: null é o perfil brasileiro, o comportamento de antes da 0277. '
+  'País só é oferecido no seletor quando a citação da lei dele já foi revisada por quem pode revisar.';
 -- ---- extensões declarativas: catálogo, artefato, instalação, vínculo e recibo (migration 0271) ----
 -- BEGIN 0271_extensoes_declarativas — 20260917120000
 -- 0271 — Documentos declarativos locais; nenhuma execução de pacote ou DDL dinâmico.
@@ -28838,7 +28878,6 @@ create trigger trg_platform_meta_app_updated_at
   before update on public.platform_meta_app
   for each row execute function public.fn_set_updated_at();
 
-<<<<<<< HEAD
 -- ---- a etapa que afirma um fato consumado (migration 0286) ----
 -- O dono marca quais etapas do funil afirmam que algo JÁ aconteceu ("proposta
 -- enviada", "contrato assinado", "pagamento recebido"), para o motor não
@@ -28879,7 +28918,7 @@ comment on column public.agent_inbox_items.seen_at is
 create index if not exists idx_agent_inbox_items_nao_vistos
   on public.agent_inbox_items (organization_id, created_at desc)
   where status = 'open' and seen_at is null;
-=======
+
 -- ---- a resposta revisada para de segurar a Zona de perigo (migration 0273) ----
 -- A FK inline da 0227 nasceu sem ação de exclusão (NO ACTION) e era a ÚNICA das
 -- quatro que apontam para `public.messages(id)` fora do padrão `on delete set
@@ -28912,4 +28951,3 @@ notify pgrst, 'reload schema';
 -- tests/invariants/travas-de-suporte-cobrem-toda-tabela-na-instalacao.test.ts.
 -- A definição da função está antes da varredura de anon.
 do $f$ begin perform public.fn_aplicar_travas_de_suporte(); end $f$;
->>>>>>> origin/main

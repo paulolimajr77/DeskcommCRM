@@ -231,30 +231,20 @@ test.describe("Configurar o que o agente pode fazer", () => {
 
     // O TETO ENTRA NA JORNADA (issue #162), e entra antes do clique.
     //
-<<<<<<< HEAD
     // "Atender" exige 17 vagas: 17 automáticas e nenhuma crítica — a única que
     // ele tinha (o envio de WhatsApp) deixou de ser oferecida na #528, e com ela
-    // saiu uma vaga da conta. Com as 9 do seed dá 26, acima do teto de 25.
+    // saiu uma vaga da conta. Com os 10 do seed (3 + 7) dá 27, acima do teto de 26.
     //
-    // ⚠️ AS 9 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
-    // teto de 20. Quando o teto foi para 25 essas mesmas 21 passaram a caber: a
-    // recusa nunca aconteceria e o caso viraria um clique que sempre dá certo —
-    // verde sem medir nada, que é o pior desfecho para um teste de recusa. As 5
-    // novas entraram aí; a NONA entrou com a #528, que tirou uma vaga do pacote
-    // (8 + 17 = 25 exatas: o pacote caberia e a recusa sumiria de novo).
-    // Todas estão FORA de "Atender", senão a união seria menor que a soma.
-=======
-    // "Atender" exige 18 vagas (17 automáticas + a crítica que o pacote
-    // deliberadamente NÃO liga). Com as 9 do seed dá 27, acima do teto.
-    //
-    // ⚠️ AS 9 SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21 estourava o
-    // teto de 20. Quando o teto foi para 25 essas mesmas 21 passaram a caber; ao ir
-    // para 26, as 8 (3 + 5) também passaram a caber (8 + 18 = 26, o teto exato) —
-    // e cada vez que isso acontece, a recusa deixa de existir e o caso vira um
+    // ⚠️ AS 7 EXTRAS SÃO O QUE MANTÉM ESTE CASO VIVO. Eram 3, e 3 + 18 = 21
+    // estourava o teto de 20. A cada subida de teto (20→25→26) e a cada queda do
+    // pacote "Atender" (18→17, na #528), a mesma soma ameaçava caber de novo — e
+    // cada vez que isso acontece, a recusa deixa de existir e o caso vira um
     // clique que sempre dá certo, verde sem medir nada, o pior desfecho para um
-    // teste de recusa. As 6 novas (5 de agenda + 1 de escalação) estão FORA de
+    // teste de recusa. As 7 (5 de agenda/funil + 2 de leitura pura) estão FORA de
     // "Atender", senão a união seria menor que a soma.
->>>>>>> feat/o-agente-preenche-os-campos-do-funil
+    //
+    // Aritmética atual: 10 + 17 = 27 > 26, recusa por 1 vaga; desligar uma das
+    // sete deixa 9 + 17 = 26, o teto exato.
     //
     // Antes da correção a tela aceitava o pacote, chegava a 20 exatas e deixava
     // o checkbox da crítica DESABILITADO — prometia uma escolha que o produto

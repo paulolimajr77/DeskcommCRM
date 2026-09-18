@@ -25613,6 +25613,16 @@ notify pgrst, 'reload schema';
 
 -- ---- o rascunho da IA para de trancar a mensagem (migration 0268) ----
 --
+-- COMENTADO: a mesma constraint (`ai_reply_drafts_message_id_fkey`, mesma ação
+-- `on delete set null`) é reconstruída de novo, com o vocabulário final, no
+-- bloco "a resposta revisada para de segurar a Zona de perigo (migration
+-- 0273)" mais abaixo — que documenta que o defeito desta migration voltou a
+-- acontecer em produção (issue #949) e é a versão vigente. Doutrina de
+-- `tests/unit/baseline-constraint-reconstruida.test.ts`: uma constraint, um
+-- bloco ativo só — dois blocos que se sobrepõem falham ao reaplicar (update.sh)
+-- num banco com dados novos, deixando a tabela sem constraint entre o drop e o
+-- add que funciona.
+--
 -- `ai_reply_drafts.message_id` nasceu na 0227 sem `on delete` — e o default do
 -- Postgres, NO ACTION, trava igual a RESTRICT sem estar escrito em lugar
 -- nenhum. Apagar um contato apaga as MENSAGENS dele primeiro, e o rascunho
@@ -25622,49 +25632,49 @@ notify pgrst, 'reload schema';
 -- Auto-curativo: a FK é procurada pela FORMA (coluna + destino), nunca pelo
 -- nome.
 
-do $$
-declare
-  nome_da_fk text;
-  coluna     smallint;
-begin
-  if to_regclass('public.ai_reply_drafts') is null then
-    return;
-  end if;
-
-  select attnum into coluna
-    from pg_attribute
-   where attrelid = 'public.ai_reply_drafts'::regclass
-     and attname  = 'message_id'
-     and not attisdropped;
-
-  if coluna is null then
-    return;
-  end if;
-
-  -- Pela FORMA (coluna + destino), nunca pelo nome: um clone antigo pode tê-la
-  -- com outro nome, e um `drop constraint <nome errado>` deixaria a regra velha
-  -- de pé com este bloco reportando sucesso.
-  select conname into nome_da_fk
-    from pg_constraint
-   where conrelid  = 'public.ai_reply_drafts'::regclass
-     and confrelid = 'public.messages'::regclass
-     and contype   = 'f'
-     and conkey    = array[coluna];
-
-  if nome_da_fk is not null then
-    execute format(
-      'alter table public.ai_reply_drafts drop constraint %I', nome_da_fk);
-  end if;
-
-  -- O Postgres não aceita `if not exists` ao adicionar constraint: a forma
-  -- `drop constraint if exists` + `add`, que torna idempotente a REGRA e não só
-  -- a criação.
-  execute 'alter table public.ai_reply_drafts
-             drop constraint if exists ai_reply_drafts_message_id_fkey';
-  execute 'alter table public.ai_reply_drafts
-             add constraint ai_reply_drafts_message_id_fkey
-             foreign key (message_id) references public.messages(id) on delete set null';
-end $$;
+-- do $$
+-- declare
+--   nome_da_fk text;
+--   coluna     smallint;
+-- begin
+--   if to_regclass('public.ai_reply_drafts') is null then
+--     return;
+--   end if;
+--
+--   select attnum into coluna
+--     from pg_attribute
+--    where attrelid = 'public.ai_reply_drafts'::regclass
+--      and attname  = 'message_id'
+--      and not attisdropped;
+--
+--   if coluna is null then
+--     return;
+--   end if;
+--
+--   -- Pela FORMA (coluna + destino), nunca pelo nome: um clone antigo pode tê-la
+--   -- com outro nome, e um `drop constraint <nome errado>` deixaria a regra velha
+--   -- de pé com este bloco reportando sucesso.
+--   select conname into nome_da_fk
+--     from pg_constraint
+--    where conrelid  = 'public.ai_reply_drafts'::regclass
+--      and confrelid = 'public.messages'::regclass
+--      and contype   = 'f'
+--      and conkey    = array[coluna];
+--
+--   if nome_da_fk is not null then
+--     execute format(
+--       'alter table public.ai_reply_drafts drop constraint %I', nome_da_fk);
+--   end if;
+--
+--   -- O Postgres não aceita `if not exists` ao adicionar constraint: a forma
+--   -- `drop constraint if exists` + `add`, que torna idempotente a REGRA e não só
+--   -- a criação.
+--   execute 'alter table public.ai_reply_drafts
+--              drop constraint if exists ai_reply_drafts_message_id_fkey';
+--   execute 'alter table public.ai_reply_drafts
+--              add constraint ai_reply_drafts_message_id_fkey
+--              foreign key (message_id) references public.messages(id) on delete set null';
+-- end $$;
 -- ---- o dono liga os campos do funil no agente (migration 0272) ----
 -- Uma chave na VERSÃO, nascendo `false`: `lead_fields_enabled` — o agente
 -- pergunta e preenche os campos personalizados que a organização declarou em

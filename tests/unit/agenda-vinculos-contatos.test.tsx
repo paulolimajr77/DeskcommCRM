@@ -137,6 +137,12 @@ describe("contatos da Agenda pelo nome exibido", () => {
       "display_name.ilike.%Cíntia name.ilike. Nunes %,name.ilike.%Cíntia name.ilike. Nunes %",
     );
   });
+  // ⚠️ MERGE (2026-09-18): o par "Buscar cliente" + "Quem será atendido" (dois
+  // campos, um <select> nativo) virou UM campo só — `EscolhaDoCliente`, um
+  // combobox que abre ao focar — em 2026-09-12, antes deste teste existir. O
+  // rótulo único hoje é "Cliente do compromisso" e a opção escolhida é um
+  // `<button role="option">`, não um `<option>` de `<select>` — não tem
+  // `.value`, e a escolha é por clique, não por `fireEvent.change`.
   it("Quem será atendido mostra Cíntia e a busca não oferece criar um contato existente", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const onChange = vi.fn();
@@ -148,8 +154,10 @@ describe("contatos da Agenda pelo nome exibido", () => {
     // Espera maior que o padrão de 1 s: com a máquina carregada a primeira
     // renderização da consulta passava do limite e o caso falhava sem defeito.
     const espera = { timeout: 5000 };
-    expect(await screen.findByRole("option", { name: "Cíntia Nunes" }, espera)).toHaveValue(ID);
-    fireEvent.change(screen.getByLabelText("Buscar cliente"), { target: { value: "Cíntia" } });
+    const campo = screen.getByLabelText("Cliente do compromisso");
+    fireEvent.focus(campo);
+    expect(await screen.findByRole("option", { name: "Cíntia Nunes" }, espera)).toBeInTheDocument();
+    fireEvent.change(campo, { target: { value: "Cíntia" } });
     await waitFor(
       () => expect(deps.from.mock.results.some((r) => r.value.or.mock.calls.length > 0)).toBe(true),
       espera,
@@ -158,9 +166,8 @@ describe("contatos da Agenda pelo nome exibido", () => {
       () => expect(screen.queryByRole("button", { name: /Criar/ })).not.toBeInTheDocument(),
       espera,
     );
-    expect(screen.getByRole("option", { name: "Cíntia Nunes" })).toHaveValue(ID);
-    fireEvent.change(screen.getByLabelText("Quem será atendido"), { target: { value: ID } });
-    expect(onChange).toHaveBeenLastCalledWith(ID, "");
+    fireEvent.click(screen.getByRole("option", { name: "Cíntia Nunes" }));
+    expect(onChange).toHaveBeenLastCalledWith(ID, "", null);
     qc.clear();
   });
 });

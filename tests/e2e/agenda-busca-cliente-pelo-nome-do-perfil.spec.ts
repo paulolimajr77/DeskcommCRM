@@ -114,18 +114,26 @@ async function semearContatos(orgId: string): Promise<void> {
   }
 }
 
-/** Abre "Novo agendamento" e devolve o `<select>` de "Quem será atendido". */
+// ⚠️ MERGE (2026-09-18): "Buscar cliente" + "Quem será atendido" (dois campos,
+// um `<select>` nativo) viraram UM campo só — `EscolhaDoCliente`, um combobox
+// que abre a lista ao focar — em 2026-09-12, antes desta spec existir. O
+// rótulo único hoje é "Cliente do compromisso"; a lista abre com `focus` e as
+// opções são `role="option"` (botões, não `<option>` de `<select>`).
+
+/** Abre "Novo agendamento", foca o campo único e devolve o combobox. */
 async function abrirONovoAgendamento(page: Page): Promise<Locator> {
   await page.goto("/app/agenda");
   await expect(page.getByTestId("tela-agenda")).toBeVisible({ timeout: ESPERA });
   await page.getByTestId("novo-agendamento").click();
-  await expect(page.getByLabel(/Buscar cliente/i)).toBeVisible({ timeout: ESPERA });
-  return page.getByLabel(/Quem será atendido/i);
+  const campo = page.getByLabel(/Cliente do compromisso/i);
+  await expect(campo).toBeVisible({ timeout: ESPERA });
+  await campo.focus();
+  return campo;
 }
 
 /** Os rótulos que a lista oferece, fora o "sem cliente". */
-async function clientesOferecidos(quemSeraAtendido: Locator) {
-  const textos = await quemSeraAtendido.locator("option").allTextContents();
+async function clientesOferecidos(cliente: Locator) {
+  const textos = await cliente.page().getByRole("option").allTextContents();
   return textos.map((t) => t.trim()).filter((t) => t !== "" && !/sem cliente/i.test(t));
 }
 
@@ -146,11 +154,11 @@ test("digitar o nome do perfil do WhatsApp acha o contato — e ele aparece COM 
   await page.getByRole("button", { name: /entrar/i }).click();
   await page.waitForURL(/\/app(\/|$)/, { timeout: ESPERA });
 
-  const quemSeraAtendido = await abrirONovoAgendamento(page);
-  await page.getByLabel(/Buscar cliente/i).fill("Cíntia");
+  const cliente = await abrirONovoAgendamento(page);
+  await cliente.fill("Cíntia");
 
   await expect
-    .poll(() => clientesOferecidos(quemSeraAtendido), {
+    .poll(() => clientesOferecidos(cliente), {
       timeout: ESPERA,
       message:
         'busquei "Cíntia" e a lista de clientes não ofereceu ninguém — o contato tem ' +
@@ -158,9 +166,9 @@ test("digitar o nome do perfil do WhatsApp acha o contato — e ele aparece COM 
     })
     .toContain(SO_PERFIL.display_name);
 
-  // A metade que o "achou" não prova: o `<option>` tem de trazer NOME, e não a
+  // A metade que o "achou" não prova: a opção tem de trazer NOME, e não a
   // string vazia que a rota devolvia quando lia só `contacts.name`.
-  const opcao = quemSeraAtendido.locator("option", { hasText: SO_PERFIL.display_name });
+  const opcao = page.getByRole("option", { name: SO_PERFIL.display_name });
   await expect(opcao).toHaveCount(1);
   expect(
     (await opcao.innerText()).trim(),
@@ -176,15 +184,15 @@ test("digitar o nome do perfil do WhatsApp acha o contato — e ele aparece COM 
   // jeito. O que se mede é o RÓTULO: `rotuloDoContato` põe `name` primeiro, e um
   // conserto que só trocasse a coluna da busca inverteria a régua do produto —
   // quem editou o cadastro veria de volta o apelido do WhatsApp.
-  await page.getByLabel(/Buscar cliente/i).fill("Mari");
+  await cliente.fill("Mari");
   await expect
-    .poll(() => clientesOferecidos(quemSeraAtendido), {
+    .poll(() => clientesOferecidos(cliente), {
       timeout: ESPERA,
       message: 'busquei "Mari" e a lista não ofereceu o contato de controle',
     })
     .toContain(COM_CADASTRO.name);
   await expect(
-    quemSeraAtendido.locator("option", { hasText: COM_CADASTRO.display_name }),
+    page.getByRole("option", { name: COM_CADASTRO.display_name }),
     `a lista mostrou o apelido do aparelho ("${COM_CADASTRO.display_name}") no lugar do ` +
       `cadastro ("${COM_CADASTRO.name}") — na régua de nome do produto o cadastro vem primeiro`,
   ).toHaveCount(0);
@@ -195,9 +203,9 @@ test("digitar o nome do perfil do WhatsApp acha o contato — e ele aparece COM 
   //
   // Sem isto, um seletor quebrado que casasse qualquer coisa deixaria as duas
   // asserções acima passando por vacuidade.
-  await page.getByLabel(/Buscar cliente/i).fill("Zzqq Inexistente");
+  await cliente.fill("Zzqq Inexistente");
   await expect
-    .poll(() => clientesOferecidos(quemSeraAtendido), {
+    .poll(() => clientesOferecidos(cliente), {
       timeout: ESPERA,
       message: "um termo que não existe devolveu clientes — a sonda não distingue nada",
     })

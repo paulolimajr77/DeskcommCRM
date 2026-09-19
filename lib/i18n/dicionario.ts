@@ -9932,6 +9932,49 @@ export const DICIONARIO: Traducoes = {
   },
   "Validade padrão (dias)": { es: "Validez predeterminada (días)" },
   "Condições padrão": { es: "Condiciones predeterminadas" },
+  // Tela nova de proposta (app/app/proposals/novo) — faltavam no merge da 1.40.0
+  "Por favor, selecione o negócio associado à proposta.": {
+    es: "Selecciona el negocio asociado a la propuesta.",
+  },
+  "Por favor, informe o título da proposta.": {
+    es: "Indica el título de la propuesta.",
+  },
+  "Voltar às propostas": { es: "Volver a las propuestas" },
+  "Nova Proposta Comercial": { es: "Nueva Propuesta Comercial" },
+  "Preencha as informações básicas para iniciar o rascunho da proposta. Os itens, produtos e valores poderão ser adicionados no editor a seguir.": {
+    es: "Completa la información básica para iniciar el borrador de la propuesta. Los ítems, productos y valores se podrán añadir en el editor siguiente.",
+  },
+  "Nenhum negócio elegível encontrado": { es: "No se encontró ningún negocio elegible" },
+  "Para criar uma proposta, é necessário ter pelo menos um negócio ativo com um contato vinculado na organização.": {
+    es: "Para crear una propuesta, necesitas al menos un negocio activo con un contacto vinculado en la organización.",
+  },
+  "Negócio (Lead)": { es: "Negocio (Lead)" },
+  "Filtrar negócio por título, cliente ou telefone…": {
+    es: "Filtrar negocios por título, cliente o teléfono…",
+  },
+  "Selecione o negócio...": { es: "Selecciona el negocio..." },
+  "Nenhum negócio encontrado com este filtro.": {
+    es: "No se encontró ningún negocio con este filtro.",
+  },
+  "A proposta será vinculada ao negócio e ao contato correspondente.": {
+    es: "La propuesta se vinculará al negocio y al contacto correspondiente.",
+  },
+  "Ex.: Proposta de Prestação de Serviços, Orçamento Especial": {
+    es: "Ej.: Propuesta de Prestación de Servicios, Presupuesto Especial",
+  },
+  "Identificação que aparecerá para o cliente e na lista de propostas.": {
+    es: "Identificación que verá el cliente y que aparecerá en la lista de propuestas.",
+  },
+  "Validade da proposta": { es: "Validez de la propuesta" },
+  "Data limite até a qual os valores e condições são garantidos.": {
+    es: "Fecha límite hasta la cual los valores y condiciones están garantizados.",
+  },
+  "Condições de pagamento / Observações": { es: "Condiciones de pago / Observaciones" },
+  "Ex.: Pagamento em até 3x sem juros no cartão ou 5% de desconto à vista via Pix.": {
+    es: "Ej.: Pago en hasta 3x sin intereses con tarjeta o 5% de descuento al contado vía Pix.",
+  },
+  "Criando proposta…": { es: "Creando propuesta…" },
+  "Criar e abrir editor": { es: "Crear y abrir el editor" },
   // ── Conversar com o caso (migration 0281) ────────────────────────────────
   //
   // As três primeiras são do registro de pontos de IA. NENHUM gate as cobra: os

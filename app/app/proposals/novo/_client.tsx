@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import type { ApiSuccess } from "@/lib/api/wrappers";
+import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 
 export interface LeadOption {
   id: string;
@@ -78,24 +79,19 @@ export function NewProposalClient({
     if (!termo) return initialLeads;
     return initialLeads.filter((l) => {
       const leadTitle = (l.title ?? "").toLowerCase();
-      const contactName = (l.contact?.name ?? "").toLowerCase();
-      const contactDisplay = (l.contact?.display_name ?? "").toLowerCase();
+      // Nome único da função central: remontar a cadeia aqui vira a sétima cópia.
+      const contactRotulo = rotuloDoContato(l.contact).toLowerCase();
       const contactPhone = (l.contact?.phone_number ?? "").toLowerCase();
       return (
         leadTitle.includes(termo) ||
-        contactName.includes(termo) ||
-        contactDisplay.includes(termo) ||
+        contactRotulo.includes(termo) ||
         contactPhone.includes(termo)
       );
     });
   }, [initialLeads, buscaLead]);
 
   function getLeadLabel(lead: LeadOption): string {
-    const nomeContato =
-      lead.contact?.display_name ||
-      lead.contact?.name ||
-      lead.contact?.phone_number ||
-      t("Contato sem nome");
+    const nomeContato = rotuloDoContato(lead.contact);
     const tituloNegocio = lead.title ? `${lead.title} — ` : "";
     return `${tituloNegocio}${nomeContato}`;
   }

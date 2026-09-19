@@ -38,6 +38,10 @@
 /**
  * O valor literal que ESTE repositório publica. A âncora da identidade.
  *
+ * ⚠️ FORK: o upstream ancora `ghcr.io/melgarafael`; este clone publica e busca
+ * as próprias imagens (`ghcr.io/paulolimajr77`), pela receita do RECADO_AO_FORK
+ * em `namespace-das-imagens.test.ts`. Esta linha NUNCA vai num PR para o upstream.
+ *
  * ⚠️ Ele é o que decide "esta corrida é de um fork?". Um PR consegue editar este
  * literal — e foi o que o #1130 fez. O que impede a edição de ligar a deferência
  * sozinha é a URL do repositório em `install.sh`, `comecar.sh`, `_common.sh` e
@@ -46,7 +50,7 @@
  * reprova lá. Não remova essa derivação pensando que é redundante — ela é o que
  * torna a âncora não-falsificável de dentro do diff.
  */
-export const NAMESPACE_DESTE_REPO = "ghcr.io/melgarafael";
+export const NAMESPACE_DESTE_REPO = "ghcr.io/paulolimajr77";
 
 /**
  * O dono de uma referência `<registry>/<dono>`.

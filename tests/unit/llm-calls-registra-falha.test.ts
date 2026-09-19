@@ -163,6 +163,16 @@ describe("a classificação separa os problemas que exigem conversas diferentes"
     expect(await codigoDe(new Error("fetch failed"))).toBe("provedor_indisponivel");
   });
 
+  it("histórico de mensagens inválido ou corrompido", async () => {
+    expect(
+      await codigoDe(
+        new Error(
+          "model output error: model output must contain either output text or tool calls",
+        ),
+      ),
+    ).toBe("historico_invalido");
+  });
+
   it("o que não se encaixa vira desconhecido, e não um chute", async () => {
     // Classificar tudo em algum balde conhecido seria pior que admitir que não
     // sabemos: o operador seguiria a instrução errada com confiança.

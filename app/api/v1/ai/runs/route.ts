@@ -39,6 +39,8 @@ const O_QUE_FAZER: Record<string, string> = {
     "O provedor está fora do ar ou demorou demais. Costuma se resolver sozinho; se persistir, troque de provedor nesse ponto.",
   modelo_sem_ferramentas:
     "O modelo escolhido não sabe usar as ferramentas do CRM. Troque por um que saiba, no painel de Provedores.",
+  historico_invalido:
+    "O histórico da conversa continha formato que o provedor recusou (ex.: ferramenta sem resposta). A chamada foi corrigida automaticamente na sequência.",
   // A única linha desta tabela em que o produto parou de propósito. Ela existe
   // porque o `throw` do gate de orçamento caía FORA do `try` que grava a falha:
   // a tela que nasceu para explicar o silêncio da IA nunca mostrava o único

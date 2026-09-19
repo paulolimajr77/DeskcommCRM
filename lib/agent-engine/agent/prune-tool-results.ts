@@ -19,6 +19,7 @@
  * esta função não loga; quem a chama também não ecoa o stub.
  */
 import type { ModelMessage } from '../edge/llm/run-model-call';
+import { sanitizeMessages } from '../edge/llm/sanitize-messages';
 import { countPayloadTokens } from '../edge/crm/get-lead-context';
 
 /** Knobs do pruning (env PRUNE_TOOL_RESULTS_*; defaults conservadores no .env.example). */
@@ -58,9 +59,12 @@ function buildStub(toolName: string, args: unknown, resultText: string): string 
  * rodadas ficam intactas. Os args do stub vêm do tool-call correspondente (por toolCallId).
  */
 export function pruneToolResults(messages: ModelMessage[], knobs: PruneToolResultsKnobs): ModelMessage[] {
+  // Normaliza o histórico recebido para fechar pares incompletos antes da poda.
+  const limpo = sanitizeMessages(messages);
+
   // toolCallId → args (dos tool-call parts das mensagens do assistant), p/ o resumo do stub.
   const argsById = new Map<string, unknown>();
-  for (const m of messages) {
+  for (const m of limpo) {
     if (m.role === 'assistant' && Array.isArray(m.content)) {
       for (const part of m.content) {
         if (part.type === 'tool-call') {
@@ -70,11 +74,11 @@ export function pruneToolResults(messages: ModelMessage[], knobs: PruneToolResul
     }
   }
 
-  const totalToolMsgs = messages.reduce((n, m) => (m.role === 'tool' ? n + 1 : n), 0);
+  const totalToolMsgs = limpo.reduce((n, m) => (m.role === 'tool' ? n + 1 : n), 0);
   const firstKeptRound = totalToolMsgs - knobs.windowTurns; // rodadas com índice < isto são podadas
   let roundIndex = 0;
 
-  return messages.map((m) => {
+  const podadas = limpo.map((m) => {
     if (m.role !== 'tool') {
       return m;
     }
@@ -111,4 +115,8 @@ export function pruneToolResults(messages: ModelMessage[], knobs: PruneToolResul
     });
     return { ...m, content };
   });
+
+  // Retorna com sanitização final para garantir estrutura estritamente canônica ao AI SDK.
+  return sanitizeMessages(podadas);
 }
+

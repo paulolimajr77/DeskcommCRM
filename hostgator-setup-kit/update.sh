@@ -167,6 +167,13 @@ fi
 # COMPOSE, cores, REFUSED_RC), então reler é idempotente: nada é reexecutado
 # com efeito. O que muda é de onde vêm as funções daqui para baixo.
 source "$KIT_DIR/_common.sh"
+# E o aviso de manutenção pelo MESMO motivo, na mesma linha do raciocínio acima:
+# ele também é carregado no topo, também é só definição de função, e o passo que
+# o USA (a pausa do banco) vem depois daqui. Sem esta linha o parágrafo acima
+# valeria para `_common.sh` e seria falso para o kit — um conserto na página de
+# manutenção chegaria uma atualização atrasada, que é exatamente o defeito que a
+# releitura existe para fechar.
+source "$KIT_DIR/manutencao.sh"
 
 [ -n "${DESKCOMM_AGENT_REPORT:-}" ] && eval "${DESKCOMM_AGENT_REPORT_CMD}" codigo
 
@@ -245,19 +252,17 @@ if [ -f supabase/baseline.sql ]; then
 
   # ── O LOG DO BANCO FICA GUARDADO ──────────────────────────────────────────
   #
+  # Ele era descartado: a saída do psql servia só para o filtro de erros e
+  # morria com a função. O que o agente guarda em `system_update_runs.log_tail`
+  # é a CAUDA da atualização — Docker e reinício —, e o banco acontece antes.
+  #
   # Medido em 2026-09-12, numa instalação real: duas regras de isolamento
   # sumiram durante uma atualização, o funil ficou vazio para todo mundo, e não
-  # houve como saber por quê — a evidência (a saída bruta do psql) tinha sido
-  # jogada fora. O que o agente guarda em `system_update_runs.log_tail` é a
-  # CAUDA da atualização — Docker e reinício —, e o banco acontece antes disso.
+  # houve como saber por quê — a evidência tinha sido jogada fora. A única coisa
+  # que restou foi a hipótese.
   #
-  # ⚠️ NÃO capture `$raw` aqui fora: `reaplicar_baseline` (`_common.sh`) a
-  # declara `local` — ela não existe neste escopo, e `set -u` derruba o script
-  # com "raw: unbound variable" (medido: quebrou silenciosamente a atualização
-  # inteira depois do merge que moveu a aplicação para a função). A função já
-  # recebe um caminho de log como 2º argumento, e escreve nele a saída de
-  # TODAS as passadas, cada uma com cabeçalho — melhor que a única passada que
-  # a captura antiga guardava.
+  # O segundo argumento de `reaplicar_baseline` já existe para isto e recebe
+  # TODAS as passadas, cada uma com cabeçalho — melhor que a saída da última.
   if reaplicar_baseline "$PROJECT_DIR/supabase/baseline.sql" "$PROJECT_DIR/.deskcomm-banco.log"; then
     if [ "$BASELINE_PASSADAS" -gt 1 ]; then
       c_grn "✓ banco atualizado na passada $BASELINE_PASSADAS — as anteriores não aplicaram tudo (banco ocupado ou conexão instável; o que faltou está listado acima)."
@@ -275,8 +280,7 @@ if [ -f supabase/baseline.sql ]; then
     c_ylw "  O app pode ainda funcionar."
     orientar_banco_incompleto
   fi
-
-  # ── E AS REGRAS DE ISOLAMENTO SÃO CONFERIDAS ──────────────────────────────
+    # ── E AS REGRAS DE ISOLAMENTO SÃO CONFERIDAS ──────────────────────────────
   #
   # ## Por que isto existe
   #
@@ -543,6 +547,19 @@ manutencao_desce
 # mesmo caminho, sem depender de casar em inglês uma frase que o Docker muda. O
 # custo é o pior caso: um `up -d` que falhe por outro motivo gasta o build antes
 # de desistir. É o preço de não adivinhar.
+# ⛔ O AVISO DESCE AQUI, e nao no gatilho de saida.
+#
+# MEDIDO na atualizacao real para a v1.17.21: o gatilho roda depois de mais
+# quatro etapas — baixar imagem, recriar, conferir saude, conferir automacoes. E
+# o roteamento do aviso tem prioridade 500, ACIMA da regra do app. Resultado: o
+# CRM voltava ao ar e quem abrisse continuava vendo "estamos atualizando" por
+# minutos, com o sistema ja funcionando. Aviso que mente e pior que aviso nenhum:
+# a pessoa vai embora achando que o sistema esta fora.
+#
+# `restaurar_servicos` segue chamando o mesmo `manutencao_desce` — ele e
+# `docker rm -f ... || true`, idempotente de proposito, e la ele cobre o caminho
+# de ERRO, onde este ponto aqui nunca chega a ser alcancado.
+manutencao_desce
 CONSTRUIU_AQUI=""
 if ! dc up -d; then
   if construir_aqui_e_subir "$VERSAO_ALVO"; then

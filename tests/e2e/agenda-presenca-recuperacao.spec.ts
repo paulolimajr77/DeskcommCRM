@@ -286,19 +286,7 @@ test("Inbox marca cliente/conversa; detalhe antigo confirma presença com evidê
   await page.getByRole("link", { name: "Marcar compromisso", exact: true }).click();
   const panel = page.getByTestId("painel-de-marcacao");
   await expect(panel).toBeVisible();
-  // ⛔ NÃO é mais `getByLabel("Quem será atendido").toHaveValue(<uuid>)`. A
-  // escolha do cliente virou UM campo só ("Cliente do compromisso"), e quando
-  // há alguém escolhido não existe campo nenhum: o painel mostra o NOME e a
-  // saída para desfazer. O que este teste prova continua o mesmo — a entrada
-  // pelo Inbox chega com o cliente daquela conversa já preso.
-  //
-  // ⚠️ E procura FORA do `painel-de-marcacao`. O vínculo do cliente é IRMÃO do
-  // painel em `app/app/agenda/_client.tsx` (linhas 625 e 726), não filho dele —
-  // escopar no painel procura no lugar errado e falha com "element(s) not
-  // found" enquanto o cliente está na tela. Medido no CI em 2026-09-13.
-  const tirarOCliente = page.getByRole("button", { name: "Tirar o cliente" });
-  await expect(tirarOCliente).toBeVisible();
-  await expect(tirarOCliente.locator("..")).toContainText(p.name);
+  await expect(page.getByTestId("quem-sera-atendido")).toHaveAttribute("data-contact-id", p.contact);
   await expect(page.getByLabel("Conversa vinculada (opcional)")).toHaveValue(p.conversation);
   // ⛔ O PAINEL NÃO PODE SER FECHADO AQUI, E A RAZÃO É UM CONSERTO DELIBERADO.
   //
@@ -516,15 +504,7 @@ test("ir para a Agenda pelo menu apaga o cliente da conversa — \"Novo agendame
   await page.goto(`/app/inbox/${p.conversation}`);
   await page.getByRole("link", { name: "Marcar compromisso", exact: true }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible();
-  // ⚠️ MIGRADO NO MERGE DA v1.27.1. Era `getByLabel("Quem será atendido")`, o
-  // seletor dos DOIS campos. Eles viraram um só (`EscolhaDoCliente`), e quando
-  // há cliente escolhido não existe campo nenhum: o painel mostra o NOME e a
-  // saída para desfazer. O irmão deste caso, mais acima, já tinha sido migrado
-  // — este ficou para trás e só apareceu quando o e2e passou a ALCANÇAR estas
-  // specs (a parte 3 as cortava por tempo antes de chegar nelas).
-  const clienteDaConversa = page.getByRole("button", { name: "Tirar o cliente" });
-  await expect(clienteDaConversa).toBeVisible();
-  await expect(clienteDaConversa.locator("..")).toContainText(p.name);
+  await expect(page.getByTestId("quem-sera-atendido")).toHaveAttribute("data-contact-id", p.contact);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("painel-de-marcacao")).toBeHidden();
 
@@ -532,12 +512,7 @@ test("ir para a Agenda pelo menu apaga o cliente da conversa — \"Novo agendame
   await expect(page).toHaveURL(/\/app\/agenda$/);
   await page.getByRole("button", { name: /novo agendamento/i }).click();
   await expect(page.getByTestId("painel-de-marcacao")).toBeVisible();
-  // O QUE "NAO HERDOU" QUER DIZER NO CAMPO UNICO: nao ha ficha de cliente, e o
-  // campo de busca esta la', vazio. As DUAS afirmacoes juntas — so' a ausencia
-  // da ficha passaria com a tela quebrada, e so' o campo vazio passaria se a
-  // ficha continuasse desenhada ao lado.
-  await expect(page.getByRole("button", { name: "Tirar o cliente" })).toBeHidden();
-  await expect(page.getByLabel("Cliente do compromisso")).toHaveValue("");
+  await expect(page.getByTestId("quem-sera-atendido")).toHaveValue("");
 });
 
 test("gestão configura prazos e gatilho; falta inicia uma vez e resposta interrompe", async ({

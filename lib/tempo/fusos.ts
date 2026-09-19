@@ -81,12 +81,21 @@ export const FUSOS_OFERECIDOS: { codigo: string; rotulo: string }[] = [
   { codigo: "America/Lima", rotulo: "Lima (Peru)" },
   { codigo: "America/Bogota", rotulo: "Bogotá (Colômbia)" },
   { codigo: "America/Mexico_City", rotulo: "Cidade do México (México)" },
+  { codigo: "America/Sao_Paulo", rotulo: "São Paulo (Brasil)" },
+  { codigo: "America/Manaus", rotulo: "Manaus (Brasil)" },
+  { codigo: "America/Belem", rotulo: "Belém (Brasil)" },
+  { codigo: "America/Recife", rotulo: "Recife (Brasil)" },
+  { codigo: "America/Fortaleza", rotulo: "Fortaleza (Brasil)" },
+  // Fora da América do Sul, e de propósito: quem instala em Angola fala
+  // português e usava a lista inteira errada. Aditivo — `FUSO_PADRAO` segue
+  // `America/Sao_Paulo`, então ninguém que já escolheu muda de relógio.
+  { codigo: "Africa/Luanda", rotulo: "Luanda (Angola)" },
+  { codigo: "UTC", rotulo: "UTC" },
   // Fora da América Latina: vieram do onboarding, e quem opera de fora existe.
   { codigo: "Europe/Lisbon", rotulo: "Lisboa (Portugal)" },
   { codigo: "Europe/Madrid", rotulo: "Madri (Espanha)" },
   { codigo: "America/New_York", rotulo: "Nova York (Estados Unidos)" },
   { codigo: "America/Los_Angeles", rotulo: "Los Angeles (Estados Unidos)" },
-  { codigo: "UTC", rotulo: "Outro (horário universal — UTC)" },
 ];
 
 /**

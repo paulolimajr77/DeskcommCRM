@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import { updateTenant } from "@/app/actions/settings/updateTenant";
 import { useT } from "@/hooks/i18n/useT";
-import { FUSOS_OFERECIDOS } from "@/lib/tempo/fusos";
 import { IDIOMAS_VISIVEIS } from "@/lib/i18n/registro";
 import { paisesOferecidos } from "@/lib/legal/perfil-do-pais";
 import { MOEDAS_SERVIDAS, simboloDaMoeda, type MoedaServida } from "@/lib/money";
@@ -25,16 +24,19 @@ interface Props {
   initial: TenantInput;
 }
 
-// A lista de fusos vive em `lib/tempo/fusos.ts` — ver o cabeçalho de lá.
-// Esta tela tinha a própria cópia de 6 entradas, e quem escolhia Cuiabá ou
-// Rio Branco no onboarding encontrava este campo EM BRANCO.
+const TIMEZONES = [
+  "Africa/Luanda",
+  "America/Sao_Paulo",
+  "America/Manaus",
+  "America/Belem",
+  "America/Recife",
+  "America/Fortaleza",
+  "UTC",
+];
 
 export function TenantForm({ initial }: Props) {
   const t = useT();
   const [form, setForm] = useState<TenantInput>(initial);
-  const [reasonsText, setReasonsText] = useState(
-    (initial.lost_reasons_extra ?? []).join(", "),
-  );
   const [isPending, startTransition] = useTransition();
 
   function set<K extends keyof TenantInput>(key: K, value: TenantInput[K]) {
@@ -43,12 +45,7 @@ export function TenantForm({ initial }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const reasons = reasonsText
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const candidate = { ...form, lost_reasons_extra: reasons };
-    const parsed = tenantSchema.safeParse(candidate);
+    const parsed = tenantSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(t("Dados inválidos."));
       return;
@@ -106,9 +103,9 @@ export function TenantForm({ initial }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {FUSOS_OFERECIDOS.map((f) => (
-                  <SelectItem key={f.codigo} value={f.codigo}>
-                    {t(f.rotulo)}
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -193,19 +190,6 @@ export function TenantForm({ initial }: Props) {
               onChange={(e) => set("privacy_policy_url", e.target.value || null)}
             />
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="lost_reasons">{t("Motivos de perda extras (separados por vírgula)")}</Label>
-          <Input
-            id="lost_reasons"
-            value={reasonsText}
-            onChange={(e) => setReasonsText(e.target.value)}
-            placeholder={t("ex: Sem orçamento, Concorrente")}
-          />
-          <p className="text-xs text-muted-foreground">
-            {t("Adicionados ao set padrão. Cada pipeline pode ter seus próprios motivos.")}
-          </p>
         </div>
 
         <div className="flex sm:justify-end">

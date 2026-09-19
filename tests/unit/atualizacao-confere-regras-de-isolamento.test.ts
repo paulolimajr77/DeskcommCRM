@@ -93,14 +93,14 @@ describe("o update.sh guarda a evidência e confere o resultado", () => {
     // A conferência tem de acontecer com os serviços ainda parados: é a única
     // janela sem disputa. E o trap é o que impede um erro no meio de deixar a
     // instalação pela metade.
+    //
+    // ⚠️ A SONDA DA APLICAÇÃO É `reaplicar_baseline`, e não o `psql … -f /b.sql`.
+    // O comando nu não mora mais no `update.sh`: desde a issue #1040 ele vive
+    // dentro de `reaplicar_baseline` (`_common.sh`), que repete a passada quando
+    // o banco está ocupado. Uma sonda presa ao texto antigo devolve -1 contra um
+    // `update.sh` CORRETO — e -1 é sempre "menor que a pausa", ou seja, vermelho
+    // que acusa o código de uma ordem que ele respeita.
     const pausa = UPDATE.indexOf("pausar_o_que_fala_com_o_banco");
-    // ⚠️ A aplicação do SQL foi extraída para `reaplicar_baseline` (função
-    // compartilhada em `_common.sh`, chamada por install E update); o
-    // `psql ... -f /b.sql` inline não existe mais AQUI, só dentro dela. A
-    // CHAMADA da função continua neste arquivo, na mesma ordem — é ela que
-    // prova que a aplicação acontece depois da pausa. `indexOf` da string
-    // exata da chamada, não só do nome da função: o nome também aparece antes,
-    // num comentário (linha do topo do arquivo), o que daria falso negativo.
     const aplica = UPDATE.indexOf('reaplicar_baseline "$PROJECT_DIR/supabase/baseline.sql"');
     expect(pausa).toBeGreaterThan(-1);
     expect(aplica).toBeGreaterThan(pausa);

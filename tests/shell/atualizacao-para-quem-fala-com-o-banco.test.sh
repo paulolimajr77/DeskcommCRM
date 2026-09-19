@@ -498,12 +498,15 @@ echo "caso 30 — ⛔ o aviso desce no PROPRIO update.sh, antes do 'up -d' que t
 # aviso tem prioridade ACIMA da regra do app — entao o CRM voltava ao ar e quem
 # abrisse continuava vendo "estamos atualizando" por minutos. Aviso que mente e
 # pior que aviso nenhum.
+#
+# ⚠️ A SONDA DO `up -d` NAO E ANCORADA EM `^dc up -d$`. Na `main` essa linha esta
+# dentro de uma guarda — `if ! dc up -d; then ... construir_aqui_e_subir`, que e
+# como uma VPS de outra arquitetura se recupera sozinha (issue 1060). Uma sonda
+# presa a linha nua ficava vermelha contra um update.sh CORRETO, e o vermelho
+# nao falava de manutencao nenhuma: dizia "up=" vazio. Quem manda e o comando,
+# esteja ele nu ou sob guarda.
 q_desce="$(printf '%s' "$UP" | grep -n "^manutencao_desce$" | head -1 | cut -d: -f1)"
-# `dc up -d` pode vir dentro de `if ! dc up -d; then` — a guarda de recuperação
-# de arquitetura incompatível (`construir_aqui_e_subir`) precisa do código de
-# saída, e sob `set -e` isso exige que a chamada esteja na condição de um `if`,
-# nunca numa linha solta cujo erro derrubaria o script antes do "then".
-q_up="$(printf '%s' "$UP" | grep -nE '^ *(if ! *)?dc up -d' | head -1 | cut -d: -f1)"
+q_up="$(printf '%s' "$UP" | grep -nE "^(if ! )?dc up -d(; then)?$" | head -1 | cut -d: -f1)"
 if [ -n "$q_desce" ] && [ -n "$q_up" ] && [ "$q_desce" -lt "$q_up" ]; then
   ok "desce antes do 'dc up -d' do proprio script"
 else
@@ -527,6 +530,38 @@ if printf '%s' "$CONF" | grep -qE "^  location / \{" && printf '%s' "$CONF" | gr
   ok "o error_page mora DENTRO do location /, nao no server"
 else
   nao "error_page escopado" "error_page 503 indentado dentro de location /" "fora de escopo"
+fi
+
+echo "caso 32 — o aviso e RELIDO depois da troca de versao, como o resto do kit"
+# Este caso nao e do PR original: ele existe porque a `main` resolveu "quem roda a
+# atualizacao e a versao nova" por RELEITURA (`source _common.sh` depois do
+# `git checkout`), e nao por `exec`. Sob esse desenho, todo arquivo do kit que o
+# `update.sh` carrega no topo precisa ser relido no mesmo ponto — senao o
+# paragrafo que promete "o conserto vale JA nesta passada" e verdadeiro para o
+# `_common.sh` e falso para o aviso de manutencao, que e carregado do lado dele.
+#
+# A sonda e ESTATICA (le o texto do script), e isso esta dito de proposito: a
+# prova de ponta a ponta do mesmo mecanismo vive no caso 11 do update-guard, que
+# monta duas versoes do kit num repositorio de mentira. Aqui basta provar que o
+# aviso viaja junto do `_common.sh` nos DOIS pontos.
+n_checkout="$(printf '%s' "$UP" | grep -n 'git checkout --quiet "\$TARGET_TAG"' | head -1 | cut -d: -f1)"
+n_antes="$(printf '%s' "$UP" | grep -n 'source "\$KIT_DIR/manutencao.sh"' | head -1 | cut -d: -f1)"
+n_depois="$(printf '%s' "$UP" | grep -n 'source "\$KIT_DIR/manutencao.sh"' | tail -1 | cut -d: -f1)"
+# CONTROLE positivo, medido no MESMO comando e contra o MESMO alvo: o
+# `_common.sh` — que a `main` ja relia antes desta onda — tem de aparecer duas
+# vezes. Se ele aparecer uma so, quem quebrou foi a sonda, nao o aviso.
+n_common="$(printf '%s' "$UP" | grep -c 'source "\$KIT_DIR/_common.sh"')"
+if [ "$n_common" -ge 2 ]; then
+  ok "CONTROLE: o _common.sh e carregado nos dois pontos (achei $n_common)"
+else
+  nao "controle do _common.sh" "2 ocorrencias de source _common.sh" "$n_common — a sonda esta cega"
+fi
+if [ -n "$n_checkout" ] && [ -n "$n_antes" ] && [ -n "$n_depois" ] \
+   && [ "$n_antes" -lt "$n_checkout" ] && [ "$n_depois" -gt "$n_checkout" ]; then
+  ok "o aviso e carregado antes E relido depois da troca de versao"
+else
+  nao "releitura do aviso" "source manutencao.sh dos dois lados do git checkout" \
+      "antes=$n_antes checkout=$n_checkout depois=$n_depois"
 fi
 
 if [ "$falhas" -eq 0 ]; then

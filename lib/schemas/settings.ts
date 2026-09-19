@@ -113,12 +113,7 @@ export const tenantSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal("").transform(() => null)),
-  // `.refine(fusoValido)` e não só `min(1)`: era texto livre, e um fuso que o
-  // `Intl` recusa (um acento, um nome inventado) salvava sem reclamar e depois
-  // derrubava a avaliação de janela no worker, horas mais tarde, longe da tela
-  // que o causou. É a MESMA defesa que `availabilityScheduleSchema` já tinha —
-  // faltava aqui. Ver o cabeçalho de `lib/tempo/fusos.ts`.
-  timezone: z.string().min(1).max(64).refine(fusoValido, "fuso horário inválido"),
+  timezone: z.string().min(1).max(64),
   locale: z.enum(LOCALES),
   currency: z.enum(MOEDAS),
   media_retention_days: z.coerce.number().int().min(30).max(3650),
@@ -136,7 +131,6 @@ export const tenantSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal("").transform(() => null)),
-  lost_reasons_extra: z.array(z.string().min(1).max(80)).max(50).default([]),
 });
 export type TenantInput = z.infer<typeof tenantSchema>;
 

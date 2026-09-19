@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/hooks/i18n/useT";
 import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
+import { rotuloDoLocal } from "@/lib/agenda/locais";
 
 type Detalhe = {
   meeting?: MeetingDetail | null;
@@ -17,6 +18,9 @@ type Detalhe = {
   id: string;
   title: string;
   notes: string | null;
+  description: string | null;
+  location_kind: string | null;
+  location_details: string | null;
   starts_at: string;
   ends_at: string;
   time_zone: string;
@@ -155,11 +159,20 @@ export function DetalheDoCompromisso({
             <p data-testid="compromisso-horario">
               {formatoDeData.formatRange(new Date(a.starts_at), new Date(a.ends_at))}
             </p>
-            {a.notes ? (
-              /* Fica logo abaixo do horario porque e ai que quem vai atender
-                 olha antes da reuniao. `whitespace-pre-line` porque a pessoa
-                 escreve em linhas, e juntar tudo num paragrafo so apagaria a
-                 lista que ela fez. */
+            {rotuloDoLocal(a.location_kind, a.location_details) ? (
+              <p data-testid="compromisso-local">
+                {rotuloDoLocal(a.location_kind, a.location_details)}
+              </p>
+            ) : null}
+            {a.description?.trim() ? (
+              <p data-testid="compromisso-observacao" className="whitespace-pre-wrap">
+                {a.description}
+              </p>
+            ) : null}
+            {a.notes && !a.description?.trim() ? (
+              /* Legado: antes do campo description, a observação morava em notes.
+                 Mostra só quando description está vazio para não duplicar a tela
+                 (e o testid) quando os dois estiverem preenchidos. */
               <div data-testid="compromisso-observacao" className="rounded-md border bg-surface p-3">
                 <p className="text-xs font-medium text-text-muted">{t("Observação")}</p>
                 <p className="mt-1 whitespace-pre-line text-sm">{a.notes}</p>

@@ -22,7 +22,6 @@ interface OrgRow {
   media_retention_days: number;
   dpo_email: string | null;
   privacy_policy_url: string | null;
-  settings: Record<string, unknown> | null;
 }
 
 export default async function TenantSettingsPage() {
@@ -43,10 +42,6 @@ export default async function TenantSettingsPage() {
     .maybeSingle();
 
   const row = (data ?? null) as OrgRow | null;
-  const lostReasonsExtra =
-    (row?.settings && Array.isArray((row.settings as { lost_reasons_extra?: unknown }).lost_reasons_extra)
-      ? ((row.settings as { lost_reasons_extra?: string[] }).lost_reasons_extra ?? [])
-      : []) as string[];
   const idioma = user.idioma;
 
   return (
@@ -77,7 +72,6 @@ export default async function TenantSettingsPage() {
             media_retention_days: row.media_retention_days,
             dpo_email: row.dpo_email,
             privacy_policy_url: row.privacy_policy_url,
-            lost_reasons_extra: lostReasonsExtra,
           }}
         />
       )}

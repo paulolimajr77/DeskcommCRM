@@ -1,4 +1,4 @@
--- 20260919000200_0345_proposta_comercial.sql
+-- 20260919232000_0349_proposta_comercial.sql
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -239,8 +239,11 @@ alter table public.agent_inbox_items
     -- campos do funil (migrations 0284, 0287 — chegaram depois desta migration
     -- ter sido escrita, no merge de feat/o-agente-preenche-os-campos-do-funil):
     'lead_field_proposed', 'passos_esgotados', 'laco_de_retorno_caiu',
-    -- proposta comercial (migration 0345):
+    -- proposta comercial (migration 0349):
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
+    'aviso_de_caso_nao_entregue',
+    'followup_sem_agente',
+    'canal_mudo_sem_numero',
     'other'
   ));
 

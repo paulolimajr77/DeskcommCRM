@@ -10006,7 +10006,7 @@ alter table public.agent_inbox_items
     -- lista, não em bloco novo (#159, bloco único por constraint).
     'voice_call_missed',
     'case_stale',
-    -- (migration 0284) O agente OUVIU algo que a empresa ainda não declarou em
+    -- (migration 0347) O agente OUVIU algo que a empresa ainda não declarou em
     -- Configurações › Funis — "vocês anotam de onde o cliente veio?" — e propõe
     -- o campo. É proposta de CONFIGURAÇÃO, não de dado: criar campo muda a tela
     -- de TODOS os leads daquele funil, para sempre.
@@ -10018,16 +10018,16 @@ alter table public.agent_inbox_items
     --
     -- Entra NESTA lista, e não em bloco novo (#159, bloco único por constraint).
     'lead_field_proposed',
-    -- (migration 0287) O turno bateu no teto de passos e parou no meio. Antes
+    -- (migration 0348) O turno bateu no teto de passos e parou no meio. Antes
     -- disto era um `return` mudo: o cliente via a conversa terminar sem resposta
     -- e ninguém no sistema sabia que o teto tinha sido a causa.
     'passos_esgotados',
-    -- (migration 0287) Uma das duas contagens do laço de retorno caiu de forma
+    -- (migration 0348) Uma das duas contagens do laço de retorno caiu de forma
     -- sustentada nesta organização: perguntas de campo feitas x campos gravados,
     -- ou pedidos de agendamento x compromissos criados. Emitido por uma tarefa
     -- futura (Peça 11) — a constraint aceita o valor desde já.
     'laco_de_retorno_caiu',
-    -- proposta comercial (migration 0345): vencimento, laço de retorno, promessa não cumprida.
+    -- proposta comercial (migration 0349): vencimento, laço de retorno, promessa não cumprida.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
     -- (migration 0292) O aviso de caso não chegou ao WhatsApp da equipe,
     -- em definitivo. Nasce com `ref_kind='agent_case'` para levar AO CASO —
@@ -26156,7 +26156,7 @@ create index if not exists idx_contact_field_proposals_por_lead
 
 notify pgrst, 'reload schema';
 
--- ---- o agente propõe campo novo, e a chave volta com o mecanismo (migration 0284) ----
+-- ---- o agente propõe campo novo, e a chave volta com o mecanismo (migration 0347) ----
 -- Racional completo no cabeçalho da migration 0284. Duas coisas:
 --
 -- 1. O kind `lead_field_proposed` entrou no BLOCO ÚNICO da constraint, mais
@@ -29114,7 +29114,7 @@ end $f$;
 -- EXECUTE sai das duas origens e dos papéis que o default ACL do Supabase alcança.
 revoke execute on function public.fn_aplicar_travas_de_suporte() from public, anon, authenticated, service_role;
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0345) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0349) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -29228,6 +29228,154 @@ begin
   select organization_id into v_org from public.crm_proposals where id = new.proposal_id;
   if v_org is distinct from new.organization_id then
     raise exception 'crm_proposal_item_org_mismatch' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_crm_proposal_items_org_consistente on public.crm_proposal_items;
+create trigger trg_crm_proposal_items_org_consistente
+  before insert or update on public.crm_proposal_items
+  for each row execute function public.fn_verificar_org_do_item_da_proposta();
+
+alter table public.crm_proposals enable row level security;
+alter table public.crm_proposal_items enable row level security;
+
+-- Leitura: qualquer papel da organização. Escrita do RASCUNHO: `agent` monta
+-- e deixa pronto (spec §16, decisão 2). O ENVIO exige `manager`/`admin`, mas
+-- isso é gate DE ROTA (Tarefa 14), não de RLS — a RLS não distingue "criar
+-- rascunho" de "marcar enviada" dentro de um UPDATE genérico.
+-- SELECT tem o bypass de suporte da plataforma (molde de catalog_products);
+-- WRITE não tem, de propósito — só gestor/agent da própria org edita.
+drop policy if exists crm_proposals_select on public.crm_proposals;
+create policy crm_proposals_select on public.crm_proposals
+  for select using (
+    (organization_id in (select public.fn_user_org_ids())) or public.fn_is_platform_admin()
+  );
+
+drop policy if exists crm_proposals_write on public.crm_proposals;
+create policy crm_proposals_write on public.crm_proposals
+  for all
+  using (organization_id in (select public.fn_user_org_ids())
+         and public.fn_role_at_least(organization_id, 'agent'))
+  with check (organization_id in (select public.fn_user_org_ids())
+              and public.fn_role_at_least(organization_id, 'agent'));
+
+-- organization_id direto na linha (não mais join com crm_proposals): mais
+-- simples, mais rápido, e é o que a trava de suporte (0274) precisa medir.
+drop policy if exists crm_proposal_items_select on public.crm_proposal_items;
+create policy crm_proposal_items_select on public.crm_proposal_items
+  for select using (
+    (organization_id in (select public.fn_user_org_ids())) or public.fn_is_platform_admin()
+  );
+
+drop policy if exists crm_proposal_items_write on public.crm_proposal_items;
+create policy crm_proposal_items_write on public.crm_proposal_items
+  for all
+  using (organization_id in (select public.fn_user_org_ids())
+         and public.fn_role_at_least(organization_id, 'agent'))
+  with check (organization_id in (select public.fn_user_org_ids())
+              and public.fn_role_at_least(organization_id, 'agent'));
+
+revoke all on public.crm_proposals from anon;
+revoke all on public.crm_proposal_items from anon;
+grant select, insert, update, delete on public.crm_proposals to authenticated;
+grant select, insert, update, delete on public.crm_proposal_items to authenticated;
+grant all on public.crm_proposals to service_role;
+grant all on public.crm_proposal_items to service_role;
+
+drop trigger if exists trg_crm_proposals_updated_at on public.crm_proposals;
+create trigger trg_crm_proposals_updated_at
+  before update on public.crm_proposals
+  for each row execute function public.fn_set_updated_at();
+
+comment on table public.crm_proposals is
+  'Documento comercial emitido para um contato: itens, valor, prazo. Desfecho volta ao funil.';
+comment on column public.crm_proposals.numero is
+  'Nasce NULL. Alocado só no ENVIO — rascunho descartado não queima número (spec §5.3).';
+comment on column public.crm_proposals.versao is
+  'v2 herda numero/ano da v1 quando uma proposta ENVIADA é revisada (spec §5.4).';
+comment on column public.crm_proposals.revision is
+  'Concorrência otimista do EDITOR: incrementa a cada PATCH de rascunho ou aplicação do assistente. Diferente de `versao`, que é a versão pós-envio, visível ao cliente no PDF.';
+
+-- Numeração: aloca dentro da MESMA transação do envio. A rota que chama isto
+-- (Tarefa 14) captura 23505 (unique_violation do índice parcial acima) e
+-- tenta de novo — é o padrão de idempotência que o repositório já usa.
+create or replace function public.fn_proposta_aloca_numero(p_org uuid, p_ano int)
+returns int
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(max(numero), 0) + 1
+  from public.crm_proposals
+  where organization_id = p_org and ano = p_ano;
+$$;
+
+-- Só service_role chama (a rota de envio, Tarefa 14, usa createAdminClient()).
+-- NUNCA authenticated: a função não confere se p_org pertence a quem chama —
+-- exposta a authenticated seria RPC cross-tenant (qualquer usuário logado
+-- aprenderia a numeração de outra organização passando o organization_id dela).
+revoke all on function public.fn_proposta_aloca_numero(uuid, int) from public, anon, authenticated;
+grant execute on function public.fn_proposta_aloca_numero(uuid, int) to service_role;
+
+-- Bucket privado, URL sempre assinada — mesmo padrão de `lgpd-exports`
+-- (file_size_limit/allowed_mime_types inclusive; só PDF faz sentido aqui).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('propostas', 'propostas', false, 52428800, array['application/pdf'])
+on conflict (id) do nothing;
+
+drop policy if exists "propostas: leitura por organizacao" on storage.objects;
+create policy "propostas: leitura por organizacao" on storage.objects
+  for select using (
+    bucket_id = 'propostas'
+    and (split_part(name, '/', 1))::uuid in (select public.fn_user_org_ids())
+  );
+
+-- Sem policy de escrita: `service_role` ignora RLS (é o papel que faz bypass),
+-- então uma policy aqui seria decorativa — mesmo padrão dos outros buckets do
+-- produto (`lgpd-exports`, `skill-assets`), nenhum deles tem uma. `auth.role()`
+-- também não existe fora de um projeto Supabase real, e quebrava o Postgres
+-- efêmero do CI (test:db) ao aplicar o baseline.
+
+-- Três `kind` novos em agent_inbox_items. Medido em 2026-09-17 contra
+-- supabase/baseline.sql: `agent_inbox_items_kind_check` reconstruída aqui com
+-- a lista COMPLETA (26 valores vigentes + os 3 novos + 'other') porque esta é
+-- a última migration da cadeia a tocar essa constraint — a cadeia
+-- (`supabase db push`) não tem o "bloco único" do apêndice do baseline.sql, e
+-- `tests/unit/kind-check-migration-x-baseline.test.ts` cobra que a ÚLTIMA
+-- migration que a reconstrói bata, valor a valor, com o baseline.
+alter table public.agent_inbox_items
+  drop constraint if exists agent_inbox_items_kind_check;
+
+alter table public.agent_inbox_items
+  add constraint agent_inbox_items_kind_check check (kind in (
+    'appointment_outcome_required', 'appointment_recovery_review', 'qr_rescan',
+    'routing_unassigned', 'job_dead', 'event_dead', 'budget_exceeded', 'handoff',
+    'promotion_review', 'judge_unaligned', 'followup_dead', 'snooze_expired',
+    'next_action_ambiguous', 'risk_backlog_seeded', 'reactivation_expired',
+    'capabilities_missing', 'message_send_stuck', 'midia_nao_lida',
+    'channel_template_review', 'channel_number_alert', 'promise_unfulfilled',
+    'contact_proposal_expired', 'budget_warning', 'conhecimento_nao_indexado',
+    'voice_call_missed', 'case_stale',
+    -- campos do funil (migrations 0284, 0287 — chegaram depois desta migration
+    -- ter sido escrita, no merge de feat/o-agente-preenche-os-campos-do-funil):
+    'lead_field_proposed', 'passos_esgotados', 'laco_de_retorno_caiu',
+    -- proposta comercial (migration 0349):
+    'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
+    'other'
+  ));
+
+-- A tarefa gravada a partir de um aviso de promessa (Tarefa 1) precisa dizer
+-- DE ONDE veio, sem exigir que toda `crm_tasks` tenha origem — vocabulário
+-- ABERTO (sem CHECK), mesmo padrão de `crm_lead_activities.type` (CLAUDE.md
+-- doutrina de Migrations, exceção DIRC): o emissor usa a constante
+-- compartilhada de `lib/tarefas/vocabulario-de-origem.ts`, nunca string solta.
+alter table public.crm_tasks
+  add column if not exists source_kind text;
+comment on column public.crm_tasks.source_kind is
+  'De onde a tarefa nasceu (ex.: promised_proposal). NULL = criada à mão. Vocabulário aberto — TypeScript, sem CHECK.';
 -- ---- a espera da Fila não recomeça a cada mensagem do cliente (migration 0267) ----
 --
 -- Issue #990. A aba Fila ordena por tempo de espera crescente e a régua era

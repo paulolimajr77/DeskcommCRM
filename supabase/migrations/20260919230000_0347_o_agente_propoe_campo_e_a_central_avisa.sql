@@ -1,4 +1,4 @@
--- 0284 — o agente PROPÕE um campo de funil, e a Central avisa.
+-- 0347 — o agente PROPÕE um campo de funil, e a Central avisa.
 --
 -- ─── O que muda ─────────────────────────────────────────────────────────────
 --
@@ -61,6 +61,14 @@ alter table public.agent_inbox_items
     'voice_call_missed',
     'case_stale',
     'lead_field_proposed',
+    'passos_esgotados',
+    'laco_de_retorno_caiu',
+    'proposal_expired_notice',
+    'proposal_acceptance_rate_drop',
+    'proposal_promised_not_created',
+    'aviso_de_caso_nao_entregue',
+    'followup_sem_agente',
+    'canal_mudo_sem_numero',
     'other'
   ));
 

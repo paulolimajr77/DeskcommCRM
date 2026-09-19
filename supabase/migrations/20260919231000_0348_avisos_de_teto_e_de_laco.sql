@@ -66,15 +66,21 @@ alter table public.agent_inbox_items
     'voice_call_missed',
     'case_stale',
     'lead_field_proposed',
-    -- (migration 0287) O turno bateu no teto de passos e parou no meio. Antes
+    -- (migration 0348) O turno bateu no teto de passos e parou no meio. Antes
     -- disto era um `return` mudo: o cliente via a conversa terminar sem resposta
     -- e ninguém no sistema sabia que o teto tinha sido a causa.
     'passos_esgotados',
-    -- (migration 0287) Uma das duas contagens do laço de retorno caiu de forma
+    -- (migration 0348) Uma das duas contagens do laço de retorno caiu de forma
     -- sustentada nesta organização: perguntas de campo feitas x campos gravados,
     -- ou pedidos de agendamento x compromissos criados. Emitido por uma tarefa
     -- futura (Peça 11) — a constraint aceita o valor desde já.
     'laco_de_retorno_caiu',
+    'proposal_expired_notice',
+    'proposal_acceptance_rate_drop',
+    'proposal_promised_not_created',
+    'aviso_de_caso_nao_entregue',
+    'followup_sem_agente',
+    'canal_mudo_sem_numero',
     'other'
   ));
 

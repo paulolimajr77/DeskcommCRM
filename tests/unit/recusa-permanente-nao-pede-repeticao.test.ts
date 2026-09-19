@@ -45,7 +45,13 @@ const HERDADAS = new Map<string, number>([
   ["appointment_stale", 7],
   ["meet_stale", 7],
   ["meet_conversation_stale", 5],
-  ["service_contact_changed", 4],
+  // 4 → 5 no merge da 1.40.0, e NÃO é recusa nova: a 0267 do upstream
+  // (`0267_espera_da_fila_nao_recomeca`) REDEFINIU `fn_mark_conversation_message`
+  // com o mesmo `service_contact_changed ... 40001` — o corpo antigo continua
+  // no baseline como história (append-only) e a sonda conta texto, não runtime.
+  // Em runtime continua valendo 4 (o `create or replace` sobrescreve). Se um
+  // SEXTO sítio aparecer, é defeito novo de verdade.
+  ["service_contact_changed", 5],
   ["google_selection_stale", 4],
   ["google_outcome_protected", 4],
   ["followup_stale", 4],

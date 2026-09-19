@@ -65,16 +65,6 @@ export async function updateTenant(input: TenantInput): Promise<UpdateTenantResu
     return { ok: false, error: `País sem perfil revisado: ${pais}` };
   }
 
-  // O país só entra se tiver PERFIL REVISADO (issue #1033): `paisesOferecidos()`
-  // é a lista que o seletor mostra, e é ela que a gravação confere. Sem esta
-  // guarda, um PATCH à mão gravaria um país cujo documento legal ninguém
-  // revisou, e o PDF de acesso passaria a não citar lei nenhuma — ou, pior,
-  // citaria a brasileira para um titular de outro país.
-  const pais = parsed.data.country ?? null;
-  if (pais !== null && !paisesOferecidos().some((p) => p.codigo === pais)) {
-    return { ok: false, error: `País sem perfil revisado: ${pais}` };
-  }
-
   const { error } = await supabase
     .from("organizations")
     .update({

@@ -114,9 +114,20 @@ export function sanitizeMessages(messages: ModelMessage[]): ModelMessage[] {
           content: toolResultsValidos,
         });
       }
-    } else if (msg.role === 'user' || msg.role === 'system') {
+    } else if (msg.role === 'system') {
+      if (pendingToolCalls.size > 0) {
+        result.push(criarToolResultSintetico(pendingToolCalls));
+        pendingToolCalls.clear();
+      }
+
+      const texto = typeof msg.content === 'string' ? msg.content.trim() : '';
+      result.push({
+        ...msg,
+        content: texto.length > 0 ? (msg.content as string) : '(vazio)',
+      });
+    } else if (msg.role === 'user') {
       // Se havia tool-calls pendentes do assistant anterior, o provedor proíbe
-      // mensagem de usuário/sistema imediata sem a mensagem tool intermediária.
+      // mensagem de usuário imediata sem a mensagem tool intermediária.
       if (pendingToolCalls.size > 0) {
         result.push(criarToolResultSintetico(pendingToolCalls));
         pendingToolCalls.clear();
@@ -143,6 +154,7 @@ export function sanitizeMessages(messages: ModelMessage[]): ModelMessage[] {
     } else {
       result.push(msg);
     }
+
   }
 
   // Se a última mensagem for um assistant com tool-calls pendentes (ex.: teto de passos atingido),

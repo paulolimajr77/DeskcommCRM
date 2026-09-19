@@ -63,11 +63,15 @@ describe("sanitizeMessages — proteção de invariantes do chat com ferramentas
     const toolMsg = sanitizadas[2];
     expect(toolMsg?.role).toBe("tool");
     if (toolMsg && toolMsg.role === "tool" && Array.isArray(toolMsg.content)) {
-      expect(toolMsg.content[0]?.type).toBe("tool-result");
-      expect(toolMsg.content[0]?.toolCallId).toBe("call_abc_123");
-      expect(toolMsg.content[0]?.toolName).toBe("criar_proposta");
+      const part = toolMsg.content[0];
+      expect(part && part.type === "tool-result").toBe(true);
+      if (part && part.type === "tool-result") {
+        expect(part.toolCallId).toBe("call_abc_123");
+        expect(part.toolName).toBe("criar_proposta");
+      }
     }
   });
+
 
   it("injeta tool-result sintético se a última mensagem for um assistant com tool-call pendente", () => {
     const messages: ModelMessage[] = [
@@ -222,11 +226,15 @@ describe("pruneToolResults — integração com poda e sanitização", () => {
     const toolMsg1 = podado[2];
     expect(toolMsg1?.role).toBe("tool");
     if (toolMsg1 && toolMsg1.role === "tool" && Array.isArray(toolMsg1.content)) {
-      const output = toolMsg1.content[0]?.output;
-      expect(output?.type).toBe("text");
-      if (output?.type === "text") {
-        expect(output.value).toContain("[resultado podado");
+      const part = toolMsg1.content[0];
+      if (part && part.type === "tool-result") {
+        const output = part.output;
+        expect(output?.type).toBe("text");
+        if (output?.type === "text") {
+          expect(output.value).toContain("[resultado podado");
+        }
       }
     }
   });
+
 });

@@ -22,7 +22,7 @@ export function sanitizeMessages(messages: ModelMessage[]): ModelMessage[] {
 
   const result: ModelMessage[] = [];
   // Tool calls do último assistant aguardando tool-result
-  let pendingToolCalls = new Map<string, { toolCallId: string; toolName: string }>();
+  const pendingToolCalls = new Map<string, { toolCallId: string; toolName: string }>();
 
   for (const msg of messages) {
     if (!msg || typeof msg !== 'object') continue;

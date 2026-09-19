@@ -8431,7 +8431,6 @@ export const DICIONARIO: Traducoes = {
     { es: "No se pudo guardar la dirección. Inténtalo de nuevo." },
   "Não foi possível carregar os endereços. Tente novamente.":
     { es: "No se pudieron cargar las direcciones. Inténtalo de nuevo." },
-  "Observação": { es: "Observación" },
   "O que a equipe precisa lembrar neste horário": {
     es: "Lo que el equipo necesita recordar en este horario",
   },

@@ -420,7 +420,14 @@ export function createOperatorTurnHandler(deps: InboundTurnDeps) {
       try {
         mcp = await buildMcpTurnTools(
           deps.crmCfg,
-          { organizationId: tenantId, jobId: job.id },
+          {
+            organizationId: tenantId,
+            jobId: job.id,
+            // `leadId` aqui é o CONTATO do job (vem de `job.contact_id`, fonte
+            // confiável) — o negócio é derivado dele em `alvoDerivadoDaConversa`,
+            // e é isso que impede o modelo de inventar um UUID ficitício.
+            contactId: leadId,
+          },
           // A ponte lê `toolIds`; o papel guarda a lista dele em
           // `operatorToolIds`. A troca acontece AQUI, num ponto só, para que
           // nenhum caminho do Operador alcance a lista do Conversador por

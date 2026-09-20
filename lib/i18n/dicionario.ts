@@ -636,23 +636,6 @@ export const DICIONARIO: Traducoes = {
   "Buscar cliente": { es: "Buscar cliente" },
   "Quem será atendido": { es: "Quién será atendido" },
   "Compromisso pessoal, sem cliente": { es: "Cita personal, sin cliente" },
-  "Enviar de novo": { es: "Enviar de nuevo" },
-  "Mandar ao cliente": { es: "Enviar al cliente" },
-  "Conversa que receberá os dados": { es: "Conversación que recibirá los datos" },
-  "Envio autorizado: aguardando a vez na fila.": {
-    es: "Envío autorizado: esperando su turno en la cola.",
-  },
-  "Dados aguardando envio nesta conversa.": {
-    es: "Datos esperando envío en esta conversación.",
-  },
-  "Dados enviados na conversa autorizada.": {
-    es: "Datos enviados en la conversación autorizada.",
-  },
-  "Confirmar reenvio": { es: "Confirmar reenvío" },
-  "Mandar de novo os dados desta reunião para o cliente?": {
-    es: "¿Enviar de nuevo los datos de esta reunión al cliente?",
-  },
-  "Mandar de novo": { es: "Enviar de nuevo" },
   "Cliente do compromisso": { es: "Cliente de la cita" },
   "Tirar o cliente": { es: "Quitar el cliente" },
   "Digite para buscar um cliente": { es: "Escriba para buscar un cliente" },
@@ -1747,7 +1730,6 @@ export const DICIONARIO: Traducoes = {
   "Nova proposta": { es: "Nueva propuesta" },
   "Falha ao listar propostas.": { es: "No se pudieron listar las propuestas." },
   "Nenhuma proposta cadastrada ainda.": { es: "Todavía no hay propuestas registradas." },
-  Número: { es: "Número" },
   Aceita: { es: "Aceptada" },
   Recusada: { es: "Rechazada" },
   Vencida: { es: "Vencida" },
@@ -1767,7 +1749,6 @@ export const DICIONARIO: Traducoes = {
   Subtotal: { es: "Subtotal" },
   "+ Item à mão": { es: "+ Ítem manual" },
   "Buscar produto no catálogo…": { es: "Buscar producto en el catálogo…" },
-  Total: { es: "Total" },
   "Propostas comerciais": { es: "Propuestas comerciales" },
   "Abrir proposta": { es: "Abrir propuesta" },
   "A validade passou sem decisão do cliente. Confirme se ainda vale a pena manter a oferta ou revise o preço.": {
@@ -9639,31 +9620,6 @@ export const DICIONARIO: Traducoes = {
   "Não foi possível confirmar o link": { es: "No se pudo confirmar el enlace" },
   "Solicitação de link cancelada": { es: "Solicitud de enlace cancelada" },
   "Link não enviado ainda.": { es: "Enlace aún no enviado." },
-  "Dados não enviados ainda.": { es: "Datos aún no enviados." },
-  "O atendimento desta conversa mudou depois que o link foi criado. Escolha a conversa atual e autorize o envio de novo.": {
-    es: "La atención de esta conversación cambió después de crearse el enlace. Elige la conversación actual y autoriza el envío de nuevo.",
-  },
-  "Este compromisso mudou enquanto a tela estava aberta. Atualize a página e tente de novo.": {
-    es: "Esta cita cambió mientras la pantalla estaba abierta. Actualiza la página e inténtalo de nuevo.",
-  },
-  "O Google e o CRM discordam sobre este compromisso. Resolva a diferença antes de enviar o link.": {
-    es: "Google y el CRM no coinciden sobre esta cita. Resuelve la diferencia antes de enviar el enlace.",
-  },
-  "Esta conversa não pode receber o link: ela é de outro contato, é um grupo, ou você não tem acesso a ela.": {
-    es: "Esta conversación no puede recibir el enlace: es de otro contacto, es un grupo, o no tienes acceso a ella.",
-  },
-  "Confirme a verificação em duas etapas nesta sessão para enviar o link.": {
-    es: "Confirma la verificación en dos pasos en esta sesión para enviar el enlace.",
-  },
-  "Só quem é responsável pelo compromisso pode enviar o link dele.": {
-    es: "Solo quien es responsable de la cita puede enviar su enlace.",
-  },
-  "Ação desconhecida para o link do Meet.": {
-    es: "Acción desconocida para el enlace de Meet.",
-  },
-  "Não foi possível registrar a ação. O motivo ficou registrado no servidor com o identificador abaixo.": {
-    es: "No se pudo registrar la acción. El motivo quedó registrado en el servidor con el identificador de abajo.",
-  },
   "O envio do link ainda não foi autorizado.": { es: "El envío del enlace aún no ha sido autorizado." },
   "Este atendimento está ocupado neste instante. Aguarde alguns segundos e tente de novo.": {
     es: "Esta atención está ocupada en este momento. Espera unos segundos e inténtalo de nuevo.",
@@ -9697,12 +9653,6 @@ export const DICIONARIO: Traducoes = {
   "O envio atingiu uma janela ou limite do canal. Aguarde a liberação antes de tentar novamente.": { es: "El envío alcanzó una ventana o un límite del canal. Espera a que se habilite antes de intentarlo de nuevo." },
   "Uma regra de envio impediu a mensagem. Confira o aviso na Central antes de tentar novamente.": { es: "Una regla de envío bloqueó el mensaje. Revisa el aviso en la Central antes de intentarlo de nuevo." },
   "Sua reunião está marcada para": { es: "Tu reunión está programada para" },
-  // A frase da CORRECAO. Ela vai para o CLIENTE, no idioma dele — entao a
-  // falta de espanhol aqui nao apareceria em nenhuma tela, so na mensagem de
-  // quem recebe.
-  "O horário da sua reunião mudou. Agora é": {
-    es: "El horario de tu reunión cambió. Ahora es",
-  },
   "Link do Google Meet:": { es: "Enlace de Google Meet:" },
 
 

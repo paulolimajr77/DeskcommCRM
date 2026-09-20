@@ -32,6 +32,9 @@ export async function meetingAction(
   if (
     !z.uuid().safeParse(id).success ||
     !parsed.success ||
+    // `resend` exige a conversa igual ao `deliver`: a entrega tem destino, e
+    // quem reenvia escolhe para onde. Só o `retry` (refazer o link no Google)
+    // não tem conversa nenhuma envolvida.
     (action !== "retry" && !parsed.data.conversation_id)
   )
     return fail(
@@ -61,25 +64,21 @@ export async function meetingAction(
       });
     return ok({ pending: true, changed: Boolean(changed) }, { requestId });
   } catch (error) {
-    // O motivo REAL, não um literal. A versão anterior gravava
-    // `code: "internal_error"` fixo — o servidor sabia por que tinha recusado e
-    // apagava a informação ao registrá-la. Foi o que fez uma investigação de um
-    // dia inteiro não achar nada nos logs.
+    // O MOTIVO REAL, derivado do que a função escolheu DIZER.
+    //
+    // A versão anterior reconhecia três SQLSTATE e mandava o resto para 500 —
+    // e 500 é status de "tente de novo", então o cliente HTTP repetia. Medido
+    // numa instalação real em 2026-09-12: "Enviar link ao cliente" ficava 20
+    // segundos parado e terminava em "Erro inesperado. Tente novamente.". Os
+    // 20 segundos eram as três tentativas de um pedido que o banco já tinha
+    // recusado, com nome próprio (`meet_conversation_stale`), no primeiro
+    // milissegundo.
     const motivo = motivoDoMeet(error);
-    // ⛔ A MENSAGEM CRUA DO ERRO NUNCA ENTRA AQUI.
-    //
-    // Ela pode carregar o LINK DA REUNIÃO. `tests/unit/agenda-meet-routes.test.ts`
-    // injeta `https://meet.google.com/secret?token=private` como mensagem do
-    // erro e exige que o registro não contenha "secret" — e foi ele que pegou a
-    // primeira versão deste conserto, que gravava `erro: error.message`. Eu ia
-    // trocar um defeito de diagnóstico por um vazamento de link privado.
-    //
-    // O `code: "internal_error"` fixo da versão ANTERIOR à minha não era
-    // descuido: era sanitização. O que este conserto corrige é outra coisa —
-    // aquele campo era fixo para TODO erro, então o motivo se perdia junto com
-    // o segredo. Agora vai o `codigo` derivado, que é identificador NOSSO
-    // (`meet_conversation_stale`, `forbidden`, …) e não carrega dado de
-    // ninguém. Diagnóstico sem vazamento.
+    // ⛔ A MENSAGEM CRUA NUNCA ENTRA NO REGISTRO — ela pode carregar o LINK da
+    // reunião. Mas apagá-la inteira também custou caro: um erro real chegou
+    // aqui sem nome e sem SQLSTATE, e o registro guardou apenas
+    // `code: "internal_error"`. `semSegredos` tira os endereços, que é onde o
+    // segredo mora, e deixa a frase, que é onde mora o diagnóstico.
     logger.error("agenda.meet_action_failed", {
       requestId,
       action,
@@ -88,18 +87,10 @@ export async function meetingAction(
         error && typeof error === "object" && "code" in error && error.code !== undefined
           ? String(error.code)
           : null,
-      // REDIGIDA, nao apagada. Apagar a mensagem inteira ja custou um
-      // diagnostico real: um erro de producao chegou aqui sem nome conhecido e
-      // sem SQLSTATE, e o registro nao guardou pista nenhuma. `semSegredos`
-      // tira os enderecos — onde o segredo mora — e deixa a frase.
       mensagem: semSegredos(error instanceof Error ? error.message : null),
     });
-    // ⛔ RECUSA DE REGRA NUNCA VAI COMO 5xx.
-    //
-    // O cliente HTTP repete automaticamente em 5xx. Devolver 500 para uma
-    // recusa conhecida virava três tentativas idênticas, três recusas
-    // idênticas, e ~20 segundos de espera antes de uma frase que não dizia
-    // nada — medido com cronômetro por quem operava.
-    return fail(motivo.codigo, traduzir(motivo.texto, auth.user.idioma), motivo.status, { requestId });
+    return fail(motivo.codigo, traduzir(motivo.texto, auth.user.idioma), motivo.status, {
+      requestId,
+    });
   }
 }

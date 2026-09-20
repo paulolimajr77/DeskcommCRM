@@ -168,19 +168,37 @@ export function motivoDoMeet(erro: unknown): MotivoDoMeet {
   }
 
   const code = typeof e.code === "string" ? e.code : "";
-  // ⚠️ `22023` entra AO LADO de `40001`, e não no lugar dele.
+  // ⚠️ `PT409` é o código da casa para recusa PERMANENTE, e ele entra AO LADO
+  // de `40001`, não no lugar dele.
   //
-  // A partir da migration 0246 as recusas permanentes da agenda passam a usar
-  // `22023`: `40001` promete "tente de novo" e o PostgREST acredita — MEDIDO com
-  // a versão v14.17, a mesma da VPS, uma chamada HTTP virou 51.556 execuções e
-  // nunca respondeu. Mas o baseline ainda tem 80 sítios em `40001` fora da
-  // agenda, e tirar este ramo faria todos eles caírem no erro genérico. Os dois
-  // significam a mesma coisa para quem está na tela: mudou, atualize.
-  if (code === "40001" || code === "22023")
+  // `40001` promete "conflito de serialização, tente de novo", e quem acredita
+  // não é o operador: é a infraestrutura. O PostgREST mapeia a classe 40 para
+  // HTTP 500, e o gateway do Supabase reexecuta 5xx SEM LIMITE — em 2026-09-11
+  // oito requisições de dois dias antes, reexecutadas ~280×/s cada, ocuparam o
+  // pool inteiro e puseram o produto todo em 503 (`docs/runbooks/postgrest-replay-do-gateway.md`).
+  // O runbook nomeia a saída de classe: trocar `40001` por um `PTxxx`, que o
+  // PostgREST traduz direto para o status HTTP dos três últimos dígitos.
+  //
+  // O ramo de `40001` fica porque o baseline ainda tem dezenas de sítios com
+  // ele fora da agenda; os dois dizem a mesma coisa a quem está na tela.
+  if (code === "PT409" || code === "40001" || code === "22023")
     return {
       codigo: "conflict",
       status: 409,
       texto: "O compromisso ou atendimento mudou. Atualize e tente novamente.",
+      naoRepetir: true,
+    };
+  // `55P03` = `lock_not_available`: a espera pela trava do atendimento estourou
+  // o prazo que a migration 0243 pôs no PAPEL (`lock_timeout`), e não na
+  // função. Sem este ramo, o caminho que a `main` abriu cairia no genérico de
+  // 500 — que é exatamente o status que faz o cliente repetir e empilhar mais
+  // um pedido na fila da mesma trava.
+  if (code === "55P03")
+    return {
+      codigo: "meet_ocupado",
+      status: 409,
+      texto:
+        "Este atendimento está ocupado neste instante. Aguarde alguns segundos e tente de novo.",
       naoRepetir: true,
     };
   if (code === "42501")

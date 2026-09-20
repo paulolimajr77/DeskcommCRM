@@ -451,25 +451,21 @@ test("marca Meet, copia link, autoriza em atendimento humano e entrega novamente
     expect(channel.bodies[0]!.text).toContain(link);
     const original = (await row(f, id)).meeting_delivery;
     await detail(page, id);
-    // ⛔ ESTA LINHA ERA `"Link já enviado"` + `toBeDisabled()` — e era o defeito
-    // que a Onda 4 conserta: o botão ficava preso PARA SEMPRE depois do primeiro
-    // envio, e quem precisava reenviar não tinha caminho nenhum.
-    //
-    // ⚠️ Ela sobreviveu a três versões publicadas, e não por acaso: o job `e2e`
-    // dispara em `main` e em PR, e a `vps/pljr-combinada` não é nenhum dos dois
-    // — ou seja, NUNCA rodou na linha que a VPS instala. Medido em 2026-09-13,
-    // no mesmo dia em que o gatilho da nossa linha foi ligado.
+    // ⛔ ESTA LINHA ERA `"Link já enviado"` + `toBeDisabled()`, e era o defeito:
+    // o botão ficava preso PARA SEMPRE depois do primeiro envio, e quem
+    // precisava reenviar não tinha caminho nenhum pelo produto.
     await expect(meet(page).getByRole("button", { name: "Enviar de novo" })).toBeEnabled();
     // E o destravamento NÃO abre porta para envio em dobro: o clique pede
     // confirmação. É o que substitui, na tela, o `return false` que o banco dá
-    // ao `deliver` em estado `sent` — e por isso a `resend` passa reto lá.
+    // ao `deliver` em estado `sent` — e é por isso que a `resend` passa reto lá.
     await meet(page).getByRole("button", { name: "Enviar de novo" }).click();
     const confirmacao = page.getByRole("dialog", { name: "Confirmar reenvio" });
     await expect(
-      confirmacao.getByText("Mandar de novo os dados desta reunião para o cliente?"),
+      confirmacao.getByText("Mandar de novo o link desta reunião para o cliente?"),
     ).toBeVisible();
     await confirmacao.getByRole("button", { name: "Cancelar" }).click();
     await expect(confirmacao).toHaveCount(0);
+    // CONTROLE: cancelar não mexeu no estado da entrega.
     expect((await row(f, id)).meeting_delivery.state).toBe("sent");
     const after = (
       await db

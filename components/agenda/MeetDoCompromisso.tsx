@@ -21,9 +21,9 @@ export interface MeetingDetail {
   destinations: Array<{ id: string; label: string }>;
   /**
    * Onde o compromisso acontece. Decide a PROMESSA da seção: onde o local é o
-   * Meet, o que vai ao cliente é o LINK; onde não é, o que vai são os DADOS do
+   * Meet, o que vai ao cliente é o LINK; onde não é, o que vão são os DADOS do
    * compromisso. Prometer link num compromisso presencial é prometer o que não
-   * existe.
+   * existe. Ausente = Meet, que era o único caso que esta seção atendia.
    */
   location_kind?: string;
 }
@@ -45,15 +45,17 @@ export function MeetDoCompromisso({
   const sendTo = destination || meeting.destinations[0]?.id || "";
   const mesmaConversa =
     meeting.delivery_authorization_current === true && meeting.delivery_conversation_id === sendTo;
-  // "Já enviado" deixa de TRANCAR: vira o rótulo da ação de reenviar. Quem
-  // remarcou e não teve a correção automática entregue (o atendimento mudou, o
-  // canal caiu) precisava de um caminho manual, e não havia nenhum.
+  // "Já enviado" deixa de TRANCAR e passa a ser o rótulo da ação de reenviar.
+  // Quem precisava mandar de novo — o cliente apagou a conversa, trocou de
+  // número, a correção de uma remarcação não chegou — não tinha caminho pelo
+  // produto e acabava mandando o link à mão, fora do CRM.
   const jaEnviado = mesmaConversa && meeting.delivery_state === "sent";
-  // Aguardando continua trancando: repetir aqui empilharia pedido de uma
-  // entrega que já está a caminho.
+  // Aguardando continua trancando, e isso não é descuido: ali a entrega já está
+  // a caminho, e repetir empilharia pedido.
   const aguardando =
     mesmaConversa && ["waiting_for_link", "queued"].includes(meeting.delivery_state);
   const [confirmando, setConfirmando] = useState(false);
+  const ehMeet = (meeting.location_kind ?? "google_meet") === "google_meet";
   const action = useMutation({
     mutationFn: (kind: "retry" | "deliver" | "resend") =>
       apiClient.post(`/api/v1/agenda/agendamentos/${id}/google/meet/${kind}`, {
@@ -67,7 +69,6 @@ export function MeetDoCompromisso({
       onSaved();
     },
   });
-  const ehMeetLabel = (meeting.location_kind ?? "google_meet") === "google_meet";
   const stateLabel: Record<string, string> = {
     not_requested: "Link ainda não solicitado",
     pending: "Criando link do Google Meet",
@@ -75,7 +76,7 @@ export function MeetDoCompromisso({
     failed: "Não foi possível confirmar o link",
     cancelled: "Solicitação de link cancelada",
   };
-  const deliveryLabel: Record<string, string> = ehMeetLabel
+  const deliveryLabel: Record<string, string> = ehMeet
     ? {
         none: "Link não enviado ainda.",
         waiting_for_link: "Envio autorizado: aguardando o link ficar pronto.",
@@ -87,6 +88,8 @@ export function MeetDoCompromisso({
         failed: "O envio falhou. Confira o canal e tente novamente.",
       }
     : {
+        // Sem Meet o que sai são os DADOS do compromisso, e nenhuma frase fala
+        // de link — inclusive a da fila: não há link para esperar.
         none: "Dados não enviados ainda.",
         waiting_for_link: "Envio autorizado: aguardando a vez na fila.",
         queued: "Dados aguardando envio nesta conversa.",
@@ -96,11 +99,14 @@ export function MeetDoCompromisso({
         stale: "O atendimento mudou. Autorize uma nova entrega na conversa desejada.",
         failed: "O envio falhou. Confira o canal e tente novamente.",
       };
-  const ehMeet = ehMeetLabel;
-  const titulo = ehMeet ? "Google Meet" : "Mandar ao cliente";
   return (
-    <section className="mt-3 space-y-3 rounded-md border p-3" aria-label={t(titulo)}>
-      <h3 className="text-sm font-medium">{t(titulo)}</h3>
+    <section
+      className="mt-3 space-y-3 rounded-md border p-3"
+      aria-label={t(ehMeet ? "Google Meet" : "Mandar ao cliente")}
+    >
+      <h3 className="text-sm font-medium">{t(ehMeet ? "Google Meet" : "Mandar ao cliente")}</h3>
+      {/* O estado do LINK só existe onde há link a criar. Num compromisso
+          presencial esta linha diria "Link ainda não solicitado" para sempre. */}
       {ehMeet ? (
         <p role="status" className="text-sm">
           {t(stateLabel[meeting.state] ?? "Link ainda não solicitado")}
@@ -157,7 +163,7 @@ export function MeetDoCompromisso({
         {t(
           (meeting.delivery_error ? meetingDeliveryErrors[meeting.delivery_error] : null) ??
             deliveryLabel[meeting.delivery_state] ??
-            "Link não enviado ainda.",
+            (ehMeet ? "Link não enviado ainda." : "Dados não enviados ainda."),
         )}
       </p>
       {meeting.can_manage && meeting.state !== "cancelled" && (
@@ -183,6 +189,7 @@ export function MeetDoCompromisso({
           </select>
           <Button
             size="sm"
+            // `state === "failed"` é falha de CRIAR LINK: só tranca onde há link.
             disabled={
               !sendTo || action.isPending || (ehMeet && meeting.state === "failed") || aguardando
             }
@@ -211,7 +218,13 @@ export function MeetDoCompromisso({
               aria-label={t("Confirmar reenvio")}
               className="rounded-md border p-3 text-sm"
             >
-              <p>{t("Mandar de novo os dados desta reunião para o cliente?")}</p>
+              <p>
+                {t(
+                  ehMeet
+                    ? "Mandar de novo o link desta reunião para o cliente?"
+                    : "Mandar de novo os dados deste compromisso para o cliente?",
+                )}
+              </p>
               <div className="mt-2 flex gap-2">
                 <Button
                   size="sm"

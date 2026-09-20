@@ -54,8 +54,6 @@ export { tool } from 'ai';
 export type { ModelMessage, ToolSet } from 'ai';
 export type { LlmEdgeConfig } from './credentials';
 export { llmEdgeConfigFromEnv, LlmNotConfiguredError } from './credentials';
-export { sanitizeMessages } from './sanitize-messages';
-import { sanitizeMessages } from './sanitize-messages';
 
 /** Teto mensal da org esgotado — runs recusados ANTES do provider (zero tokens). */
 export class LlmBudgetExceededError extends Error {
@@ -214,6 +212,10 @@ export interface RunModelCallInput {
    * agente), nunca constante.
    */
   maxSteps?: number;
+  /** Teto por chamada auxiliar; nunca aumenta o limite configurado pela organização. */
+  maxOutputTokens?: number;
+  /** Cancelamento propagado pelo chamador; a falha continua registrada em llm_calls. */
+  abortSignal?: AbortSignal;
   /**
    * Override de provider/credencial vindo da versão PUBLICADA do agente (Fase
    * 2B) — resolvido no seam, nunca no call site. Sem ele, config da org.
@@ -648,6 +650,7 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   const startedAt = Date.now();
   let result: Awaited<ReturnType<typeof generateText>>;
   try {
+    input.abortSignal?.throwIfAborted();
     // `system` aceita SystemModelMessage (com providerOptions de cache) — igual
     // em v6 e v7 (smoke prova que o cacheControl continua virando cache_control).
     result = await generateText({
@@ -656,13 +659,16 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
       // ignoram o terceiro argumento e vão ao endpoint intrínseco.
       model: factory(config.apiKey, model, decisao.baseUrl ?? undefined),
       system: prefix.system,
-      messages: sanitizeMessages(input.messages),
+      messages: input.messages,
+      abortSignal: input.abortSignal,
       tools: guardServiceTools(prefix.tools),
       stopWhen: input.maxSteps === undefined ? undefined : stepCountIs(input.maxSteps),
       temperature,
       topP,
       topK,
-      maxOutputTokens,
+      maxOutputTokens: input.maxOutputTokens === undefined
+        ? maxOutputTokens
+        : Math.min(maxOutputTokens ?? Infinity, input.maxOutputTokens),
     });
   } catch (err) {
     // ─── A LINHA QUE FALTAVA ────────────────────────────────────────────────
@@ -828,8 +834,6 @@ export function normalizarErro(err: unknown): {
     codigo = 'limite_ou_saldo';
   } else if ((status !== null && status >= 500) || /timeout|ECONNREFUSED|fetch failed|network/i.test(bruto)) {
     codigo = 'provedor_indisponivel';
-  } else if (/model output must contain|output text or tool calls|messages\.\d+.*must contain/i.test(bruto)) {
-    codigo = 'historico_invalido';
   } else if (/tool|function.?call/i.test(bruto)) {
     codigo = 'modelo_sem_ferramentas';
   }

@@ -81,6 +81,34 @@ describe("o motivo da recusa chega inteiro à tela", () => {
     expect(motivoDoMeet({ code: "42501" }).status).toBe(403);
   });
 
+  it("⛔ `PT409` — o código que a casa usa para recusa permanente", () => {
+    // O runbook do replay do gateway (docs/runbooks/postgrest-replay-do-gateway.md)
+    // nomeia a saída de classe: `40001` vira HTTP 500 no PostgREST, e 5xx é
+    // reexecutado sem limite pelo gateway. `PTxxx` chega como o status dos três
+    // últimos dígitos, e 4xx não é reexecutado.
+    const m = motivoDoMeet({ code: "PT409" });
+    expect(m.status).toBe(409);
+    expect(m.naoRepetir).toBe(true);
+  });
+
+  it("⛔ `55P03` — a espera pela trava estourou o prazo do PAPEL, e não some em 500", () => {
+    // A migration 0243 pôs `lock_timeout` no papel, não na função. Sem este
+    // ramo o caminho que ela abriu cairia no genérico de 500 — o status que faz
+    // o cliente repetir e pôr mais um pedido na fila da mesma trava.
+    const m = motivoDoMeet({ code: "55P03" });
+    expect(m.codigo).toBe("meet_ocupado");
+    expect(m.status).toBe(409);
+    expect(m.naoRepetir).toBe(true);
+  });
+
+  it("CONTROLE: o nome vence o SQLSTATE quando os dois vêm", () => {
+    // Um erro de `meet_mfa_required` carimbado com 42501 tem de dizer "duas
+    // etapas", não a frase genérica dos três motivos do 42501.
+    const m = motivoDoMeet({ message: "meet_mfa_required", code: "42501" });
+    expect(m.codigo).toBe("mfa_required");
+    expect(m.texto).toMatch(/duas etapas/i);
+  });
+
   it("CONTROLE: erro DESCONHECIDO continua 500 e continua repetindo", () => {
     // Este é o caso em espelho, e ele é o que impede o conserto de virar um
     // defeito novo: falha de rede ou de infraestrutura MERECE nova tentativa.

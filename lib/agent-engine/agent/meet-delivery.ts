@@ -15,7 +15,7 @@ import {
   MeetingDeliveryBlockedError,
 } from "@/lib/agenda/meet-delivery";
 import { meetVideoUrl } from "@/lib/agenda/google/meet";
-import { textoDaEntrega, type MotivoDaEntrega } from "@/lib/agenda/texto-do-compromisso";
+import { textoDoCompromisso, type MotivoDaEntrega } from "@/lib/agenda/texto-do-compromisso";
 import { normalizarIdioma, type Idioma } from "@/lib/i18n/idiomas";
 
 export function createMeetDeliveryHandler(deps: {
@@ -57,6 +57,7 @@ export function createMeetDeliveryHandler(deps: {
         const { rows } = await pool.query<
           LgpdContactFields & {
             meeting_url: string;
+            location_kind: string;
             starts_at: string;
             time_zone: string;
             channel_session_id: string;
@@ -66,7 +67,7 @@ export function createMeetDeliveryHandler(deps: {
             organization_locale: string;
           }
         >(
-          `select a.meeting_url,a.starts_at,a.time_zone,c.source,c.consent,c.is_anonymized,c.locale as contact_locale,o.locale as organization_locale,v.channel_session_id,s.daily_message_limit,to_jsonb(s)->>'archived_at' as archived_at
+          `select a.meeting_url,a.location_kind,a.starts_at,a.time_zone,c.source,c.consent,c.is_anonymized,c.locale as contact_locale,o.locale as organization_locale,v.channel_session_id,s.daily_message_limit,to_jsonb(s)->>'archived_at' as archived_at
            from calendar_appointments a join contacts c on c.organization_id=a.organization_id and c.id=a.contact_id
            join organizations o on o.id=a.organization_id
            join conversations v on v.organization_id=a.organization_id and v.contact_id=c.id and v.id=$3
@@ -81,7 +82,13 @@ export function createMeetDeliveryHandler(deps: {
         );
         const row = rows[0];
         const url = meetVideoUrl(row?.meeting_url);
-        if (!row || !url || row.archived_at) {
+        // ⛔ A EXIGÊNCIA DE LINK VALE SÓ ONDE O LOCAL É O MEET, e a assimetria é
+        // deliberada: visita e ligação não têm sala, e recusar a entrega delas
+        // por falta de link era o que mantinha compromisso presencial fora do
+        // CRM. Onde o local É o Meet, o link continua obrigatório — mandar uma
+        // reunião sem como entrar nela é pior que não mandar.
+        const ehMeet = row?.location_kind === "google_meet";
+        if (!row || row.archived_at || (ehMeet && !url)) {
           await settle("blocked:channel");
           return;
         }
@@ -100,14 +107,15 @@ export function createMeetDeliveryHandler(deps: {
           meetingDelivery: context,
           channelSessionId: row.channel_session_id,
           crmDailyLimit: row.daily_message_limit,
-          body: textoDaEntrega({
+          body: textoDoCompromisso({
             // O motivo viaja no payload do job, posto por quem enfileirou. Sem
-            // ele o padrao e o primeiro envio — que e o comportamento de antes
-            // desta mudanca, e o certo para toda entrega ja na fila.
+            // ele, `primeiro_envio` — o comportamento de antes desta mudança, e
+            // o certo para toda entrega que já estava na fila.
             motivo: (job.payload.motivo as MotivoDaEntrega | undefined) ?? "primeiro_envio",
             startsAt: row.starts_at,
             timeZone: row.time_zone,
-            url,
+            // Sem Meet não há link, e o texto não inventa um.
+            url: ehMeet ? url : null,
             idioma: normalizarIdioma(row.contact_locale ?? row.organization_locale),
           }),
           optedOutThisTurn: false,
@@ -169,12 +177,12 @@ export function createMeetDeliveryHandler(deps: {
 }
 
 /**
- * ⚠️ MANTIDA, e agora delegando.
+ * ⚠️ MANTIDA, e agora DELEGANDO.
  *
  * Ela é exportada e há teste em cima dela. Reescrever o corpo aqui criaria DUAS
- * réguas para o mesmo texto, e duas réguas divergem — foi o que aconteceu com a
- * régua das regras de isolamento. Delegar com `primeiro_envio` garante que
- * nenhum chamador existente mude de comportamento.
+ * réguas para o mesmo texto, e duas réguas divergem na primeira mudança.
+ * `url` obrigatório aqui, porque todo chamador atual tem link — quem não tem
+ * chama `textoDoCompromisso` direto.
  */
 export function meetingDeliveryBody(
   startsAt: string,
@@ -182,5 +190,5 @@ export function meetingDeliveryBody(
   url: string,
   idioma: Idioma,
 ): string {
-  return textoDaEntrega({ motivo: "primeiro_envio", startsAt, timeZone, url, idioma });
+  return textoDoCompromisso({ startsAt, timeZone, url, idioma });
 }

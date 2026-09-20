@@ -1,13 +1,19 @@
 ---
 impacto: capacidade_nova
 secao: adicionado
-titulo: Remarcar um compromisso já enviado avisa o cliente, e o botão deixa de ficar preso em "Link já enviado"
+titulo: Remarcar um compromisso já avisado agora corrige o cliente sozinho
 ---
 
-Remarcar um compromisso depois de já ter mandado os dados ao cliente **deixava o cliente com o horário errado**. Nada reenviava, e o botão ficava preso em "Link já enviado". A pessoa aparecia no dia errado.
+Quando o cliente já tinha recebido o aviso do compromisso e alguém mudava o horário, **nada era enviado**. O cliente ficava com a data antiga e aparecia no dia errado — e não havia como corrigir pelo sistema: o botão de enviar ficava desabilitado depois do primeiro envio.
 
-Agora mudar o horário (ou o fuso) de um compromisso já enviado **manda a correção sozinho**, com uma frase dizendo que o horário mudou — e não repetindo a mesma mensagem de antes, que faria a pessoa não saber qual das duas vale.
+Agora a correção sai sozinha, e ela **diz que mudou**: "O horário da sua reunião mudou. Agora é…". Mandar a mesma frase duas vezes, com datas diferentes e sem explicação, faria a pessoa não saber qual vale.
 
-Arrastar o compromisso várias vezes seguidas na grade manda **uma** mensagem só. Editar apenas o título não manda nada. Compromisso cancelado não recebe correção.
+Três cuidados para isso não virar mensagem demais:
 
-E existe **"Enviar de novo"**, para quando alguém precisa reenviar por conta própria.
+- **só corrige quem já recebeu** — quem ainda está na fila vai sair com o horário novo de qualquer forma;
+- **só quando o horário muda** — mudar o título ou a descrição não manda nada ao cliente;
+- **espera dois minutos antes de sair**, e arrastar o compromisso de novo dentro desse tempo substitui a correção anterior em vez de somar outra mensagem.
+
+Compromisso cancelado não recebe correção: avisar cancelamento é outra coisa, e mandar "o horário mudou" de algo que não existe mais é pior que o silêncio.
+
+Contribuição de @paulolimajr77 (#803).

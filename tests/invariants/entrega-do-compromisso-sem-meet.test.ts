@@ -16,6 +16,11 @@ import { seedGov, GOV_AGENT_A } from "./gov-helpers";
  * A do enfileirador é a mais fácil de esquecer e a pior: num compromisso
  * presencial o estado é `not_requested` para sempre, então a entrega era
  * autorizada, o gatilho saía por ali, e nada acontecia — em silêncio.
+ *
+ * Arquivo do autor, portado pela triagem no recorte do #803. Ele foi o que
+ * revelou que a fatia estava incompleta: eu tinha mudado o porteiro do envio e
+ * a ação, e NÃO o gatilho — com o gatilho intacto, a entrega de um presencial
+ * ficava em `waiting_for_link` para sempre, sem job, sem aviso e sem erro.
  */
 
 const pool = new pg.Pool({

@@ -57,6 +57,7 @@ SEGREDO_SEGURO="$(printf '%s' "$INTERNAL_SECRET" | sed "s/'/'\\\\''/g")"
 # comentário, seria DADO — e crase em prosa dentro de aspas duplas o shell
 # EXECUTA. Foi o que quebrou o entrypoint na primeira tentativa desta linha.
 CRONS="
+* * * * *|240|api/v1/cron/prospecting
 * * * * *|25|api/v1/cron/agent-dispatcher
 * * * * *|25|api/v1/cron/followup-flow-worker
 * * * * *|45|api/v1/cron/event-log-drain
@@ -110,6 +111,10 @@ CRONS="
 0 8 * * *|60|api/v1/cron/proposal-expiry
 30 8 * * *|60|api/v1/cron/proposal-promised-not-created
 0 6 * * 0|60|api/v1/cron/proposal-acceptance-rate
+# AS RECORRÊNCIAS. Uma vez ao dia é o bastante: o que ela gera é uma conta a
+# pagar, e a diferença entre nascer às 5h ou às 17h não muda nada para quem paga.
+# Barato: uma consulta por instalação, e quem não tem molde nenhum sai na hora.
+50 5 * * *|60|api/v1/cron/recurring-entries
 "
 
 # CRONTAB_PATH é ponto de injeção do teste (tests/shell/scheduler-entrypoint.test.sh).

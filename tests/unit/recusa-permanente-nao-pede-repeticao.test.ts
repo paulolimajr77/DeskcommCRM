@@ -42,7 +42,13 @@ const HERDADAS = new Map<string, number>([
   ["service_stale", 13],
   ["google_stale", 11],
   ["google_conflict_requires_choice", 7],
-  ["appointment_stale", 7],
+  // 7 → 8 no merge da 1.41.0, e NÃO é recusa nova: a 0343 do upstream
+  // (`0343_agenda_dos_colegas`) REDEFINIU `fn_appointment_change_core` com o
+  // mesmo `appointment_stale ... 40001` — o corpo antigo continua no baseline
+  // como história (append-only) e a sonda conta texto, não runtime. Em runtime
+  // continua valendo 7 (o `create or replace` sobrescreve). Mesmo padrão do
+  // `service_contact_changed` no merge da 1.40.0, documentado abaixo.
+  ["appointment_stale", 8],
   ["meet_stale", 7],
   ["meet_conversation_stale", 5],
   // 4 → 5 no merge da 1.40.0, e NÃO é recusa nova: a 0267 do upstream
@@ -53,7 +59,10 @@ const HERDADAS = new Map<string, number>([
   // SEXTO sítio aparecer, é defeito novo de verdade.
   ["service_contact_changed", 5],
   ["google_selection_stale", 4],
-  ["google_outcome_protected", 4],
+  // 4 → 5 no merge da 1.41.0, mesmo caso do `appointment_stale` acima: a 0343
+  // do upstream redefiniu `fn_appointment_change_core` com o mesmo
+  // `google_outcome_protected ... 40001`. História em texto, não recusa nova.
+  ["google_outcome_protected", 5],
   ["followup_stale", 4],
   ["service_origin_cycle", 2],
   ["service_event_origin_unsupported", 2],
@@ -121,7 +130,17 @@ describe("recusa permanente não se anuncia como 'tente de novo'", () => {
     // este caso lê, e é ela que o clique na tela executa.
     const ultima = baseline.lastIndexOf("create or replace function public.fn_meet_action");
     expect(ultima, "não achei fn_meet_action no baseline: sonda cega").toBeGreaterThan(0);
-    const fim = baseline.indexOf("revoke all on function public.fn_meet_action", ultima);
+    // O fim da definição nem sempre é o `revoke`: os apêndices novos do
+    // upstream (0365/0366, merge da 1.41.0) redefinem sem repetir o `revoke`
+    // — e está certo, porque privilégio sobrevive a `create or replace`. A
+    // sonda aceita o que vier primeiro: o `revoke`, a próxima definição, ou o
+    // fechamento `$$;` do corpo.
+    const candidatos = [
+      baseline.indexOf("revoke all on function public.fn_meet_action", ultima),
+      baseline.indexOf("create or replace function public.", ultima + 1),
+      baseline.indexOf("\n$$;", ultima),
+    ].filter((i) => i > ultima);
+    const fim = candidatos.length > 0 ? Math.min(...candidatos) : -1;
     expect(fim, "não achei o fim da definição: sonda cega").toBeGreaterThan(ultima);
     const corpo = baseline.slice(ultima, fim);
     const restantes = [...corpo.matchAll(/raise exception '([a-z_]+)' using errcode='40001'/g)].map(

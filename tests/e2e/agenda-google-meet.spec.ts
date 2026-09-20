@@ -709,7 +709,12 @@ test("⛔ ONDA 4 — CONTROLE: mexer no que NÃO é horário não manda nada ao 
     // Vazio é o que se vê no invariante de banco, onde a entrega é semeada à
     // mão. A pergunta que importa é a mesma e fica mais forte assim: o motivo
     // continua o DE ANTES, e não virou `remarcado`.
-    expect(depois.meeting_delivery.motivo).toBe("primeiro_envio");
+    //
+    // Desde a 1.41.0 (0374 do upstream) o `motivo` mora no payload do JOB, e a
+    // convenção documentada lá é "ausente = primeiro_envio" — a linha só ganha
+    // `motivo` quando o gatilho de remarcar a REESCREVE. Então aqui vale o
+    // default, e o que este caso proíbe é virar `remarcado` (ou mandar msg).
+    expect(depois.meeting_delivery.motivo ?? "primeiro_envio").toBe("primeiro_envio");
     expect(channel.bodies).toHaveLength(1);
   } finally {
     await page.close();

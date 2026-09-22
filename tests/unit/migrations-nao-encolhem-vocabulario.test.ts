@@ -103,6 +103,18 @@ const REMOCOES_DELIBERADAS: Record<string, { valores: string[]; porque: string }
       "porque migration aplicada não se edita: o evento é história, a consequência foi " +
       "consertada.",
   },
+  "20260922120000_0380_remove_preenchimento_de_campos_do_funil.sql::agent_inbox_items_kind_check": {
+    valores: ["lead_field_proposed"],
+    porque:
+      "Remoção DELIBERADA: o preenchimento de campos do funil pelo agente saiu do " +
+      "produto (colunas `lead_fields_enabled`/`lead_fields_propose_new` derrubadas " +
+      "na mesma migration). Sem escritor vivo, o kind ficaria aceitando INSERTs " +
+      "que ninguém mais emite. As linhas existentes são tratadas ANTES de " +
+      "reconstruir: `update ... set kind = 'other' where kind = 'lead_field_proposed'` " +
+      "na própria migration — o aviso continua legível e resolvível na Central, " +
+      "só perde rótulo e orientação específicos. Sem isso, o `add constraint` " +
+      "validaria as linhas antigas e quebraria o `update.sh` de quem tem aviso aberto.",
+  },
 };
 
 /** Uma reconstrução de constraint encontrada na cadeia. */

@@ -78,6 +78,16 @@ create trigger trg_ai_agent_versions_content_immutable
 -- valor removido: quem reconstrói uma constraint de vocabulário assume a lista
 -- inteira (`kind-check-migration-x-baseline.test.ts` reprova divergência com o
 -- baseline). Derivada da 0379, que era a última a tocar esta constraint.
+--
+-- ⛔ ANTES de reconstruir: as linhas que já usam o kind. `add constraint`
+-- valida as linhas EXISTENTES — sem isto, o clone que tem aviso de sugestão
+-- aberto quebra no meio do `update.sh`. O destino é `other` (genérico, já no
+-- vocabulário): o aviso continua legível e resolvível na Central (título e
+-- corpo intactos, destino de Funis preservado via `ref_kind='pipeline'`) —
+-- só perde o rótulo e a orientação específicos.
+update public.agent_inbox_items
+  set kind = 'other'
+  where kind = 'lead_field_proposed';
 alter table public.agent_inbox_items
   drop constraint if exists agent_inbox_items_kind_check;
 

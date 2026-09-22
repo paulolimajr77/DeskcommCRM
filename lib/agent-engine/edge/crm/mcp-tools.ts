@@ -24,6 +24,7 @@ import { mintEphemeralToken, revokeEphemeralToken } from '@/lib/ai/runtime/mcp_t
 import { IDS_DO_HARNESS, motivoDoHarness } from '@/lib/mcp/tools/ferramentas-do-harness';
 import type { McpAuthResult } from '@/lib/mcp/auth';
 import type { McpContext } from '@/lib/mcp/types';
+import { modulosLigados } from '@/lib/instalacao/modulos';
 
 import type { Logger } from '../../obs/logger';
 import type { CrmEdgeConfig } from './mcp-client';
@@ -134,6 +135,7 @@ export async function buildMcpTurnTools(
     // DE QUEM É A CONVERSA. Sem isto, toda escrita que mira um negócio usa o
     // `lead_id` que o MODELO mandou — e ele inventa (medido em 2026-09-15).
     contactId: ids.contactId,
+    modulosLigados: await modulosLigados(cfg.supabase),
   });
 
   return {

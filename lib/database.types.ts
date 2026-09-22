@@ -6787,6 +6787,7 @@ export type Database = {
           parameter_format: string
           quality_score: string | null
           rejected_reason: string | null
+          saved_values: Json
           status: string
           synced_at: string
           updated_at: string
@@ -6805,6 +6806,7 @@ export type Database = {
           parameter_format?: string
           quality_score?: string | null
           rejected_reason?: string | null
+          saved_values?: Json
           status: string
           synced_at?: string
           updated_at?: string
@@ -6823,6 +6825,7 @@ export type Database = {
           parameter_format?: string
           quality_score?: string | null
           rejected_reason?: string | null
+          saved_values?: Json
           status?: string
           synced_at?: string
           updated_at?: string

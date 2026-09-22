@@ -193,7 +193,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency:
-      group: ${{ github.workflow }}-build-and-push-${{ matrix.name }}-${{ github.event.pull_request.number || github.ref }}
+      group: ${{ github.workflow }}-build-and-push-${{ matrix.name }}-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && github.run_attempt != '1' && format('-reentrada-{0}', github.event.pull_request.head.sha) || '' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
@@ -331,7 +331,7 @@ jobs:
     # comentário do e2e-parte no e2e.yml.
     runs-on: ${{ vars.EXECUTOR_PROPRIO == 'ligado' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'deskcomm-proprio' || 'ubuntu-latest' }}
     concurrency:
-      group: ${{ github.workflow }}-imagem-do-app-sobe-${{ github.event.pull_request.number || github.ref }}
+      group: ${{ github.workflow }}-imagem-do-app-sobe-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && github.run_attempt != '1' && format('-reentrada-{0}', github.event.pull_request.head.sha) || '' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
@@ -548,7 +548,7 @@ jobs:
     # comentário do e2e-parte no e2e.yml.
     runs-on: ${{ vars.EXECUTOR_PROPRIO == 'ligado' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'deskcomm-proprio' || 'ubuntu-latest' }}
     concurrency:
-      group: ${{ github.workflow }}-imagens-de-fundo-sobem-${{ github.event.pull_request.number || github.ref }}
+      group: ${{ github.workflow }}-imagens-de-fundo-sobem-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && github.run_attempt != '1' && format('-reentrada-{0}', github.event.pull_request.head.sha) || '' }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     # Só leitura, explícita: sem o bloco o GITHUB_TOKEN herda o default do
     # REPOSITÓRIO — configuração que vive fora do repo, muda num clique e não

@@ -20,7 +20,8 @@ import { McpAuthError, ensureRole, ensureScope } from "@/lib/mcp/auth";
 import type { McpAuthResult } from "@/lib/mcp/auth";
 import { logger } from "@/lib/logger";
 import { allTools, getToolByName } from "@/lib/mcp/tools";
-import { catalogEntry } from "@/lib/mcp/tools/catalog";
+import { catalogEntry, deModuloDesligado } from "@/lib/mcp/tools/catalog";
+import type { ModuloOpcional } from "@/lib/instalacao/modulos";
 import { higienizarUuidsDeAterro } from "@/lib/mcp/uuid-de-aterro";
 import { recusaDeCapacidadeParaOModelo } from "@/lib/mcp/recusa-para-o-modelo";
 import type { McpContext, McpToolDefinition } from "@/lib/mcp/types";
@@ -57,6 +58,12 @@ export interface PickToolsInput {
    * `alvoDerivadoDaConversa` abaixo.
    */
   contactId?: string;
+  /**
+   * Módulos opcionais LIGADOS na instalação (`modulosLigados()`). Ausente vale
+   * como nenhum: capacidade de módulo não entra no turno sem que o chamador
+   * tenha perguntado — a direção segura, como a de `pipelineIds`.
+   */
+  modulosLigados?: readonly ModuloOpcional[];
   /** Mutable signal — runtime checks after each step. */
   handoffSignal: RuntimeHandoffSignal;
 }
@@ -149,6 +156,9 @@ function wrapMcpTool(
         (args ?? {}) as Record<string, unknown>,
       );
       const argsRecord = higiene.limpos;
+      // O que vai ao audit não é necessariamente o que vai ao handler: a tool
+      // pode declarar como tirar PII dos args (ex.: valores de filtro).
+      const argsAudit = def.redigirParaAuditoria ? def.redigirParaAuditoria(argsRecord) : argsRecord;
       if (higiene.descartados.length > 0) {
         // Não é cosmético: sem esta linha o defeito passa a se curar em
         // silêncio e ninguém descobre que um modelo faz isso o tempo todo.
@@ -277,7 +287,7 @@ function wrapMcpTool(
           void auditMcpToolCall({
             ctx: input.ctx,
             toolName: def.name,
-            args: argsRecord,
+            args: argsAudit,
             durationMs: Date.now() - startedAt,
             success: false,
             errorMessage: `escopo_de_funil:${veredito.motivo}`,
@@ -313,7 +323,7 @@ function wrapMcpTool(
         void auditMcpToolCall({
           ctx: input.ctx,
           toolName: def.name,
-          args: argsRecord,
+          args: argsAudit,
           durationMs: Date.now() - startedAt,
           success: motivoDoVazio === null,
           ...(motivoDoVazio === null
@@ -326,7 +336,7 @@ function wrapMcpTool(
         void auditMcpToolCall({
           ctx: input.ctx,
           toolName: def.name,
-          args: argsRecord,
+          args: argsAudit,
           durationMs: Date.now() - startedAt,
           success: false,
           errorMessage: message,
@@ -382,6 +392,11 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     // A marca era declaração sem efeito no runtime: eu a criei no catálogo e
     // não a apliquei aqui. Não montar é o que faz a declaração valer.
     if (catalogEntry(def.name)?.apenasHumano) continue;
+
+    // Módulo opcional desligado nesta instalação (doc 37): a capacidade não
+    // existe aqui, então nem chega ao modelo — mesmo que a versão publicada do
+    // agente a tenha marcada de quando o módulo estava ligado.
+    if (deModuloDesligado(def.name, input.modulosLigados ?? [])) continue;
 
     result[def.name] = wrapMcpTool(def, input);
   }

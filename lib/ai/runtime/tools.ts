@@ -41,17 +41,6 @@ export interface PickToolsInput {
   handoffToolEnabled: boolean;
   proposalAiDraftEnabled?: boolean;
   /**
-   * Duas chaves independentes da tela do agente, lidas do banco por
-   * `agent-config.ts` (`leadFieldsEnabled`/`leadFieldsProposeNew`). Opcionais
-   * porque quem monta o turno do Operador (papel sem lead) nunca as passa.
-   *
-   * Cada uma AUTO-INJETA a ferramenta correspondente, no MESMO padrão de
-   * `handoffToolEnabled` acima — mesma garantia: só acrescenta, nunca remove o
-   * que o dono já escolheu à mão em `toolIds`.
-   */
-  leadFieldsEnabled?: boolean;
-  leadFieldsProposeNew?: boolean;
-  /**
    * Funis em que ESTE agente pode escrever (`ai_agent_versions.pipeline_ids`).
    *
    * `?? []` no chamador, e vazio significa NENHUM: o clone que ainda não aplicou
@@ -403,23 +392,6 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     const handoff = allTools.find((t) => t.name === HANDOFF_TOOL_NAME);
     if (handoff) {
       result[HANDOFF_TOOL_NAME] = wrapMcpTool(handoff, input);
-    }
-  }
-
-  // Mesma garantia do handoff acima, para as duas chaves da tela "campos do
-  // funil": D3 medido em produção — a tela grava a chave, o prompt manda usar
-  // a ferramenta, e ela nunca era montada. A chave ACRESCENTA, nunca remove: o
-  // `!result[nome]` preserva o que o dono já tenha escolhido à mão.
-  if (input.leadFieldsEnabled && !result["crm_update_lead"]) {
-    const atualizar = allTools.find((t) => t.name === "crm_update_lead");
-    if (atualizar) {
-      result["crm_update_lead"] = wrapMcpTool(atualizar, input);
-    }
-  }
-  if (input.leadFieldsProposeNew && !result["crm_propose_lead_field"]) {
-    const propor = allTools.find((t) => t.name === "crm_propose_lead_field");
-    if (propor) {
-      result["crm_propose_lead_field"] = wrapMcpTool(propor, input);
     }
   }
 

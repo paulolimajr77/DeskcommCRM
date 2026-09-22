@@ -131,11 +131,6 @@ export async function buildMcpTurnTools(
     // por isso TODA escrita de lead era recusada — com a capacidade ligada na
     // tela e o card parado. Quem passava era só o dispatcher antigo.
     pipelineIds: agentConfig.pipelineIds,
-    // As duas chaves da tela «campos do funil» viajam com a versão publicada e
-    // por isso vivem em `PublishedAgentConfig` — sem o repasse, ligar a chave
-    // grava no banco, o prompt manda usar a ferramenta, e ela nunca era montada.
-    leadFieldsEnabled: agentConfig.leadFieldsEnabled,
-    leadFieldsProposeNew: agentConfig.leadFieldsProposeNew,
     // DE QUEM É A CONVERSA. Sem isto, toda escrita que mira um negócio usa o
     // `lead_id` que o MODELO mandou — e ele inventa (medido em 2026-09-15).
     contactId: ids.contactId,

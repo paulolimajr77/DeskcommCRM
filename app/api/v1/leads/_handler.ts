@@ -1,6 +1,5 @@
 import { observeServiceOrigin } from "@/lib/atendimento/origem";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { proporCampoDoFunil } from "@/lib/contacts/proposta-de-dado";
 import { podeEntrarNaEtapa } from "@/lib/leads/etapa-que-afirma-fato";
 /**
  * Core handlers para /api/v1/leads.
@@ -85,9 +84,9 @@ async function ownerPatchOrThrow(
 /**
  * ⛔ O AGENTE NÃO SOBRESCREVE CAMPO JÁ PREENCHIDO — e isto é código, não prompt.
  *
- * O bloco do prefixo pede ao modelo que não sobrescreva (regra 4 de
- * `campos-do-funil-do-agente.ts`). Instrução o modelo desobedece, e desobedecer
- * aqui apaga o que uma pessoa digitou: dano que não se desfaz sozinho.
+ * Chave com valor não vazio não é sobrescrita pelo agente, tenha sido escrita
+ * por quem for: instrução o modelo desobedece, e desobedecer aqui apaga o que
+ * uma pessoa digitou — dano que não se desfaz sozinho.
  *
  * ## PRESENÇA, e não autoria — e isto foi MEDIDO
  *
@@ -580,31 +579,6 @@ export async function updateLeadHandler(
     // desobedece, e desobedecer aqui apaga o que uma pessoa digitou.
     const aEscrever = camposQueOAgentePodeEscrever(ctx.actor, existing, input.custom_fields);
 
-    // ⛔ O QUE FOI BARRADO VIRA PROPOSTA — descartar em silêncio seria trocar um
-    // dano por outro. O cliente disse que mudou de segmento; se isso some aqui,
-    // ninguém fica sabendo e o cadastro guarda o valor velho com cara de atual.
-    //
-    // Fire-and-forget de propósito: a proposta é um GANHO sobre a mutação
-    // principal, que já aconteceu. Falhar a requisição porque a fila de
-    // confirmação não aceitou seria punir quem escreveu pelo que não escreveu.
-    // O erro vai para o log estruturado, como o audit faz.
-    const barrados = Object.keys(input.custom_fields).filter((k) => !(k in aEscrever));
-    if (barrados.length > 0 && existing.contact_id) {
-      const atuais = (existing.custom_fields ?? {}) as Record<string, unknown>;
-      void Promise.allSettled(
-        barrados.map((campo) =>
-          proporCampoDoFunil(createAdminClient(), {
-            organizationId: ctx.organization_id,
-            contactId: existing.contact_id as string,
-            leadId,
-            campo,
-            valor: String(input.custom_fields![campo] ?? ""),
-            valorAnterior: atuais[campo] === undefined ? null : String(atuais[campo]),
-            agentId: ctx.actor.type === "ai_agent" ? (ctx.actor.agent_id ?? null) : null,
-          }),
-        ),
-      );
-    }
     if (Object.keys(aEscrever).length === 0) {
       // Lote inteiro em conflito. Não chama a função: mandar `{}` seria um
       // write no-op com cara de trabalho. E NÃO retorna cedo — os outros campos

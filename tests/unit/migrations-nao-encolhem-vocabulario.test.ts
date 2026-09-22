@@ -103,7 +103,7 @@ const REMOCOES_DELIBERADAS: Record<string, { valores: string[]; porque: string }
       "porque migration aplicada não se edita: o evento é história, a consequência foi " +
       "consertada.",
   },
-  "20260922120000_0380_remove_preenchimento_de_campos_do_funil.sql::agent_inbox_items_kind_check": {
+  "20260922153110_0381_remove_preenchimento_de_campos_do_funil.sql::agent_inbox_items_kind_check": {
     valores: ["lead_field_proposed"],
     porque:
       "Remoção DELIBERADA: o preenchimento de campos do funil pelo agente saiu do " +

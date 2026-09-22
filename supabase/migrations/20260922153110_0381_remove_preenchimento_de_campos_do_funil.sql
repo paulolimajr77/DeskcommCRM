@@ -1,4 +1,4 @@
--- 0380 - sai o preenchimento de campos do funil pelo agente.
+-- 0381 - sai o preenchimento de campos do funil pelo agente.
 --
 -- O QUE SAI: as duas colunas que a 0272/0377 puseram em `ai_agent_versions`
 -- (`lead_fields_enabled`, `lead_fields_propose_new`), o `kind`

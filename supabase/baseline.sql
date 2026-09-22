@@ -37873,7 +37873,7 @@ on conflict (model) do update set
 -- "atualizado" com módulo fora do ar. Instalação nova não tem módulo: no-op.
 do $f$ begin perform public.fn_conferir_modulos_instalados(); end $f$;
 
--- ---- sai o preenchimento de campos do funil pelo agente (migration 0380) ----
+-- ---- sai o preenchimento de campos do funil pelo agente (migration 0381) ----
 --
--- Derivado de supabase/migrations/20260922120000_0380_remove_preenchimento_de_campos_do_funil.sql
+-- Derivado de supabase/migrations/20260922153110_0381_remove_preenchimento_de_campos_do_funil.sql
 -- (o porquê inteiro está no cabeçalho de lá).

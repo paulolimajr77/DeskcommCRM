@@ -10026,7 +10026,7 @@ alter table public.agent_inbox_items
     -- ou pedidos de agendamento x compromissos criados. Emitido por uma tarefa
     -- futura (Peça 11) — a constraint aceita o valor desde já.
     'laco_de_retorno_caiu',
-    -- proposta comercial (migration 0379): vencimento, laço de retorno, promessa não cumprida.
+    -- proposta comercial (migration 0389): vencimento, laço de retorno, promessa não cumprida.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
     -- (migration 0292) O aviso de caso não chegou ao WhatsApp da equipe,
     -- em definitivo. Nasce com `ref_kind='agent_case'` para levar AO CASO —
@@ -29148,7 +29148,7 @@ end $f$;
 -- EXECUTE sai das duas origens e dos papéis que o default ACL do Supabase alcança.
 revoke execute on function public.fn_aplicar_travas_de_suporte() from public, anon, authenticated, service_role;
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0379) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0389) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -36993,10 +36993,10 @@ revoke all on function public.fn_meet_delivery_enqueue() from public,anon,authen
 
 -- 0380 - sai o preenchimento de campos do funil pelo agente.
 --
--- O QUE SAI: as duas colunas que a 0272/0377 puseram em `ai_agent_versions`
+-- O QUE SAI: as duas colunas que a 0272/0387 puseram em `ai_agent_versions`
 -- (`lead_fields_enabled`, `lead_fields_propose_new`), o `kind`
 -- `lead_field_proposed` da Central e a `fn_inbox_item_unico`, que nasceu na
--- 0377 para servir SÓ aquela ferramenta e ficou sem chamador.
+-- 0387 para servir SÓ aquela ferramenta e ficou sem chamador.
 --
 -- O QUE FICA, de propósito:
 --   - `crm_update_lead` (ferramenta preexistente; o dono ainda pode escolhê-la
@@ -37007,7 +37007,7 @@ revoke all on function public.fn_meet_delivery_enqueue() from public,anon,authen
 --     seam de escrita da tela do dossiê e do quadro (J4.36);
 --   - `camposDoFunil()` (`lib/leads/campos-do-funil.ts`): infra compartilhada
 --     (Funis, Kanban, webhooks, handoff) — anterior à feature;
---   - `passos_esgotados` e `laco_de_retorno_caiu`: kinds da 0378, de outro
+--   - `passos_esgotados` e `laco_de_retorno_caiu`: kinds da 0388, de outro
 --     mecanismo (avisos do turno sobre si mesmo).
 --
 -- Sem backfill e sem CHECK novo: `drop column if exists` não toca em linha
@@ -37018,7 +37018,7 @@ alter table public.ai_agent_versions
 alter table public.ai_agent_versions
   drop column if exists lead_fields_propose_new;
 
--- O corpo abaixo é DERIVADO do que está em vigor (o da 0377, em
+-- O corpo abaixo é DERIVADO do que está em vigor (o da 0387, em
 -- supabase/baseline.sql): recriá-lo de um corpo antigo apagaria as colunas que
 -- entraram depois, e no baseline isso vira remoção de proteção no `update.sh`
 -- de quem já rodava. Saem SÓ as duas linhas das colunas acima.
@@ -37067,7 +37067,7 @@ create trigger trg_ai_agent_versions_content_immutable
   before update on public.ai_agent_versions
   for each row execute function public.fn_ai_agent_version_content_immutable();
 
--- Sem chamador desde a saída de `crm_propose_lead_field`: nasceu na 0377 para
+-- Sem chamador desde a saída de `crm_propose_lead_field`: nasceu na 0387 para
 -- servir SÓ aquela ferramenta. `if exists` para o clone que nunca a aplicou.
 drop function if exists public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid);
 
@@ -37873,7 +37873,7 @@ on conflict (model) do update set
 -- "atualizado" com módulo fora do ar. Instalação nova não tem módulo: no-op.
 do $f$ begin perform public.fn_conferir_modulos_instalados(); end $f$;
 
--- ---- sai o preenchimento de campos do funil pelo agente (migration 0381) ----
+-- ---- sai o preenchimento de campos do funil pelo agente (migration 0390) ----
 --
--- Derivado de supabase/migrations/20260922153110_0381_remove_preenchimento_de_campos_do_funil.sql
+-- Derivado de supabase/migrations/20260922153110_0390_remove_preenchimento_de_campos_do_funil.sql
 -- (o porquê inteiro está no cabeçalho de lá).

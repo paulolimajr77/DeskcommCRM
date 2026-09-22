@@ -9930,6 +9930,14 @@ on conflict (model) do update set
 -- migration que reconstrói a constraint. `kind-check-migration-x-baseline.test.ts`
 -- reprova quando as duas divergem.
 
+-- (migration 0380) Sa�da de `lead_field_proposed`: avisos existentes viram
+-- `other` ANTES de reconstruir -- o `add constraint` valida as linhas que j�
+-- est�o l�, e sem isto o update.sh quebra em quem tem aviso aberto. O aviso
+-- continua leg�vel na Central; s� perde r�tulo e orienta��o espec�ficos.
+update public.agent_inbox_items
+  set kind = 'other'
+  where kind = 'lead_field_proposed';
+
 alter table public.agent_inbox_items
   drop constraint if exists agent_inbox_items_kind_check;
 
@@ -10009,18 +10017,6 @@ alter table public.agent_inbox_items
     -- lista, não em bloco novo (#159, bloco único por constraint).
     'voice_call_missed',
     'case_stale',
-    -- (migration 0347) O agente OUVIU algo que a empresa ainda não declarou em
-    -- Configurações › Funis — "vocês anotam de onde o cliente veio?" — e propõe
-    -- o campo. É proposta de CONFIGURAÇÃO, não de dado: criar campo muda a tela
-    -- de TODOS os leads daquele funil, para sempre.
-    --
-    -- Por que vive na Central e não numa tabela própria: o que ela precisa já
-    -- existe aqui — fila de decisão humana, prazo, quem resolveu, e uma tela
-    -- que as pessoas já abrem. Uma tabela irmã duplicaria worker de vencimento,
-    -- RLS e tela, e as duas divergiriam no primeiro conserto de um lado só.
-    --
-    -- Entra NESTA lista, e não em bloco novo (#159, bloco único por constraint).
-    'lead_field_proposed',
     -- (migration 0348) O turno bateu no teto de passos e parou no meio. Antes
     -- disto era um `return` mudo: o cliente via a conversa terminar sem resposta
     -- e ninguém no sistema sabia que o teto tinha sido a causa.
@@ -37070,42 +37066,6 @@ drop trigger if exists trg_ai_agent_versions_content_immutable on public.ai_agen
 create trigger trg_ai_agent_versions_content_immutable
   before update on public.ai_agent_versions
   for each row execute function public.fn_ai_agent_version_content_immutable();
-
--- A lista abaixo é a COMPLETA menos `lead_field_proposed`, não um `add` do
--- valor removido: quem reconstrói uma constraint de vocabulário assume a lista
--- inteira (`kind-check-migration-x-baseline.test.ts` reprova divergência com o
--- baseline). Derivada da 0379, que era a última a tocar esta constraint.
---
--- ⛔ ANTES de reconstruir: as linhas que já usam o kind. `add constraint`
--- valida as linhas EXISTENTES — sem isto, o clone que tem aviso de sugestão
--- aberto quebra no meio do `update.sh`. O destino é `other` (genérico, já no
--- vocabulário): o aviso continua legível e resolvível na Central (título e
--- corpo intactos, destino de Funis preservado via `ref_kind='pipeline'`) —
--- só perde o rótulo e a orientação específicos.
-update public.agent_inbox_items
-  set kind = 'other'
-  where kind = 'lead_field_proposed';
-alter table public.agent_inbox_items
-  drop constraint if exists agent_inbox_items_kind_check;
-
-alter table public.agent_inbox_items
-  add constraint agent_inbox_items_kind_check check (kind in (
-    'appointment_outcome_required', 'appointment_recovery_review', 'qr_rescan',
-    'routing_unassigned', 'job_dead', 'event_dead', 'budget_exceeded', 'handoff',
-    'promotion_review', 'judge_unaligned', 'followup_dead', 'snooze_expired',
-    'next_action_ambiguous', 'risk_backlog_seeded', 'reactivation_expired',
-    'capabilities_missing', 'message_send_stuck', 'midia_nao_lida',
-    'channel_template_review', 'channel_number_alert', 'promise_unfulfilled',
-    'contact_proposal_expired', 'budget_warning', 'conhecimento_nao_indexado',
-    'voice_call_missed', 'case_stale',
-    'passos_esgotados', 'laco_de_retorno_caiu',
-    -- proposta comercial (migration 0349):
-    'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
-    'aviso_de_caso_nao_entregue',
-    'followup_sem_agente',
-    'canal_mudo_sem_numero',
-    'other'
-  ));
 
 -- Sem chamador desde a saída de `crm_propose_lead_field`: nasceu na 0377 para
 -- servir SÓ aquela ferramenta. `if exists` para o clone que nunca a aplicou.

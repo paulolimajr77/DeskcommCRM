@@ -16,7 +16,7 @@ export async function salvarPdfDaProposta(
 
   const { data: signed, error: signedErr } = await admin.storage
     .from(BUCKET)
-    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 dias — tempo de a mensagem chegar e o WAHA baixar
+    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 dias — tempo de a mensagem chegar e o canal baixar o arquivo
   if (signedErr || !signed) throw new Error(`proposta_pdf_signed_url_failed: ${signedErr?.message ?? "no_url"}`);
 
   return { path, signedUrl: signed.signedUrl };

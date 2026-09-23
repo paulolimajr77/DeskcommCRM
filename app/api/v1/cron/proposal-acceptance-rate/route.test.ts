@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularTaxaDeAceite } from "./route";
+import { calcularTaxaDeAceite, organizacoesComPropostas } from "./route";
 
 describe("calcularTaxaDeAceite", () => {
   it("3 aceitas de 10 decididas (aceita+recusada): 30%", () => {
@@ -18,5 +18,17 @@ describe("calcularTaxaDeAceite", () => {
   it("taxa abaixo do piso (30%) dispara; acima, não", () => {
     expect(calcularTaxaDeAceite(Array(2).fill({ status: "aceita" }).concat(Array(8).fill({ status: "recusada" })) as never)).toBeLessThan(0.3);
     expect(calcularTaxaDeAceite(Array(8).fill({ status: "aceita" }).concat(Array(2).fill({ status: "recusada" })) as never)).toBeGreaterThan(0.3);
+  });
+});
+
+describe("organizacoesComPropostas", () => {
+  it("só as organizações com a capacidade ligada entram na rodada", () => {
+    expect(
+      organizacoesComPropostas([
+        { id: "a", settings: { proposals: { enabled: true } } },
+        { id: "b", settings: { proposals: { enabled: false } } },
+        { id: "c", settings: null },
+      ]),
+    ).toEqual(["a"]);
   });
 });

@@ -17,7 +17,9 @@ import { emitLeadActivity, stageChangeReason } from "@/lib/leads/activity-emitte
 import { listaLegivel } from "@/lib/leads/activity-vocabulary";
 import { camposAlterados } from "@/lib/leads/campos-alterados";
 import { RECUSA_DE_TROCA_DE_FUNIL } from "@/lib/leads/clonar-para-funil";
+import { ORIGEM_DA_PLANILHA } from "@/lib/leads/planilha";
 import { registraFalhaDeAtividade } from "@/lib/leads/activity-write-failure";
+import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import {
   decideMotivoDaPerda,
   recusaDeMotivoDaPerdaPeloBanco,
@@ -257,6 +259,12 @@ export async function createLeadHandler(
     source_metadata?: Record<string, unknown>;
     /** Interno (webhook inbound) — idempotência via uniq_crm_leads_org_source_external. */
     external_id?: string;
+    /**
+     * Interno (importação de planilha). Marca o `lead.created` com
+     * `metadata.via`, e o gatilho de follow-up "Lead criado" não inscreve em
+     * lote quem entrou por planilha. Não vem do corpo da requisição.
+     */
+    via_planilha?: boolean;
   },
 ): Promise<Record<string, unknown>> {
   // Validate stage belongs to pipeline within active org.
@@ -308,6 +316,21 @@ export async function createLeadHandler(
     (await ownerPatchOrThrow(supabase, ctx, input)) ??
     ({ owner_user_id: null, owner_agent_id: null, owner_kind: null } satisfies OwnerPatch);
 
+  // A moeda de um lead novo é a que a ORGANIZAÇÃO declarou, não um literal.
+  // `"BRL"` aqui (e o `.default("BRL")` que saiu de `createLeadSchema`) fazia
+  // toda organização em peso ou dólar cadastrar lead em real: o valor certo com
+  // o símbolo errado, que é o defeito que a migration 0208 já tinha consertado
+  // no catálogo de produtos. Mesma função daquele conserto, pelo mesmo motivo
+  // (uma leitura só, que não diverge entre caminhos de escrita).
+  //
+  // A leitura extra só acontece quando quem chamou NÃO mandou moeda: a REST com
+  // `currency` no corpo passa direto. O import por planilha e o webhook de
+  // captação NÃO mandam — mandavam `"BRL"` em duro, e o lead de uma organização
+  // em euro nascia em real — e caem aqui. Ela não pode derrubar a criação:
+  // `moedaDaOrganizacao` degrada para o padrão e deixa rastro (console.error +
+  // Sentry) em vez de lançar.
+  const currency = input.currency ?? (await moedaDaOrganizacao(supabase, ctx.organization_id));
+
   const serviceOrigin = ctx.serviceOrigin ?? await observeServiceOrigin(createAdminClient(), ctx.organization_id, input.contact_id ?? null);
   const { data: lead, error: insErr } = await supabase
     .from("crm_leads")
@@ -319,7 +342,7 @@ export async function createLeadHandler(
       description: input.description ?? null,
       contact_id: input.contact_id ?? null,
       value_cents: input.value_cents ?? null,
-      currency: input.currency ?? "BRL",
+      currency,
       ...ownerPatch,
       assigned_at:
         ownerPatch.owner_kind === null ? null : new Date().toISOString(),
@@ -358,7 +381,11 @@ export async function createLeadHandler(
         stage_id: (lead as { stage_id: string }).stage_id,
         title: (lead as { title: string }).title,
       },
-      p_metadata: { request_id: ctx.requestId, ...a.metadataActor },
+      p_metadata: {
+        request_id: ctx.requestId,
+        ...a.metadataActor,
+        ...(input.via_planilha ? { via: ORIGEM_DA_PLANILHA } : {}),
+      },
       p_organization_id: ctx.organization_id,
     })
     .then(({ error }) => {

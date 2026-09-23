@@ -804,6 +804,12 @@ type CategoriaDeHost =
 type EntradaDeHost = { categoria: CategoriaDeHost; motivo: string };
 
 const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
+  // ── prospecção (PR #963): destino de chamada do crawler ──
+  "api.apify.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint da plataforma que roda o crawler do Google Places (`lib/prospecting/provider.ts`). É o destino do request, com a chave da PRÓPRIA organização — trocar pelo domínio do revendedor quebraria a chamada, e esconder o nome não esconde para onde o dado vai.",
+  },
   // ── identificador de fio: NÃO é destino de chamada nem texto de tela ──────
   "s.whatsapp.net": {
     categoria: "PROTOCOLO",
@@ -826,6 +832,11 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint da OpenRouter nos três caminhos que falam com ela (runtime, catálogo de modelos e prova de crédito). O `HTTP-Referer` da atribuição NÃO mora aqui — sai de env (OPENROUTER_APP_URL), e quem o defende é tests/unit/openrouter-atribuicao.test.ts.",
   },
+  "api.deepseek.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint da API da DeepSeek (OpenAI-compatível) no registry de produção, no runtime de ensaio, no validador de chave e na prova de crédito. É o destino do request, não texto de interface; trocar pelo domínio do revendedor faria a chamada não chegar.",
+  },
   "generativelanguage.googleapis.com": {
     categoria: "FORNECEDOR",
     motivo:
@@ -844,7 +855,12 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
   "oauth2.googleapis.com": {
     categoria: "FORNECEDOR",
     motivo:
-      "endpoint de token do OAuth do Google — o par de `accounts.google.com` no fluxo de autorização da agenda.",
+      "endpoint de token do OAuth do Google — o par de `accounts.google.com` no fluxo de autorização da agenda, e também do Google Ads (`lib/plataformas-de-anuncio/google/token.ts`).",
+  },
+  "googleads.googleapis.com": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint da Google Ads API, para onde `lib/plataformas-de-anuncio/google/conversions.ts` reporta a venda de volta ao anúncio que trouxe o lead. Irmão de `graph.facebook.com` no eixo da Meta: é contrato do fornecedor, não escolha nossa — a conta de anúncios é do cliente, o domínio é do Google.",
   },
   "accounts.google.com": {
     categoria: "FORNECEDOR",
@@ -865,6 +881,11 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint padrão do adapter do canal de mensagens, com override por ZERNIO_API_BASE_URL. Fixo de propósito: instalação que não configura nada tem de funcionar.",
   },
+  "cloud.datafyapi.com.br": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint padrão do canal parceiro que espelha a Cloud API (recorte do #1130), com override por DATAFY_API_BASE_URL. É o destino das chamadas de envio e de validação do token — e o canal só existe numa instalação que o liga (DATAFY_ENABLED).",
+  },
   // ── painel do fornecedor: texto de tela apontando para o endereço DELE ────
   "platform.openai.com": {
     categoria: "CONSOLE",
@@ -874,6 +895,11 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
   "console.anthropic.com": {
     categoria: "CONSOLE",
     motivo: "painel de chaves da Anthropic. Mesmo caso: é de onde a credencial do usuário sai.",
+  },
+  "platform.deepseek.com": {
+    categoria: "CONSOLE",
+    motivo:
+      "painel onde o usuário gera a PRÓPRIA chave da DeepSeek (`ondePegarAChave` em lib/ai/pontos/provedores.ts). Endereço do fornecedor, não nosso.",
   },
   "aistudio.google.com": {
     categoria: "CONSOLE",
@@ -1072,6 +1098,7 @@ describe("catraca de host de terceiro no código que embarca", () => {
       "meusistema.com",
       "mi-gateway.ejemplo.com",
       "partners.tiendanube.com",
+      "platform.deepseek.com",
       "platform.openai.com",
       // Decisão escrita, que é o que esta lista cobra: `s.whatsapp.net` é o
       // sufixo do JID do WhatsApp, lido em `lib/waha/resolve-contact-whatsapp-id.ts`

@@ -50,7 +50,7 @@ export function splitIntoBubbles(text: string, maxChars: number): string[] {
  * que a bolha seguinte às vezes junta com espaço espúrio ("R$ 7. 990") e às
  * vezes manda em bolhas do WhatsApp SEPARADAS — e um cliente que só via a
  * primeira lia "R$ 10" como preço fechado de um produto de R$ 10.990.
- * Medido em produção (YADEA, 2026-09-04): a moto DT3 (R$ 10.990) anunciada
+ * Medido em produção (2026-09-04): a moto DT3 (R$ 10.990) anunciada
  * como "R$ 10" reais.
  */
 function splitSentences(text: string): string[] {
@@ -147,7 +147,7 @@ export interface SendInBubblesOpts<T extends BubbleOutcome = BubbleOutcome> {
  * em 1, não N — aceitável por ora (doutrina: "anti-ban gateia uma vez"); revisitar
  * se o warm-up precisar de precisão por mensagem física.
  */
-const OK_KINDS = new Set(["sent", "already_sent", "queued"]);
+export const OK_KINDS = new Set(["sent", "already_sent", "queued"]);
 
 /**
  * A decisão de fatiamento do `sendInBubbles`, exposta separadamente (issue #654).

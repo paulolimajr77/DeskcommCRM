@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api/types";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useSystemVersion } from "@/hooks/system/useSystemVersion";
 import { markdownParaTextoSimples } from "@/lib/system/changelog";
+import { textoDaRodadaDoBanco } from "@/lib/system/update-run";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/hooks/i18n/useT";
@@ -157,6 +158,13 @@ export function UpdatePanel() {
    * outros estados). Sem botão: o pedido já foi atendido, e reoferecê-lo era o
    * outro defeito desta janela.
    */
+  // O que a rodada do banco contou de si mesma, em português de gente. Vale nos
+  // dois desfechos em que o servidor mexeu no banco (deu certo / voltou atrás):
+  // quem clicou tem o direito de saber que a base estava ocupada, quantas
+  // retentativas custou e em qual passada fechou. Sem registro na rodada isto é
+  // `null`, e a tela fica calada em vez de afirmar zero.
+  const contaDoBanco = textoDaRodadaDoBanco(data.run?.rodada_do_banco);
+
   if (data.just_updated) {
     const pedida = semV(data.run?.to_version);
     return (
@@ -172,6 +180,9 @@ export function UpdatePanel() {
             "Assim que ele falar comigo, daqui a alguns minutos, esta tela se atualiza sozinha. Não ofereço atualizar de novo: o pedido já foi atendido.",
           )}
         </p>
+        {contaDoBanco ? (
+          <p className="mt-3 text-sm text-muted-foreground">{t(contaDoBanco)}</p>
+        ) : null}
       </Layout>
     );
   }
@@ -198,6 +209,9 @@ export function UpdatePanel() {
           {t("funciona com ele. Se quiser desfazer também o banco, use a cópia de segurança feita antes da tentativa (")}
           <code>bash hostgator-setup-kit/restore.sh</code>).
         </p>
+        {contaDoBanco ? (
+          <p className="mt-3 text-sm text-muted-foreground">{t(contaDoBanco)}</p>
+        ) : null}
         <DetalhesTecnicos texto={data.run.log_tail} />
         <Saida
           botao={false}
@@ -408,6 +422,19 @@ export function UpdatePanel() {
         </p>
       )}
 
+      {/* O botão fica ANTES do changelog, não depois: com várias versões
+          acumuladas ele descia para o fim de uma lista longa, e quem só
+          queria clicar "Atualizar agora" precisava rolar por tudo. Os avisos
+          que pesam na decisão (`off_release`, `requires_attention` e o de
+          histórico incompleto) continuam antes DELE — só o "O que muda", que é
+          consulta, não decisão, desceu para depois. O de histórico incompleto
+          entra na lista porque, com `complete === false`, o "Requer atenção"
+          só junta as versões presentes no texto: pode estar faltando aviso, e
+          esse parágrafo é a única pista disso. */}
+      <div className="mb-6">
+        <BotaoAtualizar mutate={() => atualizar.mutate()} isPending={atualizar.isPending} erro={erro} />
+      </div>
+
       {data.notes?.sections.length ? (
         <div className="mb-6">
           <p className="mb-2 text-sm font-medium">{t("O que muda")}</p>
@@ -434,8 +461,6 @@ export function UpdatePanel() {
           ))}
         </div>
       ) : null}
-
-      <BotaoAtualizar mutate={() => atualizar.mutate()} isPending={atualizar.isPending} erro={erro} />
     </Layout>
   );
 }

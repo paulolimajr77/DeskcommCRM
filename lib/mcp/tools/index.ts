@@ -49,6 +49,7 @@ import {
   crmSaveOrgMemory,
 } from "./evolucao";
 import { crmListContactOrders, crmSearchProducts } from "./comercio";
+import { crmDescribeExternalData, crmQueryExternalData } from "./dados-externos";
 import { crmListPrivacyRequests } from "./privacidade";
 import {
   crmArchiveStage,
@@ -80,6 +81,7 @@ import {
 } from "./agendamento";
 import {
   crmScheduleFollowup,
+  crmEnrollFollowupFlow,
   crmCancelFollowup,
   crmListFollowups,
   crmListAtRiskLeads,
@@ -115,6 +117,8 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSaveOrgMemory,
   crmListContactOrders,
   crmSearchProducts,
+  crmDescribeExternalData,
+  crmQueryExternalData,
   crmListPrivacyRequests,
   // read — organizar a operação (W4)
   crmListStages,
@@ -155,6 +159,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSetWebhookSourceActive,
   crmSetAutomationRuleActive,
   crmScheduleFollowup,
+  crmEnrollFollowupFlow,
   crmCancelFollowup,
   crmCloseDemand,
   crmProposeReactivation,

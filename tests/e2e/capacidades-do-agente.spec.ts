@@ -97,6 +97,11 @@ const TOOLS_DO_SEED = [
   // Existe para a aritmética continuar estourando depois da #528; sem ela o
   // cenário de recusa vira um clique que sempre dá certo.
   "crm_list_knowledge_sources",
+  // A DÉCIMA: nesta branch o teto é 26 (a `main` tem 25 e a proposta comercial
+  // somou `crm_draft_proposal` ao pacote `vender`). Com nove, 9 + 17 = 26 cabe
+  // exato e a recusa some; com dez, 10 + 17 = 27 > 26 recusa por 1 vaga, e
+  // desligar uma deixa 26, que passa. Leitura pura do pacote "escalar".
+  "crm_list_human_cases",
 ];
 
 /**

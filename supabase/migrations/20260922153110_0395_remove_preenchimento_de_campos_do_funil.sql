@@ -1,9 +1,9 @@
--- 0390 - sai o preenchimento de campos do funil pelo agente.
+-- 0395 - sai o preenchimento de campos do funil pelo agente.
 --
--- O QUE SAI: as duas colunas que a 0272/0387 puseram em `ai_agent_versions`
+-- O QUE SAI: as duas colunas que a 0272/0392 puseram em `ai_agent_versions`
 -- (`lead_fields_enabled`, `lead_fields_propose_new`), o `kind`
 -- `lead_field_proposed` da Central e a `fn_inbox_item_unico`, que nasceu na
--- 0387 para servir SÓ aquela ferramenta e ficou sem chamador.
+-- 0392 para servir SÓ aquela ferramenta e ficou sem chamador.
 --
 -- O QUE FICA, de propósito:
 --   - `crm_update_lead` (ferramenta preexistente; o dono ainda pode escolhê-la
@@ -14,7 +14,7 @@
 --     seam de escrita da tela do dossiê e do quadro (J4.36);
 --   - `camposDoFunil()` (`lib/leads/campos-do-funil.ts`): infra compartilhada
 --     (Funis, Kanban, webhooks, handoff) — anterior à feature;
---   - `passos_esgotados` e `laco_de_retorno_caiu`: kinds da 0388, de outro
+--   - `passos_esgotados` e `laco_de_retorno_caiu`: kinds da 0393, de outro
 --     mecanismo (avisos do turno sobre si mesmo).
 --
 -- Sem backfill e sem CHECK novo: `drop column if exists` não toca em linha
@@ -25,7 +25,7 @@ alter table public.ai_agent_versions
 alter table public.ai_agent_versions
   drop column if exists lead_fields_propose_new;
 
--- O corpo abaixo é DERIVADO do que está em vigor (o da 0387, em
+-- O corpo abaixo é DERIVADO do que está em vigor (o da 0392, em
 -- supabase/baseline.sql): recriá-lo de um corpo antigo apagaria as colunas que
 -- entraram depois, e no baseline isso vira remoção de proteção no `update.sh`
 -- de quem já rodava. Saem SÓ as duas linhas das colunas acima.
@@ -77,7 +77,7 @@ create trigger trg_ai_agent_versions_content_immutable
 -- A lista abaixo é a COMPLETA menos `lead_field_proposed`, não um `add` do
 -- valor removido: quem reconstrói uma constraint de vocabulário assume a lista
 -- inteira (`kind-check-migration-x-baseline.test.ts` reprova divergência com o
--- baseline). Derivada da 0389, que era a última a tocar esta constraint.
+-- baseline). Derivada da 0394, que era a última a tocar esta constraint.
 --
 -- ⛔ ANTES de reconstruir: as linhas que já usam o kind. `add constraint`
 -- valida as linhas EXISTENTES — sem isto, o clone que tem aviso de sugestão
@@ -110,7 +110,7 @@ alter table public.agent_inbox_items
     'other'
   ));
 
--- Sem chamador desde a saída de `crm_propose_lead_field`: nasceu na 0387 para
+-- Sem chamador desde a saída de `crm_propose_lead_field`: nasceu na 0392 para
 -- servir SÓ aquela ferramenta. `if exists` para o clone que nunca a aplicou.
 drop function if exists public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid);
 

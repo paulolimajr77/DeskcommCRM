@@ -39062,5 +39062,5 @@ do $f$ begin perform public.fn_conferir_modulos_instalados(); end $f$;
 
 -- ---- sai o preenchimento de campos do funil pelo agente (migration 0390) ----
 --
--- Derivado de supabase/migrations/20260922153110_0390_remove_preenchimento_de_campos_do_funil.sql
+-- Derivado de supabase/migrations/20260922153110_0395_remove_preenchimento_de_campos_do_funil.sql
 -- (o porquê inteiro está no cabeçalho de lá).

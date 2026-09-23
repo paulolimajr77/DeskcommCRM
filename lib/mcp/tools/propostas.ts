@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { calcularTotal } from "@/lib/propostas/total";
+import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { McpToolDefinition } from "@/lib/mcp/types";
 
 const itemShape = {
@@ -37,6 +38,11 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
     "proposta e você já souber o que oferecer.",
   inputSchema: draftProposalInputShape,
   handler: async (input, ctx) => {
+    // A lista já não oferece a ferramenta com a organização desligada; isto é
+    // para quem chama DIRETO (cliente MCP externo, versão antiga em cache).
+    if (!(await capacidadesDaOrganizacao(ctx.supabase, ctx.organizationId)).includes("propostas")) {
+      return { error: "Propostas estão desligadas nesta organização." };
+    }
     const { data: lead, error: leadErr } = await ctx.supabase
       .from("crm_leads")
       .select("id, contact_id")

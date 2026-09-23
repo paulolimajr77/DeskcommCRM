@@ -46,5 +46,6 @@ export const TOOLS_COMERCIO = declararTools([
     oQueToca: "Propostas comerciais",
     risco: "atencao",
     pacotes: ["vender"],
+    capacidade: "propostas",
   },
 ]);

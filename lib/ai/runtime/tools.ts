@@ -20,7 +20,8 @@ import { McpAuthError, ensureRole, ensureScope } from "@/lib/mcp/auth";
 import type { McpAuthResult } from "@/lib/mcp/auth";
 import { logger } from "@/lib/logger";
 import { allTools, getToolByName } from "@/lib/mcp/tools";
-import { catalogEntry, deModuloDesligado } from "@/lib/mcp/tools/catalog";
+import { catalogEntry, deCapacidadeDesligada, deModuloDesligado } from "@/lib/mcp/tools/catalog";
+import type { CapacidadeDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { ModuloOpcional } from "@/lib/instalacao/modulos";
 import { higienizarUuidsDeAterro } from "@/lib/mcp/uuid-de-aterro";
 import { recusaDeCapacidadeParaOModelo } from "@/lib/mcp/recusa-para-o-modelo";
@@ -55,6 +56,11 @@ export interface PickToolsInput {
    * tenha perguntado — a direção segura, como a de `pipelineIds`.
    */
   modulosLigados?: readonly ModuloOpcional[];
+  /**
+   * Capacidades que a ORGANIZAÇÃO ligou (`capacidadesDaOrganizacao()`). Ausente
+   * vale como nenhuma, pela mesma razão de `modulosLigados`.
+   */
+  capacidadesLigadas?: readonly CapacidadeDaOrganizacao[];
   /** Mutable signal — runtime checks after each step. */
   handoffSignal: RuntimeHandoffSignal;
 }
@@ -284,6 +290,14 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     // agente a tenha marcada de quando o módulo estava ligado.
     if (deModuloDesligado(def.name, input.modulosLigados ?? [])) continue;
 
+    // Capacidade que a ORGANIZAÇÃO desligou (spec da proposta, D1).
+    if (deCapacidadeDesligada(def.name, input.capacidadesLigadas ?? [])) continue;
+
+    // A chave da VERSÃO DO AGENTE manda nos dois sentidos (spec, D2): antes ela
+    // só impedia o acréscimo automático, e a ferramenta vinda do pacote
+    // `vender` passava com a chave desligada.
+    if (def.name === DRAFT_PROPOSAL_TOOL_NAME && !input.proposalAiDraftEnabled) continue;
+
     result[def.name] = wrapMcpTool(def, input);
   }
 
@@ -297,7 +311,11 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
   }
 
   // Auto-inject proposal draft tool when enabled — G23 design decision.
-  if (input.proposalAiDraftEnabled && !result[DRAFT_PROPOSAL_TOOL_NAME]) {
+  if (
+    input.proposalAiDraftEnabled &&
+    !deCapacidadeDesligada(DRAFT_PROPOSAL_TOOL_NAME, input.capacidadesLigadas ?? []) &&
+    !result[DRAFT_PROPOSAL_TOOL_NAME]
+  ) {
     const draft = allTools.find((t) => t.name === DRAFT_PROPOSAL_TOOL_NAME);
     if (draft) {
       result[DRAFT_PROPOSAL_TOOL_NAME] = wrapMcpTool(draft, input);

@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
+vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
@@ -183,5 +185,19 @@ describe("GET /api/v1/proposals", () => {
     const res = await mundo.GET();
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
+  });
+});
+
+describe("GET /api/v1/proposals — capacidade desligada", () => {
+  it("organização com propostas desligadas: 404, sem listar nada", async () => {
+    const mundo = montarMundoDeProposta();
+    vi.mocked(sePropostasDesligadas).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: "not_found", message: "Not found." } }), {
+        status: 404,
+      }) as never,
+    );
+    const res = await mundo.GET();
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: { code: "not_found" } });
   });
 });

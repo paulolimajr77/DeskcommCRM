@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ interface Config { enabled: boolean; default_valid_days: number; default_conditi
 
 export function ProposalsSettingsClient() {
   const t = useT();
+  const router = useRouter();
   const [cfg, setCfg] = useState<Config | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -26,6 +28,10 @@ export function ProposalsSettingsClient() {
     setSalvando(true);
     try {
       await apiClient.patch("/api/v1/settings/proposals", cfg);
+      // O menu (sidebar, ⌘K) vem do layout de `/app`, que não re-renderiza numa
+      // navegação comum: sem isto, ligar não mostra a porta e desligar deixa um
+      // link que leva a 404 até o F5.
+      router.refresh();
     } catch (e) {
       showApiError(e);
     } finally {

@@ -1,4 +1,4 @@
--- 20260919232000_0349_proposta_comercial.sql
+-- 20260919232000_0394_proposta_comercial.sql
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.

@@ -48,6 +48,20 @@ function montarMundoDeFerramenta(opts?: { leadDeOutraOrg?: boolean }) {
    
   const supabase: any = {
     from: vi.fn(function (this: any, table: string) {
+      if (table === "organizations") {
+        return {
+          select: vi.fn(function (this: any) {
+            return this;
+          }),
+          eq: vi.fn(function (this: any) {
+            return this;
+          }),
+          maybeSingle: vi.fn(async () => ({
+            data: { settings: { proposals: { enabled: true } } },
+            error: null,
+          })),
+        };
+      }
       if (table === "crm_leads") {
         return {
           select: vi.fn(function (this: any) {

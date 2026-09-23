@@ -25,6 +25,7 @@ import { IDS_DO_HARNESS, motivoDoHarness } from '@/lib/mcp/tools/ferramentas-do-
 import type { McpAuthResult } from '@/lib/mcp/auth';
 import type { McpContext } from '@/lib/mcp/types';
 import { modulosLigados } from '@/lib/instalacao/modulos';
+import { capacidadesDaOrganizacao } from '@/lib/organizacao/capacidades';
 
 import type { Logger } from '../../obs/logger';
 import type { CrmEdgeConfig } from './mcp-client';
@@ -141,6 +142,7 @@ export async function buildMcpTurnTools(
     // `lead_id` que o MODELO mandou — e ele inventa (medido em 2026-09-15).
     contactId: ids.contactId,
     modulosLigados: await modulosLigados(cfg.supabase),
+    capacidadesLigadas: await capacidadesDaOrganizacao(cfg.supabase, ids.organizationId),
   });
 
   return {

@@ -29188,7 +29188,7 @@ end $f$;
 -- EXECUTE sai das duas origens e dos papéis que o default ACL do Supabase alcança.
 revoke execute on function public.fn_aplicar_travas_de_suporte() from public, anon, authenticated, service_role;
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0389) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0394) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -38199,6 +38199,40 @@ revoke all on function public.fn_inbox_item_unico(uuid, text, text, text, text, 
   from public, anon, authenticated;
 grant execute on function public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid)
   to service_role;
+
+-- ---- a proposta não aponta para outra organização (migration 0398) ----
+create or replace function public.fn_verificar_org_da_proposta()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.lead_id is not null and not exists (
+    select 1 from public.crm_leads where id = new.lead_id and organization_id = new.organization_id
+  ) then
+    raise exception 'crm_proposal_lead_org_mismatch' using errcode = '23514';
+  end if;
+  if new.contact_id is not null and not exists (
+    select 1 from public.contacts where id = new.contact_id and organization_id = new.organization_id
+  ) then
+    raise exception 'crm_proposal_contact_org_mismatch' using errcode = '23514';
+  end if;
+  if new.conversation_id is not null and not exists (
+    select 1 from public.conversations where id = new.conversation_id and organization_id = new.organization_id
+  ) then
+    raise exception 'crm_proposal_conversation_org_mismatch' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.fn_verificar_org_da_proposta() from public, anon;
+
+drop trigger if exists trg_crm_proposals_org_consistente on public.crm_proposals;
+create trigger trg_crm_proposals_org_consistente
+  before insert or update of organization_id, lead_id, contact_id, conversation_id
+  on public.crm_proposals
+  for each row execute function public.fn_verificar_org_da_proposta();
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --

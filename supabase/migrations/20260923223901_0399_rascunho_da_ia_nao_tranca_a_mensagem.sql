@@ -1,4 +1,4 @@
--- 0248 — o rascunho da IA para de trancar a mensagem
+-- 20260923223901_0399_rascunho_da_ia_nao_tranca_a_mensagem.sql
 --
 -- O DEFEITO, medido numa instalação real (2026-09-14)
 -- ------------------------------------------------------------------------

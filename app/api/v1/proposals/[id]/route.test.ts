@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   requireSupportWrite: vi.fn(),
 }));
 
+vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));

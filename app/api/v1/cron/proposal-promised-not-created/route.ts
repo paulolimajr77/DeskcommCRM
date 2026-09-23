@@ -10,6 +10,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { autorizaCron } from "@/lib/auth/cron-auth";
 import { logger } from "@/lib/logger";
+import { capacidadesLigadas } from "@/lib/organizacao/capacidades";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { TaskSourceKind } from "@/lib/tarefas/vocabulario-de-origem";
 
@@ -23,10 +24,16 @@ interface TarefaPromessa {
 interface PropostaMinima { id: string; organization_id: string; lead_id: string; created_at: string }
 
 export function encontrarPromessasSemProposta(
-  input: { tarefas: readonly TarefaPromessa[]; propostas: readonly PropostaMinima[] },
+  input: {
+    tarefas: readonly TarefaPromessa[];
+    propostas: readonly PropostaMinima[];
+    /** Organizações com Propostas ligada — as outras não recebem aviso. */
+    orgsLigadas: ReadonlySet<string>;
+  },
   agora: Date,
 ): TarefaPromessa[] {
   return input.tarefas.filter((t) => {
+    if (!input.orgsLigadas.has(t.organization_id)) return false;
     if (t.source_kind !== PROMISED_PROPOSAL) return false;
     if (t.status !== "pending") return false;
     if (t.lead_id === null) return false;
@@ -53,7 +60,16 @@ async function rodar(admin: ReturnType<typeof createAdminClient>, requestId: str
     .select("id, organization_id, lead_id, created_at");
   if (propostasErr) throw new Error(`query_propostas_failed: ${propostasErr.message}`);
 
-  const achadas = encontrarPromessasSemProposta({ tarefas: tarefas ?? [], propostas: propostas ?? [] }, new Date());
+  const { data: orgs, error: orgsErr } = await admin.from("organizations").select("id, settings");
+  if (orgsErr) throw new Error(`query_orgs_failed: ${orgsErr.message}`);
+  const orgsLigadas = new Set(
+    (orgs ?? []).filter((o) => capacidadesLigadas(o.settings).includes("propostas")).map((o) => o.id),
+  );
+
+  const achadas = encontrarPromessasSemProposta(
+    { tarefas: tarefas ?? [], propostas: propostas ?? [], orgsLigadas },
+    new Date(),
+  );
   for (const t of achadas) {
     const { data: existente } = await admin
       .from("agent_inbox_items")

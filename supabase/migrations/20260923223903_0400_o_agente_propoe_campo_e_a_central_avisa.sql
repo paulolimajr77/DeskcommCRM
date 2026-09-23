@@ -1,4 +1,4 @@
--- 0347 — o agente PROPÕE um campo de funil, e a Central avisa.
+-- 20260923223903_0400_o_agente_propoe_campo_e_a_central_avisa.sql
 --
 -- ─── O que muda ─────────────────────────────────────────────────────────────
 --

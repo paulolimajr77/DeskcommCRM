@@ -17,6 +17,7 @@ import { createMcpServer } from "@/lib/mcp/server";
 import { McpAuthError, validateBearerToken } from "@/lib/mcp/auth";
 import { modulosLigados } from "@/lib/instalacao/modulos";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,7 +51,13 @@ async function handle(req: NextRequest): Promise<Response> {
   }
 
   const transport = new WebStandardStreamableHTTPServerTransport({});
-  const server = createMcpServer(auth, requestId, await modulosLigados(createAdminClient()));
+  const admin = createAdminClient();
+  const server = createMcpServer(
+    auth,
+    requestId,
+    await modulosLigados(admin),
+    await capacidadesDaOrganizacao(admin, auth.organizationId),
+  );
 
   try {
     await server.connect(transport);

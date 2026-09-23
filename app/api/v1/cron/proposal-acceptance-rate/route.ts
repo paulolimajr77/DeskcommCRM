@@ -5,6 +5,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { autorizaCron } from "@/lib/auth/cron-auth";
 import { logger } from "@/lib/logger";
+import { capacidadesLigadas } from "@/lib/organizacao/capacidades";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +21,19 @@ export function calcularTaxaDeAceite(propostas: readonly { status: string }[]): 
 
 export interface TaxaDeAceiteResult { organizacoes_avisadas: number }
 
+/** Só as organizações que ligaram Propostas entram na rodada do laço de retorno. */
+export function organizacoesComPropostas(orgs: { id: string; settings: unknown }[]): string[] {
+  return orgs.filter((o) => capacidadesLigadas(o.settings).includes("propostas")).map((o) => o.id);
+}
+
 async function rodar(admin: ReturnType<typeof createAdminClient>, requestId: string): Promise<TaxaDeAceiteResult> {
   const trintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: orgs, error: orgsErr } = await admin.from("organizations").select("id");
+  const { data: orgs, error: orgsErr } = await admin.from("organizations").select("id, settings");
   if (orgsErr) throw new Error(`query_orgs_failed: ${orgsErr.message}`);
 
   let avisadas = 0;
-  for (const org of orgs ?? []) {
+  for (const orgId of organizacoesComPropostas(orgs ?? [])) {
+    const org = { id: orgId };
     const { data: propostas, error: propErr } = await admin
       .from("crm_proposals")
       .select("status")

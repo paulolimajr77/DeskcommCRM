@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { isMfaEnrolled, loadAuthUser, requiresMfa, resolveActiveOrg } from "@/lib/auth/server";
 import { DEFAULT_VISIBILITY_MODE, roleAtLeast, type VisibilityMode } from "@/lib/auth/types";
 import { clientePelaAgendaLigado } from "@/lib/schemas/settings";
+import { capacidadesLigadas } from "@/lib/organizacao/capacidades";
 import { AuthProvider } from "@/hooks/auth/AuthProvider";
 import { ProvedorDeCoresDasEtiquetas } from "@/components/tags/CoresDasEtiquetas";
 import { AppShell } from "./_components/AppShell";
@@ -123,6 +124,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // Mesma linha de `settings` já lida acima — nenhuma consulta a mais.
       cliente_pela_agenda: clientePelaAgendaLigado(orgRow?.settings),
       modulos_ligados: modulos,
+      // Mesma linha de `settings` já lida acima — nenhuma consulta a mais.
+      capacidades_ligadas: capacidadesLigadas(orgRow?.settings),
     };
 
     // `marcaDaInstalacao()` é memoizada por TTL no PROCESSO (`lib/branding/

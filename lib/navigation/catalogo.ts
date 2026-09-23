@@ -1,5 +1,6 @@
 import type { Role } from "@/lib/auth/types";
 import type { ModuloOpcional } from "@/lib/instalacao/modulos";
+import type { CapacidadeDaOrganizacao } from "@/lib/organizacao/capacidades";
 
 /**
  * Registro de navegação — a ÚNICA lista de destinos do app do tenant.
@@ -50,6 +51,12 @@ export interface NavMetadata {
    * É apresentação, como o resto deste arquivo: quem recusa é a tela e a rota.
    */
   modulo?: ModuloOpcional;
+  /**
+   * A porta de uma CAPACIDADE que a organização liga para si
+   * (`lib/organizacao/capacidades.ts`). Desligada, some do menu, do hub e do
+   * ⌘K. Apresentação, como `modulo`: quem recusa é a tela e a rota.
+   */
+  capacidade?: CapacidadeDaOrganizacao;
 }
 
 /**
@@ -305,6 +312,7 @@ export const NAV_CATALOG = [
     icon: "FileText",
     group: "crm",
     section: "Fechar a venda",
+    capacidade: "propostas",
   },
   {
     // A promessa que o comentário da Agenda fazia desde que ela nasceu. Aqui se

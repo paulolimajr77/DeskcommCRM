@@ -1764,6 +1764,9 @@ export const DICIONARIO: Traducoes = {
   Recusada: { es: "Rechazada" },
   Vencida: { es: "Vencida" },
   "Fechar a venda": { es: "Cerrar la venta" },
+  "Configure a validade padrão e condições para propostas comerciais.": {
+    es: "Configure la validez predeterminada y las condiciones para propuestas comerciais.",
+  },
   "Rascunhe, revise e envie propostas comerciais — do orçamento ao aceite.": {
     es: "Redacta, revisa y envía propuestas comerciales — del presupuesto a la aceptación.",
   },

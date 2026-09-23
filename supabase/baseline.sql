@@ -25687,7 +25687,7 @@ end;$$;
 revoke all on function public.fn_meet_action(uuid,uuid,text,uuid,text,uuid) from public,anon;
 grant execute on function public.fn_meet_action(uuid,uuid,text,uuid,text,uuid) to authenticated;
 
--- ---- apagar um contato leva os compromissos dele junto (migration 0267) ----
+-- ---- apagar um contato leva os compromissos dele junto (migration 0385) ----
 --
 -- `calendar_appointments.contact_id` nasceu `on delete restrict` na 0177 e era
 -- a TERCEIRA FK que impede apagar um contato — o handler de exclusão contorna

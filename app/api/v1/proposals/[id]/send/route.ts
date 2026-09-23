@@ -17,6 +17,7 @@ import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
@@ -28,6 +29,8 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("manager", { requestId, resource: "crm_proposals" });
   if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { id } = await ctx.params;
   const admin = createAdminClient();

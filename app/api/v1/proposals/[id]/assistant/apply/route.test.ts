@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { audit } from "@/lib/audit";
 
+vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));

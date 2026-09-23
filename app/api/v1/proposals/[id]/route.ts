@@ -10,6 +10,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { calcularTotal } from "@/lib/propostas/total";
 import { propostaItemSchema } from "@/lib/schemas/propostas";
 import { createClient } from "@/lib/supabase/server";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("viewer", { requestId, resource: "crm_proposals" });
   if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const params = paramsSchema.safeParse(await ctx.params);
   if (!params.success) {
@@ -63,6 +66,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("agent", { requestId, resource: "crm_proposals" });
   if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const params = paramsSchema.safeParse(await ctx.params);
   if (!params.success) {

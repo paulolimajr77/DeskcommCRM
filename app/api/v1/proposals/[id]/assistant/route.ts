@@ -12,6 +12,7 @@ import { getSkillsPool } from "@/lib/ai/skills/db";
 import { gerarMudancas, type EstadoDaProposta } from "@/lib/propostas/assistente";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
 const bodySchema = z.object({ instrucao: z.string().trim().min(1).max(500) });
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("agent", { requestId, resource: "crm_proposals" });
   if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { id } = await ctx.params;
 

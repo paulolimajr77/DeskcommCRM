@@ -64,7 +64,6 @@ alter table public.agent_inbox_items
     'proposal_expired_notice',
     'proposal_acceptance_rate_drop',
     'proposal_promised_not_created',
-    'agent_case',
     'aviso_de_caso_nao_entregue',
     'followup_sem_agente',
     'canal_mudo_sem_numero',

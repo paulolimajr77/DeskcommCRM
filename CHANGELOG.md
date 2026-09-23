@@ -8,6 +8,170 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [1.43.0] — 2026-09-22
+
+### Adicionado
+
+- **Ao passar a conversa para uma pessoa, o sistema diz o que ficou em branco** Quando a IA passa o atendimento para alguém da equipe, a timeline do negócio passa a registrar quais campos obrigatórios do funil ainda estão em branco — quem recebe vê o que falta antes de abrir a boca.
+
+  A conferência nunca segura a passagem (se demorar, é abandonada) e mostra só o nome do campo, nunca o valor gravado.
+
+- **O CRM agora fecha a venda — proposta comercial** Cada negócio pode ganhar uma proposta: rascunho com itens do catálogo ou escritos à mão, revisão à mão ou pedindo ajuste por instrução ("baixa 10% e tira a hospedagem"), PDF com a marca da sua empresa, e envio pelo WhatsApp — sempre por quem tem papel de gestor, nunca pelo assistente sozinho. A proposta é numerada por organização e ano, e revisar uma proposta já enviada cria uma nova versão sem perder a anterior.
+
+  Se a proposta vencer sem resposta do cliente, ou se alguém prometer uma proposta e ela não sair, um aviso aparece na Central.
+
+  **Nasce desligada.** Para usar, ligue em Configurações › Propostas.
+
+- **Durante a atualização, o sistema mostra um aviso em vez de um erro do navegador** Enquanto a atualização mexe no banco, o CRM fica parado por alguns segundos. Antes, quem tivesse o sistema aberto via o erro de conexão do próprio navegador — uma tela branca sem explicação.
+
+  Agora aparece "Estamos atualizando o sistema", que volta sozinha à tela de antes quando o sistema sobe. Se a atualização falhar no banco, o aviso fica de pé em vez de liberar um sistema incompleto.
+
+- **Agora dá para mandar os dados do compromisso ao cliente, mesmo sem Google Meet** Só o compromisso com Google Meet chegava ao cliente. Um presencial, uma visita, uma consulta — nada disso ia, porque a entrega exigia um link do Meet que nunca existe fora dele; o envio era autorizado e nada acontecia, em silêncio.
+
+  Agora a exigência de link vale só quando o local é o Meet. No resto, vão os dados do compromisso, e o botão diz "Mandar ao cliente". Continua exigindo atendimento aberto, respeitando quem pediu para não receber, e conferindo o responsável.
+
+- **O agente pergunta o nome de quem chega pelo WhatsApp** Quem chega pelo WhatsApp vinha identificado só pelo apelido do aparelho, e o campo de nome do cadastro ficava vazio para sempre — o agente lia esse apelido e achava que já sabia o nome.
+
+  Agora o agente distingue nome confirmado de apelido do aparelho; quando falta o de verdade, pergunta uma vez, sem insistir. A resposta entra como proposta, para confirmação. Habilite "Anotar dado que o cliente informou".
+
+- **Notificações ganham a categoria "o assistente precisa de você"** Em Configurações › Notificações, agora dá para escolher receber (ou não) o aviso de quando o assistente precisa que uma pessoa intervenha, separado das outras categorias.
+
+- **O sino conta só o que ninguém olhou** O sino contava o total em aberto, mesmo visto. Agora conta só o não visto.
+
+- **O sistema avisa quando o assistente para no meio de uma tarefa por bater no teto de passos** Quando o assistente ainda estava tentando concluir algo e bateu no limite interno de passos, a conversa simplesmente parava sem resposta e ninguém sabia por quê. Agora esse caso abre um aviso na Central. O limite em si não mudou.
+
+- **Só uma pessoa leva o card para a etapa que afirma um fato** Cada etapa do funil ganhou a opção «esta etapa afirma que algo já aconteceu», desligada por padrão. Nas que você marcar, o assistente e as automações param de mover negócios para lá — quem leva o card é uma pessoa.
+
+### Alterado
+
+- **Aprovar a próxima ação agora cria a tarefa** Aprovar a sugestão do assistente só tirava o aviso da tela e não deixava nada no lugar. Agora ela cria uma tarefa em Tarefas, com você como responsável e prazo de um dia. Se a tarefa não puder ser criada, o aviso fica onde estava.
+
+- **O agente deixa de preencher os campos do funil sozinho** Os interruptores "Perguntar e preencher os campos do funil" e "Sugerir um campo novo quando faltar" saíram da tela do agente, e o agente voltou a conversar normalmente: ele ainda atende, ainda passa para humano e ainda move o negócio de etapa, mas quem anota os campos personalizados na ficha do lead é a equipe — pela ficha, pelo quadro ou pela API, como antes.
+
+  Nada para fazer na VPS além de atualizar: a atualização remove as duas chaves do banco sozinha. Se o seu agente tinha o preenchimento ligado, vale revisar uma vez como a equipe vai registrar os campos (é o mesmo trabalho que a ficha do lead já pedia antes de ligar).
+
+- **O relatório de acesso deixa de se chamar LGPD quando a lei não é essa** O PDF que responde ao direito de acesso do titular citava a LGPD fixa no
+  código. Agora a citação sai do perfil do país da organização — e o documento
+  simplesmente **não cita lei** quando o país ainda não tem a citação revisada, em
+  vez de citar a de outro.
+
+  No Brasil, nada muda no que você entrega: a citação continua "LGPD Art. 18, II
+  (Lei nº 13.709/2018)". O título do arquivo passa a ser "Relatório de Acesso aos
+  Dados" — o documento é sobre o direito ao acesso, e o nome da lei é do país. O
+  prazo de resposta também passa a ser contado no calendário de feriados do país
+  da organização, não no brasileiro fixo.
+
+  Não há ação para quem opera a VPS.
+
+### Corrigido
+
+- **A consulta de horários recusa o pedido ambíguo** Pedir um dia específico E um período relativo na mesma consulta passa a ser recusado na entrada, dizendo quais são os dois campos. E toda resposta sem horário — inclusive a de recusa — passa a trazer se o atendente publicou a jornada dele, que é o que distingue "não tenho vaga neste dia" de "ainda não configurei meus horários".
+
+- **A atualização passa a ser executada pela própria versão que está instalando** A atualização carregava os próprios ajudantes **antes** de baixar o código novo. Quem executava era sempre a versão **anterior** — então toda correção no instalador chegava uma atualização atrasada, e a versão que trazia o conserto era instalada pela versão que ainda tinha o defeito.
+
+  Havia uma segunda aresta: baixar o código novo trocava o arquivo do script **enquanto ele estava sendo lido**.
+
+  Agora, logo depois de baixar o código novo, a atualização **recomeça na versão nova** — sem refazer o backup e sem repetir passos na tela. Nada muda para quem opera: o botão é o mesmo.
+
+- **A descrição do menu Propostas agora aparece em espanhol** Em Configurações → Propostas, a descrição do card vinha só em português: quem opera em espanhol lia a frase original enquanto o rótulo já estava traduzido.
+
+  Agora a descrição tem versão em espanhol no dicionário e aparece traduzida junto do título. Para quem usa o sistema em português, nada muda.
+
+- **O assistente para de prometer retorno sem destino** O assistente não pode mais prometer que alguém da empresa vai retornar ao cliente sem que um caso fique aberto — e o reconhecimento deixou de depender de palavras como "equipe" ou "setor". Quem administra pode desligar a camada nova em Configurações, caso em que o reconhecimento volta a ser só por palavra.
+
+- **A tela de atualização passa a dizer em que pé está, do começo ao fim** Ao clicar em "Atualizar agora", a tela mostrava os quatro passos vazios por vários minutos, sem dizer que o pedido só é pego de tempos em tempos — parecia travada. Agora a espera tem nome ("Pedido enviado — esperando o servidor pegar") e um relógio contando.
+
+  E ao terminar, a tela voltava a oferecer "Atualizar agora" para a versão recém-instalada até o servidor reportar a versão nova. Agora ela reconhece o fim na hora e diz "Pronto — você está na versão X".
+
+- **Se alguma peça do banco não voltar depois da atualização, você fica sabendo** A atualização pausa serviços e os devolve no fim. Numa instalação real eles não voltaram, e a atualização disse "concluída com sucesso" mesmo assim — a volta era muda, sem rastro de falha.
+
+  Agora ela confere peça por peça, tenta de novo e, se faltar alguma, avisa em vermelho com o nome e o comando para subir à mão. Fica calada quando tudo volta certo.
+
+- **O anonimizador cobre os documentos que o Brasil não usa** Quem manda texto de conversa para o modelo tinha dois buracos: o BI angolano
+  (`003862011LA042`) e o CPF de nove dígitos (`541712345`) atravessavam o
+  anonimizador intactos — medido, antes do conserto, nos dois casos, um depois do
+  outro.
+
+  Agora o conjunto de padrões é declarado no perfil do país, o anonimizador e a
+  guarda que o confere usam o MESMO conjunto (antes eram duas listas que podiam
+  divergir em silêncio), e documento novo entra pelo perfil em vez de virar mais
+  um padrão solto no meio dos outros.
+
+  Ninguém precisa fazer nada.
+
+- **A atualização confere as regras de acesso do banco antes de dizer que deu certo** A atualização mexe nas regras que separam uma empresa da outra dentro do banco. Se uma delas sumisse no caminho, o sistema voltava dizendo "concluída com sucesso" e as telas apareciam **vazias** — sem erro nenhum, indistinguível de "não há nada aqui". Custou um dia inteiro numa instalação real, com o funil vazio.
+
+  Agora a atualização **confere as regras uma a uma** no fim e diz quantas encontrou. Se faltar alguma, ela **não sobe o sistema** e diz exatamente quais faltam: um sistema fora do ar é um problema visível que se resolve em minutos; um sistema no ar sem essas regras não parece problema nenhum.
+
+  Durante a parte do banco, o sistema fica parado por alguns segundos — é isso que impede a regra de sumir.
+
+- **O aviso de manutenção deixa de cegar a própria atualização** O aviso que aparece durante a atualização assumia a porta **inteira** — inclusive a conversa que o próprio atualizador tem com o sistema para dizer em que passo está. Ele recebia a página de volta, em vez de uma resposta, e ficava mudo justamente na janela que precisa narrar.
+
+  Agora o aviso responde a **pessoa** com a página e a **máquina** com uma resposta curta de "indisponível". A tela de atualização volta a contar o andamento.
+
+  Medido na instalação real antes do conserto: 18 KB de página dentro do registro de erro do atualizador, a cada atualização.
+
+- **Contato com compromisso deixa de ficar preso** Excluir contato que já passou pela agenda respondia "ainda tem registros vinculados", sem saída. Agora o compromisso encerrado sai junto, o ainda marcado pede para desmarcar antes, e quando algo trava a mensagem diz o quê.
+
+- **Duas pessoas anotando o mesmo cliente ao mesmo tempo não apagam uma à outra** Quando duas anotações chegavam ao mesmo cliente no mesmo instante — a atendente
+  digitando um campo na tela enquanto outra pessoa salvava outro campo, ou a IA
+  preenchendo algo durante o atendimento —, uma das duas podia sumir. Não havia
+  erro, aviso nem registro: o campo simplesmente não estava lá depois. Acontecia
+  porque o sistema lia a ficha, juntava o campo novo em memória e regravava a
+  ficha inteira; quem chegasse por último regravava por cima de uma versão lida
+  antes da anterior ter sido salva.
+
+  Agora a junção acontece dentro do banco de dados, que sabe pôr uma na fila da
+  outra. Quem chega depois espera, relê o que acabou de ser gravado e acrescenta
+  em cima. As duas anotações sobrevivem, e corrigir um campo já preenchido
+  continua funcionando como antes — a última palavra sobre o MESMO campo vence.
+
+- **O botão "Limpar filtros" agora limpa também a caixa de busca** No Atendimento, "Limpar filtros" desligava os filtros e a lista voltava — mas o texto digitado continuava escrito na caixa de busca. A lista voltava cheia com um termo visível que já não valia, e quem olhasse leria aquela lista como resultado daquela busca.
+
+  Agora o botão limpa as duas coisas: o filtro e o campo.
+
+- **A tela de novo agendamento para de cortar, e nomes longos param de vazar dos avisos** Em telas mais baixas, a tela de "Novo agendamento" cortava o que não coubesse, sem rolagem — em alguns tamanhos, nem dia nem os botões "Voltar"/"Confirmar" eram alcançáveis. Agora a tela inteira rola.
+
+  Segundo conserto: caixas de aviso com um nome sem espaços (um e-mail comprido, um identificador) escapavam da borda. Agora quebram em mais de uma linha.
+
+- **O aviso de versão nova só aparece quando ela está pronta para instalar** A tela oferecia a versão nova **antes de ela estar pronta para instalar**. O aviso saía assim que a versão era publicada, mas o pacote que a VPS precisa baixar leva mais uns minutos para ficar pronto.
+
+  Quem clicava nessa janela via a atualização parar no meio.
+
+  Agora o sistema **pergunta se há o que baixar** antes de oferecer. E se a VPS estiver sem acesso ao registro, ele **continua oferecendo**: deixar de oferecer para sempre, em silêncio, por causa de um problema de rede seria pior.
+
+- **"Enviar link ao cliente" para de travar 20 segundos e passa a dizer por que recusou** Quando "Enviar link ao cliente" recusava, a tela dizia só **"Erro inesperado"** e o registro do servidor gravava sempre a mesma palavra — o sistema sabia o motivo e o apagava ao anotá-lo. Uma investigação inteira não achou nada nos registros por causa disso.
+
+  Agora cada recusa tem nome e explicação própria: o atendimento mudou de conversa, o compromisso foi remarcado, há um conflito que precisa de escolha. E quando a recusa é definitiva, a tela **para de convidar a tentar de novo**.
+
+  O link da reunião nunca entra no registro, mesmo quando vem dentro da mensagem de erro.
+
+- **"Enviar link ao cliente" para de travar 30 segundos quando o cliente está sendo atendido** Clicar em "Enviar link ao cliente" ficava ~30 segundos parado e terminava em "Erro inesperado". O banco não era o problema (19ms) — o pedido entrava numa fila de espera pelo mesmo cliente sem prazo, e a tela tentava de novo sozinha, piorando a fila.
+
+  Agora a espera tem teto de 3 segundos; passou disso, a tela diz que o cliente está sendo atendido e não repete sozinha.
+
+- **O painel do Google Meet para de dizer que o envio "não foi autorizado"** Com o link pronto e ainda não enviado, o painel dizia "O envio do link ainda não foi autorizado" — que lê como recusa, quando era só o estado inicial. E logo abaixo estava o botão "Enviar link ao cliente", ativo.
+
+  Agora diz o fato: **"Link não enviado ainda."** O botão continua o mesmo.
+
+  "Autorizar" ficou onde é verdade: quando o atendimento muda de conversa e o sistema precisa de uma nova decisão sua.
+
+- **O radar de risco parava de avaliar a empresa inteira quando um negócio tinha compromisso na agenda** O radar que avalia quais negócios estão esfriando **parava de avaliar a empresa inteira** quando encontrava um único negócio em estado inesperado. Todos os outros ficavam sem avaliação, e ninguém era avisado.
+
+  Agora um negócio problemático é registrado e a rodada **segue para os demais**. No fim, o registro diz quantos falharam — então o problema aparece em vez de se esconder atrás de uma lista vazia.
+
+  Junto, um conserto de data: o radar podia calcular "sem contato desde" com uma data **no futuro**, o que fazia a conta de dias sair negativa.
+
+- **O atendimento para de se desligar sozinho 15 minutos depois de ser ligado** Em Equipe › Atendimento, ligar a chave de um atendente durava só uns quinze minutos: o sistema desligava sozinho e ninguém religava, sem aviso.
+
+  A causa era uma rotina que esperava um "sinal de vida" nunca implementado. Ela foi removida; a disponibilidade agora é calculada na hora, junto com a jornada publicada — e volta sozinha no início do próximo horário. A coluna "Status" ganha um terceiro estado: **Fora do horário**, distinto de **Desligado**.
+
+- **O botão "Reativar" de tipo de agendamento passa a funcionar** Em Configurações › Agenda, o botão "Reativar" de um tipo de agendamento desativado nunca funcionou — sempre devolvia "Nenhum campo para alterar", porque a porta que ele usava (a mesma de renomear/mudar duração) não conhecia o campo "ativo".
+
+  Agora reativar tem porta própria, com a mesma exigência de papel do desativar, e fica registrado na auditoria como "tipo reativado".
+
+- **"Enviar link ao cliente" para de derrubar o banco** Um clique em "Enviar link ao cliente" levava o banco a 280% de CPU e nunca voltava. Causa: uma recusa DEFINITIVA (compromisso mudou) era anunciada como passageira, e as camadas de cima tentavam sem parar — 51.556 vezes contra 1 quando anunciada certa. Um teste novo vigia o padrão; outros 80 pontos fora da agenda ainda não foram revisados.
+
 ## [1.42.0] — 2026-09-22
 
 ### Adicionado
@@ -7272,7 +7436,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.42.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.40.0...v1.41.0
 [1.40.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.39.0...v1.40.0

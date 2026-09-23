@@ -44,6 +44,10 @@ const CONEXOES: ContextoGeral = { papel: "admin", href: "/app/connections", rotu
 export const POLITICAS_DE_AVISO = {
   // O caso parado.  traz só  porque o aviso SEMPRE nasce com
   // o id do caso — nunca é genérico.
+  // A sugestão de campo do agente. `admin` porque criar campo muda a tela de
+  // TODOS os negócios daquele funil — é decisão de quem administra, e não de
+  // quem atende uma conversa.
+  lead_field_proposed: { refs: ["pipeline"], orientacao: "Para aceitar, abra Configurações › Funis e acrescente o campo. Para recusar, marque este aviso como resolvido." },
   case_stale: { refs: ["agent_case"], orientacao: "Abra o atendimento e diga o que fazer: concluir, pedir informação ao cliente ou passar para uma pessoa." },
   // Aponta para o FLUXO, e não para a tela de agentes onde mora o conserto, por
   // uma razão só: a organização pode ter vários agentes, e nenhum deles é "o"

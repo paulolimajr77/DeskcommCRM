@@ -169,6 +169,8 @@ interface FormState {
   handoff_tool_enabled: boolean;
   proposal_ai_draft_enabled: boolean;
   cases_enabled: boolean;
+  lead_fields_enabled: boolean;
+  lead_fields_propose_new: boolean;
   split_messages: boolean;
   split_max_chars: number;
   followup: FollowupValue;
@@ -242,6 +244,10 @@ function buildState(args: {
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
     proposal_ai_draft_enabled: version?.proposal_ai_draft_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
+    // `?? false` = agente novo nasce sem perguntar nada dos campos do funil,
+    // como o banco. Ligar é ato de quem administra, nunca padrão herdado.
+    lead_fields_enabled: version?.lead_fields_enabled ?? false,
+    lead_fields_propose_new: version?.lead_fields_propose_new ?? false,
     split_messages: version?.split_messages ?? false,
     split_max_chars: version?.split_max_chars ?? 600,
     followup: version?.followup ?? DEFAULT_FOLLOWUP,
@@ -299,6 +305,8 @@ function toVersionPayload(s: FormState) {
     handoff_tool_enabled: s.handoff_tool_enabled,
     proposal_ai_draft_enabled: s.proposal_ai_draft_enabled,
     cases_enabled: s.cases_enabled,
+    lead_fields_enabled: s.lead_fields_enabled,
+    lead_fields_propose_new: s.lead_fields_propose_new,
     split_messages: s.split_messages,
     split_max_chars: s.split_max_chars,
     followup: s.followup,
@@ -1186,6 +1194,68 @@ export function AgentForm(props: Props) {
             <p className="text-xs text-muted-foreground">
               {t(
                 "Diferente de passar a conversa: aqui o agente continua atendendo. Quando esbarra em algo que só uma pessoa resolve — aprovar um desconto, por exemplo — ele abre um pedido interno e retoma assim que for respondido.",
+              )}
+            </p>
+          </Card>
+
+          {/* Campos do funil (migration 0255) */}
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-medium">{t("Campos do funil")}</h3>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="lead_fields_enabled"
+                checked={form.lead_fields_enabled}
+                // ⛔ DESLIGAR O DE CIMA DESLIGA O DE BAIXO, e isto não é zelo.
+                // Sem esta linha: liga os dois, desliga este, salva. O banco
+                // fica com `enabled=false` e `propose_new=true`, e ao recarregar
+                // o segundo interruptor aparece LIGADO e CINZA — ninguém consegue
+                // desligá-lo sem religar este primeiro. Estado impossível de
+                // desfazer pela tela que o criou. Achado revisando o diff.
+                onCheckedChange={(v) =>
+                  patch(
+                    v
+                      ? { lead_fields_enabled: true }
+                      : { lead_fields_enabled: false, lead_fields_propose_new: false },
+                  )
+                }
+                disabled={disabled}
+              />
+              <Label htmlFor="lead_fields_enabled">
+                {t("Perguntar e preencher os campos do funil")}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "O agente vê os campos personalizados que você declarou em Configurações › Funis, pergunta por eles durante a conversa e anota as respostas na ficha do lead.",
+              )}
+            </p>
+
+            {/* SUGERIR CAMPO NOVO (migration 0268) — chave SEPARADA, e a
+                separação é o ponto: preencher o que a empresa JÁ declarou é
+                trabalho de atendimento; sugerir o que ela ainda NÃO declarou é
+                opinar sobre a configuração da casa. Quem quer o primeiro quase
+                nunca quer o segundo junto.
+
+                O switch fica DESABILITADO enquanto o de cima estiver desligado
+                — e isso é honestidade de tela, não garantia: quem não recebe a
+                definição dos campos não sabe o que já existe e proporia o que a
+                empresa já declarou. Quem GARANTE é o motor, que exige as duas
+                chaves (`podePropor`, em inbound-turn.ts). Tela é dica; um
+                `curl` passa por cima dela. */}
+            <div className="flex items-center gap-2">
+              <Switch
+                id="lead_fields_propose_new"
+                checked={form.lead_fields_propose_new}
+                onCheckedChange={(v) => patch({ lead_fields_propose_new: v })}
+                disabled={disabled || !form.lead_fields_enabled}
+              />
+              <Label htmlFor="lead_fields_propose_new">
+                {t("Sugerir um campo novo quando faltar")}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Quando o cliente disser algo importante que não cabe em nenhum campo, o agente abre um aviso na Central sugerindo o campo — com a frase do cliente, para você conferir. Ele NUNCA cria o campo sozinho e nunca promete ao cliente que criou.",
               )}
             </p>
           </Card>

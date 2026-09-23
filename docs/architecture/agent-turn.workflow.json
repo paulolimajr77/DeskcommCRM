@@ -311,9 +311,31 @@
       "type": "service",
       "label": "Marcação de compromisso",
       "sublabel": "ATENDE: tipo de atendimento + jornada publicada · GRAVA: compromisso com hora no contato da conversa"
+    },
+    {
+      "id": "anotacao_campo_funil",
+      "lane": "funil",
+      "col": 3,
+      "type": "service",
+      "label": "Anotação de campo do funil",
+      "sublabel": "ATENDE: os campos que o dono declarou na configuração do funil · GRAVA: o valor na ficha do negócio, visível a quem atende"
     }
   ],
   "edges": [
+    {
+      "id": "mappingscreen-anotacao",
+      "from": "mappingscreen",
+      "to": "anotacao_campo_funil",
+      "label": "o dono declara os campos em Configurações › Funis; o assistente pergunta por eles e anota",
+      "variant": "dashed"
+    },
+    {
+      "id": "anotacao-stagehint",
+      "from": "anotacao_campo_funil",
+      "to": "stagehint",
+      "label": "o valor escrito aparece na ficha do negócio, para quem atende ler depois",
+      "variant": "dashed"
+    },
     {
       "id": "turn-marcacao",
       "from": "turn",

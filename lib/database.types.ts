@@ -1439,6 +1439,7 @@ export type Database = {
           history_token_window: number
           id: string
           knowledge_source_ids: string[]
+          lead_fields_enabled: boolean
           max_steps: number
           model: string
           multimodal_input: boolean
@@ -1477,6 +1478,7 @@ export type Database = {
           history_token_window?: number
           id?: string
           knowledge_source_ids?: string[]
+          lead_fields_enabled?: boolean
           max_steps?: number
           model: string
           multimodal_input?: boolean
@@ -1515,6 +1517,7 @@ export type Database = {
           history_token_window?: number
           id?: string
           knowledge_source_ids?: string[]
+          lead_fields_enabled?: boolean
           max_steps?: number
           model?: string
           multimodal_input?: boolean

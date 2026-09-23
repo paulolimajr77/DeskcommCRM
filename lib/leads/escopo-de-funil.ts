@@ -66,6 +66,20 @@ export const ALVO_DE_FUNIL: Record<string, AlvoDeFunil> = {
   // cobranças.
   crm_close_demand: "funil_vem_do_lead",
   crm_manage_tags: "alvo_polimorfico",
+  // Propor campo novo NÃO escreve no card, mas escreve na CONFIGURAÇÃO daquele
+  // funil se alguém aceitar — e o aviso já ocupa a atenção de quem cuida dele.
+  //
+  // `pipeline_id` é OBRIGATÓRIO no schema dela (`z.string().uuid()`, sem
+  // `.optional()`), então este alvo resolve DE VERDADE. Classificá-la
+  // `funil_vem_do_lead` seria teatro: o gate procuraria um `lead_id` que esta
+  // ferramenta nunca recebe, cairia no ramo de "sem lead" e liberaria 100% das
+  // vezes com aparência de escopado.
+  //
+  // O escopo VAZIO recusa — e isso casa com o resto da entrega: um agente sem
+  // funil marcado não recebe campo de funil nenhum no prompt
+  // (`carregarCamposDoFunilDoAgente` devolve `[]` sem tocar no banco), então
+  // ele nunca teria o que propor.
+  crm_propose_lead_field: "pipeline_no_argumento",
   // Não muda o card, mas pendura uma decisão humana nele — encher o funil da
   // Andrea de sugestões da IA é ocupar a atenção de quem cuida dele.
   crm_propose_reactivation: "funil_vem_do_lead",

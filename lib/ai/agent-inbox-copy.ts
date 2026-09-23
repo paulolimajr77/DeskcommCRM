@@ -23,6 +23,7 @@ export const KIND_LABEL = {
   // não teve resposta, e é isso que faz quem lê a Central abrir o item.
   // Diz o que ACONTECEU e para quem serve — não o nome técnico do kind. Quem lê
   // a Central precisa saber, pelo título, se aquilo é com ele.
+  lead_field_proposed: "O assistente sugere um campo novo no seu funil",
   case_stale: "Um atendimento espera decisão da equipe",
   appointment_outcome_required:"Confirme a presença no compromisso",
   appointment_recovery_review:"A recuperação precisa de uma decisão da equipe",

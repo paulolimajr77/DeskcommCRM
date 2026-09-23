@@ -163,6 +163,27 @@ const versionShapeSchema = z
     handoff_tool_enabled: z.boolean().default(true),
     proposal_ai_draft_enabled: z.boolean().default(true),
     cases_enabled: z.boolean().default(false),
+    // ── Campos do funil (migration 0255) ────────────────────────────────────
+    // O agente enxerga os campos personalizados declarados em
+    // `pipeline.settings.fields`, pergunta por eles e anota a resposta na ficha.
+    // `.default(false)` como as demais flags: versão antiga e payload que não
+    // conhece as chaves seguem válidos e leem a capacidade como DESLIGADA —
+    // ligar o preenchimento automático é decisão de quem administra, nunca
+    // herança de um agente que já existia.
+    lead_fields_enabled: z.boolean().default(false),
+    // A SUGESTÃO de campo NOVO (migration 0268) é uma chave separada, e a
+    // separação é o ponto: preencher o que a empresa JÁ declarou é trabalho de
+    // atendimento; sugerir o que ela ainda NÃO declarou é opinar sobre a
+    // configuração da casa. Quem quer o primeiro quase nunca quer o segundo
+    // junto, e um interruptor só forçaria os dois.
+    //
+    // ⛔ SÓ faz sentido com `lead_fields_enabled` ligado, e quem garante isso
+    // é o MOTOR (`podePropor` exige as duas em `inbound-turn.ts`) — não um
+    // `.refine()` aqui. O patch é parcial: desligar `lead_fields_enabled` numa
+    // chamada e deixar esta ligada são dois PATCHes, e um refine que vê um
+    // patch por vez nunca enxerga a combinação. Cerca que só pega metade dos
+    // casos ensina a confiar nela.
+    lead_fields_propose_new: z.boolean().default(false),
     // Onda 4 — quebra a resposta em bolhas curtas (splitIntoBubbles) espaçadas
     // pelo pacing anti-ban. Defaults espelham a migration 0059.
     split_messages: z.boolean().default(false),
@@ -236,6 +257,8 @@ export const versionPatchSchema = versionShapeSchema
     handoff_tool_enabled: versionShapeSchema.shape.handoff_tool_enabled.removeDefault(),
     proposal_ai_draft_enabled: versionShapeSchema.shape.proposal_ai_draft_enabled.removeDefault(),
     cases_enabled: versionShapeSchema.shape.cases_enabled.removeDefault(),
+    lead_fields_enabled: versionShapeSchema.shape.lead_fields_enabled.removeDefault(),
+    lead_fields_propose_new: versionShapeSchema.shape.lead_fields_propose_new.removeDefault(),
     split_messages: versionShapeSchema.shape.split_messages.removeDefault(),
     split_max_chars: versionShapeSchema.shape.split_max_chars.removeDefault(),
     followup: followupPatchSchema,

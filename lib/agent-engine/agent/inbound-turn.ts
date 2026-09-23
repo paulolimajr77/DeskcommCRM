@@ -4,6 +4,11 @@ import { TIPOS_DE_CASO, TIPOS_DE_CASO_PARA_A_IA } from "@/lib/ai/case-copy";
 import { DEFAULT_CHANNEL_PROVIDER } from '@/lib/channels/capabilities';
 import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './preview';
 import { deveIdentificar, IDENTIFICACAO_SYSTEM_BLOCK } from './identificacao';
+import {
+  carregarCamposDoFunilDoAgente,
+  podeAnotarCampos,
+  renderCamposDoFunil,
+} from './campos-do-funil-do-agente';
 import { claimOfJob } from '../queue/claim';
 import { currentExecutionBoundary, guardServiceEffect } from '@/lib/atendimento/fronteira-server';
 /**
@@ -2260,6 +2265,45 @@ async function executarTurnoDoAgente(
   // Quem decide é `deveIdentificar`, para o teste vigiar esta regra e não uma cópia.
   if (agentConfig !== null && deveIdentificar(agentConfig.toolIds)) {
     blocosResidentes.push(IDENTIFICACAO_SYSTEM_BLOCK);
+  }
+  // O vocabulário do nicho — os campos personalizados que a empresa declarou no
+  // funil deste agente. Prefixo ESTÁVEL, como a memória da organização: só a
+  // DEFINIÇÃO entra (chave, rótulo, tipo, opções, obrigatoriedade), que é igual
+  // para toda a organização. O VALOR preenchido é do lead e chega pelo
+  // `crm_get_lead`, no sufixo — um único valor aqui mataria o cache a cada
+  // conversa. Sem campo declarado, `renderCamposDoFunil` devolve '' e nada é
+  // empilhado: quem não usa campo personalizado não paga byte nenhum.
+  if (agentConfig !== null && agentConfig.leadFieldsEnabled) {
+    // ⛔ QUEM SABE DA FERRAMENTA É O TURNO, e por isso ele é quem diz.
+    //
+    // `lead_fields_enabled` (a chave simples) AUTO-INJETA `crm_update_lead` em
+    // `pickToolsFromMcp` desde a Peça 5 — mas o texto do bloco ficou para trás
+    // dessa mudança por uma sessão inteira: `podeAnotar` só olhava `toolIds` (a
+    // lista escolhida à MÃO no modo avançado), e quem ligava só a chave simples
+    // ganhava a ferramenta no motor e continuava lendo "você NÃO tem ferramenta
+    // para gravar". `podeAnotarCampos` reconhece as DUAS origens.
+    //
+    // `agentConfig` inteiro é da versão PUBLICADA, constante enquanto a versão
+    // for a mesma: o bloco continua cacheável no prefixo, e não varia por lead.
+    const blocoDosCampos = renderCamposDoFunil(
+      await carregarCamposDoFunilDoAgente(pool, tenantId, agentConfig.pipelineIds),
+      {
+        podeAnotar: podeAnotarCampos(agentConfig),
+        // ⛔ PROPOR EXIGE RECEBER A DEFINIÇÃO, e por isso a conjunção.
+        //
+        // `leadFieldsProposeNew` sozinho faria o agente propor o que a empresa
+        // JÁ declarou — ele não saberia o que existe. A Central encheria de
+        // propostas do que está na tela, e quem administra aprenderia a ignorar
+        // a fila inteira, que é o pior desfecho.
+        //
+        // A regra é de COMPORTAMENTO, não de schema: por isso mora aqui e não
+        // num CHECK. As duas chaves continuam independentes no banco, e o dono
+        // pode ligar a segunda antes da primeira sem o `update.sh` quebrar.
+        podePropor:
+          agentConfig.leadFieldsProposeNew && agentConfig.leadFieldsEnabled,
+      },
+    );
+    if (blocoDosCampos !== '') blocosResidentes.push(blocoDosCampos);
   }
   if (preview)
     blocosResidentes.push(

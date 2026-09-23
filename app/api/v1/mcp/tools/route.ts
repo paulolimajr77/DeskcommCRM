@@ -56,12 +56,20 @@ export async function GET(_req: NextRequest): Promise<Response> {
   const capacidades = await capacidadesDaOrganizacao(admin, activeOrg.orgId);
   const schemaPorNome = new Map(allTools.map((t) => [t.name, t.inputSchema]));
   const tools = servidas
-    .filter((c) => !deModuloDesligado(c.id, ligados) && !deCapacidadeDesligada(c.id, capacidades)).map((capacidade) => ({
+    .filter((c) => !deModuloDesligado(c.id, ligados) && !deCapacidadeDesligada(c.id, capacidades))
+    .map((capacidade) => ({
     ...capacidade,
     input_schema: z.toJSONSchema(z.object(schemaPorNome.get(capacidade.id) ?? {}), {
       target: "openapi-3.0",
     }),
   }));
 
-  return ok({ tools }, { requestId });
+  // Desligada pela ORGANIZAÇÃO não é o mesmo que "não existe mais": a tela
+  // precisa distinguir, senão toda instalação nova (Propostas nasce desligada,
+  // o primeiro agente nasce com o pacote `vender`) vê um aviso falso.
+  const desligadas_pela_organizacao = servidas
+    .filter((c) => !deModuloDesligado(c.id, ligados) && deCapacidadeDesligada(c.id, capacidades))
+    .map((c) => c.id);
+
+  return ok({ tools, desligadas_pela_organizacao }, { requestId });
 }

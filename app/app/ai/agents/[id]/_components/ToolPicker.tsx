@@ -65,7 +65,11 @@ interface Props {
 }
 
 interface ApiResponse {
-  data: { tools: Array<Omit<McpToolMeta, "name">> };
+  data: {
+    tools: Array<Omit<McpToolMeta, "name">>;
+    /** Capacidades que a ORGANIZAÇÃO desligou (ex.: Propostas) — não são órfãs. */
+    desligadas_pela_organizacao?: string[];
+  };
 }
 
 const TODOS_OS_PACOTES: ReadonlyArray<ToolBundle> = PACOTES.map((p) => p.id);
@@ -157,12 +161,19 @@ export function ToolPicker({ value, onChange, disabled }: Props) {
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse>("/api/v1/mcp/tools");
       // `name` é o mesmo `id` — a regra de seleção fala em `name`, o wire em `id`.
-      return res.data.tools.map((t) => ({ ...t, name: t.id })) as McpToolMeta[];
+      return {
+        tools: res.data.tools.map((t) => ({ ...t, name: t.id })) as McpToolMeta[],
+        desligadas: res.data.desligadas_pela_organizacao ?? [],
+      };
     },
     staleTime: 60_000,
   });
 
-  const catalogo = React.useMemo<McpToolMeta[]>(() => query.data ?? [], [query.data]);
+  const catalogo = React.useMemo<McpToolMeta[]>(() => query.data?.tools ?? [], [query.data]);
+  const desligadasPelaOrg = React.useMemo(
+    () => new Set(query.data?.desligadas ?? []),
+    [query.data],
+  );
   const porNome = React.useMemo(
     () => new Map(catalogo.map((c) => [c.name, c])),
     [catalogo],
@@ -172,7 +183,9 @@ export function ToolPicker({ value, onChange, disabled }: Props) {
   const cheio = vagas <= 0;
 
   /** Ids salvos que o servidor não oferece mais — some da tela seria mentir. */
-  const orfas = value.filter((id) => !porNome.has(id));
+  const orfas = value.filter((id) => !porNome.has(id) && !desligadasPelaOrg.has(id));
+  /** Ids salvos de capacidade que a organização desligou — voltam a valer ao ligar. */
+  const desligadasSalvas = value.filter((id) => desligadasPelaOrg.has(id));
 
   /**
    * `vagasExigidas` é o que DECIDE, e por padrão é o tamanho do resultado.
@@ -387,6 +400,17 @@ export function ToolPicker({ value, onChange, disabled }: Props) {
           </div>
         ) : null}
       </div>
+
+      {desligadasSalvas.length > 0 ? (
+        <p
+          data-testid="capacidades-desligadas-pela-organizacao"
+          className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+        >
+          {t(
+            "Propostas está desligada nesta organização: o rascunho automático de proposta fica guardado e volta a valer quando alguém ligar em Configurações › Propostas.",
+          )}
+        </p>
+      ) : null}
 
       {orfas.length > 0 ? (
         <div

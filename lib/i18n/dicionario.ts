@@ -11581,6 +11581,7 @@ export const DICIONARIO: Traducoes = {
   "Versão não encontrada para esta skill.": { es: "No se encontró esa versión para esta skill." },
   "Versão da skill não encontrada.": { es: "No se encontró la versión de la skill." },
   // Proposta comercial (lib/propostas, app/app/proposals, Configurações › Propostas)
+  "Propostas está desligada nesta organização: o rascunho automático de proposta fica guardado e volta a valer quando alguém ligar em Configurações › Propostas.": { es: "Propuestas está desactivada en esta organización: el borrador automático de propuesta queda guardado y vuelve a valer cuando alguien la active en Configuración › Propuestas." },
   "Abrir Configurações › Funis": {"es": "Abrir Configuración › Embudos"},
   "Para aceitar, abra Configurações › Funis e acrescente o campo. Para recusar, marque este aviso como resolvido.": {"es": "Para aceptar, abre Configuración › Embudos y agrega el campo. Para rechazar, marca este aviso como resuelto."},
   "O assistente sugere um campo novo no seu funil": {"es": "El asistente sugiere un campo nuevo en tu embudo"},

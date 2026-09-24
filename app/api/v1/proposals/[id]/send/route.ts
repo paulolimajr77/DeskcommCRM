@@ -12,7 +12,7 @@ import { alocarNumero } from "@/lib/propostas/numeracao";
 import { decidirVersao } from "@/lib/propostas/versao";
 import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
-import { marcaDaSaida } from "@/lib/branding/saida";
+import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-para-pdf";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -99,6 +99,22 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
         .maybeSingle();
   if (!conversa) return fail("validation_failed", t("Nenhuma conversa com este contato para enviar."), 422, { requestId });
 
+  // D6 — a imagem do item de catálogo (primeira foto/capa) viaja para o PDF.
+  // Só leitura, filtrada pela organização; item manual (sem product_id)
+  // contribui com null e o layout fecha sem buraco.
+  const idsDeProduto = itens.map((it) => it.product_id).filter((id): id is string => id !== null);
+  const imagensPorProduto = new Map<string, string | null>();
+  if (idsDeProduto.length > 0) {
+    const { data: produtos } = await admin
+      .from("catalog_products")
+      .select("id, imagem_url")
+      .eq("organization_id", authz.org.orgId)
+      .in("id", idsDeProduto);
+    for (const p of (produtos ?? []) as Array<{ id: string; imagem_url: string | null }>) {
+      imagensPorProduto.set(p.id, p.imagem_url);
+    }
+  }
+
   // ─── THROTTLE PRIMEIRO — antes de gastar numero ou gerar PDF (correção 1/2) ───
   const foraDaJanela = await adiarAteAJanelaAbrir(admin, authz.org.orgId, conversa.channel_session_id);
   if (foraDaJanela) {
@@ -125,7 +141,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("organization_id", authz.org.orgId)
     .eq("id", proposta.contact_id)
     .maybeSingle();
-  const marca = await marcaDaSaida(authz.org.orgId);
+  const marca = await marcaDaOrganizacaoParaPdf(admin, authz.org.orgId);
 
   // C4/D4: só chega até aqui quem está em `rascunho` (decidirVersao lança
   // para qualquer outro status, virando 409 acima). Criar a v2 é
@@ -167,9 +183,13 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
       versao: propostaAlvo.versao,
       condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,
-      itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
+      itens: itens.map((it) => ({
+        descricao: it.descricao, quantidade: it.quantidade,
+        precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents,
+        imagemUrl: it.product_id ? (imagensPorProduto.get(it.product_id) ?? null) : null,
+      })),
       totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
-      marca: { app_name: marca.nome, accent_hex: marca.accent, logo_path: marca.logoUrl },
+      marca: { app_name: marca.appName, accent_hex: marca.accentHex, logoUrl: marca.logoUrl },
       destinatario: { nome: destinatarioNome, email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
     });
     const salvo = await salvarPdfDaProposta(admin, {

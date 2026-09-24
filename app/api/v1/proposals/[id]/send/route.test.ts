@@ -14,6 +14,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   renderPropostaPdf: vi.fn(),
   salvarPdfDaProposta: vi.fn(),
   marcaDaSaida: vi.fn(),
+  marcaDaOrganizacaoParaPdf: vi.fn(),
   emitLeadActivity: vi.fn(),
   sendMessageHandler: vi.fn(),
   audit: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock("@/lib/propostas/versao", () => ({ decidirVersao: mocks.decidirVersao })
 vi.mock("@/lib/propostas/pdf", () => ({ renderPropostaPdf: mocks.renderPropostaPdf }));
 vi.mock("@/lib/propostas/storage", () => ({ salvarPdfDaProposta: mocks.salvarPdfDaProposta }));
 vi.mock("@/lib/branding/saida", () => ({ marcaDaSaida: mocks.marcaDaSaida }));
+vi.mock("@/lib/propostas/marca-da-organizacao-para-pdf", () => ({ marcaDaOrganizacaoParaPdf: mocks.marcaDaOrganizacaoParaPdf }));
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: mocks.emitLeadActivity }));
 vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.sendMessageHandler }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
@@ -63,6 +65,8 @@ interface MundoOpts {
   itemSemPreco?: boolean;
   /** A conversa gravada em conversation_id pertence a OUTRO contato (revisão C3). */
   conversaDeOutroContato?: boolean;
+  /** O item da proposta vem de um produto de catálogo (tem imagem). */
+  itemDeCatalogo?: boolean;
 }
 
 interface Proposta {
@@ -129,7 +133,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     id: "item-1",
     organization_id: ORG_ID,
     proposal_id: PROPOSTA_ID,
-    product_id: null,
+    product_id: opts.itemDeCatalogo ? "prod-1" : null,
     descricao: opts.itemSemPreco ? "Item sem preço" : "Serviço",
     quantidade: 1,
     preco_unitario_cents: opts.itemSemPreco ? null : 500000,
@@ -296,6 +300,18 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           }),
         };
       }
+      if (tabela === "catalog_products") {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: async () => ({
+                data: opts.itemDeCatalogo ? [{ id: "prod-1", imagem_url: "https://cdn/produto.png" }] : [],
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       throw new Error(`Tabela desconhecida: ${tabela}`);
     },
   });
@@ -341,6 +357,8 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   mocks.salvarPdfDaProposta.mockResolvedValue({ path: "/pdf", signedUrl: "https://url" });
 
   mocks.marcaDaSaida.mockResolvedValue({ nome: "App", accent: "#000", accentFg: "#fff", logoUrl: null });
+
+  mocks.marcaDaOrganizacaoParaPdf.mockResolvedValue({ appName: "Clínica X", accentHex: "#111111", logoUrl: "https://logo" });
 
   mocks.sendMessageHandler.mockImplementation(async (_admin: unknown, _ctx: unknown, payload: { conversation_id: string }) => {
     ordemDeChamadas.push("sendMessageHandler");
@@ -549,5 +567,32 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.chamadasConversas).toContainEqual(["contact_id", CONTACT_ID]);
     expect(mundo.conversaUsadaNoEnvio).toBe("conversa-mais-recente-do-contato");
+  });
+
+  it("monta o PDF com a marca DA ORGANIZAÇÃO (marcaDaOrganizacaoParaPdf), nunca marcaDaSaida", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ marca: { app_name: "Clínica X", accent_hex: "#111111", logoUrl: "https://logo" } }),
+    );
+  });
+
+  it("item com product_id: PDF recebe a imagem do produto de catálogo", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: "https://cdn/produto.png" })]) }),
+    );
+  });
+
+  it("item manual (sem product_id): imagemUrl null, PDF não quebra", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: null })]) }),
+    );
   });
 });

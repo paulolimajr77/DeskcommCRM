@@ -74,6 +74,7 @@ export function BulkActionBar({
   const [algumTemProposta, setAlgumTemProposta] = useState(false);
   useEffect(() => {
     if (!confirmDelete || selectedIds.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAlgumTemProposta(false);
       return;
     }

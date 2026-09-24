@@ -19,6 +19,7 @@ vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: mocks.requireSupportWrite }));
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: mocks.emitLeadActivity }));
 vi.mock("@/lib/followup/retorno-crm", () => ({ cancelaRetornoNoCrm: mocks.cancelaRetornoNoCrm }));
+vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
@@ -172,6 +173,15 @@ describe("POST /api/v1/proposals/[id]/decide", () => {
       "retorno-1",
       expect.objectContaining({ motivo: expect.any(String) }),
     );
+  });
+
+  it("cancelaRetornoNoCrm lança (banco instável): a decisão já gravada não vira 500, e a auditoria ainda sai (achado Importante da revisão final da C5)", async () => {
+    mocks.cancelaRetornoNoCrm.mockRejectedValueOnce(new Error("retorno_cancel_failed: timeout"));
+    const mundo = montarMundoDeDecisao({ status: "enviada", retornoId: "retorno-1" });
+    const res = await mundo.POST({ decisao: "aceita" });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada?.status).toBe("aceita");
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "proposal.aceita" }));
   });
 
   it("proposta sem retorno_id (nunca teve, ou falhou ao agendar): não tenta cancelar, não lança", async () => {

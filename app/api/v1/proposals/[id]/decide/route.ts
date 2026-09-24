@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { cancelaRetornoNoCrm } from "@/lib/followup/retorno-crm";
+import { logger } from "@/lib/logger";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
@@ -74,14 +75,25 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   }
 
   // N2 — a decisão resolve a proposta: o retorno automático agendado no envio
-  // não é mais necessário. Fire-and-forget como o resto: `cancelaRetornoNoCrm`
-  // registra a própria atividade (`followup_cancelled`) quando cancela.
+  // não é mais necessário. Best-effort de verdade (achado Importante da
+  // revisão final da C5): a decisão JÁ foi gravada no UPDATE acima — um erro
+  // de banco aqui (instabilidade ao cancelar) não pode virar 500 nem comer a
+  // auditoria abaixo, senão a tela mostra erro para uma decisão que já vale,
+  // e um retry recebe 409 (status já não é mais 'enviada').
   if ((proposta as { retorno_id: string | null }).retorno_id) {
-    await cancelaRetornoNoCrm(
-      { admin: supabase, orgId: authz.org.orgId, actor: { type: "user", id: authz.user.id } },
-      (proposta as { retorno_id: string }).retorno_id,
-      { motivo: `Proposta ${parsed.data.decisao} — retorno automático não é mais necessário` },
-    );
+    try {
+      await cancelaRetornoNoCrm(
+        { admin: supabase, orgId: authz.org.orgId, actor: { type: "user", id: authz.user.id } },
+        (proposta as { retorno_id: string }).retorno_id,
+        { motivo: `Proposta ${parsed.data.decisao} — retorno automático não é mais necessário` },
+      );
+    } catch (erro) {
+      logger.warn("proposal.decide: cancelamento do retorno automático falhou sem bloquear a decisão", {
+        propostaId: id,
+        organizationId: authz.org.orgId,
+        erro: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
   }
 
   void audit({

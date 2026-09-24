@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { showApiError } from "@/components/feedback/ApiErrorToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,30 @@ export function AssistantPanel({
     nao_entendido: string | null;
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  // N5 — checagem AO ABRIR (o campo já nasce desabilitado quando não há
+  // orçamento). `null` = ainda carregando ou a checagem falhou: nos dois
+  // casos o campo segue habilitado (falha aberta — a trava real continua
+  // sendo a do clique, `assistant/route.ts`).
+  const [orcamento, setOrcamento] = useState<{ disponivel: boolean; motivo: string | null } | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    apiClient
+      .get<ApiSuccess<{ disponivel: boolean; motivo: string | null }>>(
+        `/api/v1/proposals/${propostaId}/assistant/disponibilidade`,
+      )
+      .then((res) => {
+        if (vivo) setOrcamento(res.data);
+      })
+      .catch(() => {
+        if (vivo) setOrcamento(null);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [propostaId]);
+
+  const semOrcamento = orcamento !== null && !orcamento.disponivel;
 
   async function gerar() {
     if (!instrucao.trim()) return;
@@ -102,12 +126,13 @@ export function AssistantPanel({
           placeholder={t('Ex.: "baixa 10% e tira a hospedagem"')}
           value={instrucao}
           onChange={(e) => setInstrucao(e.target.value)}
-          disabled={gerando}
+          disabled={gerando || semOrcamento}
         />
-        <Button onClick={gerar} disabled={gerando || !instrucao.trim()}>
+        <Button onClick={gerar} disabled={gerando || !instrucao.trim() || semOrcamento}>
           {t("Gerar")}
         </Button>
       </div>
+      {semOrcamento && <p className="text-sm text-gray-500">{t(orcamento?.motivo ?? "")}</p>}
       {erro && <p className="text-red-600">{erro}</p>}
       {preview && !preview.disponivel && <p className="text-gray-500">{preview.motivo}</p>}
       {preview && preview.disponivel && preview.mudancas.length === 0 && (

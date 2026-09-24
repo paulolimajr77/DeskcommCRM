@@ -11618,6 +11618,7 @@ export const DICIONARIO: Traducoes = {
   "O cliente recebeu e não decidiu. Retome antes que esfrie de vez.": {"es": "El cliente la recibió y no decidió. Retómala antes de que se enfríe del todo."},
   "venceu em": {"es": "venció el"},
   "Proposta sem número": {"es": "Propuesta sin número"},
+  "O orçamento mensal de IA desta organização foi atingido. Ajuste o limite em Uso de IA › Orçamento, ou aguarde a virada do mês.": {"es": "Se alcanzó el presupuesto mensual de IA de esta organización. Ajusta el límite en Uso de IA › Presupuesto, o espera al cambio de mes."},
   "Atualizar preços": {"es": "Actualizar precios"},
   "Manter": {"es": "Mantener"},
   "item mudou de preço no catálogo": {"es": "artículo cambió de precio en el catálogo"},

@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   // duas vezes) — ja traz lead_id/contact_id que so seriam usados depois.
   const { data: proposta } = await supabase
     .from("crm_proposals")
-    .select("lead_id, contact_id, titulo, condicoes, valid_until, status, revision")
+    .select("lead_id, contact_id, titulo, condicoes, valid_until, status, revision, moeda")
     .eq("organization_id", authz.org.orgId)
     .eq("id", id)
     .maybeSingle();
@@ -72,7 +72,12 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   // servidor: sem isto, uma mudança "editar_item"/"preco_unitario_cents"
   // gravava o valor sugerido pela IA (ou mandado no corpo) direto num item
   // com product_id, furando a mesma regra que a criação/edição já cumprem.
-  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, estadoDepois.itens);
+  const resolvido = await resolverItensDaProposta(
+    supabase,
+    authz.org.orgId,
+    estadoDepois.itens,
+    (proposta as { moeda: string }).moeda,
+  );
   if (!resolvido.ok) {
     return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
   }

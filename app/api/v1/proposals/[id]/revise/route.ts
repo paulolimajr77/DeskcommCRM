@@ -72,6 +72,9 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       desconto_cents: it.desconto_cents,
       position: it.position,
     })),
+    // D11 — a v2 herda a moeda da v1 (já gravada no INSERT abaixo); item
+    // cujo produto mudou de moeda no catálogo desde a v1 é recusado aqui.
+    proposta.moeda,
   );
   if (!resolvido.ok) {
     return fail("validation_failed", t(resolvido.motivo), 422, { requestId });

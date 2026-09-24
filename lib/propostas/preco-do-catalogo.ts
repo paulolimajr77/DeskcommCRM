@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface PrecoDoCatalogo {
   preco_cents: number;
+  moeda: string;
 }
 
 /**
@@ -19,10 +20,10 @@ export async function buscarPrecoDoCatalogo(
 ): Promise<PrecoDoCatalogo | null> {
   const { data } = await db
     .from("catalog_products")
-    .select("preco_cents")
+    .select("preco_cents, moeda")
     .eq("organization_id", organizationId)
     .eq("id", productId)
     .eq("ativo", true)
     .maybeSingle();
-  return data ? { preco_cents: (data as { preco_cents: number }).preco_cents } : null;
+  return data ? (data as PrecoDoCatalogo) : null;
 }

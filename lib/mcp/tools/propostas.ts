@@ -2,6 +2,7 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
+import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
@@ -116,7 +117,10 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       desconto_cents: 0,
       position: (i + 1) * 1000,
     }));
-    const resolvido = await resolverItensDaProposta(ctx.supabase, ctx.organizationId, itensNormalizados);
+    // D11 — a proposta nasce na moeda da organização; item de catálogo em
+    // moeda diferente é recusado dentro do resolvedor, nunca convertido.
+    const moeda = await moedaDaOrganizacao(ctx.supabase, ctx.organizationId);
+    const resolvido = await resolverItensDaProposta(ctx.supabase, ctx.organizationId, itensNormalizados, moeda);
     if (!resolvido.ok) return { error: resolvido.motivo };
 
     const padroes = await buscarPadroesDaOrganizacao(ctx.supabase, ctx.organizationId);
@@ -137,6 +141,7 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         valid_until: validUntil,
         total_cents: resolvido.totalCents,
         pricing_status: resolvido.pricingStatus,
+        moeda,
         status: "rascunho",
         drafted_by_agent_id: agentId,
       })

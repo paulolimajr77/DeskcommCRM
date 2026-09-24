@@ -46,6 +46,11 @@ interface MundoOpts {
   precoAtualDoCatalogoCents?: number;
   /** O resolvedor recusa (produto do catálogo não existe mais / de outra org). */
   resolucaoRecusa?: boolean;
+  /** Moeda da v1 já gravada (D11). Default: "BRL". */
+  moedaDaV1?: string;
+  /** Moeda ATUAL do produto no catálogo (D11) — o resolvedor mockado recusa
+   *  quando o 4º argumento (moeda da proposta) diverge dela. */
+  moedaDoCatalogo?: string;
 }
 
 function montarMundoDeRevisao(opts: MundoOpts = {}) {
@@ -69,7 +74,7 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
     condicoes: "Condições",
     valid_until: "2026-12-31",
     total_cents: 500000,
-    moeda: "BRL",
+    moeda: opts.moedaDaV1 ?? "BRL",
     pricing_status: "manual",
     status: opts.status ?? "enviada",
     numero: opts.numero ?? 42,
@@ -91,9 +96,14 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
 
   mocks.resolverItensDaProposta.mockImplementation(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async (_db: unknown, _orgId: string, itensInput: any[]) => {
+    async (_db: unknown, _orgId: string, itensInput: any[], moedaDaProposta?: string) => {
       if (opts.resolucaoRecusa) {
         return { ok: false, motivo: "Produto não encontrado no catálogo desta organização." };
+      }
+      // D11 — o mock espelha a invariante real: moeda do catálogo que
+      // diverge da moeda da proposta (4º argumento) recusa o item.
+      if (opts.moedaDoCatalogo !== undefined && moedaDaProposta !== opts.moedaDoCatalogo) {
+        return { ok: false, motivo: `Produto do item "Serviço" está com moeda ${opts.moedaDoCatalogo}, mas esta proposta é em ${moedaDaProposta}.` };
       }
       const precoResolvido = opts.precoAtualDoCatalogoCents ?? 500000;
       const itensResolvidos = itensInput.map((it) => ({
@@ -259,6 +269,7 @@ describe("POST /api/v1/proposals/[id]/revise", () => {
       expect.anything(),
       ORG_ID,
       expect.arrayContaining([expect.objectContaining({ product_id: "prod-1", preco_unitario_cents: 500000 })]),
+      "BRL",
     );
     expect(mundo.itensCopiados?.[0]).toMatchObject({ preco_unitario_cents: 700000 });
     expect(mundo.propostaCriada).toMatchObject({ total_cents: 700000, pricing_status: "catalog" });
@@ -269,6 +280,20 @@ describe("POST /api/v1/proposals/[id]/revise", () => {
     const res = await mundo.POST();
     expect(res.status).toBe(422);
     expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("a v1 é em USD e o produto mudou para BRL no catálogo desde então: 422, a v2 não nasce (D11)", async () => {
+    const mundo = montarMundoDeRevisao({ status: "enviada", itemDeCatalogo: true, moedaDaV1: "USD", moedaDoCatalogo: "BRL" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    expect(mundo.propostaCriada).toBeNull();
+    // a v2 herda a moeda da v1: o resolvedor recebe a moeda DA CADEIA.
+    expect(mocks.resolverItensDaProposta).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG_ID,
+      expect.anything(),
+      "USD",
+    );
   });
 
   it("papel agent (abaixo de manager): 403", async () => {

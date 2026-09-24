@@ -33,6 +33,7 @@ export async function resolverItensDaProposta(
   db: SupabaseClient,
   organizationId: string,
   itens: readonly ProposalItemInput[],
+  moedaDaProposta: string,
 ): Promise<ResolverItensResultado> {
   const resolvidos: ItemResolvido[] = [];
   for (const it of itens) {
@@ -42,6 +43,14 @@ export async function resolverItensDaProposta(
         return {
           ok: false,
           motivo: `Produto do item "${it.descricao}" não encontrado no catálogo desta organização.`,
+        };
+      }
+      // D11 — nunca converte, recusa. Uma conversão silenciosa mudaria o
+      // valor que a pessoa viu no catálogo sem ela perceber.
+      if (doCatalogo.moeda !== moedaDaProposta) {
+        return {
+          ok: false,
+          motivo: `Produto do item "${it.descricao}" está com moeda ${doCatalogo.moeda}, mas esta proposta é em ${moedaDaProposta}.`,
         };
       }
       resolvidos.push({

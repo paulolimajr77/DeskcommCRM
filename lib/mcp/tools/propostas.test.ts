@@ -24,6 +24,10 @@ interface MundoOpts {
   insercaoColide23505?: boolean;
   /** Fuso lido de organizations.timezone (D8). Default: null (= cai no padrão). */
   fusoDaOrganizacao?: string | null;
+  /** Moeda lida de organizations.currency (D11). Default: "BRL". */
+  moedaDaOrganizacao?: string;
+  /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
+  moedaDoCatalogo?: string;
 }
 
 const RASCUNHO_ID = "99999999-9999-4999-8999-999999999999";
@@ -49,7 +53,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
   const supabase: any = {
     from: vi.fn(function (this: any, table: string) {
       if (table === "organizations") {
-        const resposta = { data: { settings, timezone: opts?.fusoDaOrganizacao ?? null }, error: null };
+        const resposta = { data: { settings, timezone: opts?.fusoDaOrganizacao ?? null, currency: opts?.moedaDaOrganizacao ?? "BRL" }, error: null };
         return {
           select: vi.fn(function (this: any) {
             return this;
@@ -122,7 +126,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
                     const preco = opts?.precoDoCatalogo === undefined ? 5000 : opts.precoDoCatalogo;
                     return preco === null
                       ? { data: null, error: null }
-                      : { data: { preco_cents: preco }, error: null };
+                      : { data: { preco_cents: preco, moeda: opts?.moedaDoCatalogo ?? "BRL" }, error: null };
                   },
                 }),
               }),
@@ -342,6 +346,26 @@ describe("crm_draft_proposal", () => {
     );
     expect((r as { error?: string }).error).toBeDefined();
     expect(mundo.propostasExcluidas).toEqual(["proposal-1"]);
+  });
+
+  it("grava a MOEDA DA ORGANIZAÇÃO na proposta, não sempre BRL (D11)", async () => {
+    const mundo = montarMundoDeFerramenta({ moedaDaOrganizacao: "USD" });
+    const r = await crmDraftProposal.handler(
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(mundo.propostaCriada?.moeda).toBe("USD");
+  });
+
+  it("item de catálogo em moeda diferente da organização: erro devolvido ao modelo, nada é gravado (D11)", async () => {
+    const mundo = montarMundoDeFerramenta({ moedaDaOrganizacao: "BRL", moedaDoCatalogo: "USD", precoDoCatalogo: 5000 });
+    const r = await crmDraftProposal.handler(
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ product_id: mundo.productId, descricao: "x", quantidade: 1 }] },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toContain("moeda");
+    expect(mundo.propostaCriada).toBeNull();
   });
 
   it("product_id que não existe na organização: erro devolvido ao modelo, nada é gravado", async () => {

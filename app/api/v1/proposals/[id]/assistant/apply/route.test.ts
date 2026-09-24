@@ -38,6 +38,10 @@ interface MundoOpts {
   precoDoCatalogo?: number;
   /** C3 fix: proposta nasce com pricing_status 'missing' (nenhum item tinha preço). */
   pricingStatusInicial?: string;
+  /** Moeda da proposta já gravada (D11). Default: "BRL". */
+  moedaDaProposta?: string;
+  /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
+  moedaDoCatalogo?: string;
 }
 
 const PRODUCT_ID = "66666666-6666-4666-8666-666666666666";
@@ -79,6 +83,7 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
     valid_until: "2026-12-31",
     status: "rascunho",
     revision: revisionAtual,
+    moeda: opts.moedaDaProposta ?? "BRL",
   };
 
   const itens = opts.itemDeCatalogo
@@ -162,7 +167,7 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
               eq: () => ({
                 eq: () => ({
                   maybeSingle: async () => ({
-                    data: { preco_cents: opts.precoDoCatalogo ?? 4000 },
+                    data: { preco_cents: opts.precoDoCatalogo ?? 4000, moeda: opts.moedaDoCatalogo ?? "BRL" },
                     error: null,
                   }),
                 }),
@@ -256,6 +261,22 @@ describe("POST /api/v1/proposals/[id]/assistant/apply", () => {
     });
     expect(res.status).toBe(200);
     expect(mundo.propostaAtualizada?.pricing_status).toBe("manual");
+  });
+
+  it("item de catálogo em moeda diferente da proposta: 422, a mudança da IA não é aplicada (D11)", async () => {
+    const mundo = montarMundoDeAplicar({
+      revisionAtual: 1, itemDeCatalogo: true, precoDoCatalogo: 4000,
+      moedaDoCatalogo: "USD", moedaDaProposta: "BRL",
+    });
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [
+        { tipo: "editar_item", item_id: mundo.itemId, campo: "preco_unitario_cents", de: 4000, para: 4000 },
+      ],
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error.message).toContain("moeda");
+    expect(mundo.itemAtualizado).toBeNull();
   });
 
   it("lista vazia de mudancas: 422", async () => {

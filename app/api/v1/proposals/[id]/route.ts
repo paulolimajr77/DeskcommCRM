@@ -80,7 +80,26 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   }
   const input = parsed.data;
   const supabase = await createClient();
-  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens);
+  // D11 — a edição não muda a moeda da proposta (fora de escopo); os itens
+  // são resolvidos contra a moeda JÁ GRAVADA. A leitura que falta devolve o
+  // MESMO 409 ambíguo do UPDATE abaixo (convenção desta rota: nunca vazar a
+  // existência para outra organização — ver teste "não altera proposta de
+  // outra organização"), não o 404 do plano, de propósito.
+  const { data: propostaAtual } = await supabase
+    .from("crm_proposals")
+    .select("moeda")
+    .eq("organization_id", authz.org.orgId)
+    .eq("id", id)
+    .maybeSingle();
+  if (!propostaAtual) {
+    return fail(
+      "proposal_context_stale",
+      t("A proposta mudou (ou não está mais em rascunho). Recarregue antes de editar."),
+      409,
+      { requestId },
+    );
+  }
+  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens, (propostaAtual as { moeda: string }).moeda);
   if (!resolvido.ok) {
     return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
   }

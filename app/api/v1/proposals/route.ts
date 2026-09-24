@@ -13,6 +13,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
+import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { resolverPadroesDaProposta } from "@/lib/propostas/padroes-da-organizacao";
 import { propostaCreateSchema } from "@/lib/schemas/propostas";
 import { createClient } from "@/lib/supabase/server";
@@ -112,7 +113,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens);
+  // D11 — a proposta nasce na moeda da organização; item de catálogo em
+  // moeda diferente é recusado dentro do resolvedor, nunca convertido.
+  const moeda = await moedaDaOrganizacao(supabase, authz.org.orgId);
+  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens, moeda);
   if (!resolvido.ok) {
     return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
   }
@@ -138,6 +142,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       valid_until: validUntil ?? null,
       total_cents: resolvido.totalCents,
       pricing_status: resolvido.pricingStatus,
+      moeda,
       status: "rascunho",
     })
     .select("id")

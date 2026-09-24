@@ -39,6 +39,8 @@ interface MundoOpts {
   /** Preço que o mock de catalog_products devolve; null = produto não resolve
    * (outra org, apagado, inativo). Default: 3000. */
   precoDoCatalogo?: number | null;
+  /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
+  moedaDoCatalogo?: string;
   /** Quando true, a pré-checagem de rascunho encontra um rascunho aberto. */
   rascunhoJaExiste?: boolean;
   /** Sobrescreve organizations.settings.proposals.default_conditions. */
@@ -49,6 +51,8 @@ interface MundoOpts {
   insercaoColide23505?: boolean;
   /** Fuso lido de organizations.timezone (D8). Default: null (= cai no padrão). */
   fusoDaOrganizacao?: string | null;
+  /** Moeda lida de organizations.currency (D11). Default: "BRL". */
+  moedaDaOrganizacao?: string;
 }
 
 function montarMundoDeProposta(opts: MundoOpts = {}) {
@@ -164,7 +168,7 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
                     const preco = opts.precoDoCatalogo === undefined ? 3000 : opts.precoDoCatalogo;
                     return preco === null
                       ? { data: null, error: null }
-                      : { data: { preco_cents: preco }, error: null };
+                      : { data: { preco_cents: preco, moeda: opts.moedaDoCatalogo ?? "BRL" }, error: null };
                   },
                 }),
               }),
@@ -201,8 +205,9 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
                 error: null,
               }),
               // D8 — `fusoDaOrganizacao` lê `timezone` com `maybeSingle`.
+              // D11 — `moedaDaOrganizacao` lê `currency` com `maybeSingle`.
               maybeSingle: async () => ({
-                data: { timezone: opts.fusoDaOrganizacao ?? null },
+                data: { timezone: opts.fusoDaOrganizacao ?? null, currency: opts.moedaDaOrganizacao ?? "BRL" },
                 error: null,
               }),
             }),
@@ -342,6 +347,24 @@ describe("POST /api/v1/proposals", () => {
     const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "x", itens: [] });
     expect(res.status).toBe(409);
     expect(mundo.propostasCriadas).toHaveLength(0);
+  });
+
+  it("grava a MOEDA DA ORGANIZAÇÃO na proposta, não sempre BRL (D11)", async () => {
+    const mundo = montarMundoDeProposta({ moedaDaOrganizacao: "USD" });
+    const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "x", itens: [] });
+    expect(res.status).toBe(201);
+    expect(mundo.propostasCriadas.at(-1)).toMatchObject({ moeda: "USD" });
+  });
+
+  it("item de catálogo em moeda diferente da organização: 422, nada gravado", async () => {
+    const mundo = montarMundoDeProposta({ moedaDaOrganizacao: "BRL", moedaDoCatalogo: "USD", precoDoCatalogo: 3000 });
+    const res = await mundo.POST({
+      lead_id: mundo.leadId, titulo: "x",
+      itens: [{ product_id: PRODUCT_ID, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(422);
+    expect(mundo.propostasCriadas).toHaveLength(0);
+    expect(mundo.itensCriados).toHaveLength(0);
   });
 
   it("falha ao gravar os itens: a proposta recém-criada é APAGADA, não fica rascunho vazio travando o negócio (revisão C3, I2)", async () => {

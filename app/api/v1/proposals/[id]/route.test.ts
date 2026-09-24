@@ -48,6 +48,10 @@ interface MundoOpts {
   falha?: "proposta.select" | "proposta.update" | "itens.select" | "itens.delete" | "itens.insert";
   /** Preço que o mock de catalog_products devolve; null = produto não resolve. */
   precoDoCatalogo?: number | null;
+  /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
+  moedaDoCatalogo?: string;
+  /** Moeda da proposta já gravada (D11). Default: "BRL". */
+  moedaDaProposta?: string;
 }
 
 function montarMundoDeEdicao(opts: MundoOpts = {}) {
@@ -60,6 +64,7 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
     condicoes: "Entrada de 50%",
     valid_until: "2026-10-01",
     total_cents: 300,
+    moeda: opts.moedaDaProposta ?? "BRL",
   };
   let propostaAtualizada: Linha | null = null;
   let itens: Linha[] = [
@@ -83,7 +88,7 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
                   maybeSingle: async () => (
                     opts.precoDoCatalogo === undefined || opts.precoDoCatalogo === null
                       ? { data: null, error: null }
-                      : { data: { preco_cents: opts.precoDoCatalogo }, error: null }
+                      : { data: { preco_cents: opts.precoDoCatalogo, moeda: opts.moedaDoCatalogo ?? "BRL" }, error: null }
                   ),
                 }),
               }),
@@ -202,6 +207,19 @@ describe("PATCH /api/v1/proposals/[id]", () => {
     const res = await mundo.PATCH({
       revision: 1,
       itens: [{ product_id: PRODUCT_INEXISTENTE, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(422);
+    expect(mundo.itens).toEqual(antes);
+    expect(mundo.propostaAtualizada).toBeNull();
+    expect(mundo.consultas.some((q) => q.tabela === "crm_proposal_items" && q.operacao === "delete")).toBe(false);
+  });
+
+  it("item de catálogo em moeda diferente da proposta já gravada: 422, itens antigos NÃO são apagados (D11)", async () => {
+    const mundo = montarMundoDeEdicao({ precoDoCatalogo: 4000, moedaDoCatalogo: "USD", moedaDaProposta: "BRL" });
+    const antes = [...mundo.itens];
+    const res = await mundo.PATCH({
+      revision: 1,
+      itens: [{ product_id: PRODUCT_ID, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
     });
     expect(res.status).toBe(422);
     expect(mundo.itens).toEqual(antes);

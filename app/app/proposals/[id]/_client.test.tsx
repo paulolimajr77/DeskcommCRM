@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/lib/api/client";
+
 import { ProposalEditorClient } from "./_client";
 
 const get = vi.hoisted(() => vi.fn());
@@ -62,5 +64,32 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
     fireEvent.click(botaoAdicionar);
     const camposDePreco = screen.getAllByPlaceholderText("A definir");
     expect(camposDePreco.length).toBeGreaterThan(0);
+  });
+});
+
+describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
+  it("proposta enviada mostra o botão 'Revisar esta proposta'", async () => {
+    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "enviada", ultima_falha_envio: null } });
+    render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
+    expect(await screen.findByRole("button", { name: /revisar esta proposta/i })).toBeInTheDocument();
+  });
+
+  it("clicar em 'Revisar esta proposta' chama a rota e navega para a v2", async () => {
+    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, id: "prop-1", status: "enviada", ultima_falha_envio: null } });
+    const mockPost = vi.mocked(apiClient.post).mockResolvedValue({ data: { id: "v2-id" } } as never);
+    render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
+    const botao = await screen.findByRole("button", { name: /revisar esta proposta/i });
+    fireEvent.click(botao);
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/api/v1/proposals/prop-1/revise", {}));
+  });
+
+  it("proposta rascunho/aceita/recusada/vencida: NÃO mostra o botão de revisar", async () => {
+    for (const status of ["rascunho", "aceita", "recusada", "vencida"]) {
+      get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status, ultima_falha_envio: null } });
+      const { unmount } = render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
+      await waitFor(() => expect(screen.getByDisplayValue("Proposta X")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: /revisar esta proposta/i })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 });

@@ -417,6 +417,19 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           >
             {t("Marcar como recusada")}
           </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const resp = await apiClient.post<ApiSuccess<{ id: string }>>(`/api/v1/proposals/${proposta.id}/revise`, {});
+                window.location.href = `/app/proposals/${resp.data.id}`;
+              } catch (erro) {
+                showApiError(erro);
+              }
+            }}
+          >
+            {t("Revisar esta proposta")}
+          </Button>
         </div>
       )}
       {editavel && (

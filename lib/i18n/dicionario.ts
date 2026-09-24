@@ -11632,6 +11632,7 @@ export const DICIONARIO: Traducoes = {
   "Enviar ao cliente": {"es": "Enviar al cliente"},
   "Marcar como aceita": {"es": "Marcar como aceptada"},
   "Marcar como recusada": {"es": "Marcar como rechazada"},
+  "Revisar esta proposta": {"es": "Revisar esta propuesta"},
   "Motivo da recusa (opcional):": {"es": "Motivo del rechazo (opcional):"},
   "Não foi possível enviar. Confira se você tem papel de gestor.": {"es": "No se pudo enviar. Confirma que tienes el rol de gestor."},
   "Ligar propostas comerciais para esta organização": {"es": "Activar propuestas comerciales para esta organización"},

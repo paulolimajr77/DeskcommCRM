@@ -4,19 +4,32 @@ import { resolverPadroesDaProposta, buscarPadroesDaOrganizacao } from "./padroes
 
 describe("resolverPadroesDaProposta (pura)", () => {
   it("settings vazio: 15 dias, sem condições (mesmo default de hoje)", () => {
-    expect(resolverPadroesDaProposta(null)).toEqual({ defaultValidDays: 15, defaultConditions: null });
+    expect(resolverPadroesDaProposta(null)).toEqual({ defaultValidDays: 15, defaultConditions: null, followupDias: 3 });
   });
 
   it("settings.proposals com os dois valores configurados", () => {
     expect(
       resolverPadroesDaProposta({ proposals: { default_valid_days: 30, default_conditions: "Pagamento em 2x" } }),
-    ).toEqual({ defaultValidDays: 30, defaultConditions: "Pagamento em 2x" });
+    ).toEqual({ defaultValidDays: 30, defaultConditions: "Pagamento em 2x", followupDias: 3 });
   });
 
   it("settings malformado (não é objeto): degrada para o default, nunca lança", () => {
     expect(resolverPadroesDaProposta("string-invalida" as unknown)).toEqual({
-      defaultValidDays: 15, defaultConditions: null,
+      defaultValidDays: 15, defaultConditions: null, followupDias: 3,
     });
+  });
+
+  it("followup_dias ausente: default 3", () => {
+    expect(resolverPadroesDaProposta(null).followupDias).toBe(3);
+  });
+
+  it("followup_dias configurado: usa o valor", () => {
+    expect(resolverPadroesDaProposta({ proposals: { followup_dias: 7 } }).followupDias).toBe(7);
+  });
+
+  it("followup_dias inválido (negativo/string): degrada para o default", () => {
+    expect(resolverPadroesDaProposta({ proposals: { followup_dias: -1 } }).followupDias).toBe(3);
+    expect(resolverPadroesDaProposta({ proposals: { followup_dias: "sete" } }).followupDias).toBe(3);
   });
 });
 
@@ -29,6 +42,6 @@ describe("buscarPadroesDaOrganizacao", () => {
     };
     const db = { from: vi.fn(() => chain) } as unknown as import("@supabase/supabase-js").SupabaseClient;
     const r = await buscarPadroesDaOrganizacao(db, "org-1");
-    expect(r).toEqual({ defaultValidDays: 7, defaultConditions: "À vista" });
+    expect(r).toEqual({ defaultValidDays: 7, defaultConditions: "À vista", followupDias: 3 });
   });
 });

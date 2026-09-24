@@ -325,18 +325,12 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     return { numero: 42, ano: 2026 };
   });
 
+  // C4/D4 — espelha o contrato novo de decidirVersao: só `rascunho` passa
+  // (patch no mesmo registro); qualquer outro status lança e a rota vira 409.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mocks.decidirVersao.mockImplementation((prop: any) => {
-    if (prop.status && ["recusada", "vencida", "cancelada"].includes(prop.status)) {
-      throw new Error("Estado inválido");
-    }
-    return {
-      tipo: prop.numero && prop.status === "enviada" ? "nova_versao" : "envio_simples",
-      novaVersao: (prop.versao ?? 0) + 1,
-      herdaNumero: prop.numero || 42,
-      herdaAno: prop.ano || 2026,
-      substituiId: prop.id,
-    };
+    if (prop.status === "rascunho") return { tipo: "patch_no_mesmo" };
+    throw new Error(`status_nao_editavel: ${prop.status}`);
   });
 
   mocks.renderPropostaPdf.mockImplementation(async () => {
@@ -447,35 +441,15 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.leadValueCentsDepois).toBeNull();
   });
 
-  it("revisar uma proposta JÁ enviada: cria v2, v1 vira substituida, HERDA o número", async () => {
+  it("proposta já enviada: 409, NUNCA reenvia nem cria v2 aqui (C4 — isso agora é revisar)", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
       propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
-    });
-    const res = await mundo.POST();
-    expect(res.status).toBe(200);
-    expect(mundo.propostaEnviada?.numero).toBe(42);
-    expect(mundo.propostaEnviada?.versao).toBe(2);
-  });
-
-  it("revisar uma proposta enviada: a v2 HERDA pricing_status da v1, nunca nasce 'missing' por default (revisão C3, I1)", async () => {
-    const mundo = montarMundoDeEnvio({
-      papel: "manager",
-      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1, pricing_status: "manual" },
-    });
-    const res = await mundo.POST();
-    expect(res.status).toBe(200);
-    expect(mundo.propostaEnviada?.pricing_status).toBe("manual");
-  });
-
-  it("criação da v2 colide com rascunho aberto de outra cadeia (23505): 409 claro, não 500 genérico (revisão C3, I1)", async () => {
-    const mundo = montarMundoDeEnvio({
-      papel: "manager",
-      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
-      criacaoDaV2Colide23505: true,
     });
     const res = await mundo.POST();
     expect(res.status).toBe(409);
+    expect(mundo.mensagemEnviada).toBe(false);
+    expect(mundo.numeroFoiAlocado).toBe(false);
   });
 
   it("reenvio de um rascunho que ja tem numero (falha anterior): reusa o numero, NAO chama o contador de novo", async () => {
@@ -490,31 +464,6 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.numeroFoiAlocado).toBe(false);
     expect(mundo.propostaEnviada?.numero).toBe(42);
     expect(mundo.propostaEnviada?.status).toBe("enviada");
-  });
-
-  it("v2 cujo envio falha: mantem o numero herdado, nao libera para outra proposta", async () => {
-    const mundo = montarMundoDeEnvio({
-      papel: "manager",
-      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
-      envioResultado: { id: "msg-3", status: "failed", error_message: "timeout" },
-    });
-    const res = await mundo.POST();
-    expect(res.status).toBe(200);
-    expect(mundo.propostaEnviada?.status).toBe("rascunho");
-    expect(mundo.propostaEnviada?.numero).toBe(42);
-  });
-
-  it("erro ao copiar itens da v2: descarta a v2, a v1 continua enviada (nao vira substituida apontando pra v2 vazia)", async () => {
-    const mundo = montarMundoDeEnvio({
-      papel: "manager",
-      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
-      itensDaV2Falham: true,
-    });
-    const res = await mundo.POST();
-    expect(res.status).toBe(500);
-    expect(mundo.propostaDeletadaId).not.toBeNull();
-    // a v1 (PROPOSTA_ID) nunca recebeu status:"substituida" — continua no mock como estava.
-    expect(mundo.propostaEnviada).toBeNull();
   });
 
   it("throttle: adiarAteAJanelaAbrir e checkDailyLimit são chamados ANTES de alocar numero/gerar PDF", async () => {

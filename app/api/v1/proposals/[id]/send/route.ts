@@ -43,9 +43,11 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .maybeSingle();
   if (!proposta) return fail("not_found", t("Proposta não encontrada."), 404, { requestId });
 
-  let decisao;
+  // A chamada vale pelo efeito de validação: lança para qualquer status que
+  // não seja `rascunho`, e o catch abaixo vira o 409 (o valor de retorno não
+  // é mais usado — só rascunho chega até aqui).
   try {
-    decisao = decidirVersao(proposta as never);
+    decidirVersao(proposta as never);
   } catch {
     return fail("proposal_context_stale", t("Esta proposta não pode ser enviada neste estado."), 409, { requestId });
   }
@@ -125,60 +127,16 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .maybeSingle();
   const marca = await marcaDaSaida(authz.org.orgId);
 
-  let propostaAlvo = proposta;
-  if (decisao.tipo === "nova_versao") {
-    const { data: nova, error: novaErr } = await admin
-      .from("crm_proposals")
-      .insert({
-        organization_id: authz.org.orgId, lead_id: proposta.lead_id, contact_id: proposta.contact_id,
-        conversation_id: proposta.conversation_id, titulo: proposta.titulo, condicoes: proposta.condicoes,
-        valid_until: proposta.valid_until, total_cents: proposta.total_cents, moeda: proposta.moeda,
-        // C3 (revisão): sem herdar pricing_status, a v2 nascia 'missing' pelo
-        // default do banco — e se o envio dela falhasse, o reenvio era
-        // recusado por "item sem preço" mesmo a v1 tendo pricing_status
-        // 'manual'/'catalog'.
-        pricing_status: proposta.pricing_status,
-        status: "rascunho", versao: decisao.novaVersao, substitui_id: decisao.substituiId,
-      })
-      .select("*")
-      .single();
-    if (novaErr) {
-      // §5.3 — o negócio já tem outro rascunho aberto (de outra cadeia): a
-      // v1 continua enviada, e a pessoa recebe um motivo claro, não um 500.
-      if ((novaErr as { code?: string }).code === "23505") {
-        return fail("validation_failed", t("Este negócio já tem um rascunho de proposta aberto."), 409, { requestId });
-      }
-      return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
-    }
-    if (!nova) return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
-
-    const { error: itensErr } = await admin.from("crm_proposal_items").insert(
-      itens.map((it) => ({
-        organization_id: authz.org.orgId, proposal_id: nova.id, product_id: it.product_id, descricao: it.descricao,
-        quantidade: it.quantidade, preco_unitario_cents: it.preco_unitario_cents,
-        desconto_cents: it.desconto_cents, position: it.position,
-      })),
-    );
-    if (itensErr) {
-      // A v2 nasceu mas sem itens — descarta-a; a v1 continua `enviada`, nunca
-      // vira "substituida" apontando para uma v2 vazia (D3, ponto 5).
-      await admin.from("crm_proposals").delete().eq("organization_id", authz.org.orgId).eq("id", nova.id);
-      return fail("internal_error", t("Falha ao copiar os itens da nova versão."), 500, { requestId });
-    }
-    // só marca a v1 substituida DEPOIS de confirmar que a v2 tem itens.
-    await admin.from("crm_proposals").update({ status: "substituida" }).eq("organization_id", authz.org.orgId).eq("id", decisao.substituiId);
-    propostaAlvo = nova;
-  }
+  // C4/D4: só chega até aqui quem está em `rascunho` (decidirVersao lança
+  // para qualquer outro status, virando 409 acima). Criar a v2 é
+  // responsabilidade exclusiva da rota de revisão — o envio nunca mais cria
+  // versão: `propostaAlvo` é sempre a própria proposta.
+  const propostaAlvo = proposta;
 
   // ─── Entra em `enviando` e aloca numero (D3+D9) — número reservado ao
   // entrar em `enviando`, não ao confirmar entrega ───
   let numeroEAno: { numero: number; ano: number };
-  if (decisao.tipo === "nova_versao") {
-    numeroEAno = { numero: decisao.herdaNumero, ano: decisao.herdaAno };
-    await admin.from("crm_proposals")
-      .update({ numero: numeroEAno.numero, ano: numeroEAno.ano, status: "enviando", ultima_falha_envio: null })
-      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
-  } else if (propostaAlvo.numero != null && propostaAlvo.ano != null) {
+  if (propostaAlvo.numero != null && propostaAlvo.ano != null) {
     // Reenvio depois de uma falha anterior (D3): o número já foi reservado e
     // RETIDO na volta a rascunho — chamar o contador de novo gastaria outro
     // número a cada tentativa e o UPDATE de alocarNumero (que exige
@@ -207,7 +165,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   try {
     const pdfBuffer = await renderPropostaPdf({
       titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
-      versao: decisao.tipo === "nova_versao" ? decisao.novaVersao : propostaAlvo.versao,
+      versao: propostaAlvo.versao,
       condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,
       itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
       totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,

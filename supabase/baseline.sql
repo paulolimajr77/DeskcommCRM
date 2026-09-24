@@ -10073,6 +10073,9 @@ alter table public.agent_inbox_items
     -- (migration 0394) a proposta comercial: vencimento sem decisão, queda da taxa
     -- de aceite e promessa de proposta que não virou proposta.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
+    -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
+    -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
+    'proposta_travada',
     'other'
   ));
 
@@ -37757,3 +37760,95 @@ end $$;
 -- a lista de erros benignos do update.sh, então a atualização não diz
 -- "atualizado" com módulo fora do ar. Instalação nova não tem módulo: no-op.
 do $f$ begin perform public.fn_conferir_modulos_instalados(); end $f$;
+
+-- ---- C2: contador de propostas, estado enviando e sobrevivencia ao negocio (migration 0401) ----
+-- D9 — auditoria de produção (org 59914589, 19/09/2026): `fn_proposta_aloca_numero`
+-- calculava `max(numero)+1` sobre linhas que EXISTEM; apagar a linha liberava
+-- o número. O contador abaixo nunca deriva de linha nenhuma — só cresce.
+create table if not exists public.crm_proposal_counters (
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  ano int not null,
+  ultimo_numero int not null default 0,
+  primary key (organization_id, ano)
+);
+comment on table public.crm_proposal_counters is
+  'D9: numeração de propostas. Só cresce; apagar proposta, negócio ou dados operacionais NUNCA mexe aqui.';
+alter table public.crm_proposal_counters enable row level security;
+revoke all on public.crm_proposal_counters from anon, authenticated;
+
+insert into public.crm_proposal_counters (organization_id, ano, ultimo_numero)
+select organization_id, ano, max(numero)
+from public.crm_proposals
+where numero is not null
+group by organization_id, ano
+on conflict (organization_id, ano) do update
+  set ultimo_numero = greatest(public.crm_proposal_counters.ultimo_numero, excluded.ultimo_numero);
+
+insert into public.crm_proposal_counters (organization_id, ano, ultimo_numero)
+select organization_id,
+       (metadata->>'ano')::int as ano,
+       max((metadata->>'numero')::int) as ultimo_numero
+from public.api_audit_log
+where action = 'proposal.sent'
+  and metadata->>'numero' is not null
+  and metadata->>'ano' is not null
+group by organization_id, (metadata->>'ano')::int
+on conflict (organization_id, ano) do update
+  set ultimo_numero = greatest(public.crm_proposal_counters.ultimo_numero, excluded.ultimo_numero);
+
+create or replace function public.fn_proposta_aloca_numero(p_org uuid, p_ano int)
+returns int language sql security definer set search_path = public, pg_temp as $$
+  insert into public.crm_proposal_counters (organization_id, ano, ultimo_numero)
+    values (p_org, p_ano, 1)
+  on conflict (organization_id, ano) do update
+    set ultimo_numero = public.crm_proposal_counters.ultimo_numero + 1
+  returning ultimo_numero;
+$$;
+revoke execute on function public.fn_proposta_aloca_numero(uuid, int) from public, anon;
+revoke execute on function public.fn_proposta_aloca_numero(uuid, int) from authenticated;
+grant execute on function public.fn_proposta_aloca_numero(uuid, int) to service_role;
+
+-- D3 — estado intermediário `enviando`: separa "número reservado" de "entregue".
+alter table public.crm_proposals drop constraint if exists crm_proposals_status_check;
+alter table public.crm_proposals add constraint crm_proposals_status_check
+  check (status in ('rascunho','enviando','enviada','aceita','recusada','vencida','cancelada','substituida'));
+
+alter table public.crm_proposals add column if not exists message_id uuid references public.messages(id) on delete set null;
+alter table public.crm_proposals add column if not exists ultima_falha_envio text;
+
+-- D10 — a proposta sobrevive ao negócio: SET NULL em vez de CASCADE, e o nome
+-- impresso no PDF fica gravado para o documento continuar legível sozinho.
+alter table public.crm_proposals add column if not exists destinatario_nome text;
+
+alter table public.crm_proposals alter column lead_id drop not null;
+alter table public.crm_proposals alter column contact_id drop not null;
+
+alter table public.crm_proposals drop constraint if exists crm_proposals_lead_id_fkey;
+alter table public.crm_proposals add constraint crm_proposals_lead_id_fkey
+  foreign key (lead_id) references public.crm_leads(id) on delete set null;
+
+alter table public.crm_proposals drop constraint if exists crm_proposals_contact_id_fkey;
+alter table public.crm_proposals add constraint crm_proposals_contact_id_fkey
+  foreign key (contact_id) references public.contacts(id) on delete set null;
+
+-- Rascunho não tem valor fora do negócio — vira `cancelada` em vez de ficar
+-- órfão. Enviada e além sobrevivem via o SET NULL acima. Trigger roda ANTES
+-- do delete: lead_id ainda aponta para a linha que vai sumir.
+create or replace function public.fn_cancelar_propostas_rascunho_do_lead()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  update public.crm_proposals
+    set status = 'cancelada'
+    where lead_id = old.id and status = 'rascunho';
+  return old;
+end;
+$$;
+revoke execute on function public.fn_cancelar_propostas_rascunho_do_lead() from public, anon;
+revoke execute on function public.fn_cancelar_propostas_rascunho_do_lead() from authenticated;
+
+drop trigger if exists trg_crm_leads_cancelar_propostas_rascunho on public.crm_leads;
+create trigger trg_crm_leads_cancelar_propostas_rascunho
+  before delete on public.crm_leads
+  for each row execute function public.fn_cancelar_propostas_rascunho_do_lead();
+
+notify pgrst, 'reload schema';

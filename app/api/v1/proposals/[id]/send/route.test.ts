@@ -17,6 +17,8 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   marcaDaOrganizacaoParaPdf: vi.fn(),
   emitLeadActivity: vi.fn(),
   sendMessageHandler: vi.fn(),
+  agendaRetornoNoCrm: vi.fn(),
+  buscarPadroesDaOrganizacao: vi.fn(),
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
 }));
@@ -35,6 +37,9 @@ vi.mock("@/lib/branding/saida", () => ({ marcaDaSaida: mocks.marcaDaSaida }));
 vi.mock("@/lib/propostas/marca-da-organizacao-para-pdf", () => ({ marcaDaOrganizacaoParaPdf: mocks.marcaDaOrganizacaoParaPdf }));
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: mocks.emitLeadActivity }));
 vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.sendMessageHandler }));
+vi.mock("@/lib/followup/retorno-crm", () => ({ agendaRetornoNoCrm: mocks.agendaRetornoNoCrm }));
+vi.mock("@/lib/propostas/padroes-da-organizacao", () => ({ buscarPadroesDaOrganizacao: mocks.buscarPadroesDaOrganizacao }));
+vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
 
@@ -71,6 +76,12 @@ interface MundoOpts {
   statusDaV1?: string;
   /** `imagem_url` gravado no produto de catálogo — default `https://cdn/produto.png`. */
   imagemUrlDoCatalogo?: string;
+  /** Dias do knob de follow-up automático (N2). Default: 3. */
+  followupDias?: number;
+  /** Resultado que `agendaRetornoNoCrm` devolve (N2). Default: sucesso com id "retorno-1". */
+  agendamentoDeRetorno?: unknown;
+  /** Proposta órfã — o negócio foi apagado (lead_id virou null, D10). */
+  leadIdNulo?: boolean;
 }
 
 interface Proposta {
@@ -106,7 +117,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   const proposta: Proposta = {
     id: PROPOSTA_ID,
     organization_id: ORG_ID,
-    lead_id: LEAD_ID,
+    lead_id: opts.leadIdNulo ? null : LEAD_ID,
     contact_id: CONTACT_ID,
     conversation_id: CONVERSA_ID,
     numero: null,
@@ -392,6 +403,19 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     ordemDeChamadas.push("emitLeadActivity");
   });
 
+  // N2 — follow-up automático ao enviar: padroes com o knob + agendamento
+  // controlável por teste (o módulo real bateria no banco via service-role).
+  mocks.buscarPadroesDaOrganizacao.mockImplementation(async () => ({
+    defaultValidDays: 15,
+    defaultConditions: null,
+    followupDias: opts.followupDias ?? 3,
+  }));
+  mocks.agendaRetornoNoCrm.mockImplementation(async () =>
+    opts.agendamentoDeRetorno !== undefined
+      ? opts.agendamentoDeRetorno
+      : { ok: true, retorno: { id: "retorno-1", quando: "2026-09-27T12:00:00Z" } },
+  );
+
   mocks.audit.mockImplementation(() => {
     ordemDeChamadas.push("audit");
   });
@@ -674,5 +698,52 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const res = await mundo.POST();
     expect(res.status).toBe(200);
     expect(mundo.updatesCrmProposals.some((u) => (u.dados as { status?: string }).status === "substituida")).toBe(false);
+  });
+
+  it("proposta enviada com sucesso: agenda o retorno automático em N dias e grava retorno_id (N2)", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager", followupDias: 3 });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.agendaRetornoNoCrm).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: ORG_ID }),
+      { leadId: LEAD_ID },
+      expect.objectContaining({ motivo: expect.stringContaining("Retomar a proposta") }),
+    );
+    expect(mundo.updatesCrmProposals).toContainEqual(
+      expect.objectContaining({ id: PROPOSTA_ID, dados: expect.objectContaining({ retorno_id: "retorno-1" }) }),
+    );
+  });
+
+  it("agendamento recusado por 'ja_existe_retorno': NÃO é erro — o envio segue normalmente, sem gravar retorno_id", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      agendamentoDeRetorno: { ok: false, codigo: "ja_existe_retorno" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mundo.updatesCrmProposals.some((u) => "retorno_id" in (u.dados as object))).toBe(false);
+  });
+
+  it("agendamento fora da janela ('instante_fora_da_janela'): envio segue 200 e a timeline registra que não agendou (nunca em silêncio)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      agendamentoDeRetorno: { ok: false, codigo: "instante_fora_da_janela" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mocks.emitLeadActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: "proposal_followup_skipped" }),
+    );
+  });
+
+  it("proposta órfã (lead_id nulo, D10): não tenta agendar retorno (não há negócio para retomar)", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager", leadIdNulo: true });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mocks.agendaRetornoNoCrm).not.toHaveBeenCalled();
   });
 });

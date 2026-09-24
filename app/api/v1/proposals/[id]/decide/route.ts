@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { cancelaRetornoNoCrm } from "@/lib/followup/retorno-crm";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("organization_id", authz.org.orgId)
     .eq("id", id)
     .eq("status", "enviada")
-    .select("id, lead_id, contact_id")
+    .select("id, lead_id, contact_id, retorno_id")
     .maybeSingle();
   if (error) return fail("internal_error", t("Falha ao registrar a decisão."), 500, { requestId });
   if (!proposta) {
@@ -70,6 +71,17 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
           ? "Proposta aceita pelo cliente"
           : `Proposta recusada${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}`,
     });
+  }
+
+  // N2 — a decisão resolve a proposta: o retorno automático agendado no envio
+  // não é mais necessário. Fire-and-forget como o resto: `cancelaRetornoNoCrm`
+  // registra a própria atividade (`followup_cancelled`) quando cancela.
+  if ((proposta as { retorno_id: string | null }).retorno_id) {
+    await cancelaRetornoNoCrm(
+      { admin: supabase, orgId: authz.org.orgId, actor: { type: "user", id: authz.user.id } },
+      (proposta as { retorno_id: string }).retorno_id,
+      { motivo: `Proposta ${parsed.data.decisao} — retorno automático não é mais necessário` },
+    );
   }
 
   void audit({

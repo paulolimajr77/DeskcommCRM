@@ -16,12 +16,30 @@ import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-
 import { assertSafeOutboundUrl } from "@/lib/automation/outbound-url";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { agendaRetornoNoCrm } from "@/lib/followup/retorno-crm";
+import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
+import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
+
+/**
+ * N2 — traduz o código de recusa do agendamento em frase legível para a
+ * timeline (`proposal_followup_skipped`). Códigos desconhecidos (futuros)
+ * viajam crus em vez de virarem frase inventada.
+ */
+function motivoDaRecusa(codigo: string): string {
+  if (codigo === "instante_fora_da_janela") return "a data calculada cai fora da janela de agendamento permitida";
+  if (codigo === "instante_no_passado") return "a data calculada já passou";
+  if (codigo === "instante_invalido") return "a data calculada é inválida";
+  if (codigo === "negocio_nao_encontrado") return "o negócio não foi encontrado";
+  if (codigo === "negocio_sem_contato") return "o negócio está sem contato vinculado";
+  if (codigo === "cliente_nao_encontrado") return "o contato não foi encontrado";
+  return codigo;
+}
 
 export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const supportDenied = await requireSupportWrite();
@@ -308,6 +326,45 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       actor: { type: "user", id: authz.user.id },
       reason: `Valor do negócio atualizado de ${valorAntes ?? "—"} para ${totalDoLead} centavos (proposta enviada)`,
     });
+
+    // N2 — ao enviar, agenda o retorno automático (nunca bloqueia o envio:
+    // qualquer recusa/erro do agendamento é fire-and-forget).
+    try {
+      const padroes = await buscarPadroesDaOrganizacao(admin, authz.org.orgId);
+      const promessa = `Retomar a proposta ${numeroEAno.numero}/${numeroEAno.ano}`;
+      const prometidoPara = new Date(Date.now() + padroes.followupDias * 24 * 60 * 60 * 1000).toISOString();
+      // nunca depois da validade da proposta.
+      const dentroDaValidade = !propostaAlvo.valid_until || prometidoPara.slice(0, 10) <= propostaAlvo.valid_until;
+      if (dentroDaValidade) {
+        const resultado = await agendaRetornoNoCrm(
+          { admin, orgId: authz.org.orgId, actor: { type: "api_token", id: "proposal:send" } },
+          { leadId: proposta.lead_id },
+          { motivo: promessa, prometidoPara, promessa },
+        );
+        if (resultado.ok) {
+          await admin.from("crm_proposals").update({ retorno_id: resultado.retorno.id }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
+        } else if (resultado.codigo !== "ja_existe_retorno") {
+          // `ja_existe_retorno`: o negócio já tem retorno (serve, e ele tem
+          // atividade própria) — nada a registrar. Qualquer OUTRA recusa é um
+          // follow-up que não virá e ninguém saberá: a timeline registra que
+          // não agendou e por quê (N2: nunca em silêncio).
+          await emitLeadActivity(admin, {
+            organizationId: authz.org.orgId, leadId: proposta.lead_id, contactId: proposta.contact_id,
+            type: "proposal_followup_skipped", sourceModule: "proposals", sourceId: propostaAlvo.id,
+            actor: { type: "user", id: authz.user.id },
+            reason: `Follow-up automático não agendado: ${motivoDaRecusa(resultado.codigo)}.`,
+          });
+        }
+      }
+    } catch (erro) {
+      // Best-effort de verdade: o WhatsApp já entregou, a proposta já é
+      // `enviada` — um erro inesperado aqui (banco instável no meio do
+      // request) não pode transformar o envio feito num 500.
+      logger.warn("proposal.send: follow-up automático falhou sem bloquear o envio", {
+        organizationId: authz.org.orgId, propostaId: propostaAlvo.id,
+        erro: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
   }
   // Proposta órfã (lead_id nulo — D10): não há negócio para atualizar nem
   // atividade para gravar; a proposta ainda vira `enviada` normalmente.

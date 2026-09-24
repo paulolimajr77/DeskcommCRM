@@ -156,6 +156,10 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
       const { GET } = await import("./route");
       return GET(new NextRequest(`http://localhost/api/v1/proposals/${id}`), { params: Promise.resolve({ id }) });
     },
+    async DELETE(id = PROPOSAL_ID) {
+      const { DELETE } = await import("./route");
+      return DELETE(new NextRequest(`http://localhost/api/v1/proposals/${id}`, { method: "DELETE" }), { params: Promise.resolve({ id }) });
+    },
   };
 }
 
@@ -301,6 +305,43 @@ describe("PATCH /api/v1/proposals/[id]", () => {
     expect(mocks.audit).not.toHaveBeenCalled();
     if (falha !== "itens.insert") expect(mundo.inseridos).toHaveLength(0);
     if (falha === "proposta.update") expect(mundo.propostaAtualizada).toBeNull();
+  });
+});
+
+// D4, item 3 da spec ("descartar a v2 em rascunho não toca na v1") — achado
+// Importante da revisão C4: não existia NENHUM jeito de descartar um
+// rascunho (v2 de revisão ou v1 comum), então "Revisar" por engano travava
+// o negócio para sempre (§5.3 só permite um rascunho aberto por vez).
+describe("DELETE /api/v1/proposals/[id]", () => {
+  it("descarta um rascunho: vira cancelada, nunca é apagado de verdade", async () => {
+    const mundo = montarMundoDeEdicao({ status: "rascunho" });
+    const res = await mundo.DELETE();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada).toMatchObject({ status: "cancelada" });
+    expect(mocks.audit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ action: "proposal.discarded", organizationId: ORG_ID, resourceId: PROPOSAL_ID }));
+  });
+
+  it("proposta não está em rascunho (ex.: enviada): 409, não descarta", async () => {
+    const mundo = montarMundoDeEdicao({ status: "enviada" });
+    const res = await mundo.DELETE();
+    expect(res.status).toBe(409);
+    expect(mundo.propostaAtualizada).toBeNull();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("papel agent (abaixo de manager): 403, não descarta", async () => {
+    mocks.requireRole.mockResolvedValue({ ok: false, response: fail("forbidden_role", "Sem permissão", 403) });
+    const mundo = montarMundoDeEdicao({ status: "rascunho" });
+    const res = await mundo.DELETE();
+    expect(res.status).toBe(403);
+    expect(mundo.propostaAtualizada).toBeNull();
+  });
+
+  it("proposta de outra organização: 404 (via 409 do filtro, nunca vaza a existência)", async () => {
+    const mundo = montarMundoDeEdicao({ status: "rascunho", outraOrg: true });
+    const res = await mundo.DELETE();
+    expect(res.status).toBe(409);
+    expect(mundo.propostaAtualizada).toBeNull();
   });
 });
 

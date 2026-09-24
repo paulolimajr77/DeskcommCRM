@@ -67,6 +67,10 @@ interface MundoOpts {
   conversaDeOutroContato?: boolean;
   /** O item da proposta vem de um produto de catálogo (tem imagem). */
   itemDeCatalogo?: boolean;
+  /** Status da proposta v1 (alvo de `substitui_id`) ANTES do envio da v2. */
+  statusDaV1?: string;
+  /** `imagem_url` gravado no produto de catálogo — default `https://cdn/produto.png`. */
+  imagemUrlDoCatalogo?: string;
 }
 
 interface Proposta {
@@ -117,6 +121,13 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     ...opts.propostaOriginal,
   };
   propostasNoMock[PROPOSTA_ID] = proposta;
+  // Quando a proposta enviada tem substitui_id, a v1 alvo existe como linha
+  // própria no mundo — status configurável para provar que o envio da v2 só
+  // troca a v1 quando ela AINDA está 'enviada' (achado Crítico da revisão C4).
+  const v1Id = (opts.propostaOriginal as { substitui_id?: string } | undefined)?.substitui_id;
+  if (v1Id) {
+    propostasNoMock[v1Id] = { ...proposta, id: v1Id, status: opts.statusDaV1 ?? "enviada", substitui_id: undefined };
+  }
 
   const lead = { id: LEAD_ID, contact_id: CONTACT_ID, value_cents: 100000 };
   const contato = { id: CONTACT_ID, name: "Cliente", display_name: "Cliente", email: "cli@test.com", phone_number: "5511" };
@@ -181,18 +192,26 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           // O alvo é o primeiro `.eq("id", …)` visto, em qualquer posição da cadeia.
           update: (dados: unknown) => {
             let alvoId: string | null = null;
+            let statusFiltro: string | undefined;
+            // Mimetiza o WHERE do Postgres: um `.eq("status", X)` só deixa o
+            // UPDATE valer se a linha ainda estiver naquele status — 0 linhas
+            // afetadas (sem erro) quando não bate, nunca sobrescreve.
+            const bateFiltro = (linha: Proposta | undefined) =>
+              statusFiltro === undefined || linha?.status === statusFiltro;
             const aplicar = () => {
-              updatesCrmProposals.push({ id: alvoId, dados });
               const linha = alvoId ? propostasNoMock[alvoId] : undefined;
+              if (!bateFiltro(linha)) return;
+              updatesCrmProposals.push({ id: alvoId, dados });
               if (linha) {
                 Object.assign(linha, dados as object);
-                propostaEnviada = { ...linha };
+                if (alvoId === PROPOSTA_ID) propostaEnviada = { ...linha };
               }
             };
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const cadeia: any = {
               eq(campo: string, valor: unknown) {
                 if (campo === "id") alvoId = valor as string;
+                if (campo === "status") statusFiltro = valor as string;
                 return cadeia;
               },
               select() {
@@ -307,7 +326,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           select: () => ({
             eq: () => ({
               in: async () => ({
-                data: opts.itemDeCatalogo ? [{ id: "prod-1", imagem_url: "https://cdn/produto.png" }] : [],
+                data: opts.itemDeCatalogo ? [{ id: "prod-1", imagem_url: opts.imagemUrlDoCatalogo ?? "https://cdn/produto.png" }] : [],
                 error: null,
               }),
             }),
@@ -388,6 +407,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     get leadValueCentsDepois() { return leadValueCentsDepois; },
     get propostaDeletadaId() { return propostaDeletadaId; },
     get updatesCrmProposals() { return updatesCrmProposals; },
+    obterProposta(id: string) { return propostasNoMock[id]; },
     async POST() {
       const { POST } = await import("./route");
       return POST(new NextRequest(`http://localhost/api/v1/proposals/${PROPOSTA_ID}/send`), { params: Promise.resolve({ id: PROPOSTA_ID }) });
@@ -599,6 +619,33 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     );
   });
 
+  it.each([
+    ["file:///etc/hostname", "file: local"],
+    ["http://127.0.0.1/x.png", "loopback"],
+    ["http://169.254.169.254/latest/meta-data", "link-local (metadata cloud)"],
+    ["http://10.255.255.1/x.png", "faixa privada 10.x"],
+    ["não é url nenhuma", "string inválida"],
+  ])(
+    "imagem_url do catálogo é %s (%s): PDF recebe imagemUrl null, nunca a string bruta (achado Importante da revisão C4 — SSRF/leitura local)",
+    async (urlPerigosa) => {
+      const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true, imagemUrlDoCatalogo: urlPerigosa });
+      const res = await mundo.POST();
+      expect(res.status).toBe(200);
+      expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: null })]) }),
+      );
+    },
+  );
+
+  it("imagem_url do catálogo é https pública normal: PDF recebe a URL normalmente", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true, imagemUrlDoCatalogo: "https://cdn.exemplo.com/produto.png" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: "https://cdn.exemplo.com/produto.png" })]) }),
+    );
+  });
+
   it("envio de v2 (rascunho com substitui_id): a v1 vira substituida (D4 — só no envio efetivo)", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
@@ -608,6 +655,18 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.status).toBe("enviada");
     expect(mundo.updatesCrmProposals).toContainEqual({ id: "v1-id", dados: { status: "substituida" } });
+  });
+
+  it("v1 já foi decidida (aceita) antes do envio efetivo da v2: NÃO sobrescreve o status da v1 (achado Crítico da revisão C4)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "rascunho", numero: 42, ano: 2026, versao: 2, substitui_id: "v1-id" },
+      statusDaV1: "aceita",
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mundo.obterProposta("v1-id")?.status).toBe("aceita");
   });
 
   it("envio de v1 (sem substitui_id): nenhuma outra proposta é tocada", async () => {

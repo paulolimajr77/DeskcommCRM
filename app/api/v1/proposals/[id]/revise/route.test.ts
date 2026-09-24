@@ -7,6 +7,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
+  resolverItensDaProposta: vi.fn(),
 }));
 
 vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
@@ -15,6 +16,7 @@ vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: mocks.require
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
+vi.mock("@/lib/propostas/itens", () => ({ resolverItensDaProposta: mocks.resolverItensDaProposta }));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
@@ -37,6 +39,13 @@ interface MundoOpts {
   itensDaV2Falham?: boolean;
   /** A v1 não tem itens (a v2 nasce sem itens, sem erro). */
   semItens?: boolean;
+  /** O item da v1 tem product_id (veio do catálogo). */
+  itemDeCatalogo?: boolean;
+  /** Preço ATUAL do catálogo, devolvido pelo resolvedor — pode divergir do
+   *  preço congelado que a v1 tinha (achado Importante da revisão C4). */
+  precoAtualDoCatalogoCents?: number;
+  /** O resolvedor recusa (produto do catálogo não existe mais / de outra org). */
+  resolucaoRecusa?: boolean;
 }
 
 function montarMundoDeRevisao(opts: MundoOpts = {}) {
@@ -72,13 +81,38 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
     id: "item-1",
     organization_id: ORG_ID,
     proposal_id: PROPOSTA_ID,
-    product_id: null,
+    product_id: opts.itemDeCatalogo ? "prod-1" : null,
     descricao: "Serviço",
     quantidade: 1,
     preco_unitario_cents: 500000,
     desconto_cents: 0,
     position: 1000,
   };
+
+  mocks.resolverItensDaProposta.mockImplementation(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (_db: unknown, _orgId: string, itensInput: any[]) => {
+      if (opts.resolucaoRecusa) {
+        return { ok: false, motivo: "Produto não encontrado no catálogo desta organização." };
+      }
+      const precoResolvido = opts.precoAtualDoCatalogoCents ?? 500000;
+      const itensResolvidos = itensInput.map((it) => ({
+        ...it,
+        preco_unitario_cents: it.product_id ? precoResolvido : it.preco_unitario_cents,
+      }));
+      const totalCents = itensResolvidos.reduce(
+        (soma: number, it: { preco_unitario_cents: number | null; quantidade: number; desconto_cents: number }) =>
+          soma + (it.preco_unitario_cents ?? 0) * it.quantidade - it.desconto_cents,
+        0,
+      );
+      return {
+        ok: true,
+        itens: itensResolvidos,
+        totalCents,
+        pricingStatus: itensResolvidos.some((it: { product_id: string | null }) => it.product_id) ? "catalog" : "manual",
+      };
+    },
+  );
 
   let propostaCriada: Record<string, unknown> | null = null;
   let itensCopiados: Array<Record<string, unknown>> | null = null;
@@ -215,6 +249,26 @@ describe("POST /api/v1/proposals/[id]/revise", () => {
     expect(res.status).toBe(500);
     expect(mundo.propostaDeletadaId).toBe("v2-id-nova");
     expect(mundo.updateChamadas).toHaveLength(0);
+  });
+
+  it("item de catálogo: o preço da v2 vem do resolvedor (preço ATUAL), não é copiado congelado da v1 (achado Importante da revisão C4)", async () => {
+    const mundo = montarMundoDeRevisao({ status: "enviada", itemDeCatalogo: true, precoAtualDoCatalogoCents: 700000 });
+    const res = await mundo.POST();
+    expect(res.status).toBe(201);
+    expect(mocks.resolverItensDaProposta).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG_ID,
+      expect.arrayContaining([expect.objectContaining({ product_id: "prod-1", preco_unitario_cents: 500000 })]),
+    );
+    expect(mundo.itensCopiados?.[0]).toMatchObject({ preco_unitario_cents: 700000 });
+    expect(mundo.propostaCriada).toMatchObject({ total_cents: 700000, pricing_status: "catalog" });
+  });
+
+  it("o resolvedor recusa (produto do catálogo não existe mais): 422, nada é gravado", async () => {
+    const mundo = montarMundoDeRevisao({ status: "enviada", itemDeCatalogo: true, resolucaoRecusa: true });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    expect(mundo.propostaCriada).toBeNull();
   });
 
   it("papel agent (abaixo de manager): 403", async () => {

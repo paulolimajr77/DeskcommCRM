@@ -185,6 +185,21 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
     }
   }
 
+  async function descartar() {
+    if (!window.confirm(t("Descartar este rascunho? A proposta anterior (se houver) não é afetada."))) return;
+    setSalvando(true);
+    setErro(null);
+    try {
+      await apiClient.delete(`/api/v1/proposals/${id}`);
+      window.location.href = "/app/proposals";
+    } catch (e) {
+      setErro(t("Não foi possível descartar. Confira se você tem papel de gestor."));
+      showApiError(e);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   async function enviar() {
     setSalvando(true);
     setErro(null);
@@ -399,9 +414,14 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         </div>
       )}
       {proposta.status === "rascunho" && (
-        <Button onClick={enviar} disabled={salvando} className="w-full">
-          {t("Enviar ao cliente")}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={enviar} disabled={salvando} className="flex-1">
+            {t("Enviar ao cliente")}
+          </Button>
+          <Button onClick={descartar} disabled={salvando} variant="outline">
+            {t("Descartar rascunho")}
+          </Button>
+        </div>
       )}
       {proposta.status === "enviada" && (
         <div className="flex gap-2">

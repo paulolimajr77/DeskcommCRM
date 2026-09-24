@@ -13,6 +13,7 @@ import { decidirVersao } from "@/lib/propostas/versao";
 import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
 import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-para-pdf";
+import { assertSafeOutboundUrl } from "@/lib/automation/outbound-url";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -110,8 +111,25 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       .select("id, imagem_url")
       .eq("organization_id", authz.org.orgId)
       .in("id", idsDeProduto);
+    // Achado Importante da revisão C4: `imagem_url` é gravável por qualquer
+    // manager+ da organização (rota de produto) e o schema só exige "é uma
+    // URL", sem restringir protocolo/destino — `file://`, IP privado/
+    // link-local e host inalcançável chegavam direto ao `<Image src>` do
+    // react-pdf, que busca no SERVIDOR (leitura de arquivo local do
+    // contêiner, SSRF para a rede interna, ou trava o envio até o timeout).
+    // Mesmo guard textual que `call-webhook.ts` já usa para egress outbound;
+    // falha = trata como "sem imagem" (null), nunca lança nem barra o envio.
     for (const p of (produtos ?? []) as Array<{ id: string; imagem_url: string | null }>) {
-      imagensPorProduto.set(p.id, p.imagem_url);
+      if (p.imagem_url === null) {
+        imagensPorProduto.set(p.id, null);
+        continue;
+      }
+      try {
+        assertSafeOutboundUrl(p.imagem_url);
+        imagensPorProduto.set(p.id, p.imagem_url);
+      } catch {
+        imagensPorProduto.set(p.id, null);
+      }
     }
   }
 
@@ -256,8 +274,22 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // `substituida`). Só aqui: nem na criação da v2 (revise/route.ts, onde a v1
   // continua `enviada` de propósito), nem em falha/fila (a v2 volta a
   // rascunho e a v1 segue vigente).
+  //
+  // `.eq("status", "enviada")` (achado Crítico da revisão C4): a v1 pode ter
+  // sido decidida (aceita/recusada) ENQUANTO a v2 ficava em rascunho — nada
+  // impede `decide/route.ts` de agir sobre ela nesse meio-tempo, porque só
+  // exige `status = 'enviada'`. Sem o filtro, este UPDATE sobrescrevia a
+  // decisão já registrada (e `decided_at`/`decided_by_user_id` continuavam
+  // gravados numa linha que juridicamente não conta mais como aceita/
+  // recusada). Com o filtro, a v1 só vira `substituida` se AINDA estiver
+  // `enviada` — decidida, o UPDATE não afeta linha nenhuma, sem erro.
   if (propostaAlvo.substitui_id) {
-    await admin.from("crm_proposals").update({ status: "substituida" }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.substitui_id);
+    await admin
+      .from("crm_proposals")
+      .update({ status: "substituida" })
+      .eq("organization_id", authz.org.orgId)
+      .eq("id", propostaAlvo.substitui_id)
+      .eq("status", "enviada");
   }
 
   const totalDoLead = propostaAlvo.total_cents;

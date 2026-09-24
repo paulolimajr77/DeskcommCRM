@@ -12,6 +12,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { decidirRevisao } from "@/lib/propostas/versao";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -48,12 +49,33 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     return fail("proposal_context_stale", t("Esta proposta não pode ser revisada neste estado."), 409, { requestId });
   }
 
-  const { data: itens } = await admin
+  const { data: itensDaV1 } = await admin
     .from("crm_proposal_items")
     .select("*")
     .eq("organization_id", authz.org.orgId)
     .eq("proposal_id", id)
     .order("position");
+
+  // Achado Importante da revisão C4: copiar `preco_unitario_cents` da v1 sem
+  // passar pelo resolvedor único (C3, D5) reintroduzia a mesma classe de bug
+  // que a C3 fechou — preço congelado do momento da v1, em vez do preço
+  // ATUAL do catálogo. Resolve de novo aqui, igual a toda outra escrita de
+  // itens de proposta (criação, PATCH, ferramenta da IA).
+  const resolvido = await resolverItensDaProposta(
+    admin,
+    authz.org.orgId,
+    (itensDaV1 ?? []).map((it) => ({
+      product_id: it.product_id,
+      descricao: it.descricao,
+      quantidade: it.quantidade,
+      preco_unitario_cents: it.preco_unitario_cents,
+      desconto_cents: it.desconto_cents,
+      position: it.position,
+    })),
+  );
+  if (!resolvido.ok) {
+    return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
+  }
 
   // §5.3 — a v2 conta como "o" rascunho aberto do negócio. Se por algum
   // motivo já houver outro rascunho aberto (de uma cadeia diferente), o
@@ -68,8 +90,8 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       titulo: proposta.titulo,
       condicoes: proposta.condicoes,
       valid_until: proposta.valid_until,
-      total_cents: proposta.total_cents,
-      pricing_status: proposta.pricing_status,
+      total_cents: resolvido.totalCents,
+      pricing_status: resolvido.pricingStatus,
       moeda: proposta.moeda,
       status: "rascunho",
       numero: decisao.herdaNumero,
@@ -87,9 +109,9 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   }
   if (!nova) return fail("internal_error", t("Falha ao criar a revisão."), 500, { requestId });
 
-  if (itens && itens.length > 0) {
+  if (resolvido.itens.length > 0) {
     const { error: itensErr } = await admin.from("crm_proposal_items").insert(
-      itens.map((it) => ({
+      resolvido.itens.map((it) => ({
         proposal_id: nova.id,
         organization_id: authz.org.orgId,
         product_id: it.product_id,

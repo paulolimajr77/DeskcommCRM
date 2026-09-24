@@ -145,3 +145,59 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   return ok({ id, revision: proposta.revision, total_cents: resolvido.totalCents }, { requestId });
 }
+
+/**
+ * D4, item 3 da spec ("descartar a v2 em rascunho não toca na v1") — achado
+ * Importante da revisão C4: não existia rota nenhuma para desistir de um
+ * rascunho. Sem ela, "Revisar" por engano (ou desistência do gerente) criava
+ * a v2 e ela ficava como "o" rascunho aberto do negócio para sempre (§5.3),
+ * bloqueando qualquer proposta nova até alguém enviá-la — mesmo sem querer.
+ * Nunca apaga: vira `cancelada` (a v1, se houver, não é tocada — ela só sai
+ * de `enviada` quando uma v2 é EFETIVAMENTE enviada, send/route.ts).
+ */
+export async function DELETE(_req: NextRequest, ctx: Ctx): Promise<Response> {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+
+  const requestId = randomUUID();
+  const authz = await requireRole("manager", { requestId, resource: "crm_proposals" });
+  if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
+  const params = paramsSchema.safeParse(await ctx.params);
+  if (!params.success) {
+    return fail("validation_failed", t("Campos inválidos."), 422, { requestId, details: params.error.flatten() });
+  }
+  const { id } = params.data;
+  const supabase = await createClient();
+  const { data: proposta, error } = await supabase
+    .from("crm_proposals")
+    .update({ status: "cancelada" })
+    .eq("organization_id", authz.org.orgId)
+    .eq("id", id)
+    .eq("status", "rascunho")
+    .select("id")
+    .maybeSingle();
+
+  if (error) return fail("internal_error", t("Falha ao descartar a proposta."), 500, { requestId });
+  if (!proposta) {
+    return fail(
+      "proposal_context_stale",
+      t("Só é possível descartar uma proposta em rascunho."),
+      409,
+      { requestId },
+    );
+  }
+
+  void audit({
+    action: "proposal.discarded",
+    actorUserId: authz.user.id,
+    organizationId: authz.org.orgId,
+    resourceType: "crm_proposals",
+    resourceId: id,
+    requestId,
+  });
+
+  return ok({ id, status: "cancelada" }, { requestId });
+}

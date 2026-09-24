@@ -54,19 +54,23 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   // value_cents do lead NÃO muda aqui (spec §16.2 — negócio perdido guarda
   // quanto valia; zerar apagaria o histórico de quanto se deixou na mesa).
-  await emitLeadActivity(supabase, {
-    organizationId: authz.org.orgId,
-    leadId: proposta.lead_id,
-    contactId: proposta.contact_id,
-    type: parsed.data.decisao === "aceita" ? "proposal_accepted" : "proposal_declined",
-    sourceModule: "proposals",
-    sourceId: id,
-    actor: { type: "user", id: authz.user.id },
-    reason:
-      parsed.data.decisao === "aceita"
-        ? "Proposta aceita pelo cliente"
-        : `Proposta recusada${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}`,
-  });
+  // D10: proposta órfã (negócio apagado, `lead_id` nulo) decide normalmente —
+  // só não há negócio para registrar atividade nele.
+  if (proposta.lead_id) {
+    await emitLeadActivity(supabase, {
+      organizationId: authz.org.orgId,
+      leadId: proposta.lead_id,
+      contactId: proposta.contact_id,
+      type: parsed.data.decisao === "aceita" ? "proposal_accepted" : "proposal_declined",
+      sourceModule: "proposals",
+      sourceId: id,
+      actor: { type: "user", id: authz.user.id },
+      reason:
+        parsed.data.decisao === "aceita"
+          ? "Proposta aceita pelo cliente"
+          : `Proposta recusada${parsed.data.motivo ? `: ${parsed.data.motivo}` : ""}`,
+    });
+  }
 
   void audit({
     action: parsed.data.decisao === "aceita" ? "proposal.aceita" : "proposal.recusada",

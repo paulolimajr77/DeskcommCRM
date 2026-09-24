@@ -31,6 +31,8 @@ function pedido(corpo: unknown): NextRequest {
 interface MundoOpts {
   revisionAtual?: number;
   suporteReadOnly?: boolean;
+  /** D10: proposta órfã — o negócio foi apagado (lead_id virou null). */
+  leadIdNulo?: boolean;
 }
 
 function montarMundoDeAplicar(opts: MundoOpts = {}) {
@@ -62,7 +64,7 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
 
   const proposta = {
     id: PROPOSAL_ID,
-    lead_id: LEAD_ID,
+    lead_id: opts.leadIdNulo ? null : LEAD_ID,
     contact_id: CONTACT_ID,
     titulo: "Proposta Teste",
     condicoes: "30 dias",
@@ -177,6 +179,18 @@ describe("POST /api/v1/proposals/[id]/assistant/apply", () => {
     const res = await mundo.POST({ revision: 1, mudancas: [{ tipo: "editar_proposta", campo: "titulo", de: "x", para: "y" }] });
     expect(res.status).toBe(409);
     expect(mundo.itemAtualizado).toBeNull();
+  });
+
+  it("aplica numa proposta orfa (lead_id nulo, negocio apagado) sem lancar — D10", async () => {
+    const mundo = montarMundoDeAplicar({ revisionAtual: 1, leadIdNulo: true });
+    vi.mocked(emitLeadActivity).mockClear();
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [{ tipo: "editar_proposta", campo: "titulo", de: "Proposta Teste", para: "Novo título" }],
+    });
+    expect(res.status).toBe(200);
+    // sem negócio (lead_id nulo), nao ha atividade de negocio para gravar.
+    expect(vi.mocked(emitLeadActivity)).not.toHaveBeenCalled();
   });
 
   it("lista vazia de mudancas: 422", async () => {

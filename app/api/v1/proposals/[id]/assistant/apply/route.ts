@@ -102,16 +102,20 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     );
   }
 
-  await emitLeadActivity(supabase, {
-    organizationId: authz.org.orgId,
-    leadId: proposta.lead_id,
-    contactId: proposta.contact_id,
-    type: "proposal_drafted",
-    sourceModule: "proposals",
-    sourceId: id,
-    actor: { type: "user", id: authz.user.id },
-    reason: `Proposta ajustada pelo assistente (${parsed.data.mudancas.length} mudança(s))`,
-  });
+  // D10: proposta órfã (negócio apagado, `lead_id` nulo) segue editável pelo
+  // assistente — só não há negócio para registrar atividade nele.
+  if (proposta.lead_id) {
+    await emitLeadActivity(supabase, {
+      organizationId: authz.org.orgId,
+      leadId: proposta.lead_id,
+      contactId: proposta.contact_id,
+      type: "proposal_drafted",
+      sourceModule: "proposals",
+      sourceId: id,
+      actor: { type: "user", id: authz.user.id },
+      reason: `Proposta ajustada pelo assistente (${parsed.data.mudancas.length} mudança(s))`,
+    });
+  }
 
   void audit({
     action: "proposal.assistant_applied",

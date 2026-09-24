@@ -28,13 +28,15 @@ interface MundoOpts {
   status?: string;
   leadValueCentsAntes?: number;
   suporteReadOnly?: boolean;
+  /** D10: proposta órfã — o negócio foi apagado (lead_id virou null). */
+  leadIdNulo?: boolean;
 }
 
 function montarMundoDeDecisao(opts: MundoOpts = {}) {
   const proposta = {
     id: PROPOSAL_ID,
     organization_id: ORG_ID,
-    lead_id: LEAD_ID,
+    lead_id: opts.leadIdNulo ? null : LEAD_ID,
     contact_id: CONTACT_ID,
     status: opts.status ?? "enviada",
     numero: 1,
@@ -134,6 +136,15 @@ describe("POST /api/v1/proposals/[id]/decide", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaAtualizada?.status).toBe("aceita");
     expect(mundo.atividadeGravada?.type).toBe("proposal_accepted");
+  });
+
+  it("decide uma proposta orfa (negocio apagado, lead_id nulo) sem lancar — D10", async () => {
+    const mundo = montarMundoDeDecisao({ status: "enviada", leadIdNulo: true });
+    const res = await mundo.POST({ decisao: "aceita" });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada?.status).toBe("aceita");
+    // sem negócio, não há atividade de negócio para gravar.
+    expect(mundo.atividadeGravada).toBeNull();
   });
 
   it("recusada com motivo: grava decision_reason, value_cents do lead NÃO muda (spec §16.2)", async () => {

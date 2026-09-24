@@ -19,6 +19,8 @@ interface ProposalItem {
   preco_unitario_cents: number | null;
   desconto_cents: number;
   position: number;
+  /** N4 — preço ATUAL do catálogo (só quando product_id não é nulo). */
+  preco_catalogo_atual_cents?: number | null;
 }
 
 interface Proposta {
@@ -53,6 +55,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
   const [buscaProdutos, setBuscaProdutos] = useState<string>("");
   const [resultadosProdutos, setResultadosProdutos] = useState<Produto[]>([]);
   const [mostraBuscaProdutos, setMostraBuscaProdutos] = useState(false);
+  // N4 — "Manter" esconde a faixa só nesta sessão de edição (não persiste).
+  const [driftIgnorado, setDriftIgnorado] = useState(false);
   const abortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -104,6 +108,13 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
     const subtotal = Math.round(it.quantidade * it.preco_unitario_cents);
     return acc + Math.max(0, subtotal - it.desconto_cents);
   }, 0);
+
+  // N4 — itens de catálogo cujo preço mudou desde que entraram na proposta.
+  // Item manual (sem product_id) nunca participa; produto apagado
+  // (preco_catalogo_atual_cents null) também não.
+  const itensComDrift = proposta.itens.filter(
+    (it) => it.product_id !== null && it.preco_catalogo_atual_cents !== null && it.preco_catalogo_atual_cents !== undefined && it.preco_catalogo_atual_cents !== it.preco_unitario_cents,
+  );
 
   function atualizarItem(idx: number, patch: Partial<ProposalItem>) {
     setProposta((p) =>
@@ -271,9 +282,43 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         />
       </div>
 
+      {editavel && itensComDrift.length > 0 && !driftIgnorado && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p>
+            {itensComDrift.length}{" "}
+            {itensComDrift.length === 1
+              ? t("item mudou de preço no catálogo")
+              : t("itens mudaram de preço no catálogo")}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // Só estado LOCAL — ainda precisa de "Salvar" para persistir.
+                setProposta((p) =>
+                  p && {
+                    ...p,
+                    itens: p.itens.map((it) =>
+                      it.product_id !== null && it.preco_catalogo_atual_cents != null && it.preco_catalogo_atual_cents !== it.preco_unitario_cents
+                        ? { ...it, preco_unitario_cents: it.preco_catalogo_atual_cents }
+                        : it,
+                    ),
+                  },
+                );
+              }}
+            >
+              {t("Atualizar preços")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDriftIgnorado(true)}>
+              {t("Manter")}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+        <table className="w-full text-sm">          <thead className="bg-gray-50">
             <tr className="border-b">
               <th scope="col" className="p-3 text-left">{t("Descrição")}</th>
               <th scope="col" className="p-3 text-right">{t("Qtd")}</th>

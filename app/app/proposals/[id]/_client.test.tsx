@@ -67,6 +67,61 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
   });
 });
 
+describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
+  it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Manter'", async () => {
+    get.mockResolvedValue({
+      data: {
+        ...PROPOSTA_BASE,
+        status: "rascunho",
+        ultima_falha_envio: null,
+        itens: [
+          { id: "i1", product_id: "prod-1", descricao: "Item de catálogo", quantidade: 1, preco_unitario_cents: 5000, preco_catalogo_atual_cents: 6000, desconto_cents: 0, position: 1000 },
+        ],
+      },
+    });
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    expect(await screen.findByText(/1 item mudou de preço no catálogo/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /atualizar preços/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /manter/i })).toBeInTheDocument();
+  });
+
+  it("clicar 'Atualizar preços': troca o preco_unitario_cents do item pelo valor atual do catálogo, localmente (não salva sozinho)", async () => {
+    get.mockResolvedValue({
+      data: {
+        ...PROPOSTA_BASE,
+        status: "rascunho",
+        ultima_falha_envio: null,
+        itens: [
+          { id: "i1", product_id: "prod-1", descricao: "Item de catálogo", quantidade: 1, preco_unitario_cents: 5000, preco_catalogo_atual_cents: 6000, desconto_cents: 0, position: 1000 },
+        ],
+      },
+    });
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: /atualizar preços/i }));
+    // 6000/100 = 60 no input de preço (desabilitado para item de catálogo, mas exibe o valor).
+    expect(screen.getByDisplayValue("60")).toBeInTheDocument();
+    // local: não chamou PATCH sozinho.
+    expect(vi.mocked(apiClient.patch)).not.toHaveBeenCalled();
+  });
+
+  it("nenhum item com drift: não mostra a faixa", async () => {
+    get.mockResolvedValue({
+      data: {
+        ...PROPOSTA_BASE,
+        status: "rascunho",
+        ultima_falha_envio: null,
+        itens: [
+          { id: "i1", product_id: "prod-1", descricao: "Item de catálogo", quantidade: 1, preco_unitario_cents: 5000, preco_catalogo_atual_cents: 5000, desconto_cents: 0, position: 1000 },
+        ],
+      },
+    });
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    await waitFor(() => expect(screen.getByDisplayValue("Proposta X")).toBeInTheDocument());
+    expect(screen.queryByText(/mudou de preço no catálogo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mudaram de preço no catálogo/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
   it("proposta enviada mostra o botão 'Revisar esta proposta'", async () => {
     get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "enviada", ultima_falha_envio: null } });

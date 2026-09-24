@@ -90,6 +90,23 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       };
     }
 
+    // C3 (revisão) — `conversation_id` vem do argumento da ferramenta e é
+    // gravado com o client service-role: sem confirmar que a conversa É do
+    // contato deste negócio E desta organização, um id de outro contato (ou
+    // de outra organização) gravava direto, e o envio mandava o PDF/preços
+    // desta proposta no WhatsApp de um contato ERRADO — vazamento de dado
+    // entre contatos, ou entre organizações.
+    const { data: conversa } = await ctx.supabase
+      .from("conversations")
+      .select("id")
+      .eq("organization_id", ctx.organizationId)
+      .eq("id", input.conversation_id)
+      .eq("contact_id", lead.contact_id)
+      .maybeSingle();
+    if (!conversa) {
+      return { error: "Esta conversa não pertence ao contato deste negócio." };
+    }
+
     const itensNormalizados = input.itens.map((it, i) => ({
       product_id: it.product_id ?? null,
       descricao: it.descricao,
@@ -135,7 +152,14 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
     const { error: itensErr } = await ctx.supabase.from("crm_proposal_items").insert(
       resolvido.itens.map((it) => ({ organization_id: ctx.organizationId, proposal_id: proposta.id, ...it })),
     );
-    if (itensErr) return { error: "Rascunho criado, mas falhou ao gravar os itens." };
+    if (itensErr) {
+      // Sem isto, o rascunho ficava vazio e — depois da C3 — continuava
+      // ocupando a trava de "um rascunho por negócio" (§5.3): a IA tentaria
+      // de novo e receberia rascunho_aberto_existe apontando pra um rascunho
+      // sem item nenhum, sem jeito óbvio de sair dali pela ferramenta.
+      await ctx.supabase.from("crm_proposals").delete().eq("organization_id", ctx.organizationId).eq("id", proposta.id);
+      return { error: "Não foi possível criar o rascunho agora." };
+    }
 
     // D5 — a ferramenta hoje não emitia nada disso. Fire-and-forget: a
     // timeline/auditoria nunca derruba a criação do rascunho.

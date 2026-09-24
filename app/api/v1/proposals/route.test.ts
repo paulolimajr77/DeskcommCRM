@@ -43,12 +43,17 @@ interface MundoOpts {
   rascunhoJaExiste?: boolean;
   /** Sobrescreve organizations.settings.proposals.default_conditions. */
   condicoesPadrao?: string | null;
+  /** Força o INSERT de crm_proposal_items a falhar (revisão C3, I2). */
+  itensFalham?: boolean;
+  /** O INSERT de crm_proposals colide com o índice único de rascunho (corrida, revisão C3, I4). */
+  insercaoColide23505?: boolean;
 }
 
 function montarMundoDeProposta(opts: MundoOpts = {}) {
   const papel = opts.papel ?? "agent";
   const propostasCriadas: Record<string, unknown>[] = [];
   const itensCriados: Record<string, unknown>[] = [];
+  const propostasExcluidas: string[] = [];
 
   vi.mocked(requireRole).mockImplementation(async (min: string) => {
     const rank = ROLE_RANK[papel] ?? 0;
@@ -88,6 +93,7 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
           insert: (linha: Record<string, unknown>) => ({
             select: () => ({
               single: async () => {
+                if (opts.insercaoColide23505) return { data: null, error: { code: "23505", message: "colisao" } };
                 const id = `proposta-${propostasCriadas.length + 1}`;
                 // numero/ano nunca são escritos pela rota — nascem NULL por
                 // omissão da coluna, exatamente como o Postgres faria.
@@ -136,6 +142,14 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
             };
             return cadeia;
           },
+          delete: () => ({
+            eq: () => ({
+              eq: async (_campo: string, id: string) => {
+                propostasExcluidas.push(id);
+                return { error: null };
+              },
+            }),
+          }),
         };
       }
       if (tabela === "catalog_products") {
@@ -159,6 +173,7 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
       if (tabela === "crm_proposal_items") {
         return {
           insert: async (linhas: Record<string, unknown>[]) => {
+            if (opts.itensFalham) return { error: { message: "boom" } };
             itensCriados.push(...linhas);
             return { error: null };
           },
@@ -196,6 +211,7 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
     leadId: LEAD_ID,
     propostasCriadas,
     itensCriados,
+    propostasExcluidas,
     async POST(corpo: unknown) {
       const { POST } = await import("./route");
       const res = await POST(pedido(corpo));
@@ -289,6 +305,24 @@ describe("POST /api/v1/proposals", () => {
     expect(res.status).toBe(409);
     expect(res.body.error.details?.rascunho_aberto_id).toBe(RASCUNHO_EXISTENTE_ID);
     expect(mundo.propostasCriadas).toHaveLength(0);
+  });
+
+  it("corrida: dois cliques quase simultâneos — a pré-checagem não pega, mas o índice único (23505) do INSERT devolve 409, não 500 (revisão C3, I4)", async () => {
+    const mundo = montarMundoDeProposta({ insercaoColide23505: true });
+    const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "x", itens: [] });
+    expect(res.status).toBe(409);
+    expect(mundo.propostasCriadas).toHaveLength(0);
+  });
+
+  it("falha ao gravar os itens: a proposta recém-criada é APAGADA, não fica rascunho vazio travando o negócio (revisão C3, I2)", async () => {
+    const mundo = montarMundoDeProposta({ itensFalham: true });
+    const res = await mundo.POST({
+      lead_id: mundo.leadId,
+      titulo: "x",
+      itens: [{ product_id: null, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(500);
+    expect(mundo.propostasExcluidas).toEqual([mundo.propostasCriadas.at(-1)?.id]);
   });
 });
 

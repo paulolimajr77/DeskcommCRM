@@ -165,7 +165,14 @@ export async function POST(req: NextRequest): Promise<Response> {
         position: it.position,
       })),
     );
-    if (itensErr) return fail("internal_error", t("Falha ao gravar os itens."), 500, { requestId });
+    if (itensErr) {
+      // Sem isto, a proposta ficava um rascunho VAZIO — e, depois da C3, um
+      // rascunho vazio ainda ocupa a trava de "um rascunho por negócio"
+      // (§5.3), bloqueando toda tentativa nova para o mesmo lead atrás de um
+      // erro que nem sequer apareceu na tela.
+      await supabase.from("crm_proposals").delete().eq("organization_id", authz.org.orgId).eq("id", proposta.id);
+      return fail("internal_error", t("Falha ao gravar os itens."), 500, { requestId });
+    }
   }
 
   // Vocabulário fechado da timeline (lib/leads/activity-vocabulary.ts) e

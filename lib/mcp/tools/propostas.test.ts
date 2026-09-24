@@ -16,6 +16,12 @@ interface MundoOpts {
   rascunhoJaExiste?: boolean;
   defaultValidDays?: number;
   defaultConditions?: string | null;
+  /** Quando true, a conversa informada não pertence ao contato do lead (ou é de outra org). */
+  conversaNaoPertenceAoContato?: boolean;
+  /** Força o INSERT de crm_proposal_items a falhar (revisão C3, I2). */
+  itensFalham?: boolean;
+  /** O INSERT de crm_proposals colide com o índice único de rascunho (corrida, revisão C3, I4). */
+  insercaoColide23505?: boolean;
 }
 
 const RASCUNHO_ID = "99999999-9999-4999-8999-999999999999";
@@ -28,6 +34,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
   const productId = "66666666-6666-4666-8666-666666666666";
 
   let propostaCriada: Record<string, unknown> | null = null;
+  const propostasExcluidas: string[] = [];
 
   const settings = {
     proposals: {
@@ -77,7 +84,10 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
             propostaCriada = data as Record<string, unknown>;
             return {
               select: () => ({
-                single: async () => ({ data: { id: "proposal-1" }, error: null }),
+                single: async () =>
+                  opts?.insercaoColide23505
+                    ? { data: null, error: { code: "23505", message: "colisao" } }
+                    : { data: { id: "proposal-1" }, error: null },
               }),
             };
           }),
@@ -89,6 +99,14 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
               : { data: null, error: null },
           ),
           single: vi.fn(async () => ({ data: { id: "proposal-1" }, error: null })),
+          delete: vi.fn(() => ({
+            eq: () => ({
+              eq: async (_campo: string, id: string) => {
+                propostasExcluidas.push(id);
+                return { error: null };
+              },
+            }),
+          })),
         };
         return chain;
       }
@@ -110,10 +128,26 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
           }),
         };
       }
+      if (table === "conversations") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () =>
+                    opts?.conversaNaoPertenceAoContato
+                      ? { data: null, error: null }
+                      : { data: { id: conversationId }, error: null },
+                }),
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "crm_proposal_items") {
         return {
           insert: vi.fn(async function (this: any) {
-            return { error: null };
+            return opts?.itensFalham ? { error: { message: "boom" } } : { error: null };
           }),
         };
       }
@@ -146,6 +180,9 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
     leadId, organizationId, agentId, conversationId, productId, ctx,
     get propostaCriada() {
       return propostaCriada;
+    },
+    get propostasExcluidas() {
+      return propostasExcluidas;
     },
     get atividadesEmitidas() {
       return vi.mocked(emitLeadActivity).mock.calls.map((c) => c[1]);
@@ -248,6 +285,37 @@ describe("crm_draft_proposal", () => {
     expect(mundo.atividadesEmitidas[0]?.type).toBe("proposal_drafted");
     expect(mundo.auditoriasEmitidas.length).toBe(1);
     expect(mundo.auditoriasEmitidas[0]?.action).toBe("proposal.drafted");
+  });
+
+  it("conversation_id que NÃO pertence ao contato do lead (ou é de outra organização): recusado, nada é gravado (revisão C3)", async () => {
+    const mundo = montarMundoDeFerramenta({ conversaNaoPertenceAoContato: true });
+    const r = await crmDraftProposal.handler(
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeDefined();
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("corrida: pré-checagem não pega, mas o índice único (23505) do INSERT devolve erro ensinável, não exceção (revisão C3, I4)", async () => {
+    const mundo = montarMundoDeFerramenta({ insercaoColide23505: true });
+    const r = await crmDraftProposal.handler(
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      mundo.ctx,
+    );
+    const res = r as { error?: string; motivo?: string };
+    expect(res.error).toBeDefined();
+    expect(res.motivo).toBe("rascunho_aberto_existe");
+  });
+
+  it("falha ao gravar os itens: a proposta recém-criada é APAGADA, não fica rascunho vazio travando o negócio (revisão C3, I2)", async () => {
+    const mundo = montarMundoDeFerramenta({ itensFalham: true });
+    const r = await crmDraftProposal.handler(
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeDefined();
+    expect(mundo.propostasExcluidas).toEqual(["proposal-1"]);
   });
 
   it("product_id que não existe na organização: erro devolvido ao modelo, nada é gravado", async () => {

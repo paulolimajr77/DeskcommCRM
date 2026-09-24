@@ -76,12 +76,16 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // D5, último item da tabela: a proposta grava a conversa do turno que a
   // originou (Task 7) — o envio prefere ESSA conversa, e só cai no fallback
   // "mais recente do contato" para propostas manuais antigas sem o campo.
+  // `contact_id` entra no filtro (revisão C3): sem ele, uma referência
+  // gravada errada (outro contato) seria usada do mesmo jeito, mandando o
+  // PDF/preços desta proposta no WhatsApp de um contato que não é o dela.
   const { data: conversa } = proposta.conversation_id
     ? await admin
         .from("conversations")
         .select("id, channel_session_id")
         .eq("organization_id", authz.org.orgId)
         .eq("id", proposta.conversation_id)
+        .eq("contact_id", proposta.contact_id)
         .maybeSingle()
     : await admin
         .from("conversations")
@@ -129,11 +133,24 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
         organization_id: authz.org.orgId, lead_id: proposta.lead_id, contact_id: proposta.contact_id,
         conversation_id: proposta.conversation_id, titulo: proposta.titulo, condicoes: proposta.condicoes,
         valid_until: proposta.valid_until, total_cents: proposta.total_cents, moeda: proposta.moeda,
+        // C3 (revisão): sem herdar pricing_status, a v2 nascia 'missing' pelo
+        // default do banco — e se o envio dela falhasse, o reenvio era
+        // recusado por "item sem preço" mesmo a v1 tendo pricing_status
+        // 'manual'/'catalog'.
+        pricing_status: proposta.pricing_status,
         status: "rascunho", versao: decisao.novaVersao, substitui_id: decisao.substituiId,
       })
       .select("*")
       .single();
-    if (novaErr || !nova) return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
+    if (novaErr) {
+      // §5.3 — o negócio já tem outro rascunho aberto (de outra cadeia): a
+      // v1 continua enviada, e a pessoa recebe um motivo claro, não um 500.
+      if ((novaErr as { code?: string }).code === "23505") {
+        return fail("validation_failed", t("Este negócio já tem um rascunho de proposta aberto."), 409, { requestId });
+      }
+      return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
+    }
+    if (!nova) return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
 
     const { error: itensErr } = await admin.from("crm_proposal_items").insert(
       itens.map((it) => ({

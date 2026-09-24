@@ -33,11 +33,19 @@ interface MundoOpts {
   suporteReadOnly?: boolean;
   /** D10: proposta órfã — o negócio foi apagado (lead_id virou null). */
   leadIdNulo?: boolean;
+  /** C3 fix (C1 da revisão): item existente vem do catálogo, com o preço ATUAL dele. */
+  itemDeCatalogo?: boolean;
+  precoDoCatalogo?: number;
+  /** C3 fix: proposta nasce com pricing_status 'missing' (nenhum item tinha preço). */
+  pricingStatusInicial?: string;
 }
+
+const PRODUCT_ID = "66666666-6666-4666-8666-666666666666";
 
 function montarMundoDeAplicar(opts: MundoOpts = {}) {
   const revisionAtual = opts.revisionAtual ?? 1;
   let itemAtualizado: Record<string, unknown> | null = null;
+  let propostaAtualizada: Record<string, unknown> | null = null;
 
   vi.mocked(requireSupportWrite).mockResolvedValue(
     opts.suporteReadOnly
@@ -73,17 +81,29 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
     revision: revisionAtual,
   };
 
-  const itens = [
-    {
-      id: "item-1",
-      product_id: null,
-      descricao: "Item 1",
-      quantidade: 1,
-      preco_unitario_cents: 800000,
-      desconto_cents: 0,
-      position: 1000,
-    },
-  ];
+  const itens = opts.itemDeCatalogo
+    ? [
+        {
+          id: "item-1",
+          product_id: PRODUCT_ID,
+          descricao: "Item de catálogo",
+          quantidade: 1,
+          preco_unitario_cents: 4000,
+          desconto_cents: 0,
+          position: 1000,
+        },
+      ]
+    : [
+        {
+          id: "item-1",
+          product_id: null,
+          descricao: "Item 1",
+          quantidade: 1,
+          preco_unitario_cents: 800000,
+          desconto_cents: 0,
+          position: 1000,
+        },
+      ];
 
   const supabase = {
     from: (tabela: string) => {
@@ -96,16 +116,18 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
               }),
             }),
           }),
-          update: () => ({
+          update: (patch: Record<string, unknown>) => ({
             eq: () => ({
               eq: () => ({
                 eq: () => ({
                   select: () => ({
-                    maybeSingle: async () => ({
-                      data: { id: PROPOSAL_ID, revision: revisionAtual + 1 },
-                      error: null,
-                    }),
-                    error: null,
+                    maybeSingle: async () => {
+                      propostaAtualizada = patch;
+                      return {
+                        data: { id: PROPOSAL_ID, revision: revisionAtual + 1 },
+                        error: null,
+                      };
+                    },
                   }),
                 }),
               }),
@@ -133,6 +155,22 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
           },
         };
       }
+      if (tabela === "catalog_products") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: { preco_cents: opts.precoDoCatalogo ?? 4000 },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
       throw new Error(`tabela não mockada: ${tabela}`);
     },
   };
@@ -145,6 +183,9 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
     itemId: "item-1",
     get itemAtualizado() {
       return itemAtualizado;
+    },
+    get propostaAtualizada() {
+      return propostaAtualizada;
     },
     async POST(corpo: unknown) {
       const { POST } = await import("./route");
@@ -191,6 +232,30 @@ describe("POST /api/v1/proposals/[id]/assistant/apply", () => {
     expect(res.status).toBe(200);
     // sem negócio (lead_id nulo), nao ha atividade de negocio para gravar.
     expect(vi.mocked(emitLeadActivity)).not.toHaveBeenCalled();
+  });
+
+  it("mudança tenta setar preco_unitario_cents num item de CATÁLOGO: preço final vem do catálogo, nunca do que a mudança pediu (revisão C3)", async () => {
+    const mundo = montarMundoDeAplicar({ revisionAtual: 1, itemDeCatalogo: true, precoDoCatalogo: 4000 });
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [
+        { tipo: "editar_item", item_id: mundo.itemId, campo: "preco_unitario_cents", de: 4000, para: 1 },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.itemAtualizado?.preco_unitario_cents).toBe(4000);
+  });
+
+  it("proposta que tinha pricing_status 'missing' e ganha preço via assistente: pricing_status é recalculado (revisão C3)", async () => {
+    const mundo = montarMundoDeAplicar({ revisionAtual: 1 });
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [
+        { tipo: "editar_item", item_id: mundo.itemId, campo: "preco_unitario_cents", de: 800000, para: 900000 },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada?.pricing_status).toBe("manual");
   });
 
   it("lista vazia de mudancas: 422", async () => {

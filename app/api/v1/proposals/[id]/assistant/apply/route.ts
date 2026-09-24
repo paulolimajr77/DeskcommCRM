@@ -6,8 +6,8 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import { calcularTotal } from "@/lib/propostas/total";
 import { aplicarMudancas, mudancaSchema, type EstadoDaProposta } from "@/lib/propostas/assistente";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -66,7 +66,16 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     itens: itens ?? [],
   };
   const estadoDepois = aplicarMudancas(estadoAntes, parsed.data.mudancas);
-  const totalCents = calcularTotal(estadoDepois.itens);
+
+  // C3 (revisão) — o assistente é mais um caminho que escreve item de
+  // proposta, e o preço de item de catálogo nunca pode vir de fora do
+  // servidor: sem isto, uma mudança "editar_item"/"preco_unitario_cents"
+  // gravava o valor sugerido pela IA (ou mandado no corpo) direto num item
+  // com product_id, furando a mesma regra que a criação/edição já cumprem.
+  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, estadoDepois.itens);
+  if (!resolvido.ok) {
+    return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
+  }
 
   const { data: atualizada, error } = await supabase
     .from("crm_proposals")
@@ -74,7 +83,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       titulo: estadoDepois.titulo,
       condicoes: estadoDepois.condicoes,
       valid_until: estadoDepois.valid_until,
-      total_cents: totalCents,
+      total_cents: resolvido.totalCents,
+      pricing_status: resolvido.pricingStatus,
       revision: parsed.data.revision + 1,
     })
     .eq("organization_id", authz.org.orgId)
@@ -87,9 +97,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   }
 
   await supabase.from("crm_proposal_items").delete().eq("organization_id", authz.org.orgId).eq("proposal_id", id);
-  if (estadoDepois.itens.length > 0) {
+  if (resolvido.itens.length > 0) {
     await supabase.from("crm_proposal_items").insert(
-      estadoDepois.itens.map((it) => ({
+      resolvido.itens.map((it) => ({
         organization_id: authz.org.orgId,
         proposal_id: id,
         product_id: it.product_id,
@@ -127,5 +137,5 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     metadata: { quantidade_de_mudancas: parsed.data.mudancas.length },
   });
 
-  return ok({ id, revision: atualizada.revision, total_cents: totalCents }, { requestId });
+  return ok({ id, revision: atualizada.revision, total_cents: resolvido.totalCents }, { requestId });
 }

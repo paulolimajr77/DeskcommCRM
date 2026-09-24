@@ -37018,11 +37018,17 @@ with computo as (
   left join public.crm_proposal_items i on i.proposal_id = p.id
   group by p.id
 )
+-- `pricing_status <> 'approved'` protege um fluxo que ainda não existe: o
+-- baseline é reaplicado em TODO update.sh, e este backfill roda de novo a
+-- cada vez. No dia em que uma onda futura gravar 'approved' (aprovação
+-- manual de uma proposta), uma atualização de VPS sem essa guarda
+-- desfaria a aprovação em silêncio, recalculando a partir dos itens.
 update public.crm_proposals p
    set pricing_status = c.status_calculado
   from computo c
  where p.id = c.id
-   and p.pricing_status is distinct from c.status_calculado;
+   and p.pricing_status is distinct from c.status_calculado
+   and p.pricing_status <> 'approved';
 
 -- ── §5.3 — um rascunho aberto por negócio ───────────────────────────────────
 -- Dedupe ANTES do índice (doutrina de migrations item 8): mantém só o

@@ -57,8 +57,12 @@ interface MundoOpts {
   envioResultado?: { status: string; error_message?: string | null; id?: string };
   /** Força o INSERT de `crm_proposal_items` da v2 a falhar (D3, ponto 5). */
   itensDaV2Falham?: boolean;
+  /** A criação da v2 colide com o índice único de rascunho aberto (revisão C3, I1). */
+  criacaoDaV2Colide23505?: boolean;
   /** Quando true, o item da proposta vem sem preço (null, "a definir"). */
   itemSemPreco?: boolean;
+  /** A conversa gravada em conversation_id pertence a OUTRO contato (revisão C3). */
+  conversaDeOutroContato?: boolean;
 }
 
 interface Proposta {
@@ -111,10 +115,14 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
 
   const lead = { id: LEAD_ID, contact_id: CONTACT_ID, value_cents: 100000 };
   const contato = { id: CONTACT_ID, name: "Cliente", display_name: "Cliente", email: "cli@test.com", phone_number: "5511" };
-  const conversa = { id: CONVERSA_ID, channel_session_id: CHANNEL_SESSION_ID };
+  const conversa = {
+    id: CONVERSA_ID,
+    channel_session_id: CHANNEL_SESSION_ID,
+    contact_id: opts.conversaDeOutroContato ? "contato-errado-00000000-0000-0000-0000-000000000000" : CONTACT_ID,
+  };
   // Outra conversa do mesmo contato, MAIS RECENTE — o fallback "mais recente
   // do contato" a devolveria; a conversa gravada na proposta é a de cima.
-  const conversaMaisRecente = { id: "conversa-mais-recente-do-contato", channel_session_id: CHANNEL_SESSION_ID };
+  const conversaMaisRecente = { id: "conversa-mais-recente-do-contato", channel_session_id: CHANNEL_SESSION_ID, contact_id: CONTACT_ID };
   const chamadasConversas: Array<[string, unknown]> = [];
   let conversaUsadaNoEnvio: string | null = null;
   const item = {
@@ -153,6 +161,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           insert: (dados: unknown) => ({
             select: () => ({
               single: async () => {
+                if (opts.criacaoDaV2Colide23505) return { data: null, error: { code: "23505", message: "colisao" } };
                 const novoId = `proposta-nova-${Date.now()}`;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const novaProposta = { ...(dados as any), id: novoId };
@@ -248,9 +257,10 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
               maybeSingle: async () => {
                 const porId = chamadasConversas.find(([c]) => c === "id");
                 if (porId) {
-                  return porId[1] === conversa.id
-                    ? { data: conversa, error: null }
-                    : { data: null, error: null };
+                  const porContactId = chamadasConversas.find(([c]) => c === "contact_id");
+                  if (porId[1] !== conversa.id) return { data: null, error: null };
+                  if (porContactId && porContactId[1] !== conversa.contact_id) return { data: null, error: null };
+                  return { data: conversa, error: null };
                 }
                 return { data: conversaMaisRecente, error: null };
               },
@@ -448,6 +458,26 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.propostaEnviada?.versao).toBe(2);
   });
 
+  it("revisar uma proposta enviada: a v2 HERDA pricing_status da v1, nunca nasce 'missing' por default (revisão C3, I1)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1, pricing_status: "manual" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.pricing_status).toBe("manual");
+  });
+
+  it("criação da v2 colide com rascunho aberto de outra cadeia (23505): 409 claro, não 500 genérico (revisão C3, I1)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
+      criacaoDaV2Colide23505: true,
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(409);
+  });
+
   it("reenvio de um rascunho que ja tem numero (falha anterior): reusa o numero, NAO chama o contador de novo", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
@@ -537,7 +567,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.mensagemEnviada).toBe(false);
   });
 
-  it("proposta com conversation_id gravado: usa ESSA conversa, não a mais recente do contato", async () => {
+  it("proposta com conversation_id gravado: usa ESSA conversa, não a mais recente do contato — E confere que é do MESMO contato (revisão C3)", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
       propostaOriginal: { conversation_id: CONVERSA_ID },
@@ -546,8 +576,19 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.chamadasConversas).toContainEqual(["organization_id", ORG_ID]);
     expect(mundo.chamadasConversas).toContainEqual(["id", CONVERSA_ID]);
-    expect(mundo.chamadasConversas.some(([c]) => c === "contact_id")).toBe(false);
+    expect(mundo.chamadasConversas).toContainEqual(["contact_id", CONTACT_ID]);
     expect(mundo.conversaUsadaNoEnvio).toBe(CONVERSA_ID);
+  });
+
+  it("conversation_id gravado aponta para conversa de OUTRO contato: 422, NUNCA envia pro contato errado (revisão C3)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { conversation_id: CONVERSA_ID },
+      conversaDeOutroContato: true,
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    expect(mundo.mensagemEnviada).toBe(false);
   });
 
   it("proposta SEM conversation_id (rascunho manual antigo): cai no fallback de sempre (mais recente do contato)", async () => {

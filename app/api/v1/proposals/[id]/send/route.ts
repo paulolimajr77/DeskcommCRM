@@ -60,14 +60,37 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     return fail("validation_failed", t("A proposta não tem itens."), 422, { requestId });
   }
 
-  const { data: conversa } = await admin
-    .from("conversations")
-    .select("id, channel_session_id")
-    .eq("organization_id", authz.org.orgId)
-    .eq("contact_id", proposta.contact_id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // §5.2 — enviar com qualquer item sem preço é recusado, com a lista.
+  if (proposta.pricing_status === "missing") {
+    const semPreco = itens
+      .filter((it) => (it as { preco_unitario_cents: number | null }).preco_unitario_cents === null)
+      .map((it) => (it as { descricao: string }).descricao);
+    return fail(
+      "validation_failed",
+      t(`Item sem preço definido: ${semPreco.join(", ")}. Defina o preço antes de enviar.`),
+      422,
+      { requestId },
+    );
+  }
+
+  // D5, último item da tabela: a proposta grava a conversa do turno que a
+  // originou (Task 7) — o envio prefere ESSA conversa, e só cai no fallback
+  // "mais recente do contato" para propostas manuais antigas sem o campo.
+  const { data: conversa } = proposta.conversation_id
+    ? await admin
+        .from("conversations")
+        .select("id, channel_session_id")
+        .eq("organization_id", authz.org.orgId)
+        .eq("id", proposta.conversation_id)
+        .maybeSingle()
+    : await admin
+        .from("conversations")
+        .select("id, channel_session_id")
+        .eq("organization_id", authz.org.orgId)
+        .eq("contact_id", proposta.contact_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
   if (!conversa) return fail("validation_failed", t("Nenhuma conversa com este contato para enviar."), 422, { requestId });
 
   // ─── THROTTLE PRIMEIRO — antes de gastar numero ou gerar PDF (correção 1/2) ───

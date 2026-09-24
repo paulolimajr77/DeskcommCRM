@@ -57,6 +57,8 @@ interface MundoOpts {
   envioResultado?: { status: string; error_message?: string | null; id?: string };
   /** Força o INSERT de `crm_proposal_items` da v2 a falhar (D3, ponto 5). */
   itensDaV2Falham?: boolean;
+  /** Quando true, o item da proposta vem sem preço (null, "a definir"). */
+  itemSemPreco?: boolean;
 }
 
 interface Proposta {
@@ -110,14 +112,19 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   const lead = { id: LEAD_ID, contact_id: CONTACT_ID, value_cents: 100000 };
   const contato = { id: CONTACT_ID, name: "Cliente", display_name: "Cliente", email: "cli@test.com", phone_number: "5511" };
   const conversa = { id: CONVERSA_ID, channel_session_id: CHANNEL_SESSION_ID };
+  // Outra conversa do mesmo contato, MAIS RECENTE — o fallback "mais recente
+  // do contato" a devolveria; a conversa gravada na proposta é a de cima.
+  const conversaMaisRecente = { id: "conversa-mais-recente-do-contato", channel_session_id: CHANNEL_SESSION_ID };
+  const chamadasConversas: Array<[string, unknown]> = [];
+  let conversaUsadaNoEnvio: string | null = null;
   const item = {
     id: "item-1",
     organization_id: ORG_ID,
     proposal_id: PROPOSTA_ID,
     product_id: null,
-    descricao: "Serviço",
+    descricao: opts.itemSemPreco ? "Item sem preço" : "Serviço",
     quantidade: 1,
-    preco_unitario_cents: 500000,
+    preco_unitario_cents: opts.itemSemPreco ? null : 500000,
     desconto_cents: 0,
     position: 1000,
   };
@@ -223,17 +230,33 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
       }
       if (tabela === "conversations") {
         return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                order: () => ({
-                  limit: () => ({
-                    maybeSingle: async () => ({ data: conversa, error: null }),
-                  }),
+          // Cadeia que aceita os DOIS formatos: busca pela conversa gravada
+          // (select→eq→eq→maybeSingle, sem order/limit) e o fallback "mais
+          // recente do contato" (select→eq→eq→order→limit→maybeSingle).
+          select: () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cadeia: any = {
+              eq(campo: string, valor: unknown) {
+                chamadasConversas.push([campo, valor]);
+                return cadeia;
+              },
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({ data: conversaMaisRecente, error: null }),
                 }),
               }),
-            }),
-          }),
+              maybeSingle: async () => {
+                const porId = chamadasConversas.find(([c]) => c === "id");
+                if (porId) {
+                  return porId[1] === conversa.id
+                    ? { data: conversa, error: null }
+                    : { data: null, error: null };
+                }
+                return { data: conversaMaisRecente, error: null };
+              },
+            };
+            return cadeia;
+          },
         };
       }
       if (tabela === "crm_leads") {
@@ -315,9 +338,10 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
 
   mocks.marcaDaSaida.mockResolvedValue({ nome: "App", accent: "#000", accentFg: "#fff", logoUrl: null });
 
-  mocks.sendMessageHandler.mockImplementation(async () => {
+  mocks.sendMessageHandler.mockImplementation(async (_admin: unknown, _ctx: unknown, payload: { conversation_id: string }) => {
     ordemDeChamadas.push("sendMessageHandler");
     mensagemEnviada = true;
+    conversaUsadaNoEnvio = payload.conversation_id;
     return opts.envioResultado ?? { id: "msg-123", status: "sent", error_message: null };
   });
 
@@ -331,10 +355,12 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
 
   return {
     ordemDeChamadas,
+    chamadasConversas,
     get numeroFoiAlocado() { return numeroFoiAlocado; },
     get pdfFoiGerado() { return pdfFoiGerado; },
     get mensagemEnviada() { return mensagemEnviada; },
     get propostaEnviada() { return propostaEnviada; },
+    get conversaUsadaNoEnvio() { return conversaUsadaNoEnvio; },
     get leadValueCentsDepois() { return leadValueCentsDepois; },
     get propostaDeletadaId() { return propostaDeletadaId; },
     async POST() {
@@ -496,5 +522,42 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const res = await mundo.POST();
     expect(res.status).toBe(403);
     expect(mundo.mensagemEnviada).toBe(false);
+  });
+
+  it("proposta com pricing_status 'missing': envio recusado, lista os itens sem preço (§5.2)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { pricing_status: "missing" },
+      itemSemPreco: true,
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.message).toContain("Item sem preço");
+    expect(mundo.mensagemEnviada).toBe(false);
+  });
+
+  it("proposta com conversation_id gravado: usa ESSA conversa, não a mais recente do contato", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { conversation_id: CONVERSA_ID },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.chamadasConversas).toContainEqual(["organization_id", ORG_ID]);
+    expect(mundo.chamadasConversas).toContainEqual(["id", CONVERSA_ID]);
+    expect(mundo.chamadasConversas.some(([c]) => c === "contact_id")).toBe(false);
+    expect(mundo.conversaUsadaNoEnvio).toBe(CONVERSA_ID);
+  });
+
+  it("proposta SEM conversation_id (rascunho manual antigo): cai no fallback de sempre (mais recente do contato)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { conversation_id: null },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.chamadasConversas).toContainEqual(["contact_id", CONTACT_ID]);
+    expect(mundo.conversaUsadaNoEnvio).toBe("conversa-mais-recente-do-contato");
   });
 });

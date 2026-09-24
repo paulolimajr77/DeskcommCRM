@@ -4,8 +4,9 @@ import type { ProposalRow } from "./tipos";
 
 function proposta(over: Partial<ProposalRow> = {}): ProposalRow {
   return {
-    id: "p1", organization_id: "org-1", lead_id: "lead-1", status: "rascunho",
+    id: "p1", organization_id: "org-1", lead_id: "lead-1", contact_id: "contact-1", status: "rascunho",
     numero: null, ano: null, versao: 1, substitui_id: null, revision: 1, total_cents: 1000,
+    message_id: null, ultima_falha_envio: null, destinatario_nome: null,
     ...over,
   };
 }

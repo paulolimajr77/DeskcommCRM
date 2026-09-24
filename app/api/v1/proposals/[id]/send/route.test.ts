@@ -53,12 +53,16 @@ interface MundoOpts {
   suporteReadOnly?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   propostaOriginal?: Partial<any>;
+  /** Desfecho que `sendMessageHandler` devolve — o coração do D3. */
+  envioResultado?: { status: string; error_message?: string | null; id?: string };
+  /** Força o INSERT de `crm_proposal_items` da v2 a falhar (D3, ponto 5). */
+  itensDaV2Falham?: boolean;
 }
 
 interface Proposta {
   id: string;
   organization_id: string;
-  lead_id: string;
+  lead_id: string | null;
   contact_id: string;
   conversation_id: string;
   numero: number | null;
@@ -81,6 +85,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   let mensagemEnviada = false;
   let propostaEnviada: Proposta | null = null;
   let leadValueCentsDepois: number | null = null;
+  let propostaDeletadaId: string | null = null;
   const propostasNoMock: Record<string, Proposta> = {};
 
   const proposta: Proposta = {
@@ -117,9 +122,6 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     position: 1000,
   };
 
-  // Papel: o mock verifica a role MÍNIMA que a rota de fato pediu (1o argumento),
-  // não um resultado fixo — senão sabotar o "manager" do route.ts por "agent" não
-  // derrubaria este teste (medido: derrubava nada até esta correção).
   const rank = ROLE_RANK[papel] ?? 0;
   mocks.requireRole.mockImplementation(async (minRole: keyof typeof ROLE_RANK) => {
     const minRank = ROLE_RANK[minRole] ?? 0;
@@ -128,10 +130,8 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
       : { ok: true, user: { id: USER_ID, idioma: "pt-BR" }, org: { orgId: ORG_ID } };
   });
 
-  // Suporte
   mocks.requireSupportWrite.mockResolvedValue(opts.suporteReadOnly ? new Response(JSON.stringify({ error: { code: "forbidden" } }), { status: 403 }) : null);
 
-  // Admin client
   mocks.createAdminClient.mockReturnValue({
     from: (tabela: string) => {
       if (tabela === "crm_proposals") {
@@ -148,22 +148,52 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
               single: async () => {
                 const novoId = `proposta-nova-${Date.now()}`;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const novaProposta = { ...dados as any, id: novoId };
+                const novaProposta = { ...(dados as any), id: novoId };
                 propostasNoMock[novoId] = novaProposta;
                 return { data: novaProposta, error: null };
               },
             }),
           }),
-          update: (dados: unknown) => ({
-            eq: (c: string, v: unknown) => ({
-              eq: async (c2: string, v2: string) => {
-                if (v === ORG_ID && propostasNoMock[v2]) {
-                  Object.assign(propostasNoMock[v2], dados);
-                  propostaEnviada = { ...propostasNoMock[v2] };
-                }
-                return { error: null };
+          // Cadeia genérica: aceita `.eq(...)` quantas vezes o chamador
+          // encadear (às vezes só `.eq("id", x)`, às vezes `.eq("organization_id", o).eq("id", x)`),
+          // e resolve tanto por `await` direto (thenable) quanto via `.select().single()`.
+          // O alvo é o primeiro `.eq("id", …)` visto, em qualquer posição da cadeia.
+          update: (dados: unknown) => {
+            let alvoId: string | null = null;
+            const aplicar = () => {
+              const linha = alvoId ? propostasNoMock[alvoId] : undefined;
+              if (linha) {
+                Object.assign(linha, dados as object);
+                propostaEnviada = { ...linha };
+              }
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cadeia: any = {
+              eq(campo: string, valor: unknown) {
+                if (campo === "id") alvoId = valor as string;
+                return cadeia;
               },
-            }),
+              select() {
+                return {
+                  single: async () => {
+                    aplicar();
+                    return { data: alvoId ? (propostasNoMock[alvoId] ?? null) : null, error: null };
+                  },
+                };
+              },
+              then(resolve: (r: { error: null }) => void) {
+                aplicar();
+                resolve({ error: null });
+              },
+            };
+            return cadeia;
+          },
+          delete: () => ({
+            eq: async (c: string, v: string) => {
+              propostaDeletadaId = v;
+              delete propostasNoMock[v];
+              return { error: null };
+            },
           }),
         };
       }
@@ -176,7 +206,8 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
               }),
             }),
           }),
-          insert: async () => ({ error: null }),
+          insert: async () =>
+            opts.itensDaV2Falham ? { error: { message: "boom" } } : { error: null },
         };
       }
       if (tabela === "conversations") {
@@ -199,7 +230,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           select: () => ({
             eq: () => ({
               eq: () => ({
-                single: async () => ({ data: lead, error: null }),
+                maybeSingle: async () => ({ data: lead, error: null }),
               }),
             }),
           }),
@@ -215,7 +246,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           select: () => ({
             eq: (c: string, v: unknown) => ({
               eq: (c2: string, v2: unknown) => ({
-                single: async () => (v === ORG_ID && v2 === CONTACT_ID ? { data: contato, error: null } : { data: null, error: null }),
+                maybeSingle: async () => (v === ORG_ID && v2 === CONTACT_ID ? { data: contato, error: null } : { data: null, error: null }),
               }),
             }),
           }),
@@ -225,7 +256,6 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     },
   });
 
-  // Mocks de operações
   mocks.adiarAteAJanelaAbrir.mockImplementation(async () => {
     ordemDeChamadas.push("adiarAteAJanelaAbrir");
     return opts.foraDaJanela ? "2026-09-18T22:00:00Z" : null;
@@ -240,14 +270,14 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     ordemDeChamadas.push("espacarEnvio");
   });
 
-  mocks.alocarNumero.mockImplementation(async (admin: unknown, params: unknown) => {
+  // D9/D3: alocarNumero (o de verdade) grava numero/ano na linha como efeito
+  // colateral — só NÃO grava status (quem decide o status é a rota, pelo
+  // desfecho da mensagem). O dublê reproduz esse efeito colateral.
+  mocks.alocarNumero.mockImplementation(async (_admin: unknown, params: unknown) => {
     numeroFoiAlocado = true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propostaAlvo = propostasNoMock[(params as any).propostaId];
-    if (propostaAlvo) {
-      Object.assign(propostaAlvo, { numero: 42, ano: 2026, status: "enviada" });
-      propostaEnviada = { ...propostaAlvo };
-    }
+    if (propostaAlvo) Object.assign(propostaAlvo, { numero: 42, ano: 2026 });
     return { numero: 42, ano: 2026 };
   });
 
@@ -277,7 +307,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   mocks.sendMessageHandler.mockImplementation(async () => {
     ordemDeChamadas.push("sendMessageHandler");
     mensagemEnviada = true;
-    return { id: "msg-123" };
+    return opts.envioResultado ?? { id: "msg-123", status: "sent", error_message: null };
   });
 
   mocks.emitLeadActivity.mockImplementation(async () => {
@@ -295,6 +325,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     get mensagemEnviada() { return mensagemEnviada; },
     get propostaEnviada() { return propostaEnviada; },
     get leadValueCentsDepois() { return leadValueCentsDepois; },
+    get propostaDeletadaId() { return propostaDeletadaId; },
     async POST() {
       const { POST } = await import("./route");
       return POST(new NextRequest(`http://localhost/api/v1/proposals/${PROPOSTA_ID}/send`), { params: Promise.resolve({ id: PROPOSTA_ID }) });
@@ -315,13 +346,38 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.numeroFoiAlocado).toBe(false);
   });
 
-  it("papel manager: aloca numero/ano, gera PDF, envia, atualiza value_cents do lead", async () => {
+  it("WhatsApp confirma (sent): vira enviada, ganha sent_at e muda o valor do negocio", async () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
     const res = await mundo.POST();
     expect(res.status).toBe(200);
-    expect(mundo.propostaEnviada?.numero).not.toBeNull();
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mundo.propostaEnviada?.numero).toBe(42);
     expect(mundo.mensagemEnviada).toBe(true);
     expect(mundo.leadValueCentsDepois).toBe(mundo.propostaEnviada?.total_cents);
+  });
+
+  it("WhatsApp falha: a proposta volta a rascunho retendo o numero, sem tocar o valor do negocio", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      envioResultado: { id: "msg-1", status: "failed", error_message: "canal desconectado" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("rascunho");
+    expect(mundo.propostaEnviada?.ultima_falha_envio).toBe("canal desconectado");
+    expect(mundo.propostaEnviada?.numero).toBe(42); // retido, não devolvido
+    expect(mundo.leadValueCentsDepois).toBeNull();
+  });
+
+  it("WhatsApp enfileira (sem credencial): a proposta continua enviando", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      envioResultado: { id: "msg-2", status: "queued", error_message: null },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviando");
+    expect(mundo.leadValueCentsDepois).toBeNull();
   });
 
   it("revisar uma proposta JÁ enviada: cria v2, v1 vira substituida, HERDA o número", async () => {
@@ -333,6 +389,31 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.numero).toBe(42);
     expect(mundo.propostaEnviada?.versao).toBe(2);
+  });
+
+  it("v2 cujo envio falha: mantem o numero herdado, nao libera para outra proposta", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
+      envioResultado: { id: "msg-3", status: "failed", error_message: "timeout" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("rascunho");
+    expect(mundo.propostaEnviada?.numero).toBe(42);
+  });
+
+  it("erro ao copiar itens da v2: descarta a v2, a v1 continua enviada (nao vira substituida apontando pra v2 vazia)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "enviada", numero: 42, ano: 2026, versao: 1 },
+      itensDaV2Falham: true,
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(500);
+    expect(mundo.propostaDeletadaId).not.toBeNull();
+    // a v1 (PROPOSTA_ID) nunca recebeu status:"substituida" — continua no mock como estava.
+    expect(mundo.propostaEnviada).toBeNull();
   });
 
   it("throttle: adiarAteAJanelaAbrir e checkDailyLimit são chamados ANTES de alocar numero/gerar PDF", async () => {

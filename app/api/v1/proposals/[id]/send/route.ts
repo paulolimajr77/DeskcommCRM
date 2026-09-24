@@ -80,18 +80,22 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     return fail("validation_failed", t("Limite diário de mensagens desta conexão foi atingido."), 422, { requestId });
   }
 
-  const { data: lead } = await admin
-    .from("crm_leads")
-    .select("id, contact_id, value_cents")
-    .eq("organization_id", authz.org.orgId)
-    .eq("id", proposta.lead_id)
-    .single();
+  // `maybeSingle` — D10: proposta órfã (lead_id/contact_id nulos) não pode
+  // derrubar o envio de uma v2 com um erro de "linha não encontrada".
+  const { data: lead } = proposta.lead_id
+    ? await admin
+        .from("crm_leads")
+        .select("id, contact_id, value_cents")
+        .eq("organization_id", authz.org.orgId)
+        .eq("id", proposta.lead_id)
+        .maybeSingle()
+    : { data: null };
   const { data: contato } = await admin
     .from("contacts")
     .select("name, display_name, email, phone_number")
     .eq("organization_id", authz.org.orgId)
     .eq("id", proposta.contact_id)
-    .single();
+    .maybeSingle();
   const marca = await marcaDaSaida(authz.org.orgId);
 
   let propostaAlvo = proposta;
@@ -108,27 +112,40 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       .single();
     if (novaErr || !nova) return fail("internal_error", t("Falha ao criar a nova versão."), 500, { requestId });
 
-    await admin.from("crm_proposal_items").insert(
+    const { error: itensErr } = await admin.from("crm_proposal_items").insert(
       itens.map((it) => ({
         organization_id: authz.org.orgId, proposal_id: nova.id, product_id: it.product_id, descricao: it.descricao,
         quantidade: it.quantidade, preco_unitario_cents: it.preco_unitario_cents,
         desconto_cents: it.desconto_cents, position: it.position,
       })),
     );
+    if (itensErr) {
+      // A v2 nasceu mas sem itens — descarta-a; a v1 continua `enviada`, nunca
+      // vira "substituida" apontando para uma v2 vazia (D3, ponto 5).
+      await admin.from("crm_proposals").delete().eq("id", nova.id);
+      return fail("internal_error", t("Falha ao copiar os itens da nova versão."), 500, { requestId });
+    }
+    // só marca a v1 substituida DEPOIS de confirmar que a v2 tem itens.
     await admin.from("crm_proposals").update({ status: "substituida" }).eq("id", decisao.substituiId);
     propostaAlvo = nova;
   }
 
-  // ─── AGORA aloca numero — já marca status='enviada' atomicamente ───
-  const numeroEAno = decisao.tipo === "nova_versao"
-    ? { numero: decisao.herdaNumero, ano: decisao.herdaAno }
-    : await alocarNumero(admin, { orgId: authz.org.orgId, propostaId: propostaAlvo.id });
-
-  // Se herdou número (nova versão), marca status='enviada' e numero/ano
+  // ─── Entra em `enviando` e aloca numero (D3+D9) — número reservado ao
+  // entrar em `enviando`, não ao confirmar entrega ───
+  let numeroEAno: { numero: number; ano: number };
   if (decisao.tipo === "nova_versao") {
-    await admin.from("crm_proposals").update({ numero: numeroEAno.numero, ano: numeroEAno.ano, status: "enviada" }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
+    numeroEAno = { numero: decisao.herdaNumero, ano: decisao.herdaAno };
+    await admin.from("crm_proposals")
+      .update({ numero: numeroEAno.numero, ano: numeroEAno.ano, status: "enviando", ultima_falha_envio: null })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
+  } else {
+    numeroEAno = await alocarNumero(admin, { orgId: authz.org.orgId, propostaId: propostaAlvo.id });
+    await admin.from("crm_proposals")
+      .update({ status: "enviando", ultima_falha_envio: null })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
   }
 
+  const destinatarioNome = rotuloDoContato(contato, t);
   const pdfBuffer = await renderPropostaPdf({
     titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
     versao: decisao.tipo === "nova_versao" ? decisao.novaVersao : propostaAlvo.versao,
@@ -136,7 +153,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
     totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
     marca: { app_name: marca.nome, accent_hex: marca.accent, logo_path: marca.logoUrl },
-    destinatario: { nome: rotuloDoContato(contato, t), email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
+    destinatario: { nome: destinatarioNome, email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
   });
   const { path: pdfPath, signedUrl } = await salvarPdfDaProposta(admin, {
     orgId: authz.org.orgId, propostaId: propostaAlvo.id, buffer: pdfBuffer,
@@ -150,30 +167,60 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     { conversation_id: conversa.id, type: "document", media_url: signedUrl, media_mime: "application/pdf" },
   );
 
-  // Só grava o que alocarNumero NÃO gravou (correção 3) — sem repetir status/numero/ano.
-  await admin
+  // ─── Desfecho decidido pelo status DEVOLVIDO pela mensagem, nunca pela
+  // ausência de exceção (D3 — "pior do que parece") ───
+  if (mensagem.status === "failed") {
+    const { data: revertida } = await admin
+      .from("crm_proposals")
+      .update({
+        status: "rascunho",
+        pdf_path: pdfPath,
+        message_id: mensagem.id,
+        ultima_falha_envio: mensagem.error_message ?? "Falha desconhecida ao enviar.",
+      })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
+      .select("*").single();
+    return ok(revertida, { requestId });
+  }
+
+  if (mensagem.status === "queued") {
+    const { data: emFila } = await admin
+      .from("crm_proposals")
+      .update({ pdf_path: pdfPath, message_id: mensagem.id })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
+      .select("*").single();
+    return ok(emFila, { requestId });
+  }
+
+  // sent | delivered | read → enviada de verdade.
+  const { data: enviada } = await admin
     .from("crm_proposals")
-    .update({ pdf_path: pdfPath, sent_at: new Date().toISOString(), sent_by_user_id: authz.user.id })
-    .eq("organization_id", authz.org.orgId)
-    .eq("id", propostaAlvo.id);
+    .update({
+      status: "enviada", pdf_path: pdfPath, sent_at: new Date().toISOString(),
+      sent_by_user_id: authz.user.id, message_id: mensagem.id, destinatario_nome: destinatarioNome,
+    })
+    .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
+    .select("*").single();
 
   const totalDoLead = propostaAlvo.total_cents;
   const valorAntes = lead?.value_cents ?? null;
-  await admin.from("crm_leads").update({ value_cents: totalDoLead }).eq("organization_id", authz.org.orgId).eq("id", proposta.lead_id);
-
-  // emitLeadActivity so aceita 1 linha por chamada (confirmado) — 2 chamadas, nao insert cru.
-  await emitLeadActivity(admin, {
-    organizationId: authz.org.orgId, leadId: proposta.lead_id, contactId: proposta.contact_id,
-    type: "proposal_sent", sourceModule: "proposals", sourceId: propostaAlvo.id,
-    actor: { type: "user", id: authz.user.id },
-    reason: `Proposta ${numeroEAno.numero}/${numeroEAno.ano} enviada ao cliente`,
-  });
-  await emitLeadActivity(admin, {
-    organizationId: authz.org.orgId, leadId: proposta.lead_id, contactId: proposta.contact_id,
-    type: "proposal_value_changed", sourceModule: "proposals", sourceId: propostaAlvo.id,
-    actor: { type: "user", id: authz.user.id },
-    reason: `Valor do negócio atualizado de ${valorAntes ?? "—"} para ${totalDoLead} centavos (proposta enviada)`,
-  });
+  if (proposta.lead_id) {
+    await admin.from("crm_leads").update({ value_cents: totalDoLead }).eq("organization_id", authz.org.orgId).eq("id", proposta.lead_id);
+    await emitLeadActivity(admin, {
+      organizationId: authz.org.orgId, leadId: proposta.lead_id, contactId: proposta.contact_id,
+      type: "proposal_sent", sourceModule: "proposals", sourceId: propostaAlvo.id,
+      actor: { type: "user", id: authz.user.id },
+      reason: `Proposta ${numeroEAno.numero}/${numeroEAno.ano} enviada ao cliente`,
+    });
+    await emitLeadActivity(admin, {
+      organizationId: authz.org.orgId, leadId: proposta.lead_id, contactId: proposta.contact_id,
+      type: "proposal_value_changed", sourceModule: "proposals", sourceId: propostaAlvo.id,
+      actor: { type: "user", id: authz.user.id },
+      reason: `Valor do negócio atualizado de ${valorAntes ?? "—"} para ${totalDoLead} centavos (proposta enviada)`,
+    });
+  }
+  // Proposta órfã (lead_id nulo — D10): não há negócio para atualizar nem
+  // atividade para gravar; a proposta ainda vira `enviada` normalmente.
 
   void audit({
     action: "proposal.sent", actorUserId: authz.user.id, organizationId: authz.org.orgId,
@@ -181,5 +228,5 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     metadata: { numero: numeroEAno.numero, ano: numeroEAno.ano },
   });
 
-  return ok({ id: propostaAlvo.id, numero: numeroEAno.numero, ano: numeroEAno.ano, message_id: mensagem.id }, { requestId });
+  return ok(enviada, { requestId });
 }

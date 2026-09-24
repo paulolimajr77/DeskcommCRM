@@ -27,6 +27,7 @@ export function ProposalsClient({ podeCriar }: { podeCriar: boolean }) {
   const t = useT();
   const statusLabels: Record<ProposalStatus, string> = {
     rascunho: t("Rascunho"),
+    enviando: t("Enviando"),
     enviada: t("Enviada"),
     aceita: t("Aceita"),
     recusada: t("Recusada"),

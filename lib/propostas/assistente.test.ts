@@ -106,4 +106,21 @@ describe("gerarMudancas", () => {
       instrucao: "baixa 10%", estado: estado(), pool: {} as never, cfg: {} as never, tenantId: "org-1",
     })).rejects.toThrow(/orçamento/);
   });
+
+  it("item sem preço aparece como 'a definir' no prompt, nunca R$ 0,00 (§5.2)", async () => {
+    const { runModelCall } = await import("@/lib/agent-engine/edge/llm/run-model-call");
+    vi.mocked(runModelCall).mockResolvedValue({ result: { toolCalls: [] } } as never);
+
+    const est = estado();
+    est.itens[0]!.preco_unitario_cents = null;
+    await gerarMudancas({
+      instrucao: "x", estado: est,
+      pool: {} as never, cfg: {} as never, tenantId: "org-1",
+    });
+
+    const opts = vi.mocked(runModelCall).mock.calls.at(-1)?.[2] as { messages: Array<{ content: unknown }> };
+    const prompt = opts.messages.map((m) => String(m.content)).join("\n");
+    expect(prompt).toContain("× a definir");
+    expect(prompt).not.toContain("× R$ 0.00");
+  });
 });

@@ -6,7 +6,8 @@ export interface ProposalItemInput {
   product_id: string | null;
   descricao: string;
   quantidade: number;
-  preco_unitario_cents: number;
+  /** null = "a definir" (§5.2) — só permitido quando product_id também é null. */
+  preco_unitario_cents: number | null;
   desconto_cents: number;
   position: number;
 }

@@ -32,4 +32,17 @@ describe("calcularTotal", () => {
     const total = calcularTotal([item({ quantidade: 1, preco_unitario_cents: 1000, desconto_cents: 5000 })]);
     expect(total).toBe(0);
   });
+
+  it("item sem preço (null) NÃO entra na soma, mesmo com desconto (§5.2)", () => {
+    expect(
+      calcularTotal([
+        item({ preco_unitario_cents: 1000 }),
+        item({ preco_unitario_cents: null, desconto_cents: 500 }),
+      ]),
+    ).toBe(1000);
+  });
+
+  it("todos os itens sem preço: total zero, sem lançar", () => {
+    expect(calcularTotal([item({ preco_unitario_cents: null })])).toBe(0);
+  });
 });

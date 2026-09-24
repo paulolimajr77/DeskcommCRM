@@ -10,7 +10,7 @@ export const propostaItemSchema = z.object({
   product_id: z.string().uuid().nullable(),
   descricao: z.string().trim().min(1).max(500),
   quantidade: z.number().positive(),
-  preco_unitario_cents: z.number().int().nonnegative(),
+  preco_unitario_cents: z.number().int().nonnegative().nullable(),
   desconto_cents: z.number().int().nonnegative().default(0),
   position: z.number(),
 });

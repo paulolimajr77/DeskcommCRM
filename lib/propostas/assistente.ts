@@ -66,7 +66,7 @@ export function aplicarMudancas(estado: EstadoDaProposta, mudancas: readonly Mud
 
 function promptDoEstado(estado: EstadoDaProposta): string {
   const itens = estado.itens
-    .map((it) => `- [${it.id}] ${it.descricao} — qtd ${it.quantidade} × R$ ${(it.preco_unitario_cents / 100).toFixed(2)}, desconto R$ ${(it.desconto_cents / 100).toFixed(2)}`)
+    .map((it) => `- [${it.id}] ${it.descricao} — qtd ${it.quantidade} × ${it.preco_unitario_cents === null ? "a definir" : `R$ ${(it.preco_unitario_cents / 100).toFixed(2)}`}, desconto R$ ${(it.desconto_cents / 100).toFixed(2)}`)
     .join("\n");
   return [
     `Proposta atual:`,

@@ -56,7 +56,28 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .order("position", { ascending: true });
 
   if (itensError) return fail("internal_error", t("Falha ao carregar os itens."), 500, { requestId });
-  return ok({ ...proposta, itens: itens ?? [] }, { requestId });
+
+  // N4 — preço ATUAL do catálogo junto do item, para o editor detectar drift.
+  // Uma consulta em lote (não N): item manual (product_id nulo) nunca participa;
+  // produto apagado desde então contribui com null, sem quebrar.
+  const idsDeProduto = [...new Set((itens ?? []).map((it) => it.product_id).filter((pid): pid is string => pid !== null))];
+  const precoAtualPorProduto = new Map<string, number>();
+  if (idsDeProduto.length > 0) {
+    const { data: produtos } = await supabase
+      .from("catalog_products")
+      .select("id, preco_cents")
+      .eq("organization_id", authz.org.orgId)
+      .in("id", idsDeProduto);
+    for (const p of (produtos ?? []) as Array<{ id: string; preco_cents: number }>) {
+      precoAtualPorProduto.set(p.id, p.preco_cents);
+    }
+  }
+  const itensComDrift = (itens ?? []).map((it) => ({
+    ...it,
+    preco_catalogo_atual_cents: it.product_id ? (precoAtualPorProduto.get(it.product_id) ?? null) : null,
+  }));
+
+  return ok({ ...proposta, itens: itensComDrift }, { requestId });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {

@@ -52,6 +52,10 @@ interface MundoOpts {
   moedaDoCatalogo?: string;
   /** Moeda da proposta já gravada (D11). Default: "BRL". */
   moedaDaProposta?: string;
+  /** Itens devolvidos pelo SELECT de itens (GET e base da PATCH). Default: os 4 fixos. */
+  itensFixos?: Linha[];
+  /** Preço ATUAL por product_id para o `.in` do GET (N4). id ausente = produto apagado. */
+  precosAtuaisDoCatalogo?: Record<string, number>;
 }
 
 function montarMundoDeEdicao(opts: MundoOpts = {}) {
@@ -67,7 +71,7 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
     moeda: opts.moedaDaProposta ?? "BRL",
   };
   let propostaAtualizada: Linha | null = null;
-  let itens: Linha[] = [
+  let itens: Linha[] = opts.itensFixos ?? [
     { ...item, id: ITEM_ID, organization_id: ORG_ID, proposal_id: PROPOSAL_ID, descricao: "Segundo", position: 2000, preco_unitario_cents: 200 },
     { ...item, organization_id: ORG_ID, proposal_id: PROPOSAL_ID, descricao: "Primeiro", position: 1000, preco_unitario_cents: 100 },
     { ...item, organization_id: ORG_ID, proposal_id: OTHER_PROPOSAL_ID, descricao: "Outra proposta" },
@@ -80,21 +84,24 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
       // Preço do catálogo (C3): select→eq→eq→eq→maybeSingle. Não entra na
       // lista de `consultas` — é leitura auxiliar, não escrita da edição.
       if (tabela === "catalog_products") {
-        return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => (
-                    opts.precoDoCatalogo === undefined || opts.precoDoCatalogo === null
-                      ? { data: null, error: null }
-                      : { data: { preco_cents: opts.precoDoCatalogo, moeda: opts.moedaDoCatalogo ?? "BRL" }, error: null }
-                  ),
-                }),
-              }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cadeiaCatalogo: any = {
+          eq: () => cadeiaCatalogo,
+          // N4 — o GET busca os preços ATUAIS em lote: select→eq→in.
+          in: async (_campo: string, ids: string[]) => ({
+            data: ids.flatMap((pid) => {
+              const preco = opts.precosAtuaisDoCatalogo?.[pid];
+              return preco === undefined ? [] : [{ id: pid, preco_cents: preco }];
             }),
+            error: null,
           }),
+          maybeSingle: async () => (
+            opts.precoDoCatalogo === undefined || opts.precoDoCatalogo === null
+              ? { data: null, error: null }
+              : { data: { preco_cents: opts.precoDoCatalogo, moeda: opts.moedaDoCatalogo ?? "BRL" }, error: null }
+          ),
         };
+        return { select: () => cadeiaCatalogo };
       }
       const consulta: Consulta = { tabela, operacao: "select", filtros: new Map() };
       consultas.push(consulta);
@@ -396,5 +403,62 @@ describe("GET /api/v1/proposals/[id]", () => {
     mocks.requireRole.mockResolvedValue({ ok: false, response: fail("unauthenticated", "Sem sessão", 401) });
     expect((await mundo.GET()).status).toBe(401);
     expect(mundo.consultas).toHaveLength(0);
+  });
+
+  it("item de catálogo cujo preço MUDOU desde que foi adicionado: devolve preco_catalogo_atual_cents diferente do gravado (N4)", async () => {
+    const mundo = montarMundoDeEdicao({
+      itensFixos: [
+        { ...item, id: "i1", organization_id: ORG_ID, proposal_id: PROPOSAL_ID, product_id: PRODUCT_ID, descricao: "Catálogo", position: 1000, preco_unitario_cents: 5000 },
+        { ...item, id: "i2", organization_id: ORG_ID, proposal_id: PROPOSAL_ID, product_id: null, descricao: "Manual", position: 2000, preco_unitario_cents: 700 },
+      ],
+      precosAtuaisDoCatalogo: { [PRODUCT_ID]: 6000 },
+    });
+    const res = await mundo.GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const deCatalogo = body.data.itens.find((i: { product_id: string | null }) => i.product_id !== null);
+    expect(deCatalogo.preco_unitario_cents).toBe(5000);
+    expect(deCatalogo.preco_catalogo_atual_cents).toBe(6000);
+  });
+
+  it("item de catálogo cujo preço NÃO mudou: preco_catalogo_atual_cents igual ao gravado", async () => {
+    const mundo = montarMundoDeEdicao({
+      itensFixos: [
+        { ...item, id: "i1", organization_id: ORG_ID, proposal_id: PROPOSAL_ID, product_id: PRODUCT_ID, descricao: "Catálogo", position: 1000, preco_unitario_cents: 5000 },
+      ],
+      precosAtuaisDoCatalogo: { [PRODUCT_ID]: 5000 },
+    });
+    const res = await mundo.GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const deCatalogo = body.data.itens.find((i: { product_id: string | null }) => i.product_id !== null);
+    expect(deCatalogo.preco_catalogo_atual_cents).toBe(deCatalogo.preco_unitario_cents);
+  });
+
+  it("item MANUAL (sem product_id): preco_catalogo_atual_cents é null, nunca compara com nada (Review Focus 4)", async () => {
+    const mundo = montarMundoDeEdicao({
+      itensFixos: [
+        { ...item, id: "i2", organization_id: ORG_ID, proposal_id: PROPOSAL_ID, product_id: null, descricao: "Manual", position: 1000, preco_unitario_cents: 700 },
+      ],
+      precosAtuaisDoCatalogo: {},
+    });
+    const res = await mundo.GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const manual = body.data.itens.find((i: { product_id: string | null }) => i.product_id === null);
+    expect(manual.preco_catalogo_atual_cents).toBeNull();
+  });
+
+  it("produto do catálogo foi APAGADO desde então: preco_catalogo_atual_cents é null, não quebra", async () => {
+    const mundo = montarMundoDeEdicao({
+      itensFixos: [
+        { ...item, id: "i1", organization_id: ORG_ID, proposal_id: PROPOSAL_ID, product_id: PRODUCT_ID, descricao: "Catálogo", position: 1000, preco_unitario_cents: 5000 },
+      ],
+      precosAtuaisDoCatalogo: {},
+    });
+    const res = await mundo.GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.itens[0].preco_catalogo_atual_cents).toBeNull();
   });
 });

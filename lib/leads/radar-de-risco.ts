@@ -78,6 +78,19 @@ export interface DemandaSemProximoPasso {
   origem: string;
 }
 
+/**
+ * N3 — negócio com proposta VENCIDA e sem proposta mais nova na cadeia. Lista
+ * paralela (como `sem_proximo_passo`), sem misturar com `items`: o radar
+ * classifica esfriamento, isto aqui é desfecho de proposta.
+ */
+export interface PropostaVencidaSemRetomada {
+  lead_id: string;
+  proposal_id: string;
+  numero: number | null;
+  ano: number | null;
+  valid_until: string | null;
+}
+
 export interface RadarDeRisco {
   items: AtRiskLead[];
   counts: { critico: number; em_risco: number; em_voo: number };
@@ -89,6 +102,7 @@ export interface RadarDeRisco {
    */
   sem_proximo_passo: DemandaSemProximoPasso[];
   total_sem_proximo_passo: number;
+  propostas_vencidas_sem_retomada: PropostaVencidaSemRetomada[];
 }
 
 export interface OpcoesDoRadar {
@@ -374,11 +388,46 @@ export async function carregaRadarDeRisco(
     };
   });
 
+  // N3 — negócio com proposta VENCIDA e sem proposta mais nova na cadeia.
+  // Consulta paralela (como `sem_proximo_passo`), sem misturar com `items`.
+  // Proposta órfã (lead_id nulo, D10) não entra: sem negócio, não há linha do
+  // radar para ela. "A mais nova" é `versao` desc (v1/v2 da D4 convivem na
+  // mesma cadeia); `created_at` desc desempata propostas INDEPENDENTES do
+  // mesmo negócio (duas cadeias com versao 1).
+  const { data: todasAsPropostas, error: propostasErr } = await admin
+    .from("crm_proposals")
+    .select("id, lead_id, status, numero, ano, valid_until, versao, created_at")
+    .eq("organization_id", organizationId)
+    .not("lead_id", "is", null)
+    .order("lead_id", { ascending: true })
+    .order("versao", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(SCAN_CAP);
+  if (propostasErr) throw new Error(`radar_propostas_failed: ${propostasErr.message}`);
+  // Ordenação refeita em JS de propósito (não só confiada ao ORDER BY do
+  // fio): se alguém mexer nos `.order()` acima, a classificação continua
+  // certa — o preço é um sort sobre um array pequeno.
+  const ordenadas = [...(todasAsPropostas ?? [])].sort((a, b) => {
+    const porLead = String(a.lead_id).localeCompare(String(b.lead_id));
+    if (porLead !== 0) return porLead;
+    if ((b.versao as number) !== (a.versao as number)) return (b.versao as number) - (a.versao as number);
+    return String(b.created_at).localeCompare(String(a.created_at));
+  });
+  const maisRecentePorLead = new Map<string, (typeof todasAsPropostas)[number]>();
+  for (const p of ordenadas) {
+    // a primeira ocorrência de cada lead_id É a mais recente da cadeia.
+    if (!maisRecentePorLead.has(p.lead_id as string)) maisRecentePorLead.set(p.lead_id as string, p);
+  }
+  const propostas_vencidas_sem_retomada: PropostaVencidaSemRetomada[] = [...maisRecentePorLead.values()]
+    .filter((p) => p.status === "vencida")
+    .map((p) => ({ lead_id: p.lead_id as string, proposal_id: p.id as string, numero: p.numero as number | null, ano: p.ano as number | null, valid_until: p.valid_until as string | null }));
+
   return {
     items: radar.slice(0, limit),
     counts: { critico: counts.critico, em_risco: counts.em_risco, em_voo: counts.em_voo },
     total: radar.length,
     sem_proximo_passo: semProximoPasso.slice(0, limit),
     total_sem_proximo_passo: semProximoPasso.length,
+    propostas_vencidas_sem_retomada,
   };
 }

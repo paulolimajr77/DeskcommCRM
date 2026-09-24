@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidirVersao } from "./versao";
+import { decidirVersao, decidirRevisao } from "./versao";
 import type { ProposalRow } from "./tipos";
 
 function proposta(over: Partial<ProposalRow> = {}): ProposalRow {
@@ -11,27 +11,39 @@ function proposta(over: Partial<ProposalRow> = {}): ProposalRow {
   };
 }
 
-describe("decidirVersao", () => {
-  it("editar um RASCUNHO: PATCH no mesmo registro, sem nova versão", () => {
-    const r = decidirVersao(proposta({ status: "rascunho" }));
-    expect(r).toEqual({ tipo: "patch_no_mesmo" });
+describe("decidirVersao (edição — PATCH e envio)", () => {
+  it("rascunho: patch no mesmo registro", () => {
+    expect(decidirVersao(proposta({ status: "rascunho" }))).toEqual({ tipo: "patch_no_mesmo" });
   });
 
-  it("revisar uma proposta ENVIADA: cria v2 herdando numero/ano, v1 vira substituida", () => {
-    const r = decidirVersao(proposta({ status: "enviada", numero: 42, ano: 2026, versao: 1 }));
-    expect(r).toEqual({
-      tipo: "nova_versao",
-      herdaNumero: 42, herdaAno: 2026, novaVersao: 2, substituiId: "p1",
-    });
+  it("enviada: NÃO cria mais v2 aqui — lança (C4, D4: isso agora é revisar, não enviar)", () => {
+    expect(() => decidirVersao(proposta({ status: "enviada", numero: 1, ano: 2026 }))).toThrow(/status_nao_editavel/);
   });
 
-  it("revisar uma proposta ACEITA ou RECUSADA: recusado — não é rascunho nem enviada", () => {
-    expect(() => decidirVersao(proposta({ status: "aceita" }))).toThrow(/status_nao_editavel/);
-    expect(() => decidirVersao(proposta({ status: "recusada" }))).toThrow(/status_nao_editavel/);
+  it("qualquer outro status: lança", () => {
+    for (const status of ["aceita", "recusada", "vencida", "cancelada", "substituida", "enviando"] as const) {
+      expect(() => decidirVersao(proposta({ status }))).toThrow(/status_nao_editavel/);
+    }
+  });
+});
+
+describe("decidirRevisao (D4 — só proposta ENVIADA pode virar v2 em rascunho)", () => {
+  it("enviada com numero/ano: devolve o que a v2 precisa herdar", () => {
+    const r = decidirRevisao(proposta({ status: "enviada", numero: 42, ano: 2026, versao: 1, id: "v1-id" }));
+    expect(r).toEqual({ herdaNumero: 42, herdaAno: 2026, novaVersao: 2, substituiId: "v1-id" });
   });
 
-  it("v3 a partir de v2: incrementa a partir da versão ATUAL, não sempre 2", () => {
-    const r = decidirVersao(proposta({ status: "enviada", numero: 42, ano: 2026, versao: 2 }));
-    expect(r).toMatchObject({ novaVersao: 3 });
+  it("rascunho: lança (já é editável pela PATCH, não precisa de revisão)", () => {
+    expect(() => decidirRevisao(proposta({ status: "rascunho" }))).toThrow(/nao_pode_revisar/);
+  });
+
+  it("qualquer status que não seja enviada: lança", () => {
+    for (const status of ["aceita", "recusada", "vencida", "cancelada", "substituida", "enviando"] as const) {
+      expect(() => decidirRevisao(proposta({ status }))).toThrow(/nao_pode_revisar/);
+    }
+  });
+
+  it("enviada sem numero/ano (estado inconsistente): lança, não inventa número", () => {
+    expect(() => decidirRevisao(proposta({ status: "enviada", numero: null, ano: null }))).toThrow(/estado_inconsistente/);
   });
 });

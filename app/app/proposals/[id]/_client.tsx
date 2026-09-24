@@ -31,6 +31,7 @@ interface Proposta {
   total_cents: number;
   itens: ProposalItem[];
   moeda: string;
+  ultima_falha_envio: string | null;
 }
 
 interface Produto {
@@ -380,6 +381,16 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         <div className="text-2xl font-bold tabular-nums">{formatCents(total, proposta.moeda)}</div>
       </div>
 
+      {proposta.status === "rascunho" && proposta.ultima_falha_envio && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {t("O último envio falhou")}: {proposta.ultima_falha_envio}
+        </div>
+      )}
+      {proposta.status === "enviando" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {t("Na fila do WhatsApp — sai assim que o canal conectar.")}
+        </div>
+      )}
       {proposta.status === "rascunho" && (
         <Button onClick={enviar} disabled={salvando} className="w-full">
           {t("Enviar ao cliente")}

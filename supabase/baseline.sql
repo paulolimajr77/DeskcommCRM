@@ -37089,6 +37089,19 @@ create unique index if not exists crm_proposals_numero_ano_versao_org_uidx
 
 notify pgrst, 'reload schema';
 
+-- ---- C5: followup automatico ao enviar (migration 0404) ----
+-- Onda C5 da spec de Propostas (2026-09-24): N2 (a proposta ENVIADA agenda um
+-- retorno automático via lib/followup/retorno-crm.ts). `retorno_id` guarda QUAL
+-- retorno foi agendado, para cancelá-lo se o cliente decidir (aceita/recusada)
+-- antes da data marcada. `on delete set null`: se a linha do cron sumir, a
+-- proposta continua íntegra (o retorno já disparou ou foi cancelado por fora).
+alter table public.crm_proposals add column if not exists retorno_id uuid
+  references public.cron_jobs(id) on delete set null;
+comment on column public.crm_proposals.retorno_id is
+  'N2: id do retorno automático agendado ao enviar (cron_jobs). NULL = nenhum agendado (falha ao agendar não bloqueia o envio) ou já cancelado/disparado.';
+
+notify pgrst, 'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria

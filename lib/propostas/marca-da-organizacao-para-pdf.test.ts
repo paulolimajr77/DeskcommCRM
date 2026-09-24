@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { marcaDaOrganizacaoParaPdf } from "./marca-da-organizacao-para-pdf";
 
 function montarSupabase(settings: unknown) {
@@ -7,7 +8,7 @@ function montarSupabase(settings: unknown) {
     eq: vi.fn(function (this: typeof chain) { return this; }),
     maybeSingle: vi.fn(async () => ({ data: { settings }, error: null })),
   };
-  return { from: vi.fn(() => chain) } as unknown as import("@supabase/supabase-js").SupabaseClient;
+  return { from: vi.fn(() => chain) } as unknown as SupabaseClient;
 }
 
 describe("marcaDaOrganizacaoParaPdf", () => {

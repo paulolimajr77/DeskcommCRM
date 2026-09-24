@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { dataIsoNoFuso, anoNoFuso, somarDiasNoFuso, fusoDaOrganizacao } from "./data-no-fuso";
 
 describe("dataIsoNoFuso (pura)", () => {
@@ -38,7 +39,7 @@ describe("fusoDaOrganizacao", () => {
       eq: vi.fn(function (this: typeof chain) { return this; }),
       maybeSingle: vi.fn(async () => ({ data: { timezone: "Europe/Lisbon" }, error: null })),
     };
-    const db = { from: vi.fn(() => chain) } as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const db = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
     expect(await fusoDaOrganizacao(db, "org-1")).toBe("Europe/Lisbon");
   });
 
@@ -48,7 +49,7 @@ describe("fusoDaOrganizacao", () => {
       eq: vi.fn(function (this: typeof chain) { return this; }),
       maybeSingle: vi.fn(async () => ({ data: { timezone: "São Paulo" }, error: null })),
     };
-    const db = { from: vi.fn(() => chain) } as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const db = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
     expect(await fusoDaOrganizacao(db, "org-1")).toBe("America/Sao_Paulo");
   });
 });

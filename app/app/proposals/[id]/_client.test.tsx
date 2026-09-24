@@ -68,7 +68,7 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
 });
 
 describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
-  it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Ignorar aviso', com o aviso honesto de que o preço muda ao salvar de qualquer forma (achado Importante da revisão final da C5)", async () => {
+  it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Ignorar aviso', com o aviso honesto de que o preço muda ao salvar de qualquer forma (achado Importante da revisão final da C3b+E1)", async () => {
     get.mockResolvedValue({
       data: {
         ...PROPOSTA_BASE,

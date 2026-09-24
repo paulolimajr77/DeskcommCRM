@@ -74,7 +74,7 @@ interface MundoOpts {
   itemDeCatalogo?: boolean;
   /** Status da proposta v1 (alvo de `substitui_id`) ANTES do envio da v2. */
   statusDaV1?: string;
-  /** `retorno_id` já gravado na v1 (achado da revisão final da C5). */
+  /** `retorno_id` já gravado na v1 (achado da revisão final da C3b+E1). */
   retornoIdDaV1?: string;
   /** `imagem_url` gravado no produto de catálogo — default `https://cdn/produto.png`. */
   imagemUrlDoCatalogo?: string;
@@ -736,7 +736,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.updatesCrmProposals.some((u) => "retorno_id" in (u.dados as object))).toBe(false);
   });
 
-  it("v2 herda o retorno_id da v1 quando o agendamento colide com o dela ('ja_existe_retorno'), para o decide poder cancelá-lo depois (achado Importante da revisão final da C5)", async () => {
+  it("v2 herda o retorno_id da v1 quando o agendamento colide com o dela ('ja_existe_retorno'), para o decide poder cancelá-lo depois (achado Importante da revisão final da C3b+E1)", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
       propostaOriginal: { status: "rascunho", numero: 42, ano: 2026, versao: 2, substitui_id: "v1-id" },

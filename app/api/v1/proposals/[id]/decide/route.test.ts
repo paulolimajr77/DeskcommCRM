@@ -175,7 +175,7 @@ describe("POST /api/v1/proposals/[id]/decide", () => {
     );
   });
 
-  it("cancelaRetornoNoCrm lança (banco instável): a decisão já gravada não vira 500, e a auditoria ainda sai (achado Importante da revisão final da C5)", async () => {
+  it("cancelaRetornoNoCrm lança (banco instável): a decisão já gravada não vira 500, e a auditoria ainda sai (achado Importante da revisão final da C3b+E1)", async () => {
     mocks.cancelaRetornoNoCrm.mockRejectedValueOnce(new Error("retorno_cancel_failed: timeout"));
     const mundo = montarMundoDeDecisao({ status: "enviada", retornoId: "retorno-1" });
     const res = await mundo.POST({ decisao: "aceita" });

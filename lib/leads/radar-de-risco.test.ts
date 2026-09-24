@@ -17,7 +17,7 @@ const ORG_ID = "22222222-2222-4222-8222-222222222222";
 
 /**
  * `leadsAbertos`: ids que a consulta de `crm_leads` (status='open', funil
- * não-arquivado) devolveria — achado da revisão final da C5, que passou a
+ * não-arquivado) devolveria — achado da revisão final da C3b+E1, que passou a
  * cruzar `propostas_vencidas_sem_retomada` com essa população. Default:
  * deriva dos `lead_id` das propostas (todo mundo "aberto"), para não quebrar
  * os testes que não têm opinião sobre isso.
@@ -103,7 +103,7 @@ describe("carregaRadarDeRisco — propostas vencidas sem retomada (N3)", () => {
     expect(radar.propostas_vencidas_sem_retomada).toEqual([]);
   });
 
-  it("negócio com DUAS cadeias (uma vencida antiga, outra em voo mais nova): a cadeia NOVA vence — não entra na lista (achado Importante da revisão final da C5)", async () => {
+  it("negócio com DUAS cadeias (uma vencida antiga, outra em voo mais nova): a cadeia NOVA vence — não entra na lista (achado Importante da revisão final da C3b+E1)", async () => {
     const { admin } = montarAdmin([
       // Cadeia antiga: chegou a v2, vencida, numero 5 — versao alta mas ANTIGA.
       { id: "prop-cadeia-velha-v2", lead_id: "lead-1", status: "vencida", numero: 5, ano: 2026, valid_until: "2026-01-01", versao: 2, created_at: "2026-01-15T00:00:00Z" },
@@ -114,7 +114,7 @@ describe("carregaRadarDeRisco — propostas vencidas sem retomada (N3)", () => {
     expect(radar.propostas_vencidas_sem_retomada.map((p) => p.lead_id)).not.toContain("lead-1");
   });
 
-  it("negócio FECHADO (perdido/ganho, fora de crm_leads.status='open') com proposta vencida: NÃO entra — o radar não é eterno (achado Importante da revisão final da C5)", async () => {
+  it("negócio FECHADO (perdido/ganho, fora de crm_leads.status='open') com proposta vencida: NÃO entra — o radar não é eterno (achado Importante da revisão final da C3b+E1)", async () => {
     const { admin } = montarAdmin(
       [{ id: "prop-1", lead_id: "lead-fechado", status: "vencida", numero: 1, ano: 2026, valid_until: "2026-01-01", versao: 1, created_at: "2026-01-01T00:00:00Z" }],
       [], // nenhum lead aberto — lead-fechado não está na lista

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   // N2 — a decisão resolve a proposta: o retorno automático agendado no envio
   // não é mais necessário. Best-effort de verdade (achado Importante da
-  // revisão final da C5): a decisão JÁ foi gravada no UPDATE acima — um erro
+  // revisão final da C3b+E1): a decisão JÁ foi gravada no UPDATE acima — um erro
   // de banco aqui (instabilidade ao cancelar) não pode virar 500 nem comer a
   // auditoria abaixo, senão a tela mostra erro para uma decisão que já vale,
   // e um retry recebe 409 (status já não é mais 'enviada').

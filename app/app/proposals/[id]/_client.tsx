@@ -291,7 +291,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
               : t("itens mudaram de preço no catálogo")}
           </p>
           {/*
-            Achado Importante da revisão final da C5: o botão "Manter" só
+            Achado Importante da revisão final da C3b+E1: o botão "Manter" só
             escondia este aviso — o preço do item de catálogo é SEMPRE
             resolvido de novo pelo servidor ao salvar (resolverItensDaProposta,
             por desenho: nunca aceita o preço que o cliente mandou). Um botão

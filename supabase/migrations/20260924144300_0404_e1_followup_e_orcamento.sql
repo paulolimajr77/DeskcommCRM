@@ -1,4 +1,4 @@
--- 0404 — Onda C5 (N2): a proposta ENVIADA agenda um retorno automático
+-- 0404 — Onda E1 (N2): a proposta ENVIADA agenda um retorno automático
 -- (lib/followup/retorno-crm.ts). Precisamos guardar QUAL retorno, para
 -- cancelá-lo se o cliente decidir (aceita/recusada) antes da data marcada —
 -- senão o follow-up dispara sozinho para uma proposta já resolvida.

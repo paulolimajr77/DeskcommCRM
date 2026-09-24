@@ -149,7 +149,7 @@ describe("projeção — o que o Conversador pode ver", () => {
       expect(projetarContexto(comJargao).mensagens[0]!.texto).toBe("meu webhook parou de funcionar");
     });
 
-    it("a última proposta chega traduzida — o agente não oferece de novo o que já foi recusado (achado Importante da revisão final da C5, N7)", () => {
+    it("a última proposta chega traduzida — o agente não oferece de novo o que já foi recusado (achado Importante da revisão final da C3b+E1, N7)", () => {
       const comPropostaRecusada: LeadContext = {
         ...cru,
         last_proposal: { status: "recusada", total_cents: 500000, decision_reason: "preço acima do orçamento", numero: 42, ano: 2026 },

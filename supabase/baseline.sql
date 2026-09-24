@@ -37089,8 +37089,8 @@ create unique index if not exists crm_proposals_numero_ano_versao_org_uidx
 
 notify pgrst, 'reload schema';
 
--- ---- C5: followup automatico ao enviar (migration 0404) ----
--- Onda C5 da spec de Propostas (2026-09-24): N2 (a proposta ENVIADA agenda um
+-- ---- E1: followup automatico ao enviar (migration 0404) ----
+-- Onda E1 da spec de Propostas (2026-09-24): N2 (a proposta ENVIADA agenda um
 -- retorno automático via lib/followup/retorno-crm.ts). `retorno_id` guarda QUAL
 -- retorno foi agendado, para cancelá-lo se o cliente decidir (aceita/recusada)
 -- antes da data marcada. `on delete set null`: se a linha do cron sumir, a

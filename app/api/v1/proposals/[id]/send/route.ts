@@ -301,7 +301,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // gravados numa linha que juridicamente não conta mais como aceita/
   // recusada). Com o filtro, a v1 só vira `substituida` se AINDA estiver
   // `enviada` — decidida, o UPDATE não afeta linha nenhuma, sem erro.
-  // Achado Importante da revisão final da C5: o retorno automático da v1
+  // Achado Importante da revisão final da C3b+E1: o retorno automático da v1
   // (`v1.retorno_id`) sobrevivia à troca em silêncio — `agendaRetornoNoCrm`
   // recusa por `ja_existe_retorno` (o negócio já tem retorno aberto, que É o
   // da v1) e a v2 seguia sem `retorno_id`; o decide só cancela o retorno da

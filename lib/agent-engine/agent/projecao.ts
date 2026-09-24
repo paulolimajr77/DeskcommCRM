@@ -71,7 +71,7 @@ export interface ContextoProjetado {
   };
   ultima_decisao_humana: { sobre: string; decisao: 'aprovada' | 'recusada'; quando: string } | null;
   /**
-   * N7 (achado Importante da revisão final da C5): `LeadContext.last_proposta`
+   * N7 (achado Importante da revisão final da C3b+E1): `LeadContext.last_proposal`
    * já chegava resolvido, mas a allowlist não o repassava — nenhum turno via o
    * campo, então um agente sem a ferramenta de catálogo oferecia de novo o que
    * o cliente já tinha recusado. `status` traduzido (mesmo padrão de

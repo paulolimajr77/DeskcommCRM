@@ -404,7 +404,7 @@ export async function carregaRadarDeRisco(
     .order("created_at", { ascending: false })
     .limit(SCAN_CAP);
   if (propostasErr) throw new Error(`radar_propostas_failed: ${propostasErr.message}`);
-  // Achado Importante da revisão final da C5 — DOIS consertos:
+  // Achado Importante da revisão final da C3b+E1 — DOIS consertos:
   //
   // 1) A "mais recente por lead" era por `versao` desc, que só ordena DENTRO
   //    da MESMA cadeia (mesmo numero/ano) — um negócio com duas cadeias

@@ -68,7 +68,7 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
 });
 
 describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
-  it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Manter'", async () => {
+  it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Ignorar aviso', com o aviso honesto de que o preço muda ao salvar de qualquer forma (achado Importante da revisão final da C5)", async () => {
     get.mockResolvedValue({
       data: {
         ...PROPOSTA_BASE,
@@ -82,7 +82,12 @@ describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     expect(await screen.findByText(/1 item mudou de preço no catálogo/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /atualizar preços/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /manter/i })).toBeInTheDocument();
+    // O botão antigo dizia "Manter" mas nada travava — resolverItensDaProposta
+    // sempre reaplica o preço do catálogo no Salvar. Não existe mais botão
+    // "manter" (nenhum, nem "manter preço") — só "Ignorar aviso", honesto.
+    expect(screen.queryByRole("button", { name: /^manter$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ignorar aviso/i })).toBeInTheDocument();
+    expect(screen.getByText(/o preço do catálogo será aplicado de qualquer forma/i)).toBeInTheDocument();
   });
 
   it("clicar 'Atualizar preços': troca o preco_unitario_cents do item pelo valor atual do catálogo, localmente (não salva sozinho)", async () => {

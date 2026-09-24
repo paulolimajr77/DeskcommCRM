@@ -290,6 +290,19 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
               ? t("item mudou de preço no catálogo")
               : t("itens mudaram de preço no catálogo")}
           </p>
+          {/*
+            Achado Importante da revisão final da C5: o botão "Manter" só
+            escondia este aviso — o preço do item de catálogo é SEMPRE
+            resolvido de novo pelo servidor ao salvar (resolverItensDaProposta,
+            por desenho: nunca aceita o preço que o cliente mandou). Um botão
+            "Manter" que não mantinha nada mentia pro usuário. Não existe hoje
+            um jeito de travar o preço antigo (exigiria pricing_status
+            'approved' chegando ao resolvedor, fora do escopo deste achado) —
+            então a cópia fica honesta em vez de fingir uma trava que não há.
+          */}
+          <p className="mt-1 text-xs text-amber-700">
+            {t("Ao salvar, o preço do catálogo será aplicado de qualquer forma.")}
+          </p>
           <div className="mt-2 flex gap-2">
             <Button
               size="sm"
@@ -311,7 +324,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
               {t("Atualizar preços")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setDriftIgnorado(true)}>
-              {t("Manter")}
+              {t("Ignorar aviso")}
             </Button>
           </div>
         </div>

@@ -11621,6 +11621,8 @@ export const DICIONARIO: Traducoes = {
   "O orçamento mensal de IA desta organização foi atingido. Ajuste o limite em Uso de IA › Orçamento, ou aguarde a virada do mês.": {"es": "Se alcanzó el presupuesto mensual de IA de esta organización. Ajusta el límite en Uso de IA › Presupuesto, o espera al cambio de mes."},
   "Atualizar preços": {"es": "Actualizar precios"},
   "Manter": {"es": "Mantener"},
+  "Ignorar aviso": {"es": "Ignorar aviso"},
+  "Ao salvar, o preço do catálogo será aplicado de qualquer forma.": {"es": "Al guardar, el precio del catálogo se aplicará de todos modos."},
   "item mudou de preço no catálogo": {"es": "artículo cambió de precio en el catálogo"},
   "itens mudaram de preço no catálogo": {"es": "artículos cambiaron de precio en el catálogo"},
   "Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento": {"es": "Dejar que el agente redacte una propuesta cuando el cliente pida un presupuesto"},

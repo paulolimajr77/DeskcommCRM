@@ -17,6 +17,9 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
 const LEAD_ID = "44444444-4444-4444-8444-444444444444";
 const CONTACT_ID = "55555555-5555-4555-8555-555555555555";
+const PRODUCT_ID = "66666666-6666-4666-8666-666666666666";
+const PRODUCT_DE_OUTRA_ORG = "77777777-7777-4777-8777-777777777777";
+const RASCUNHO_EXISTENTE_ID = "88888888-8888-4888-8888-888888888888";
 
 const ROLE_RANK: Record<string, number> = { viewer: 1, agent: 2, ai_operator: 3, manager: 4, admin: 5 };
 
@@ -33,6 +36,13 @@ interface MundoOpts {
    * org-scoped não o encontra, exatamente como o Postgres real faria. */
   leadPertenceAOutraOrg?: boolean;
   papel?: keyof typeof ROLE_RANK;
+  /** Preço que o mock de catalog_products devolve; null = produto não resolve
+   * (outra org, apagado, inativo). Default: 3000. */
+  precoDoCatalogo?: number | null;
+  /** Quando true, a pré-checagem de rascunho encontra um rascunho aberto. */
+  rascunhoJaExiste?: boolean;
+  /** Sobrescreve organizations.settings.proposals.default_conditions. */
+  condicoesPadrao?: string | null;
 }
 
 function montarMundoDeProposta(opts: MundoOpts = {}) {
@@ -103,6 +113,18 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
               limit() {
                 return cadeia;
               },
+              // Pré-checagem de rascunho único (§5.3): select→eq→eq→eq→maybeSingle.
+              async maybeSingle() {
+                if (filtros.status === "rascunho" && filtros.lead_id) {
+                  return opts.rascunhoJaExiste
+                    ? { data: { id: RASCUNHO_EXISTENTE_ID }, error: null }
+                    : { data: null, error: null };
+                }
+                const achadas = propostasCriadas.filter((p) =>
+                  Object.entries(filtros).every(([c, v]) => c === "organization_id" || p[c] === v),
+                );
+                return { data: achadas[0] ?? null, error: null };
+              },
               then(resolve: (r: { data: unknown[]; error: null }) => void) {
                 resolve({
                   data: propostasCriadas.filter((p) =>
@@ -114,6 +136,24 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
             };
             return cadeia;
           },
+        };
+      }
+      if (tabela === "catalog_products") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => {
+                    const preco = opts.precoDoCatalogo === undefined ? 3000 : opts.precoDoCatalogo;
+                    return preco === null
+                      ? { data: null, error: null }
+                      : { data: { preco_cents: preco }, error: null };
+                  },
+                }),
+              }),
+            }),
+          }),
         };
       }
       if (tabela === "crm_proposal_items") {
@@ -134,7 +174,11 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
               single: async () => ({
                 data: {
                   settings: {
-                    proposals: { enabled: false, default_valid_days: 15, default_conditions: null },
+                    proposals: {
+                      enabled: false,
+                      default_valid_days: 15,
+                      default_conditions: opts.condicoesPadrao ?? null,
+                    },
                   },
                 },
                 error: null,
@@ -197,6 +241,54 @@ describe("POST /api/v1/proposals", () => {
     const mundo = montarMundoDeProposta({ papel: "viewer" });
     const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "x", itens: [] });
     expect(res.status).toBe(403);
+  });
+
+  it("item com product_id: preço vem do catálogo, IGNORA o preço mandado no body (C3/D5)", async () => {
+    const mundo = montarMundoDeProposta({ precoDoCatalogo: 3000 });
+    const res = await mundo.POST({
+      lead_id: mundo.leadId, titulo: "Com catálogo",
+      itens: [{ product_id: PRODUCT_ID, descricao: "Ignorado", quantidade: 1, preco_unitario_cents: 999999, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(201);
+    // total tem que refletir o preço do CATÁLOGO (3000), não o mandado (999999).
+    expect(mundo.propostasCriadas.at(-1)).toMatchObject({ total_cents: 3000, pricing_status: "catalog" });
+    expect(mundo.itensCriados.at(-1)).toMatchObject({ preco_unitario_cents: 3000 });
+  });
+
+  it("product_id que não existe na organização: 422, nada é gravado", async () => {
+    const mundo = montarMundoDeProposta({ precoDoCatalogo: null });
+    const res = await mundo.POST({
+      lead_id: mundo.leadId, titulo: "Produto inexistente",
+      itens: [{ product_id: PRODUCT_DE_OUTRA_ORG, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(422);
+    expect(mundo.propostasCriadas).toHaveLength(0);
+    expect(mundo.itensCriados).toHaveLength(0);
+  });
+
+  it("item sem product_id e sem preço: cria como rascunho 'a definir' (pricing_status missing)", async () => {
+    const mundo = montarMundoDeProposta();
+    const res = await mundo.POST({
+      lead_id: mundo.leadId, titulo: "A definir",
+      itens: [{ product_id: null, descricao: "x", quantidade: 1, preco_unitario_cents: null, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(201);
+    expect(mundo.propostasCriadas.at(-1)).toMatchObject({ pricing_status: "missing", total_cents: 0 });
+  });
+
+  it("condicoes omitidas no body: usa default_conditions da organização (D7)", async () => {
+    const mundo = montarMundoDeProposta({ condicoesPadrao: "Válido por 15 dias corridos." });
+    const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "Sem condições no body", itens: [] });
+    expect(res.status).toBe(201);
+    expect(mundo.propostasCriadas.at(-1)).toMatchObject({ condicoes: "Válido por 15 dias corridos." });
+  });
+
+  it("negócio já tem rascunho aberto: 409 com o id do rascunho existente, nada duplicado", async () => {
+    const mundo = montarMundoDeProposta({ rascunhoJaExiste: true });
+    const res = await mundo.POST({ lead_id: mundo.leadId, titulo: "Duplicado", itens: [] });
+    expect(res.status).toBe(409);
+    expect(res.body.error.details?.rascunho_aberto_id).toBe(RASCUNHO_EXISTENTE_ID);
+    expect(mundo.propostasCriadas).toHaveLength(0);
   });
 });
 

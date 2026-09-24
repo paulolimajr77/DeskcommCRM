@@ -12,7 +12,8 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
-import { calcularTotal } from "@/lib/propostas/total";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
+import { resolverPadroesDaProposta } from "@/lib/propostas/padroes-da-organizacao";
 import { propostaCreateSchema } from "@/lib/schemas/propostas";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -91,16 +92,40 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  const totalCents = calcularTotal(input.itens);
+  // §5.3 — um rascunho aberto por negócio. Pré-checagem para dar mensagem
+  // clara; o índice único (migration 0402) é quem garante de verdade sob
+  // corrida (capturado como 23505 logo abaixo).
+  const { data: rascunhoExistente } = await supabase
+    .from("crm_proposals")
+    .select("id")
+    .eq("organization_id", authz.org.orgId)
+    .eq("lead_id", input.lead_id)
+    .eq("status", "rascunho")
+    .maybeSingle();
+  if (rascunhoExistente) {
+    return fail(
+      "validation_failed",
+      t("Este negócio já tem um rascunho de proposta aberto. Abra-o e continue por lá."),
+      409,
+      { requestId, details: { rascunho_aberto_id: rascunhoExistente.id } },
+    );
+  }
+
+  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens);
+  if (!resolvido.ok) {
+    return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
+  }
+
+  const { data: org } = await supabase.from("organizations").select("settings").eq("id", authz.org.orgId).single();
+  const padroes = resolverPadroesDaProposta((org as { settings?: unknown } | null)?.settings);
 
   let validUntil = input.valid_until;
   if (validUntil === undefined) {
-    const { data: org } = await supabase.from("organizations").select("settings").eq("id", authz.org.orgId).single();
-    const dias = ((org?.settings as Record<string, unknown> | null)?.proposals as { default_valid_days?: number } | undefined)?.default_valid_days ?? 15;
     const data = new Date();
-    data.setDate(data.getDate() + dias);
+    data.setDate(data.getDate() + padroes.defaultValidDays);
     validUntil = data.toISOString().slice(0, 10);
   }
+  const condicoes = input.condicoes ?? padroes.defaultConditions;
 
   const { data: proposta, error: propErr } = await supabase
     .from("crm_proposals")
@@ -109,22 +134,28 @@ export async function POST(req: NextRequest): Promise<Response> {
       lead_id: input.lead_id,
       contact_id: lead.contact_id,
       titulo: input.titulo,
-      condicoes: input.condicoes ?? null,
+      condicoes,
       valid_until: validUntil ?? null,
-      total_cents: totalCents,
+      total_cents: resolvido.totalCents,
+      pricing_status: resolvido.pricingStatus,
       status: "rascunho",
     })
     .select("id")
     .single();
-  if (propErr || !proposta) return fail("internal_error", t("Falha ao criar a proposta."), 500, { requestId });
+  if (propErr) {
+    // 23505 = a corrida que a pré-checagem acima não pegou (dois cliques
+    // quase simultâneos) — o índice único do banco é quem decide de verdade.
+    if ((propErr as { code?: string }).code === "23505") {
+      return fail("validation_failed", t("Este negócio já tem um rascunho de proposta aberto."), 409, { requestId });
+    }
+    return fail("internal_error", t("Falha ao criar a proposta."), 500, { requestId });
+  }
+  if (!proposta) return fail("internal_error", t("Falha ao criar a proposta."), 500, { requestId });
 
-  if (input.itens.length > 0) {
+  if (resolvido.itens.length > 0) {
     const { error: itensErr } = await supabase.from("crm_proposal_items").insert(
-      input.itens.map((it) => ({
+      resolvido.itens.map((it) => ({
         proposal_id: proposta.id,
-        // crm_proposal_items.organization_id é NOT NULL e o trigger
-        // `fn_verificar_org_do_item_da_proposta` recusa a linha se não bater
-        // com a organização da proposta — nunca inferir por join (CLAUDE.md).
         organization_id: authz.org.orgId,
         product_id: it.product_id,
         descricao: it.descricao,

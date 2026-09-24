@@ -16,7 +16,6 @@ interface LinhaDeProposta {
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
 
 function montarAdmin(propostas: LinhaDeProposta[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chamadas: Array<{ tabela: string; filtros: Array<[string, unknown]> }> = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin: any = {

@@ -401,24 +401,40 @@ export async function carregaRadarDeRisco(
     .select("id, lead_id, status, numero, ano, valid_until, versao, created_at")
     .eq("organization_id", organizationId)
     .order("lead_id", { ascending: true })
-    .order("versao", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(SCAN_CAP);
   if (propostasErr) throw new Error(`radar_propostas_failed: ${propostasErr.message}`);
+  // Achado Importante da revisão final da C5 — DOIS consertos:
+  //
+  // 1) A "mais recente por lead" era por `versao` desc, que só ordena DENTRO
+  //    da MESMA cadeia (mesmo numero/ano) — um negócio com duas cadeias
+  //    (uma antiga vencida em v2, outra nova em v1) elegia a cadeia ERRADA
+  //    como referência, porque v2 > v1 sem olhar qual delas é mais nova de
+  //    verdade. `created_at` é monotônico em QUALQUER proposta nova (cadeia
+  //    nova ou versão nova dentro da mesma), então basta ele.
+  //
+  // 2) Esta consulta não cruzava com `crm_leads` (a de cima já filtra
+  //    `status='open'` e funil não-arquivado) — negócio perdido/ganho ou de
+  //    funil arquivado com proposta vencida ficava no radar para sempre.
+  //    `leadsValidos` reusa o `rows` já buscado (zero query extra) — mesma
+  //    população que o resto deste radar enxerga, sem reabrir a questão de
+  //    escala do `SCAN_CAP` (é a mesma janela que os outros dois blocos já
+  //    aceitam).
+  const leadsValidos = new Set(rows.map((l) => l.id as string));
   // Ordenação refeita em JS de propósito (não só confiada ao ORDER BY do
   // fio): se alguém mexer nos `.order()` acima, a classificação continua
   // certa — o preço é um sort sobre um array pequeno.
   const ordenadas = [...(todasAsPropostas ?? [])].sort((a, b) => {
     const porLead = String(a.lead_id).localeCompare(String(b.lead_id));
     if (porLead !== 0) return porLead;
-    if ((b.versao as number) !== (a.versao as number)) return (b.versao as number) - (a.versao as number);
     return String(b.created_at).localeCompare(String(a.created_at));
   });
   const maisRecentePorLead = new Map<string, (typeof todasAsPropostas)[number]>();
   for (const p of ordenadas) {
     // Órfã (lead_id nulo, D10) cai aqui, não no fio — ver comentário acima.
     if (p.lead_id == null) continue;
-    // a primeira ocorrência de cada lead_id É a mais recente da cadeia.
+    if (!leadsValidos.has(p.lead_id as string)) continue;
+    // a primeira ocorrência de cada lead_id É a mais recente (created_at desc).
     if (!maisRecentePorLead.has(p.lead_id as string)) maisRecentePorLead.set(p.lead_id as string, p);
   }
   const propostas_vencidas_sem_retomada: PropostaVencidaSemRetomada[] = [...maisRecentePorLead.values()]

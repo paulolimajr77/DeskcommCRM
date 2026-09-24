@@ -36642,18 +36642,12 @@ create index if not exists crm_proposals_org_lead_idx
   on public.crm_proposals(organization_id, lead_id);
 create index if not exists crm_proposals_org_status_idx
   on public.crm_proposals(organization_id, status);
--- Só uma proposta pode ocupar um número por organização/ano — parcial porque
--- rascunho nunca tem numero/ano. `status <> 'substituida'` de propósito: é o
--- que permite a v2 herdar o MESMO numero/ano da v1 quando uma proposta
--- ENVIADA é revisada (spec §5.4) — a v1 continua existindo como linha
--- legível, marcada `substituida`, e sai da unicidade para abrir espaço para a
--- v2. Quem cria a v2 (Tarefa 14) marca a v1 como substituida ANTES de, ou na
--- mesma operação que, grava o numero em v2 — senão o índice ainda bloqueia
--- por uma fração de segundo. Responsabilidade de quem escrever a Tarefa 14.
-drop index if exists crm_proposals_numero_ano_org_uidx;
-create unique index if not exists crm_proposals_numero_ano_org_uidx
-  on public.crm_proposals(organization_id, ano, numero)
-  where numero is not null and status <> 'substituida';
+-- C4/0403: o índice `crm_proposals_numero_ano_org_uidx` (0394) foi substituído
+-- por `crm_proposals_numero_ano_versao_org_uidx` — a v1 `enviada` e a v2
+-- `rascunho` da mesma cadeia convivem com o mesmo numero/ano (unicidade agora
+-- inclui `versao`), então o índice antigo barraria a revisão. A criação dele
+-- saiu daqui (não construir o que o apêndice C4 derruba, logo abaixo); quem
+-- atualiza recebe o `drop` pela migration 0403, que também o derruba.
 
 create table if not exists public.crm_proposal_items (
   id uuid primary key default gen_random_uuid(),

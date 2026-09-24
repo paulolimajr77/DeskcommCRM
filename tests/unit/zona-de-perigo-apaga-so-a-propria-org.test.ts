@@ -51,6 +51,10 @@ let nomeNoBanco: string | null = NOME_DA_ORG;
 let tabelaQueFalha: string | null = null;
 /** Quantas linhas cada DELETE afirma ter apagado. */
 const linhasPorTabela: Record<string, number> = {};
+/** D10: arquivos "existentes" na pasta da organização no bucket `propostas`. */
+let arquivosNoBucket: Array<{ name: string }> = [];
+const removidosDoBucket: string[][] = [];
+let listagemDoBucketFalha = false;
 
 vi.mock("next/headers", () => ({
   headers: async () => new Map<string, string>([["x-request-id", "req-teste"]]),
@@ -113,6 +117,21 @@ function clienteFalso() {
       };
       return construtor;
     },
+    storage: {
+      from(bucket: string) {
+        if (bucket !== "propostas") throw new Error(`bucket inesperado: ${bucket}`);
+        return {
+          async list(_pasta: string) {
+            if (listagemDoBucketFalha) return { data: null, error: { message: "falhou" } };
+            return { data: arquivosNoBucket, error: null };
+          },
+          async remove(caminhos: string[]) {
+            removidosDoBucket.push(caminhos);
+            return { data: null, error: null };
+          },
+        };
+      },
+    },
   };
 }
 
@@ -127,6 +146,9 @@ beforeEach(() => {
   nomeNoBanco = NOME_DA_ORG;
   tabelaQueFalha = null;
   for (const k of Object.keys(linhasPorTabela)) delete linhasPorTabela[k];
+  arquivosNoBucket = [];
+  removidosDoBucket.length = 0;
+  listagemDoBucketFalha = false;
 });
 
 describe("zona de perigo: o apagamento não sai da própria organização", () => {
@@ -150,13 +172,14 @@ describe("zona de perigo: o apagamento não sai da própria organização", () =
     }
   });
 
-  it("apaga exatamente as seis raízes declaradas — nem tabela a mais, nem a menos", async () => {
+  it("apaga exatamente as sete raízes declaradas — nem tabela a mais, nem a menos", async () => {
     await apagarDadosOperacionaisDaOrganizacao({ confirmNome: NOME_DA_ORG });
     expect(delecoes.map((d) => d.tabela)).toEqual([
       "messages",
       "conversations",
       "calendar_appointments",
       "orders",
+      "crm_proposals",
       "crm_leads",
       "contacts",
     ]);
@@ -279,5 +302,36 @@ describe("zona de perigo: o apagamento deixa rastro", () => {
     const meta = auditadas[0]!.metadata as { counts: Record<string, number>; falhou_em?: string };
     expect(meta.counts.messages).toBe(7);
     expect(meta.falhou_em).toBe("crm_leads");
+  });
+});
+
+describe("zona de perigo: D10 — os PDFs de proposta somem junto (bucket `propostas`)", () => {
+  it("limpa a pasta da organização no bucket e audita a contagem", async () => {
+    arquivosNoBucket = [{ name: "p1.pdf" }, { name: "p2.pdf" }];
+    const r = await apagarDadosOperacionaisDaOrganizacao({ confirmNome: NOME_DA_ORG });
+
+    expect(r.ok).toBe(true);
+    expect(removidosDoBucket).toEqual([[`${ORG}/p1.pdf`, `${ORG}/p2.pdf`]]);
+    const meta = auditadas[0]!.metadata as { pdfs_removidos: number };
+    expect(meta.pdfs_removidos).toBe(2);
+  });
+
+  it("pasta vazia: nao chama remove, pdfs_removidos = 0", async () => {
+    arquivosNoBucket = [];
+    const r = await apagarDadosOperacionaisDaOrganizacao({ confirmNome: NOME_DA_ORG });
+
+    expect(r.ok).toBe(true);
+    expect(removidosDoBucket).toEqual([]);
+    const meta = auditadas[0]!.metadata as { pdfs_removidos: number };
+    expect(meta.pdfs_removidos).toBe(0);
+  });
+
+  it("listagem do bucket falha: o reset dos dados nao falha por causa disso", async () => {
+    arquivosNoBucket = [{ name: "p1.pdf" }];
+    listagemDoBucketFalha = true;
+    const r = await apagarDadosOperacionaisDaOrganizacao({ confirmNome: NOME_DA_ORG });
+
+    expect(r.ok).toBe(true);
+    expect(removidosDoBucket).toEqual([]);
   });
 });

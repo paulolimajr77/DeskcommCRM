@@ -22,6 +22,8 @@ interface MundoOpts {
   itensFalham?: boolean;
   /** O INSERT de crm_proposals colide com o índice único de rascunho (corrida, revisão C3, I4). */
   insercaoColide23505?: boolean;
+  /** Fuso lido de organizations.timezone (D8). Default: null (= cai no padrão). */
+  fusoDaOrganizacao?: string | null;
 }
 
 const RASCUNHO_ID = "99999999-9999-4999-8999-999999999999";
@@ -47,7 +49,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
   const supabase: any = {
     from: vi.fn(function (this: any, table: string) {
       if (table === "organizations") {
-        const resposta = { data: { settings }, error: null };
+        const resposta = { data: { settings, timezone: opts?.fusoDaOrganizacao ?? null }, error: null };
         return {
           select: vi.fn(function (this: any) {
             return this;
@@ -211,6 +213,30 @@ describe("crm_draft_proposal", () => {
     );
     expect((r as { error?: string }).error).toBeUndefined();
     expect((r as { proposal_id?: string }).proposal_id).toBeDefined();
+  });
+
+  it("valid_until omitido: calcula no FUSO DA ORGANIZAÇÃO, não em UTC (D8)", async () => {
+    // 2026-06-16T23:30:00Z: em UTC ainda é 16/06, mas em Europe/Lisbon
+    // (verão europeu, UTC+1) já é 17/06. Com default_valid_days=15, o fuso
+    // importa: UTC daria 2026-07-01, Lisboa dá 2026-07-02.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-06-16T23:30:00Z"));
+      const mundo = montarMundoDeFerramenta({ fusoDaOrganizacao: "Europe/Lisbon" });
+      const r = await crmDraftProposal.handler(
+        {
+          lead_id: mundo.leadId,
+          titulo: "x",
+          conversation_id: mundo.conversationId,
+          itens: [{ descricao: "Site", quantidade: 1, preco_unitario_cents: 500000 }],
+        },
+        mundo.ctx,
+      );
+      expect((r as { error?: string }).error).toBeUndefined();
+      expect(mundo.propostaCriada?.valid_until).toBe("2026-07-02");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lead_id de outra organização (ou inexistente): erro devolvido ao modelo, NUNCA exceção", async () => {

@@ -47,6 +47,8 @@ interface MundoOpts {
   itensFalham?: boolean;
   /** O INSERT de crm_proposals colide com o índice único de rascunho (corrida, revisão C3, I4). */
   insercaoColide23505?: boolean;
+  /** Fuso lido de organizations.timezone (D8). Default: null (= cai no padrão). */
+  fusoDaOrganizacao?: string | null;
 }
 
 function montarMundoDeProposta(opts: MundoOpts = {}) {
@@ -198,6 +200,11 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
                 },
                 error: null,
               }),
+              // D8 — `fusoDaOrganizacao` lê `timezone` com `maybeSingle`.
+              maybeSingle: async () => ({
+                data: { timezone: opts.fusoDaOrganizacao ?? null },
+                error: null,
+              }),
             }),
           }),
         };
@@ -244,6 +251,29 @@ describe("POST /api/v1/proposals", () => {
     expect(criada?.status).toBe("rascunho");
     expect(criada?.numero).toBeNull();
     expect(criada?.total_cents).toBe(800000);
+  });
+
+  it("valid_until omitido: calcula no FUSO DA ORGANIZAÇÃO, não em UTC (D8)", async () => {
+    // 2026-06-16T23:30:00Z: em UTC ainda é 16/06, mas em Europe/Lisbon
+    // (verão europeu, UTC+1) já é 17/06. Com default_valid_days=15, o fuso
+    // importa: UTC daria 2026-07-01, Lisboa dá 2026-07-02.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-06-16T23:30:00Z"));
+      const mundo = montarMundoDeProposta({ fusoDaOrganizacao: "Europe/Lisbon" });
+      const res = await mundo.POST({
+        lead_id: mundo.leadId,
+        titulo: "x",
+        itens: [
+          { product_id: null, descricao: "Site", quantidade: 1, preco_unitario_cents: 800000, desconto_cents: 0, position: 1000 },
+        ],
+      });
+      expect(res.status).toBe(201);
+      const criada = mundo.propostasCriadas.at(-1);
+      expect(criada?.valid_until).toBe("2026-07-02");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rejeita lead de OUTRA organização (422/404, nunca 500 silencioso)", async () => {

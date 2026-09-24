@@ -2,6 +2,7 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
+import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { Actor } from "@/lib/api/handlers/types";
@@ -119,8 +120,8 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
     if (!resolvido.ok) return { error: resolvido.motivo };
 
     const padroes = await buscarPadroesDaOrganizacao(ctx.supabase, ctx.organizationId);
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + padroes.defaultValidDays);
+    const fuso = await fusoDaOrganizacao(ctx.supabase, ctx.organizationId);
+    const validUntil = somarDiasNoFuso(new Date(), padroes.defaultValidDays, fuso);
 
     const agentId = ctx.actor.type === "ai_agent" ? (ctx.actor.agent_id ?? null) : null;
 
@@ -133,7 +134,7 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         conversation_id: input.conversation_id,
         titulo: input.titulo,
         condicoes: padroes.defaultConditions,
-        valid_until: validUntil.toISOString().slice(0, 10),
+        valid_until: validUntil,
         total_cents: resolvido.totalCents,
         pricing_status: resolvido.pricingStatus,
         status: "rascunho",

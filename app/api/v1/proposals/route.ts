@@ -17,6 +17,7 @@ import { resolverPadroesDaProposta } from "@/lib/propostas/padroes-da-organizaca
 import { propostaCreateSchema } from "@/lib/schemas/propostas";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
@@ -121,9 +122,8 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   let validUntil = input.valid_until;
   if (validUntil === undefined) {
-    const data = new Date();
-    data.setDate(data.getDate() + padroes.defaultValidDays);
-    validUntil = data.toISOString().slice(0, 10);
+    const fuso = await fusoDaOrganizacao(supabase, authz.org.orgId);
+    validUntil = somarDiasNoFuso(new Date(), padroes.defaultValidDays, fuso);
   }
   const condicoes = input.condicoes ?? padroes.defaultConditions;
 

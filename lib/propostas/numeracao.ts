@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { anoNoFuso, fusoDaOrganizacao } from "./data-no-fuso";
+
 /**
  * Aloca numero/ano chamando o contador atômico (`fn_proposta_aloca_numero`,
  * D9, migration 0401): a função nunca deriva de `max(numero)` sobre linhas
@@ -11,12 +13,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *
  * Não grava `status` — quem chama decide o status (D3: entra em `enviando`
  * antes de chamar, e o desfecho final vem do status real da mensagem).
+ *
+ * D8: o "ano" é o do FUSO DA ORGANIZAÇÃO, não UTC — uma proposta enviada às
+ * 22h30 de 31/12 em Brasília (01h30 UTC do dia seguinte) numera para o ano
+ * que ACABOU na parede da organização, não para o ano seguinte. `agora` é
+ * injetável para teste; em produção, quem chama omite e vale o relógio real.
  */
 export async function alocarNumero(
   admin: SupabaseClient,
-  input: { orgId: string; propostaId: string },
+  input: { orgId: string; propostaId: string; agora?: Date },
 ): Promise<{ numero: number; ano: number }> {
-  const ano = new Date().getFullYear();
+  const agora = input.agora ?? new Date();
+  const fuso = await fusoDaOrganizacao(admin, input.orgId);
+  const ano = anoNoFuso(agora, fuso);
 
   const { data: numero, error: numeroErr } = await admin.rpc("fn_proposta_aloca_numero", {
     p_org: input.orgId,

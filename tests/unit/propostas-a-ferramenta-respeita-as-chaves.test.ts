@@ -106,6 +106,7 @@ describe("o handler recusa sozinho (cliente MCP externo que chama direto)", () =
       {
         lead_id: "22222222-2222-4222-8222-222222222222",
         titulo: "X",
+        conversation_id: "33333333-3333-4333-8333-333333333333",
         itens: [{ descricao: "a", quantidade: 1, preco_unitario_cents: 100 }],
       },
       { ...ctx, supabase } as never,

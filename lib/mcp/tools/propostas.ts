@@ -1,12 +1,22 @@
 import { z } from "zod";
-import { calcularTotal } from "@/lib/propostas/total";
+import { audit } from "@/lib/audit";
+import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
-import type { McpToolDefinition } from "@/lib/mcp/types";
+import type { Actor } from "@/lib/api/handlers/types";
+import type { McpContext, McpToolDefinition } from "@/lib/mcp/types";
 
 const itemShape = {
+  product_id: z.string().uuid().nullable().optional(),
   descricao: z.string().min(1).max(500),
   quantidade: z.number().positive().default(1),
-  preco_unitario_cents: z.number().int().nonnegative(),
+  /**
+   * Opcional e nullable: sem product_id E sem preço, o item nasce "a
+   * definir" (§5.2). Com product_id, este valor é sempre ignorado — o preço
+   * vem do catálogo no servidor (D5).
+   */
+  preco_unitario_cents: z.number().int().nonnegative().nullable().optional(),
 };
 
 const draftProposalInputShape = {
@@ -14,6 +24,10 @@ const draftProposalInputShape = {
     .string()
     .uuid()
     .describe("O negócio (lead) desta conversa — vem do contexto do turno."),
+  conversation_id: z
+    .string()
+    .uuid()
+    .describe("A conversa deste turno — o envio da proposta vai usar exatamente esta conversa."),
   titulo: z
     .string()
     .min(1)
@@ -23,9 +37,17 @@ const draftProposalInputShape = {
     .array(z.object(itemShape))
     .min(1)
     .describe(
-      "Itens do que está sendo oferecido, cada um com descrição, quantidade e preço em centavos.",
+      "Itens do que está sendo oferecido. Use product_id quando o item vier do catálogo — o " +
+        "preço é resolvido pelo servidor e o que você mandar em preco_unitario_cents é ignorado. " +
+        "Sem product_id e sem preco_unitario_cents, o item nasce 'a definir'.",
     ),
 };
+
+/** Ator do ctx → o que a auditoria grava. Mesmo padrão de retencao.ts/escalacao.ts. */
+function actorAudit(actor: Actor): { actorUserId: string | null; metadataActor: Record<string, unknown> } {
+  if (actor.type === "user") return { actorUserId: actor.id, metadataActor: { actor_type: "user" } };
+  return { actorUserId: null, metadataActor: { actor_type: actor.type, actor_id: actor.id } };
+}
 
 export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape> = {
   name: "crm_draft_proposal",
@@ -35,11 +57,9 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
   description:
     "Rascunha uma proposta comercial para o negócio desta conversa. NUNCA envia — só cria o " +
     "rascunho para uma pessoa revisar e enviar depois. Use quando o cliente pedir orçamento ou " +
-    "proposta e você já souber o que oferecer.",
+    "proposta e você já souber o que oferecer. Um negócio só pode ter UM rascunho aberto por vez.",
   inputSchema: draftProposalInputShape,
-  handler: async (input, ctx) => {
-    // A lista já não oferece a ferramenta com a organização desligada; isto é
-    // para quem chama DIRETO (cliente MCP externo, versão antiga em cache).
+  handler: async (input, ctx: McpContext) => {
     if (!(await capacidadesDaOrganizacao(ctx.supabase, ctx.organizationId)).includes("propostas")) {
       return { error: "Propostas estão desligadas nesta organização." };
     }
@@ -52,13 +72,39 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
     if (leadErr) return { error: "Não foi possível verificar o negócio agora." };
     if (!lead) return { error: "Negócio não encontrado nesta organização." };
 
-    const itens = input.itens.map((it, i) => ({
-      ...it,
+    // §5.3 — um rascunho aberto por negócio. O índice único (migration 0402)
+    // é a trava de verdade sob corrida; esta pré-checagem só dá o retorno
+    // ensinável (o id do rascunho, para o modelo mandar retomar).
+    const { data: rascunhoExistente } = await ctx.supabase
+      .from("crm_proposals")
+      .select("id")
+      .eq("organization_id", ctx.organizationId)
+      .eq("lead_id", input.lead_id)
+      .eq("status", "rascunho")
+      .maybeSingle();
+    if (rascunhoExistente) {
+      return {
+        error: "Este negócio já tem um rascunho de proposta aberto — retome-o em vez de criar outro.",
+        motivo: "rascunho_aberto_existe",
+        rascunho_id: rascunhoExistente.id,
+      };
+    }
+
+    const itensNormalizados = input.itens.map((it, i) => ({
+      product_id: it.product_id ?? null,
+      descricao: it.descricao,
+      quantidade: it.quantidade,
+      preco_unitario_cents: it.preco_unitario_cents ?? null,
       desconto_cents: 0,
       position: (i + 1) * 1000,
-      product_id: null,
     }));
-    const totalCents = calcularTotal(itens);
+    const resolvido = await resolverItensDaProposta(ctx.supabase, ctx.organizationId, itensNormalizados);
+    if (!resolvido.ok) return { error: resolvido.motivo };
+
+    const padroes = await buscarPadroesDaOrganizacao(ctx.supabase, ctx.organizationId);
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + padroes.defaultValidDays);
+
     const agentId = ctx.actor.type === "ai_agent" ? (ctx.actor.agent_id ?? null) : null;
 
     const { data: proposta, error } = await ctx.supabase
@@ -67,20 +113,55 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         organization_id: ctx.organizationId,
         lead_id: lead.id,
         contact_id: lead.contact_id,
+        conversation_id: input.conversation_id,
         titulo: input.titulo,
-        total_cents: totalCents,
+        condicoes: padroes.defaultConditions,
+        valid_until: validUntil.toISOString().slice(0, 10),
+        total_cents: resolvido.totalCents,
+        pricing_status: resolvido.pricingStatus,
         status: "rascunho",
         drafted_by_agent_id: agentId,
       })
       .select("id")
       .single();
-    if (error || !proposta) return { error: "Não foi possível criar o rascunho agora." };
+    if (error) {
+      if ((error as { code?: string }).code === "23505") {
+        return { error: "Este negócio já tem um rascunho de proposta aberto.", motivo: "rascunho_aberto_existe" };
+      }
+      return { error: "Não foi possível criar o rascunho agora." };
+    }
+    if (!proposta) return { error: "Não foi possível criar o rascunho agora." };
 
     const { error: itensErr } = await ctx.supabase.from("crm_proposal_items").insert(
-      itens.map((it) => ({ organization_id: ctx.organizationId, proposal_id: proposta.id, ...it })),
+      resolvido.itens.map((it) => ({ organization_id: ctx.organizationId, proposal_id: proposta.id, ...it })),
     );
     if (itensErr) return { error: "Rascunho criado, mas falhou ao gravar os itens." };
 
-    return { proposal_id: proposta.id, total_cents: totalCents };
+    // D5 — a ferramenta hoje não emitia nada disso. Fire-and-forget: a
+    // timeline/auditoria nunca derruba a criação do rascunho.
+    await emitLeadActivity(ctx.supabase, {
+      organizationId: ctx.organizationId,
+      leadId: lead.id,
+      contactId: lead.contact_id,
+      type: "proposal_drafted",
+      sourceModule: "proposals",
+      sourceId: proposta.id,
+      actor: ctx.actor,
+      reason: `Rascunho de proposta criado pela IA: ${input.titulo}`,
+    });
+
+    const a = actorAudit(ctx.actor);
+    void audit({
+      action: "proposal.drafted",
+      actorUserId: a.actorUserId,
+      actorApiTokenId: ctx.apiTokenId,
+      organizationId: ctx.organizationId,
+      resourceType: "crm_proposals",
+      resourceId: proposta.id,
+      requestId: ctx.requestId,
+      metadata: { ...a.metadataActor, via: "mcp" },
+    });
+
+    return { proposal_id: proposta.id, total_cents: resolvido.totalCents, pricing_status: resolvido.pricingStatus };
   },
 };

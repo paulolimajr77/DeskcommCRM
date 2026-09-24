@@ -79,6 +79,15 @@ describe("editor de propostas", () => {
 
   it("recalcula o total ao editar preço unitário", async () => {
     const user = userEvent.setup();
+    // Item manual (sem product_id): preço editável. Item de catálogo tem o
+    // preço travado na tela (C3 §5.1 — o servidor resolve do catálogo e
+    // ignora o que a tela mandar).
+    mocks.get.mockResolvedValue({
+      data: {
+        ...mockProposalData,
+        itens: [{ ...mockProposalData.itens[0]!, product_id: null }],
+      },
+    });
     render(await ProposalPage({ params: Promise.resolve({ id: "proposta-a" }) }));
     const priceInputs = await screen.findAllByDisplayValue("50");
     await user.clear(priceInputs[0]!);
@@ -87,6 +96,12 @@ describe("editor de propostas", () => {
       const totalText = screen.getByText(/Total/).parentElement;
       expect(totalText?.textContent || "").toContain("1.000,00");
     });
+  });
+
+  it("trava o preço de item de catálogo na tela (o servidor resolve do catálogo)", async () => {
+    render(await ProposalPage({ params: Promise.resolve({ id: "proposta-a" }) }));
+    const priceInputs = await screen.findAllByDisplayValue("50");
+    expect(priceInputs[0]).toBeDisabled();
   });
 
   it("recalcula o total ao editar desconto", async () => {

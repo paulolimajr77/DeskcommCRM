@@ -16,7 +16,7 @@ interface ProposalItem {
   product_id: string | null;
   descricao: string;
   quantidade: number;
-  preco_unitario_cents: number;
+  preco_unitario_cents: number | null;
   desconto_cents: number;
   position: number;
 }
@@ -100,6 +100,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
   if (!proposta) return <div className="p-6">{t("Carregando…")}</div>;
 
   const total = proposta.itens.reduce((acc, it) => {
+    if (it.preco_unitario_cents === null) return acc;
     const subtotal = Math.round(it.quantidade * it.preco_unitario_cents);
     return acc + Math.max(0, subtotal - it.desconto_cents);
   }, 0);
@@ -123,7 +124,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
             product_id: null,
             descricao: "",
             quantidade: 1,
-            preco_unitario_cents: 0,
+            preco_unitario_cents: null,
             desconto_cents: 0,
             position: (p.itens.at(-1)?.position ?? 0) + 1000,
           },
@@ -268,7 +269,9 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           </thead>
           <tbody className="divide-y">
             {proposta.itens.map((it, idx) => {
-              const subtotal = Math.round(it.quantidade * it.preco_unitario_cents) - it.desconto_cents;
+              const subtotal = it.preco_unitario_cents === null
+                ? null
+                : Math.round(it.quantidade * it.preco_unitario_cents) - it.desconto_cents;
               return (
                 <tr key={it.id ?? idx}>
                   <td className="p-3">
@@ -295,11 +298,15 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                     <input
                       type="number"
                       className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
-                      value={it.preco_unitario_cents / 100}
-                      disabled={!editavel}
-                      onChange={(e) =>
-                        atualizarItem(idx, { preco_unitario_cents: Math.round(Number(e.target.value) * 100) || 0 })
-                      }
+                      value={it.preco_unitario_cents === null ? "" : it.preco_unitario_cents / 100}
+                      placeholder={t("A definir")}
+                      disabled={!editavel || it.product_id !== null}
+                      onChange={(e) => {
+                        const texto = e.target.value;
+                        atualizarItem(idx, {
+                          preco_unitario_cents: texto === "" ? null : Math.round(Number(texto) * 100) || 0,
+                        });
+                      }}
                       min="0"
                       step="0.01"
                     />
@@ -318,7 +325,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                     />
                   </td>
                   <td className="p-3 text-right font-medium tabular-nums">
-                    {formatCents(Math.max(0, subtotal), proposta.moeda)}
+                    {subtotal === null ? t("A definir") : formatCents(Math.max(0, subtotal), proposta.moeda)}
                   </td>
                 </tr>
               );

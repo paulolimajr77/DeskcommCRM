@@ -22,6 +22,8 @@ const OTHER_ORG_ID = "33333333-3333-4333-8333-333333333333";
 const PROPOSAL_ID = "44444444-4444-4444-8444-444444444444";
 const OTHER_PROPOSAL_ID = "55555555-5555-4555-8555-555555555555";
 const ITEM_ID = "66666666-6666-4666-8666-666666666666";
+const PRODUCT_ID = "77777777-7777-4777-8777-777777777777";
+const PRODUCT_INEXISTENTE = "88888888-8888-4888-8888-888888888888";
 const item = {
   product_id: null,
   descricao: "Site",
@@ -44,6 +46,8 @@ interface MundoOpts {
   outraOrg?: boolean;
   ausente?: boolean;
   falha?: "proposta.select" | "proposta.update" | "itens.select" | "itens.delete" | "itens.insert";
+  /** Preço que o mock de catalog_products devolve; null = produto não resolve. */
+  precoDoCatalogo?: number | null;
 }
 
 function montarMundoDeEdicao(opts: MundoOpts = {}) {
@@ -68,6 +72,25 @@ function montarMundoDeEdicao(opts: MundoOpts = {}) {
   const inseridos: Linha[] = [];
   mocks.createClient.mockResolvedValue({
     from(tabela: string) {
+      // Preço do catálogo (C3): select→eq→eq→eq→maybeSingle. Não entra na
+      // lista de `consultas` — é leitura auxiliar, não escrita da edição.
+      if (tabela === "catalog_products") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => (
+                    opts.precoDoCatalogo === undefined || opts.precoDoCatalogo === null
+                      ? { data: null, error: null }
+                      : { data: { preco_cents: opts.precoDoCatalogo }, error: null }
+                  ),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
       const consulta: Consulta = { tabela, operacao: "select", filtros: new Map() };
       consultas.push(consulta);
       let atualizacao: Linha = {};
@@ -153,6 +176,43 @@ describe("PATCH /api/v1/proposals/[id]", () => {
     expect(mundo.itens.filter((linha) => linha.proposal_id === PROPOSAL_ID)).toEqual([{ ...item, proposal_id: PROPOSAL_ID, organization_id: ORG_ID }]);
     expect(mocks.requireRole).toHaveBeenCalledWith("agent", expect.objectContaining({ resource: "crm_proposals" }));
     expect(mocks.audit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ action: "proposal.edited", organizationId: ORG_ID, actorUserId: USER_ID, resourceId: PROPOSAL_ID, requestId: res.headers.get("X-Request-Id") }));
+  });
+
+  it("edita itens com product_id: preço é RECALCULADO do catálogo na hora, não reaproveita o preço antigo (Review Focus 4)", async () => {
+    // mock catalog_products.preco_cents = 4000 no momento da PATCH (diferente
+    // do que a proposta tinha gravado antes).
+    const mundo = montarMundoDeEdicao({ precoDoCatalogo: 4000 });
+    const res = await mundo.PATCH({
+      revision: 1,
+      itens: [{ product_id: PRODUCT_ID, descricao: "x", quantidade: 1, preco_unitario_cents: 111, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.inseridos).toEqual(
+      expect.arrayContaining([expect.objectContaining({ preco_unitario_cents: 4000 })]),
+    );
+  });
+
+  it("edita para um product_id que não existe na organização: 422, itens antigos NÃO são apagados", async () => {
+    const mundo = montarMundoDeEdicao({ precoDoCatalogo: null });
+    const antes = [...mundo.itens];
+    const res = await mundo.PATCH({
+      revision: 1,
+      itens: [{ product_id: PRODUCT_INEXISTENTE, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(422);
+    expect(mundo.itens).toEqual(antes);
+    expect(mundo.propostaAtualizada).toBeNull();
+    expect(mundo.consultas.some((q) => q.tabela === "crm_proposal_items" && q.operacao === "delete")).toBe(false);
+  });
+
+  it("edita item para sem preço (null): pricing_status vira missing e é PERSISTIDO", async () => {
+    const mundo = montarMundoDeEdicao();
+    const res = await mundo.PATCH({
+      revision: 1,
+      itens: [{ product_id: null, descricao: "x", quantidade: 1, preco_unitario_cents: null, desconto_cents: 0, position: 1000 }],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada).toMatchObject({ pricing_status: "missing" });
   });
 
   it("revision desatualizada retorna 409 e não altera proposta nem itens", async () => {

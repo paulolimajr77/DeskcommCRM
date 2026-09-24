@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import { calcularTotal } from "@/lib/propostas/total";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { propostaItemSchema } from "@/lib/schemas/propostas";
 import { createClient } from "@/lib/supabase/server";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
@@ -79,15 +79,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     return fail("validation_failed", t("Campos inválidos."), 422, { requestId, details: parsed.error.flatten() });
   }
   const input = parsed.data;
-  const totalCents = calcularTotal(input.itens);
   const supabase = await createClient();
+  const resolvido = await resolverItensDaProposta(supabase, authz.org.orgId, input.itens);
+  if (!resolvido.ok) {
+    return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
+  }
   const { data: proposta, error } = await supabase
     .from("crm_proposals")
     .update({
       ...(input.titulo !== undefined ? { titulo: input.titulo } : {}),
       ...(input.condicoes !== undefined ? { condicoes: input.condicoes } : {}),
       ...(input.valid_until !== undefined ? { valid_until: input.valid_until } : {}),
-      total_cents: totalCents,
+      total_cents: resolvido.totalCents,
+      pricing_status: resolvido.pricingStatus,
       revision: input.revision + 1,
     })
     .eq("organization_id", authz.org.orgId)
@@ -116,7 +120,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   if (input.itens.length > 0) {
     const { error: insertError } = await supabase.from("crm_proposal_items").insert(
-      input.itens.map((it) => ({
+      resolvido.itens.map((it) => ({
         organization_id: authz.org.orgId,
         proposal_id: id,
         product_id: it.product_id,
@@ -139,5 +143,5 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     requestId,
   });
 
-  return ok({ id, revision: proposta.revision, total_cents: totalCents }, { requestId });
+  return ok({ id, revision: proposta.revision, total_cents: resolvido.totalCents }, { requestId });
 }

@@ -671,6 +671,9 @@ export const AUDIT_ACTIONS = [
   // Ultimos dois sinais do laco de retorno (Tarefa 18) — cron em lote.
   "proposal.promise_not_created_batch",
   "proposal.acceptance_rate_batch",
+  // Cron proposta-travada (D3, onda C2): proposta presa em `enviando` voltou
+  // a rascunho sozinha — mesmo padrão de "message.recover_stuck_run".
+  "proposal.recovered_from_stuck",
 
   "organization.switched",
   // Chamada originada via /api/v1/calls (módulo VoIP, migration 0347).

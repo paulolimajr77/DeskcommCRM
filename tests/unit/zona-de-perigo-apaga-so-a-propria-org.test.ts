@@ -121,12 +121,26 @@ function clienteFalso() {
       from(bucket: string) {
         if (bucket !== "propostas") throw new Error(`bucket inesperado: ${bucket}`);
         return {
-          async list(_pasta: string) {
+          // O `storage-js` real pagina em 100 por padrão — o dublê reproduz
+          // isso via `options.offset`/`options.limit`, senão o teste de I7
+          // (mais de 100 arquivos) passaria mesmo sem paginação no código.
+          async list(pasta: string, options?: { limit?: number; offset?: number }) {
             if (listagemDoBucketFalha) return { data: null, error: { message: "falhou" } };
-            return { data: arquivosNoBucket, error: null };
+            // A pasta pedida TEM de ser a da própria organização — um teste
+            // chamado "apaga só a própria org" que não confere isso deixaria
+            // passar `list("")` (a raiz, de todas as organizações) sem acusar.
+            if (pasta !== ORG) return { data: [], error: null };
+            const limit = options?.limit ?? 100;
+            const offset = options?.offset ?? 0;
+            return { data: arquivosNoBucket.slice(offset, offset + limit), error: null };
           },
           async remove(caminhos: string[]) {
             removidosDoBucket.push(caminhos);
+            // Simula a remoção de verdade: a listagem seguinte não pode
+            // devolver o mesmo arquivo de novo (senão o laço de paginação do
+            // código real vira loop infinito contra este dublê).
+            const nomes = new Set(caminhos.map((c) => c.split("/").pop()));
+            arquivosNoBucket = arquivosNoBucket.filter((a) => !nomes.has(a.name));
             return { data: null, error: null };
           },
         };
@@ -314,6 +328,17 @@ describe("zona de perigo: D10 — os PDFs de proposta somem junto (bucket `propo
     expect(removidosDoBucket).toEqual([[`${ORG}/p1.pdf`, `${ORG}/p2.pdf`]]);
     const meta = auditadas[0]!.metadata as { pdfs_removidos: number };
     expect(meta.pdfs_removidos).toBe(2);
+  });
+
+  it("mais de 100 arquivos: pagina a listagem e remove TODOS (I7)", async () => {
+    arquivosNoBucket = Array.from({ length: 137 }, (_, i) => ({ name: `p${i}.pdf` }));
+    const r = await apagarDadosOperacionaisDaOrganizacao({ confirmNome: NOME_DA_ORG });
+
+    expect(r.ok).toBe(true);
+    const totalRemovido = removidosDoBucket.flat().length;
+    expect(totalRemovido).toBe(137);
+    const meta = auditadas[0]!.metadata as { pdfs_removidos: number };
+    expect(meta.pdfs_removidos).toBe(137);
   });
 
   it("pasta vazia: nao chama remove, pdfs_removidos = 0", async () => {

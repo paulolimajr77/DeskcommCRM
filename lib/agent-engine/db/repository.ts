@@ -86,6 +86,9 @@ export type InboxKind =
   // `active` na tela, morto no motor. Quem abre e quem FECHA é o mesmo cron
   // (`followup-sem-agente`): o aviso some sozinho quando o vínculo aparece.
   | 'followup_sem_agente'
+  // (migration 0401, D3) Proposta presa em `enviando` há mais de 5min — o
+  // cron `proposta-travada` a devolveu a rascunho sozinho, sem reenviar nada.
+  | 'proposta_travada'
   | 'other';
 
 export interface InboxItemRow {

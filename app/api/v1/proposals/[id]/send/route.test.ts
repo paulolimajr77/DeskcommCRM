@@ -188,13 +188,24 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
             };
             return cadeia;
           },
-          delete: () => ({
-            eq: async (c: string, v: string) => {
-              propostaDeletadaId = v;
-              delete propostasNoMock[v];
-              return { error: null };
-            },
-          }),
+          delete: () => {
+            let alvoId: string | null = null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cadeia: any = {
+              eq(campo: string, valor: unknown) {
+                if (campo === "id") alvoId = valor as string;
+                return cadeia;
+              },
+              then(resolve: (r: { error: null }) => void) {
+                if (alvoId) {
+                  propostaDeletadaId = alvoId;
+                  delete propostasNoMock[alvoId];
+                }
+                resolve({ error: null });
+              },
+            };
+            return cadeia;
+          },
         };
       }
       if (tabela === "crm_proposal_items") {
@@ -369,6 +380,26 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.leadValueCentsDepois).toBeNull();
   });
 
+  it("erro ao gerar o PDF (excecao, nao desfecho de mensagem): volta a rascunho na hora, sem esperar o cron", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    mocks.renderPropostaPdf.mockRejectedValueOnce(new Error("falha ao renderizar"));
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("rascunho");
+    expect(mundo.propostaEnviada?.ultima_falha_envio).toBe("falha ao renderizar");
+    expect(mundo.propostaEnviada?.numero).toBe(42);
+    expect(mundo.mensagemEnviada).toBe(false);
+  });
+
+  it("sendMessageHandler lanca (nao devolve desfecho): volta a rascunho, nao fica presa em enviando", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    mocks.sendMessageHandler.mockRejectedValueOnce(new Error("boundary stale"));
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("rascunho");
+    expect(mundo.propostaEnviada?.ultima_falha_envio).toBe("boundary stale");
+  });
+
   it("WhatsApp enfileira (sem credencial): a proposta continua enviando", async () => {
     const mundo = montarMundoDeEnvio({
       papel: "manager",
@@ -389,6 +420,20 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.numero).toBe(42);
     expect(mundo.propostaEnviada?.versao).toBe(2);
+  });
+
+  it("reenvio de um rascunho que ja tem numero (falha anterior): reusa o numero, NAO chama o contador de novo", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      // Simula o estado deixado por uma falha anterior: voltou a rascunho
+      // RETENDO numero/ano (D3) — reenviar não pode gastar outro número.
+      propostaOriginal: { status: "rascunho", numero: 42, ano: 2026, ultima_falha_envio: "canal desconectado" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.numeroFoiAlocado).toBe(false);
+    expect(mundo.propostaEnviada?.numero).toBe(42);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
   });
 
   it("v2 cujo envio falha: mantem o numero herdado, nao libera para outra proposta", async () => {

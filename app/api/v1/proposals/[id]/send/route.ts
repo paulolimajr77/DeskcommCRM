@@ -122,11 +122,11 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     if (itensErr) {
       // A v2 nasceu mas sem itens — descarta-a; a v1 continua `enviada`, nunca
       // vira "substituida" apontando para uma v2 vazia (D3, ponto 5).
-      await admin.from("crm_proposals").delete().eq("id", nova.id);
+      await admin.from("crm_proposals").delete().eq("organization_id", authz.org.orgId).eq("id", nova.id);
       return fail("internal_error", t("Falha ao copiar os itens da nova versão."), 500, { requestId });
     }
     // só marca a v1 substituida DEPOIS de confirmar que a v2 tem itens.
-    await admin.from("crm_proposals").update({ status: "substituida" }).eq("id", decisao.substituiId);
+    await admin.from("crm_proposals").update({ status: "substituida" }).eq("organization_id", authz.org.orgId).eq("id", decisao.substituiId);
     propostaAlvo = nova;
   }
 
@@ -138,6 +138,15 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     await admin.from("crm_proposals")
       .update({ numero: numeroEAno.numero, ano: numeroEAno.ano, status: "enviando", ultima_falha_envio: null })
       .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
+  } else if (propostaAlvo.numero != null && propostaAlvo.ano != null) {
+    // Reenvio depois de uma falha anterior (D3): o número já foi reservado e
+    // RETIDO na volta a rascunho — chamar o contador de novo gastaria outro
+    // número a cada tentativa e o UPDATE de alocarNumero (que exige
+    // `numero is null`) nunca casaria, sempre lançando.
+    numeroEAno = { numero: propostaAlvo.numero, ano: propostaAlvo.ano };
+    await admin.from("crm_proposals")
+      .update({ status: "enviando", ultima_falha_envio: null })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
   } else {
     numeroEAno = await alocarNumero(admin, { orgId: authz.org.orgId, propostaId: propostaAlvo.id });
     await admin.from("crm_proposals")
@@ -146,26 +155,49 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   }
 
   const destinatarioNome = rotuloDoContato(contato, t);
-  const pdfBuffer = await renderPropostaPdf({
-    titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
-    versao: decisao.tipo === "nova_versao" ? decisao.novaVersao : propostaAlvo.versao,
-    condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,
-    itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
-    totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
-    marca: { app_name: marca.nome, accent_hex: marca.accent, logo_path: marca.logoUrl },
-    destinatario: { nome: destinatarioNome, email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
-  });
-  const { path: pdfPath, signedUrl } = await salvarPdfDaProposta(admin, {
-    orgId: authz.org.orgId, propostaId: propostaAlvo.id, buffer: pdfBuffer,
-  });
 
-  await espacarEnvio(conversa.channel_session_id);
+  // ─── PDF, upload e envio: qualquer EXCEÇÃO aqui (não só um desfecho de
+  // mensagem) também é "falha em qualquer passo" (D3, ponto 3) — sem este
+  // try/catch a proposta ficava presa em `enviando` até o cron
+  // `proposta-travada` agir, 5 minutos depois, por um erro que já era
+  // conhecido no mesmo request. ───
+  let pdfPath: string;
+  let signedUrl: string;
+  let mensagem: Awaited<ReturnType<typeof sendMessageHandler>>;
+  try {
+    const pdfBuffer = await renderPropostaPdf({
+      titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
+      versao: decisao.tipo === "nova_versao" ? decisao.novaVersao : propostaAlvo.versao,
+      condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,
+      itens: itens.map((it) => ({ descricao: it.descricao, quantidade: it.quantidade, precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents })),
+      totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
+      marca: { app_name: marca.nome, accent_hex: marca.accent, logo_path: marca.logoUrl },
+      destinatario: { nome: destinatarioNome, email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
+    });
+    const salvo = await salvarPdfDaProposta(admin, {
+      orgId: authz.org.orgId, propostaId: propostaAlvo.id, buffer: pdfBuffer,
+    });
+    pdfPath = salvo.path;
+    signedUrl = salvo.signedUrl;
 
-  const mensagem = await sendMessageHandler(
-    admin,
-    { organization_id: authz.org.orgId, actor: { type: "user", id: authz.user.id }, requestId, idioma: authz.user.idioma },
-    { conversation_id: conversa.id, type: "document", media_url: signedUrl, media_mime: "application/pdf" },
-  );
+    await espacarEnvio(conversa.channel_session_id);
+
+    mensagem = await sendMessageHandler(
+      admin,
+      { organization_id: authz.org.orgId, actor: { type: "user", id: authz.user.id }, requestId, idioma: authz.user.idioma },
+      { conversation_id: conversa.id, type: "document", media_url: signedUrl, media_mime: "application/pdf" },
+    );
+  } catch (erro) {
+    const { data: revertida } = await admin
+      .from("crm_proposals")
+      .update({
+        status: "rascunho",
+        ultima_falha_envio: erro instanceof Error ? erro.message : "Falha desconhecida ao enviar.",
+      })
+      .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
+      .select("*").single();
+    return ok(revertida, { requestId });
+  }
 
   // ─── Desfecho decidido pelo status DEVOLVIDO pela mensagem, nunca pela
   // ausência de exceção (D3 — "pior do que parece") ───

@@ -128,13 +128,28 @@ export async function apagarDadosOperacionaisDaOrg(
   // com as linhas de `crm_proposals` apagadas acima. O contador de numeração
   // (D9, `crm_proposal_counters`) NÃO é tocado por este reset — a organização
   // pode zerar o atendimento e continuar numerando propostas de onde parou.
+  // `storage.list()` pagina em 100 por padrão (storage-js) — sem o laço,
+  // qualquer organização com mais de 100 propostas ficava com PDFs órfãos
+  // no bucket depois do reset, o mesmo defeito que este bloco existe para
+  // consertar. Sempre lista do zero: cada `remove()` já tira do bucket os
+  // arquivos que acabaram de ser listados, então a próxima chamada devolve o
+  // lote seguinte na mesma posição — não precisa (nem pode confiar em)
+  // offset, que uma listagem que muda debaixo do pé tornaria instável.
   let pdfsRemovidos = 0;
-  const { data: arquivos, error: listErr } = await client.storage.from("propostas").list(organizationId);
-  if (!listErr && arquivos && arquivos.length > 0) {
+  const LOTE = 100;
+  for (;;) {
+    const { data: arquivos, error: listErr } = await client.storage
+      .from("propostas")
+      .list(organizationId, { limit: LOTE });
+    if (listErr || !arquivos || arquivos.length === 0) break;
+
     const { error: removeErr } = await client.storage
       .from("propostas")
       .remove(arquivos.map((a) => `${organizationId}/${a.name}`));
-    if (!removeErr) pdfsRemovidos = arquivos.length;
+    if (removeErr) break;
+    pdfsRemovidos += arquivos.length;
+
+    if (arquivos.length < LOTE) break;
   }
 
   return { ok: true, counts, pdfsRemovidos };

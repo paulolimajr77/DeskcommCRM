@@ -92,6 +92,7 @@ export const KIND_LABEL = {
   // devia estar recebendo mensagem e não recebe, e é isso que faz alguém abrir
   // o aviso. O passo que conserta fica no corpo.
   followup_sem_agente: "Um follow-up está publicado e não está disparando",
+  proposta_travada: "Uma proposta ficou presa em envio e voltou a rascunho",
   other: "Aviso do assistente",
 } as const satisfies Record<InboxKind, string>;
 

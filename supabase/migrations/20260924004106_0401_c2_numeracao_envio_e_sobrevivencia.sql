@@ -32,15 +32,22 @@ group by organization_id, ano
 on conflict (organization_id, ano) do update
   set ultimo_numero = greatest(public.crm_proposal_counters.ultimo_numero, excluded.ultimo_numero);
 
+-- `organization_id` de api_audit_log aceita nulo (ON DELETE SET NULL) e é
+-- exatamente essa a linha que sobrevive à organização apagada — mas
+-- `crm_proposal_counters.organization_id` é NOT NULL, então sem os dois
+-- filtros abaixo esta migration falha (e o update.sh trava) na primeira
+-- instalação que já teve uma organização removida.
 insert into public.crm_proposal_counters (organization_id, ano, ultimo_numero)
-select organization_id,
-       (metadata->>'ano')::int as ano,
-       max((metadata->>'numero')::int) as ultimo_numero
-from public.api_audit_log
-where action = 'proposal.sent'
-  and metadata->>'numero' is not null
-  and metadata->>'ano' is not null
-group by organization_id, (metadata->>'ano')::int
+select a.organization_id,
+       (a.metadata->>'ano')::int as ano,
+       max((a.metadata->>'numero')::int) as ultimo_numero
+from public.api_audit_log a
+where a.action = 'proposal.sent'
+  and a.organization_id is not null
+  and exists (select 1 from public.organizations o where o.id = a.organization_id)
+  and a.metadata->>'numero' is not null
+  and a.metadata->>'ano' is not null
+group by a.organization_id, (a.metadata->>'ano')::int
 on conflict (organization_id, ano) do update
   set ultimo_numero = greatest(public.crm_proposal_counters.ultimo_numero, excluded.ultimo_numero);
 
@@ -118,7 +125,7 @@ returns trigger language plpgsql security definer set search_path = public, pg_t
 begin
   update public.crm_proposals
     set status = 'cancelada'
-    where lead_id = old.id and status = 'rascunho';
+    where lead_id = old.id and organization_id = old.organization_id and status = 'rascunho';
   return old;
 end;
 $$;

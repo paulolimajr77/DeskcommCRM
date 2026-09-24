@@ -11657,6 +11657,14 @@ export const DICIONARIO: Traducoes = {
   "Ex.: Pagamento em até 3x sem juros no cartão ou 5% de desconto à vista via Pix.": {"es": "Ej.: Pago en hasta 3x sin intereses con tarjeta o 5% de descuento al contado vía Pix."},
   "Criando proposta…": {"es": "Creando propuesta…"},
   "Criar e abrir editor": {"es": "Crear y abrir el editor"},
+  "O último envio falhou": {"es": "El último envío falló"},
+  "Na fila do WhatsApp — sai assim que o canal conectar.": {"es": "En la cola de WhatsApp — sale en cuanto el canal se conecte."},
+  "Enviando": {"es": "Enviando"},
+  "Propostas já enviadas continuam disponíveis em Propostas.": {"es": "Las propuestas ya enviadas siguen disponibles en Propuestas."},
+  "O negócio some; a proposta": {"es": "El negocio desaparece; la propuesta"},
+  "continua em Propostas": {"es": "sigue disponible en Propuestas"},
+  "Confira a proposta antes de decidir se precisa enviar novamente.": {"es": "Revise la propuesta antes de decidir si necesita enviarla de nuevo."},
+  "Uma proposta ficou presa em envio e voltou a rascunho": {"es": "Una propuesta quedó atascada en el envío y volvió a borrador"},
 };
 
 /**

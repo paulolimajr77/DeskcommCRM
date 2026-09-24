@@ -30,6 +30,7 @@ const SCAN_LIMIT = 500;
 interface PropostaTravada {
   id: string;
   organization_id: string;
+  message_id: string | null;
 }
 
 export interface RecuperarResult {
@@ -47,7 +48,7 @@ export async function recuperarPropostasTravadas(
 
   const { data, error } = await admin
     .from("crm_proposals")
-    .select("id, organization_id")
+    .select("id, organization_id, message_id")
     .eq("status", "enviando")
     .lt("updated_at", cutoff)
     .limit(SCAN_LIMIT);
@@ -56,8 +57,23 @@ export async function recuperarPropostasTravadas(
   const travadas = (data ?? []) as PropostaTravada[];
   if (travadas.length === 0) return { scanned: 0, revertidas: 0, organizations: 0 };
 
+  // `queued` (canal sem credencial; o agent-engine reagenda por
+  // SEND_QUEUED_RETRY_MS) NÃO é presa de verdade — a mensagem ainda vai sair
+  // sozinha. Reverter aqui derrubaria um envio que só está demorando, e o
+  // próximo clique em "Enviar" mandaria a mesma proposta duas vezes (I1).
+  // Sem `message_id`: o processo morreu antes de sequer tentar — essa É a
+  // presa de verdade, revertida sem checar mensagem nenhuma.
+  const idsDeMensagem = travadas.map((p) => p.message_id).filter((id): id is string => id !== null);
+  const statusPorMensagem = new Map<string, string>();
+  if (idsDeMensagem.length > 0) {
+    const { data: mensagens, error: msgErr } = await admin.from("messages").select("id, status").in("id", idsDeMensagem);
+    if (msgErr) throw new Error(`query_messages_failed: ${msgErr.message}`);
+    for (const m of (mensagens ?? []) as Array<{ id: string; status: string }>) statusPorMensagem.set(m.id, m.status);
+  }
+  const elegiveis = travadas.filter((p) => statusPorMensagem.get(p.message_id ?? "") !== "queued");
+
   const porOrg = new Map<string, PropostaTravada[]>();
-  for (const p of travadas) porOrg.set(p.organization_id, [...(porOrg.get(p.organization_id) ?? []), p]);
+  for (const p of elegiveis) porOrg.set(p.organization_id, [...(porOrg.get(p.organization_id) ?? []), p]);
 
   let revertidas = 0;
   let organizacoesComAviso = 0;
@@ -94,7 +110,10 @@ export async function recuperarPropostasTravadas(
       body:
         `Ficaram mais de ${STUCK_AFTER_MS / 60000} minutos em envio e voltaram a rascunho, com o número mantido. ` +
         `Verifique a conexão do WhatsApp e reenvie manualmente — nada foi reenviado sozinho.`,
-      ref_kind: "crm_proposal",
+      // "proposal" é a chave de `REFERENCIAS_DE_AVISO` (lib/ai/inbox-destino.ts)
+      // — não o nome da tabela. Errar aqui faz o botão "Abrir proposta" nunca
+      // aparecer (falha fechada, sem erro visível).
+      ref_kind: "proposal",
       ref_id: props[0]?.id ?? null,
     });
     if (inboxErr) {

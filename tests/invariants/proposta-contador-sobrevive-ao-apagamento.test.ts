@@ -68,4 +68,34 @@ describe("o contador de propostas não recua quando a linha é apagada", () => {
     const proximo = sql(`select public.fn_proposta_aloca_numero('${org2}', 2026);`);
     expect(proximo).toBe("4");
   });
+
+  it("semente do backfill não quebra com auditoria de organização já apagada (I4)", () => {
+    const org3 = "cccccccc-9999-4000-8000-000000000406";
+    sql(`
+      insert into public.organizations (id, slug, legal_name, display_name)
+        values ('${org3}', 'gov-inv-0406', 'Gov 0406', 'Gov 0406') on conflict do nothing;
+      insert into public.api_audit_log (organization_id, action, metadata)
+        values ('${org3}', 'proposal.sent', '{"numero": 9, "ano": 2026}'::jsonb);
+      delete from public.organizations where id = '${org3}';
+    `);
+    const orgNaLinha = sql(`select organization_id is null from public.api_audit_log where action = 'proposal.sent' and metadata->>'numero' = '9';`);
+    expect(orgNaLinha).toBe("t"); // controle: a linha de auditoria sobreviveu, órfã.
+
+    // Reaplica o backfill CORRIGIDO (mesma consulta do apêndice) — não pode lançar.
+    expect(() =>
+      sql(`
+        insert into public.crm_proposal_counters (organization_id, ano, ultimo_numero)
+        select a.organization_id, (a.metadata->>'ano')::int as ano, max((a.metadata->>'numero')::int) as ultimo_numero
+        from public.api_audit_log a
+        where a.action = 'proposal.sent'
+          and a.organization_id is not null
+          and exists (select 1 from public.organizations o where o.id = a.organization_id)
+          and a.metadata->>'numero' is not null
+          and a.metadata->>'ano' is not null
+        group by a.organization_id, (a.metadata->>'ano')::int
+        on conflict (organization_id, ano) do update
+          set ultimo_numero = greatest(public.crm_proposal_counters.ultimo_numero, excluded.ultimo_numero);
+      `),
+    ).not.toThrow();
+  });
 });

@@ -301,7 +301,24 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // gravados numa linha que juridicamente não conta mais como aceita/
   // recusada). Com o filtro, a v1 só vira `substituida` se AINDA estiver
   // `enviada` — decidida, o UPDATE não afeta linha nenhuma, sem erro.
+  // Achado Importante da revisão final da C5: o retorno automático da v1
+  // (`v1.retorno_id`) sobrevivia à troca em silêncio — `agendaRetornoNoCrm`
+  // recusa por `ja_existe_retorno` (o negócio já tem retorno aberto, que É o
+  // da v1) e a v2 seguia sem `retorno_id`; o decide só cancela o retorno da
+  // proposta que ele está decidindo, então R1 nunca era cancelado e disparava
+  // depois do cliente já ter aceitado/recusado a v2. Guardamos aqui o
+  // `retorno_id` da v1 para herdá-lo na v2 quando o agendamento novo colidir
+  // com ele (ver bloco N2 abaixo).
+  let retornoHerdadoDaV1: string | null = null;
   if (propostaAlvo.substitui_id) {
+    const { data: v1AntesDaTroca } = await admin
+      .from("crm_proposals")
+      .select("retorno_id")
+      .eq("organization_id", authz.org.orgId)
+      .eq("id", propostaAlvo.substitui_id)
+      .maybeSingle();
+    retornoHerdadoDaV1 = (v1AntesDaTroca as { retorno_id: string | null } | null)?.retorno_id ?? null;
+
     await admin
       .from("crm_proposals")
       .update({ status: "substituida" })
@@ -343,6 +360,11 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
         );
         if (resultado.ok) {
           await admin.from("crm_proposals").update({ retorno_id: resultado.retorno.id }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
+        } else if (resultado.codigo === "ja_existe_retorno" && retornoHerdadoDaV1) {
+          // O retorno que já existe é o da v1 que acabamos de substituir: a
+          // v2 herda o ponteiro, para o decide poder cancelá-lo quando o
+          // cliente decidir sobre ELA (sem herança, R1 dispararia depois).
+          await admin.from("crm_proposals").update({ retorno_id: retornoHerdadoDaV1 }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id);
         } else if (resultado.codigo !== "ja_existe_retorno") {
           // `ja_existe_retorno`: o negócio já tem retorno (serve, e ele tem
           // atividade própria) — nada a registrar. Qualquer OUTRA recusa é um

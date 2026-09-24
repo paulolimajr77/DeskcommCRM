@@ -74,6 +74,8 @@ interface MundoOpts {
   itemDeCatalogo?: boolean;
   /** Status da proposta v1 (alvo de `substitui_id`) ANTES do envio da v2. */
   statusDaV1?: string;
+  /** `retorno_id` já gravado na v1 (achado da revisão final da C5). */
+  retornoIdDaV1?: string;
   /** `imagem_url` gravado no produto de catálogo — default `https://cdn/produto.png`. */
   imagemUrlDoCatalogo?: string;
   /** Dias do knob de follow-up automático (N2). Default: 3. */
@@ -137,7 +139,13 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   // troca a v1 quando ela AINDA está 'enviada' (achado Crítico da revisão C4).
   const v1Id = (opts.propostaOriginal as { substitui_id?: string } | undefined)?.substitui_id;
   if (v1Id) {
-    propostasNoMock[v1Id] = { ...proposta, id: v1Id, status: opts.statusDaV1 ?? "enviada", substitui_id: undefined };
+    propostasNoMock[v1Id] = {
+      ...proposta,
+      id: v1Id,
+      status: opts.statusDaV1 ?? "enviada",
+      substitui_id: undefined,
+      retorno_id: opts.retornoIdDaV1 ?? null,
+    };
   }
 
   const lead = { id: LEAD_ID, contact_id: CONTACT_ID, value_cents: 100000 };
@@ -181,7 +189,10 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           select: () => ({
             eq: (c: string, v: unknown) => ({
               eq: (c2: string, v2: unknown) => ({
-                maybeSingle: async () => (v === ORG_ID && v2 === PROPOSTA_ID ? { data: proposta, error: null } : { data: null, error: null }),
+                // Generalizado (achado da revisão C5): resolve qualquer id do
+                // mundo, não só PROPOSTA_ID — o fix do retorno herdado lê a
+                // v1 por `substitui_id` antes de marcá-la `substituida`.
+                maybeSingle: async () => (v === ORG_ID && propostasNoMock[v2 as string] ? { data: propostasNoMock[v2 as string], error: null } : { data: null, error: null }),
               }),
             }),
           }),
@@ -723,6 +734,20 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.status).toBe("enviada");
     expect(mundo.updatesCrmProposals.some((u) => "retorno_id" in (u.dados as object))).toBe(false);
+  });
+
+  it("v2 herda o retorno_id da v1 quando o agendamento colide com o dela ('ja_existe_retorno'), para o decide poder cancelá-lo depois (achado Importante da revisão final da C5)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "rascunho", numero: 42, ano: 2026, versao: 2, substitui_id: "v1-id" },
+      retornoIdDaV1: "retorno-da-v1",
+      agendamentoDeRetorno: { ok: false, codigo: "ja_existe_retorno" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.updatesCrmProposals).toContainEqual(
+      expect.objectContaining({ id: PROPOSTA_ID, dados: expect.objectContaining({ retorno_id: "retorno-da-v1" }) }),
+    );
   });
 
   it("agendamento fora da janela ('instante_fora_da_janela'): envio segue 200 e a timeline registra que não agendou (nunca em silêncio)", async () => {

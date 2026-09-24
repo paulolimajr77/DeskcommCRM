@@ -86,13 +86,34 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
               },
             }),
           }),
-          select: () => ({
-            eq: () => ({
-              order: () => ({
-                limit: async () => ({ data: propostasCriadas, error: null }),
-              }),
-            }),
-          }),
+          // Cadeia auto-referente (eq/order/limit sempre devolvem a mesma
+          // cadeia, como o builder real do Supabase — que aceita `.eq()`
+          // mesmo depois de `.limit()`), e resolve ao ser `await`ada.
+          select: () => {
+            const filtros: Record<string, unknown> = {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const cadeia: any = {
+              eq(campo: string, valor: unknown) {
+                filtros[campo] = valor;
+                return cadeia;
+              },
+              order() {
+                return cadeia;
+              },
+              limit() {
+                return cadeia;
+              },
+              then(resolve: (r: { data: unknown[]; error: null }) => void) {
+                resolve({
+                  data: propostasCriadas.filter((p) =>
+                    Object.entries(filtros).every(([c, v]) => c === "organization_id" || p[c] === v),
+                  ),
+                  error: null,
+                });
+              },
+            };
+            return cadeia;
+          },
         };
       }
       if (tabela === "crm_proposal_items") {
@@ -137,9 +158,9 @@ function montarMundoDeProposta(opts: MundoOpts = {}) {
       const body = await res.clone().json();
       return { status: res.status, body };
     },
-    async GET() {
+    async GET(query = "") {
       const { GET } = await import("./route");
-      const res = await GET(new NextRequest("http://localhost/api/v1/proposals"));
+      const res = await GET(new NextRequest(`http://localhost/api/v1/proposals${query}`));
       const body = await res.clone().json();
       return { status: res.status, body };
     },
@@ -185,6 +206,21 @@ describe("GET /api/v1/proposals", () => {
     const res = await mundo.GET();
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it("filtra por lead_id quando informado (D10 — tela de excluir negócio)", async () => {
+    const mundo = montarMundoDeProposta();
+    await mundo.POST({
+      lead_id: mundo.leadId, titulo: "do lead", itens: [
+        { product_id: null, descricao: "x", quantidade: 1, preco_unitario_cents: 100, desconto_cents: 0, position: 1000 },
+      ],
+    });
+    const res = await mundo.GET(`?lead_id=${mundo.leadId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.every((p: { lead_id: string }) => p.lead_id === mundo.leadId)).toBe(true);
+
+    const semFiltro = await mundo.GET(`?lead_id=algum-outro-id-que-nao-existe`);
+    expect(semFiltro.body.data).toEqual([]);
   });
 });
 

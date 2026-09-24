@@ -29,6 +29,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   const supabase = await createClient();
   const status = req.nextUrl.searchParams.get("status");
+  const leadId = req.nextUrl.searchParams.get("lead_id");
   let q = supabase
     .from("crm_proposals")
     .select("id, lead_id, titulo, status, total_cents, moeda, numero, ano, versao, valid_until, created_at")
@@ -36,6 +37,9 @@ export async function GET(req: NextRequest): Promise<Response> {
     .order("created_at", { ascending: false })
     .limit(500);
   if (status) q = q.eq("status", status);
+  // D10: a tela de excluir negócio consulta este filtro para avisar quando
+  // há proposta enviada antes de apagar (KanbanCardActions / BulkActionBar).
+  if (leadId) q = q.eq("lead_id", leadId);
 
   const { data, error } = await q;
   if (error) return fail("internal_error", "Falha ao listar propostas.", 500, { requestId });

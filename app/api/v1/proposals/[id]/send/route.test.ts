@@ -96,6 +96,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   let propostaEnviada: Proposta | null = null;
   let leadValueCentsDepois: number | null = null;
   let propostaDeletadaId: string | null = null;
+  const updatesCrmProposals: Array<{ id: string | null; dados: unknown }> = [];
   const propostasNoMock: Record<string, Proposta> = {};
 
   const proposta: Proposta = {
@@ -181,6 +182,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           update: (dados: unknown) => {
             let alvoId: string | null = null;
             const aplicar = () => {
+              updatesCrmProposals.push({ id: alvoId, dados });
               const linha = alvoId ? propostasNoMock[alvoId] : undefined;
               if (linha) {
                 Object.assign(linha, dados as object);
@@ -385,6 +387,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     get conversaUsadaNoEnvio() { return conversaUsadaNoEnvio; },
     get leadValueCentsDepois() { return leadValueCentsDepois; },
     get propostaDeletadaId() { return propostaDeletadaId; },
+    get updatesCrmProposals() { return updatesCrmProposals; },
     async POST() {
       const { POST } = await import("./route");
       return POST(new NextRequest(`http://localhost/api/v1/proposals/${PROPOSTA_ID}/send`), { params: Promise.resolve({ id: PROPOSTA_ID }) });
@@ -594,5 +597,23 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
       expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: null })]) }),
     );
+  });
+
+  it("envio de v2 (rascunho com substitui_id): a v1 vira substituida (D4 — só no envio efetivo)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { status: "rascunho", numero: 42, ano: 2026, versao: 2, substitui_id: "v1-id" },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mundo.updatesCrmProposals).toContainEqual({ id: "v1-id", dados: { status: "substituida" } });
+  });
+
+  it("envio de v1 (sem substitui_id): nenhuma outra proposta é tocada", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.updatesCrmProposals.some((u) => (u.dados as { status?: string }).status === "substituida")).toBe(false);
   });
 });

@@ -252,6 +252,14 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
     .select("*").single();
 
+  // D4 — a v2 foi EFETIVAMENTE enviada: a v1 sai de cena (vira
+  // `substituida`). Só aqui: nem na criação da v2 (revise/route.ts, onde a v1
+  // continua `enviada` de propósito), nem em falha/fila (a v2 volta a
+  // rascunho e a v1 segue vigente).
+  if (propostaAlvo.substitui_id) {
+    await admin.from("crm_proposals").update({ status: "substituida" }).eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.substitui_id);
+  }
+
   const totalDoLead = propostaAlvo.total_cents;
   const valorAntes = lead?.value_cents ?? null;
   if (proposta.lead_id) {

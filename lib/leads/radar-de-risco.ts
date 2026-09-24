@@ -390,15 +390,16 @@ export async function carregaRadarDeRisco(
 
   // N3 — negócio com proposta VENCIDA e sem proposta mais nova na cadeia.
   // Consulta paralela (como `sem_proximo_passo`), sem misturar com `items`.
-  // Proposta órfã (lead_id nulo, D10) não entra: sem negócio, não há linha do
-  // radar para ela. "A mais nova" é `versao` desc (v1/v2 da D4 convivem na
-  // mesma cadeia); `created_at` desc desempata propostas INDEPENDENTES do
-  // mesmo negócio (duas cadeias com versao 1).
+  // SEM `.not("lead_id", "is", null)` no fio de propósito: os dublês de
+  // `carregaRadarDeRisco` nos testes existentes só falam `eq/in/order/limit`
+  // (radar-ignora-funil-arquivado, radar-chama-o-contato, mcp-retencao) — um
+  // operador exótico aqui quebrava os três. Órfã (lead_id nulo, D10) é
+  // descartada no JS abaixo, junto da ordenação defensiva: sem negócio, não
+  // há linha do radar para ela.
   const { data: todasAsPropostas, error: propostasErr } = await admin
     .from("crm_proposals")
     .select("id, lead_id, status, numero, ano, valid_until, versao, created_at")
     .eq("organization_id", organizationId)
-    .not("lead_id", "is", null)
     .order("lead_id", { ascending: true })
     .order("versao", { ascending: false })
     .order("created_at", { ascending: false })
@@ -415,6 +416,8 @@ export async function carregaRadarDeRisco(
   });
   const maisRecentePorLead = new Map<string, (typeof todasAsPropostas)[number]>();
   for (const p of ordenadas) {
+    // Órfã (lead_id nulo, D10) cai aqui, não no fio — ver comentário acima.
+    if (p.lead_id == null) continue;
     // a primeira ocorrência de cada lead_id É a mais recente da cadeia.
     if (!maisRecentePorLead.has(p.lead_id as string)) maisRecentePorLead.set(p.lead_id as string, p);
   }

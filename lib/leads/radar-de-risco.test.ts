@@ -70,6 +70,14 @@ describe("carregaRadarDeRisco — propostas vencidas sem retomada (N3)", () => {
     expect(radar.propostas_vencidas_sem_retomada.map((p) => p.lead_id)).not.toContain("lead-1");
   });
 
+  it("proposta órfã (lead_id nulo, D10): fora da lista — sem negócio, sem linha no radar", async () => {
+    const { admin } = montarAdmin([
+      { id: "prop-orfa", lead_id: null, status: "vencida", numero: 1, ano: 2026, valid_until: "2026-01-01", versao: 1, created_at: "2026-01-01T00:00:00Z" },
+    ]);
+    const radar = await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    expect(radar.propostas_vencidas_sem_retomada).toEqual([]);
+  });
+
   it("todas as consultas filtram organization_id (isolamento)", async () => {
     const { admin, chamadas } = montarAdmin([]);
     await carregaRadarDeRisco(admin, { organizationId: ORG_ID });

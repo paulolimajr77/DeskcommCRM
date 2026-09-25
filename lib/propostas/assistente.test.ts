@@ -5,6 +5,7 @@ import type { EstadoDaProposta } from "./assistente";
 function estado(): EstadoDaProposta {
   return {
     titulo: "Site institucional", condicoes: null, valid_until: "2026-10-01",
+    briefing: { project: { objective: "vender mais apartamentos" } },
     itens: [
       { id: "item-1", product_id: null, descricao: "Site institucional", quantidade: 1, preco_unitario_cents: 800000, desconto_cents: 0, position: 1000 },
       { id: "item-2", product_id: null, descricao: "Hospedagem anual", quantidade: 1, preco_unitario_cents: 120000, desconto_cents: 0, position: 2000 },
@@ -55,6 +56,38 @@ describe("aplicarMudancas", () => {
     const item = r.itens.find((i) => i.id === "item-1");
     expect(item?.preco_unitario_cents).toBe(720000);
     expect(item?.quantidade).toBe(2);
+  });
+
+  it("editar_briefing grava no caminho pontuado, dentro de EstadoDaProposta.briefing", () => {
+    const r = aplicarMudancas(estado(), [
+      { tipo: "editar_briefing", campo: "project.name", de: null, para: "Site Catálogo Imobiliário" },
+    ]);
+    expect(r.briefing).toMatchObject({ project: { name: "Site Catálogo Imobiliário" } });
+  });
+
+  it("editar_briefing NÃO apaga campo irmão já preenchido no mesmo objeto pai (Review Focus)", () => {
+    const r = aplicarMudancas(estado(), [
+      { tipo: "editar_briefing", campo: "project.name", de: null, para: "Site Catálogo Imobiliário" },
+    ]);
+    expect(r.briefing).toMatchObject({
+      project: { name: "Site Catálogo Imobiliário", objective: "vender mais apartamentos" },
+    });
+  });
+
+  it("duas mudancas editar_briefing em sequência não se pisam (Review Focus)", () => {
+    const r = aplicarMudancas(estado(), [
+      { tipo: "editar_briefing", campo: "project.name", de: null, para: "Site Catálogo" },
+      { tipo: "editar_briefing", campo: "client.company_or_name", de: null, para: "Imobiliária Acme" },
+    ]);
+    expect(r.briefing).toMatchObject({
+      project: { name: "Site Catálogo", objective: "vender mais apartamentos" },
+      client: { company_or_name: "Imobiliária Acme" },
+    });
+  });
+
+  it("editar_briefing num caminho de 1 nível só (sem ponto) também funciona", () => {
+    const r = aplicarMudancas(estado(), [{ tipo: "editar_briefing", campo: "segmento", de: null, para: "imobiliário" }]);
+    expect(r.briefing.segmento).toBe("imobiliário");
   });
 });
 

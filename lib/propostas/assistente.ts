@@ -22,6 +22,12 @@ export const mudancaSchema = z.discriminatedUnion("tipo", [
     de: z.string().nullable(),
     para: z.string(),
   }),
+  z.object({
+    tipo: z.literal("editar_briefing"),
+    campo: z.string().min(1),
+    de: z.string().nullable(),
+    para: z.string(),
+  }),
 ]);
 export type Mudanca = z.infer<typeof mudancaSchema>;
 
@@ -37,6 +43,7 @@ export interface EstadoDaProposta {
   condicoes: string | null;
   valid_until: string | null;
   itens: Array<ProposalItemInput & { id: string }>;
+  briefing: Record<string, unknown>;
 }
 
 /**
@@ -45,6 +52,18 @@ export interface EstadoDaProposta {
  * existe mais é IGNORADO — silencioso de propósito (rascunho pode ter mudado
  * entre gerar e aplicar; a revision otimista da Tarefa 10 cobre o resto).
  */
+/** Grava `valor` em `caminho` (dot path) dentro de `obj`, sem apagar chaves
+ * irmãs — clona só os níveis no caminho, o resto do objeto é preservado. */
+function definirCaminho(obj: Record<string, unknown>, caminho: string, valor: string): Record<string, unknown> {
+  const [primeira, ...resto] = caminho.split(".");
+  if (resto.length === 0) {
+    return { ...obj, [primeira!]: valor };
+  }
+  const atual = obj[primeira!];
+  const sub = atual && typeof atual === "object" && !Array.isArray(atual) ? (atual as Record<string, unknown>) : {};
+  return { ...obj, [primeira!]: definirCaminho(sub, resto.join("."), valor) };
+}
+
 export function aplicarMudancas(estado: EstadoDaProposta, mudancas: readonly Mudanca[]): EstadoDaProposta {
   let novo: EstadoDaProposta = { ...estado, itens: estado.itens.map((it) => ({ ...it })) };
 
@@ -59,6 +78,8 @@ export function aplicarMudancas(estado: EstadoDaProposta, mudancas: readonly Mud
       novo = { ...novo, itens: novo.itens.filter((it) => it.id !== m.item_id) };
     } else if (m.tipo === "editar_proposta") {
       novo = { ...novo, [m.campo]: m.para };
+    } else if (m.tipo === "editar_briefing") {
+      novo = { ...novo, briefing: definirCaminho(novo.briefing, m.campo, m.para) };
     }
   }
   return novo;
@@ -73,6 +94,7 @@ function promptDoEstado(estado: EstadoDaProposta): string {
     `Título: ${estado.titulo}`,
     `Validade: ${estado.valid_until ?? "não definida"}`,
     `Condições: ${estado.condicoes ?? "nenhuma"}`,
+    `Briefing atual (jsonb): ${JSON.stringify(estado.briefing)}`,
     `Itens:`,
     itens,
   ].join("\n");
@@ -98,7 +120,11 @@ export async function gerarMudancas(input: {
     system:
       "Você ajusta uma proposta comercial a partir de uma instrução curta, usando a ferramenta " +
       "propor_mudancas. Devolva só as mudanças pedidas — nunca mexa em item ou campo que a " +
-      "instrução não mencionou.",
+      "instrução não mencionou. Para informação de briefing (segmento, serviço, estágio, " +
+      "identidade, público, objetivo do projeto), use tipo 'editar_briefing' com 'campo' em " +
+      "caminho pontuado (ex.: project.name, project.objective, client.company_or_name, " +
+      "scope.pages_list) — são os MESMOS nomes que o documento final usa, então o valor " +
+      "aparece direto na proposta.",
     messages,
     tools: {
       propor_mudancas: tool({

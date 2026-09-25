@@ -243,6 +243,12 @@ describe("etapa que afirma fato: a máquina não passa", () => {
     const db = makeDb({
       leads: [],
       stages: [etapa({ id: ETAPA_A, name: "Proposta enviada", afirma_fato: true })],
+      // A guarda de etapa que afirma fato roda ANTES da guarda de contato
+      // cross-org (migration 0403) — o ator "user" passa pela primeira e só
+      // então createLeadHandler confere o contato. Sem declará-lo aqui, o
+      // CONTATO usado abaixo não existe no dublê e o handler lança 404 "não
+      // encontrado" antes de chegar ao que este teste realmente mede.
+      contacts: [{ id: CONTATO, organization_id: ORG_ID }],
     });
 
     await createLeadHandler(

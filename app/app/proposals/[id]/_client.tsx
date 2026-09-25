@@ -10,6 +10,7 @@ import type { ApiSuccess } from "@/lib/api/wrappers";
 import { formatCents } from "@/lib/money";
 import type { ProposalStatus } from "@/lib/propostas/tipos";
 import { AssistantPanel } from "./_components/AssistantPanel";
+import { DocumentoCanvas } from "./_components/DocumentoCanvas";
 
 interface ProposalItem {
   id?: string;
@@ -258,6 +259,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           {erro}
         </div>
       )}
+
+      <DocumentoCanvas propostaId={id} />
 
       <div className="space-y-2">
         <label className="block text-sm font-medium">{t("Condições")}</label>

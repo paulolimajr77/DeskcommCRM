@@ -71,11 +71,16 @@ describe("numeração aceita versões da mesma cadeia (índice organization_id, 
   });
 
   it("duas linhas com a MESMA versão, mesmo numero/ano, nenhuma substituida: 23505 (a v2 não pode duplicar dentro da própria cadeia)", async () => {
+    // Achado do CI (test:db, pg15/pg17): status 'rascunho' aqui batia PRIMEIRO
+    // na trava "um rascunho por negócio" (crm_proposals_rascunho_unico_por_
+    // negocio_uidx, migration 0402) — LEAD_A já tem a PROP_V2 em rascunho do
+    // teste anterior. 'enviada' isola o que este teste quer medir: só a
+    // unicidade de (organization_id, ano, numero, versao).
     await expect(
       pool.query(`
         insert into public.crm_proposals
             (id, organization_id, lead_id, contact_id, titulo, status, numero, ano, versao)
-          values ('${PROP_COLIDE}', '${GOV_ORG}', '${LEAD_A}', '${GOV_CONTACT_1}', 'v2 duplicada', 'rascunho', 42, 2026, 2);
+          values ('${PROP_COLIDE}', '${GOV_ORG}', '${LEAD_A}', '${GOV_CONTACT_1}', 'v2 duplicada', 'enviada', 42, 2026, 2);
       `),
     ).rejects.toMatchObject({
       code: "23505",

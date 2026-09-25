@@ -111,6 +111,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       template_version: proposta.template_version,
       template_snapshot: proposta.template_snapshot,
       briefing_json: proposta.briefing_json,
+      secoes_editadas: proposta.secoes_editadas,
       version_reason: motivo,
     })
     .select("id")

@@ -57,6 +57,7 @@ interface MundoOpts {
   templateVersion?: number | null;
   templateSnapshot?: Record<string, unknown> | null;
   briefingJson?: Record<string, unknown> | null;
+  secoesEditadas?: Record<string, string> | null;
 }
 
 function montarMundoDeRevisao(opts: MundoOpts = {}) {
@@ -91,6 +92,7 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
     template_version: opts.templateVersion ?? null,
     template_snapshot: opts.templateSnapshot ?? null,
     briefing_json: opts.briefingJson ?? null,
+    secoes_editadas: opts.secoesEditadas ?? null,
   };
   const item = {
     id: "item-1",
@@ -260,6 +262,23 @@ describe("POST /api/v1/proposals/[id]/revise", () => {
 
   it("v1 sem modelo (template_slug null) — a v2 também nasce sem modelo, sem lançar", async () => {
     montarMundoDeRevisao({ templateSlug: null });
+    const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+  });
+
+  it("a v2 herda secoes_editadas da v1 (M6 — sem isto, edição manual de seção se perde ao revisar)", async () => {
+    const { capturedInsert } = montarMundoDeRevisao({
+      secoesEditadas: { resumo: "Texto escrito à mão pelo gestor." },
+    });
+    const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+    expect(capturedInsert()).toMatchObject({
+      secoes_editadas: { resumo: "Texto escrito à mão pelo gestor." },
+    });
+  });
+
+  it("v1 sem nenhuma seção editada: a v2 nasce com secoes_editadas null, sem lançar (Review Focus)", async () => {
+    montarMundoDeRevisao({ secoesEditadas: null });
     const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
     expect(res.status).toBe(201);
   });

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { POST } from "./route";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mocks: Record<string, any> = vi.hoisted(() => ({
   requireRole: vi.fn(),
@@ -51,6 +53,10 @@ interface MundoOpts {
   /** Moeda ATUAL do produto no catálogo (D11) — o resolvedor mockado recusa
    *  quando o 4º argumento (moeda da proposta) diverge dela. */
   moedaDoCatalogo?: string;
+  templateSlug?: string | null;
+  templateVersion?: number | null;
+  templateSnapshot?: Record<string, unknown> | null;
+  briefingJson?: Record<string, unknown> | null;
 }
 
 function montarMundoDeRevisao(opts: MundoOpts = {}) {
@@ -81,6 +87,10 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
     ano: opts.ano ?? 2026,
     versao: opts.versao ?? 1,
     substitui_id: null,
+    template_slug: opts.templateSlug ?? null,
+    template_version: opts.templateVersion ?? null,
+    template_snapshot: opts.templateSnapshot ?? null,
+    briefing_json: opts.briefingJson ?? null,
   };
   const item = {
     id: "item-1",
@@ -203,6 +213,7 @@ function montarMundoDeRevisao(opts: MundoOpts = {}) {
     get itensCopiados() { return itensCopiados; },
     get propostaDeletadaId() { return propostaDeletadaId; },
     get updateChamadas() { return updateChamadas; },
+    capturedInsert: () => propostaCriada,
     async POST() {
       const { POST } = await import("./route");
       return POST(new Request("http://x") as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
@@ -228,6 +239,44 @@ describe("POST /api/v1/proposals/[id]/revise", () => {
     });
     expect(mundo.itensCopiados).toHaveLength(1);
     expect(mundo.itensCopiados?.[0]).toMatchObject({ proposal_id: "v2-id-nova", descricao: "Serviço" });
+  });
+
+  it("a v2 herda template_slug/template_version/template_snapshot/briefing_json da v1 (M5 — achado da revisão do M0)", async () => {
+    const { capturedInsert } = montarMundoDeRevisao({
+      templateSlug: "catalogo_imobiliario",
+      templateVersion: 3,
+      templateSnapshot: { titulo: "Catálogo Imobiliário" },
+      briefingJson: { escopo: "catálogo com filtros" },
+    });
+    const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+    expect(capturedInsert()).toMatchObject({
+      template_slug: "catalogo_imobiliario",
+      template_version: 3,
+      template_snapshot: { titulo: "Catálogo Imobiliário" },
+      briefing_json: { escopo: "catálogo com filtros" },
+    });
+  });
+
+  it("v1 sem modelo (template_slug null) — a v2 também nasce sem modelo, sem lançar", async () => {
+    montarMundoDeRevisao({ templateSlug: null });
+    const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+  });
+
+  it("aceita `motivo` no corpo e grava em version_reason", async () => {
+    const { capturedInsert } = montarMundoDeRevisao();
+    const req = new Request("http://x", { method: "POST", body: JSON.stringify({ motivo: "cliente pediu novo prazo" }) });
+    const res = await POST(req as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+    expect(capturedInsert()).toMatchObject({ version_reason: "cliente pediu novo prazo" });
+  });
+
+  it("corpo ausente continua funcionando — version_reason fica null (Review Focus)", async () => {
+    const { capturedInsert } = montarMundoDeRevisao();
+    const res = await POST(new Request("http://x", { method: "POST" }) as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    expect(res.status).toBe(201);
+    expect(capturedInsert()).toMatchObject({ version_reason: null });
   });
 
   it("proposta rascunho: 409, ela já é editável pela PATCH", async () => {

@@ -7,6 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
+import { z } from "zod";
 
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
@@ -19,9 +20,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
+
+const bodySchema = z.object({ motivo: z.string().max(1000).optional() });
+
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
+export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
 
@@ -32,6 +36,8 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { id } = await ctx.params;
+  const parsedBody = bodySchema.safeParse(await req.json().catch(() => ({})));
+  const motivo = parsedBody.success ? (parsedBody.data.motivo ?? null) : null;
   const admin = createAdminClient();
 
   const { data: proposta } = await admin
@@ -101,6 +107,11 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
       ano: decisao.herdaAno,
       versao: decisao.novaVersao,
       substitui_id: decisao.substituiId,
+      template_slug: proposta.template_slug,
+      template_version: proposta.template_version,
+      template_snapshot: proposta.template_snapshot,
+      briefing_json: proposta.briefing_json,
+      version_reason: motivo,
     })
     .select("id")
     .single();

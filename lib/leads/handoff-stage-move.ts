@@ -102,7 +102,7 @@ export async function moverLeadParaEtapaDeHandoff(
   if (!etapa && SLUG_ETAPA_HANDOFF.includes("-")) {
     const { data: etapaLegada, error: erroLegada } = await admin
       .from("crm_stages")
-      .select("id, name")
+      .select("id, name, afirma_fato")
       .eq("pipeline_id", leadRow.pipeline_id)
       .eq("slug", SLUG_ETAPA_HANDOFF.replace(/-/g, "_"))
       .eq("is_archived", false)

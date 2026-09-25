@@ -11,7 +11,7 @@ describe("renderDocumentoPdf", () => {
         { id: "resumo", title: "Resumo", body: "Projeto: Site Catálogo" },
         { id: "escopo", title: "Escopo", body: "Serão executados: item A, item B" },
       ],
-      marca: { app_name: "DeskcommCRM", accent_hex: null, logoUrl: null },
+      marca: { app_name: "Acme", accent_hex: null, logoUrl: null },
     });
     expect(buf.byteLength).toBeGreaterThan(0);
   });
@@ -20,7 +20,7 @@ describe("renderDocumentoPdf", () => {
     const buf = await renderDocumentoPdf({
       titulo: "Proposta Vazia",
       secoes: [],
-      marca: { app_name: "DeskcommCRM", accent_hex: null, logoUrl: null },
+      marca: { app_name: "Acme", accent_hex: null, logoUrl: null },
     });
     expect(buf.byteLength).toBeGreaterThan(0);
   });

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { GOV_LEAD, GOV_CONTACT_1, GOV_ORG, GOV_VIEWER, countAs, seedGov, sql } from "./gov-helpers";
+import { GOV_LEAD, GOV_CONTACT_1, GOV_ORG, GOV_VIEWER, GOV_AGENT_A, countAs, writeCountAs, seedGov, sql } from "./gov-helpers";
 
 /**
  * M0 — proposal_templates guarda cópia por organização. Sem RLS provada
@@ -61,6 +61,24 @@ describe("proposal_templates — isolamento entre organizações (RLS)", () => {
     expect(countAs(GOV_VIEWER, `select count(*) from public.proposal_templates where id = '${TPL_B}';`)).toBe(0);
     expect(countAs(USER_B, `select count(*) from public.proposal_templates where id = '${TPL_B}';`)).toBe(1);
     expect(countAs(USER_B, `select count(*) from public.proposal_templates where id = '${TPL_A}';`)).toBe(0);
+  });
+
+  it("viewer da organização NÃO consegue escrever modelo (achado Important da revisão final da M0 — piso de papel na RLS)", () => {
+    const linhas = writeCountAs(
+      GOV_VIEWER,
+      `insert into public.proposal_templates (organization_id, slug) values ('${GOV_ORG}', 'viewer-nao-pode')`,
+    );
+    expect(linhas).toBe(0);
+    sql(`delete from public.proposal_templates where slug = 'viewer-nao-pode';`);
+  });
+
+  it("agent (piso mínimo, igual a crm_proposals) consegue escrever modelo da própria organização", () => {
+    const linhas = writeCountAs(
+      GOV_AGENT_A,
+      `insert into public.proposal_templates (organization_id, slug) values ('${GOV_ORG}', 'agent-pode')`,
+    );
+    expect(linhas).toBe(1);
+    sql(`delete from public.proposal_templates where slug = 'agent-pode';`);
   });
 
   it("duas versões ATIVAS do mesmo slug na MESMA organização: 23505", async () => {

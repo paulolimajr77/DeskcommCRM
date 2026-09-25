@@ -42,6 +42,8 @@ interface MundoOpts {
   moedaDaProposta?: string;
   /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
   moedaDoCatalogo?: string;
+  /** briefing_json já gravado na proposta (M4). Default: null (proposta pré-M1). */
+  briefingJson?: Record<string, unknown> | null;
 }
 
 const PRODUCT_ID = "66666666-6666-4666-8666-666666666666";
@@ -81,6 +83,7 @@ function montarMundoDeAplicar(opts: MundoOpts = {}) {
     titulo: "Proposta Teste",
     condicoes: "30 dias",
     valid_until: "2026-12-31",
+    briefing_json: opts.briefingJson ?? null,
     status: "rascunho",
     revision: revisionAtual,
     moeda: opts.moedaDaProposta ?? "BRL",
@@ -293,5 +296,27 @@ describe("POST /api/v1/proposals/[id]/assistant/apply", () => {
     });
     expect(res.status).toBe(403);
     expect(mundo.itemAtualizado).toBeNull();
+  });
+
+  it("editar_briefing aplicado grava briefing_json atualizado no update (M4)", async () => {
+    const mundo = montarMundoDeAplicar({ briefingJson: { project: { objective: "vender mais" } } });
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [{ tipo: "editar_briefing", campo: "project.name", de: null, para: "Site Catálogo" }],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada).toMatchObject({
+      briefing_json: { project: { name: "Site Catálogo", objective: "vender mais" } },
+    });
+  });
+
+  it("sem mudança de briefing, briefing_json do update é o MESMO que já estava (não vira null à toa)", async () => {
+    const mundo = montarMundoDeAplicar({ briefingJson: { project: { name: "Já preenchido" } } });
+    const res = await mundo.POST({
+      revision: 1,
+      mudancas: [{ tipo: "editar_proposta", campo: "titulo", de: "Proposta Teste", para: "Novo título" }],
+    });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada).toMatchObject({ briefing_json: { project: { name: "Já preenchido" } } });
   });
 });

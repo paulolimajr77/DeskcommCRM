@@ -8,8 +8,8 @@ describe("renderDocumentoPdf", () => {
     const buf = await renderDocumentoPdf({
       titulo: "Proposta de Teste",
       secoes: [
-        { id: "resumo", title: "Resumo", body: "Projeto: Site Catálogo" },
-        { id: "escopo", title: "Escopo", body: "Serão executados: item A, item B" },
+        { id: "resumo", title: "Resumo", body: "Projeto: Site Catálogo", faltantes: [] },
+        { id: "escopo", title: "Escopo", body: "Serão executados: item A, item B", faltantes: [] },
       ],
       marca: { app_name: "Acme", accent_hex: null, logoUrl: null },
     });

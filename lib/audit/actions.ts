@@ -675,6 +675,8 @@ export const AUDIT_ACTIONS = [
   "proposal.assistant_applied",
   "proposal.sent",
   "proposal.revised",
+  // Edição manual de seção do documento pelo canvas (M3, onda de modelos).
+  "proposal.documento_editado",
   "proposal.discarded",
   "proposal.aceita",
   "proposal.recusada",

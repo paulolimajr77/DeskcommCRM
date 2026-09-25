@@ -37443,6 +37443,9 @@ alter table public.crm_proposals add column if not exists version_reason text;
 
 notify pgrst, 'reload schema';
 
+-- ---- M3: edição manual por seção do documento (migration 0417) ----
+alter table public.crm_proposals add column if not exists secoes_editadas jsonb;
+
 -- ---- fluxos de atendimento: a base, desligada por padrão (migration 0394, de @vgamkt, #1130) ----
 -- Os CHECKs de `surface` e de `status` ('atendimento', 'coletando') estão nos
 -- blocos únicos da 0196 e da 0145, acima. Aqui: o índice do roteiro vivo, o

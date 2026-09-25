@@ -1,6 +1,8 @@
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
+import { formatarMoeda } from "./moeda";
+
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 },
@@ -34,10 +36,6 @@ export interface PropostaPdfInput {
   destinatario: { nome: string; email: string | null; telefone: string | null };
 }
 
-function moeda(cents: number, iso: string): string {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: iso });
-}
-
 function PropostaPdfDoc({ d }: { d: PropostaPdfInput }): React.ReactElement {
   const accent = d.marca.accent_hex ?? undefined;
   return (
@@ -64,12 +62,12 @@ function PropostaPdfDoc({ d }: { d: PropostaPdfInput }): React.ReactElement {
                 {it.imagemUrl && <Image src={it.imagemUrl} style={styles.itemImagem} />}
                 <Text>{it.descricao} (x{it.quantidade})</Text>
               </View>
-              <Text>{moeda(it.quantidade * it.precoUnitarioCents - it.descontoCents, d.moeda)}</Text>
+              <Text>{formatarMoeda(it.quantidade * it.precoUnitarioCents - it.descontoCents, d.moeda)}</Text>
             </View>
           ))}
         </View>
 
-        <Text style={[styles.total, accent ? { color: accent } : undefined]}>Total: {moeda(d.totalCents, d.moeda)}</Text>
+        <Text style={[styles.total, accent ? { color: accent } : undefined]}>Total: {formatarMoeda(d.totalCents, d.moeda)}</Text>
 
         {d.validUntil && <Text style={{ marginTop: 8 }}>Válida até {d.validUntil}</Text>}
         {d.condicoes && <Text style={{ marginTop: 8 }}>{d.condicoes}</Text>}

@@ -93,6 +93,13 @@ alter table public.agent_inbox_items
     -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
+    -- (migration 0392 na vps/pljr-combinada) turno que bateu no teto de
+    -- passos, e uma das duas contagens do laço de retorno da organização.
+    -- Esta é a ÚLTIMA reconstrução da cadeia a tocar a constraint — perder
+    -- estes dois valores aqui apaga o vocabulário do funil em silêncio.
+    'passos_esgotados','laco_de_retorno_caiu',
+    -- (migration 0268) o agente sugere um campo de funil que ainda não existe.
+    'lead_field_proposed',
     'other'
   ));
 

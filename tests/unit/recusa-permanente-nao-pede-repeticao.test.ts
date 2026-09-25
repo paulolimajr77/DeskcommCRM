@@ -55,9 +55,14 @@ const HERDADAS = new Map<string, number>([
   // (`0267_espera_da_fila_nao_recomeca`) REDEFINIU `fn_mark_conversation_message`
   // com o mesmo `service_contact_changed ... 40001` — o corpo antigo continua
   // no baseline como história (append-only) e a sonda conta texto, não runtime.
-  // Em runtime continua valendo 4 (o `create or replace` sobrescreve). Se um
-  // SEXTO sítio aparecer, é defeito novo de verdade.
-  ["service_contact_changed", 5],
+  // Em runtime continua valendo 4 (o `create or replace` sobrescreve).
+  // 5 → 6 no merge da vps/pljr-combinada em 25/09/2026, mesmo caso: a 0420
+  // (`0420_conversa_fica_com_quem_atendeu`) REDEFINIU `fn_service_inbound`
+  // inteira (create or replace) mantendo o mesmo `service_contact_changed
+  // ... 40001` que a 0222 já tinha. Corpo antigo fica no baseline como
+  // história; em runtime continua valendo o de sempre. Se um SÉTIMO sítio
+  // aparecer, é defeito novo de verdade.
+  ["service_contact_changed", 6],
   ["google_selection_stale", 4],
   // 4 → 5 no merge da 1.41.0, mesmo caso do `appointment_stale` acima: a 0343
   // do upstream redefiniu `fn_appointment_change_core` com o mesmo

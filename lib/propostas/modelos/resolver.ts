@@ -63,7 +63,13 @@ export async function resolverModelo(
     };
   }
 
-  const base = MODELOS_BASE[slug];
-  if (!base) return null;
+  // Achado Important da revisão final da M0: `MODELOS_BASE[slug]` sozinho
+  // devolve propriedades HERDADAS de Object.prototype para slugs como
+  // "constructor" ou "toString" — um objeto sem slug/version/sections,
+  // travestido de modelo encontrado. `Object.hasOwn` restringe à própria
+  // chave do catálogo.
+  if (!Object.hasOwn(MODELOS_BASE, slug)) return null;
+  // hasOwn acima já prova que a chave existe — o índice do TS não sabe disso.
+  const base = MODELOS_BASE[slug]!;
   return { ...base, origem: "base" };
 }

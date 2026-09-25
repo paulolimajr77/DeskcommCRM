@@ -35,4 +35,13 @@ describe("resolverModelo — cópia da organização vence; sem cópia, cai no c
     const modelo = await resolverModelo(db, "org-1", "institucional");
     expect(modelo).toBeNull();
   });
+
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty"])(
+    "slug '%s' (propriedade herdada de Object.prototype): devolve null, não um modelo fantasma (achado Important da revisão final da M0)",
+    async (slugPerigoso) => {
+      const db = dbFalso(null);
+      const modelo = await resolverModelo(db, "org-1", slugPerigoso);
+      expect(modelo).toBeNull();
+    },
+  );
 });

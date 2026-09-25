@@ -4,7 +4,7 @@ import pg from "pg";
 import { GOV_CONTACT_1, GOV_ORG, GOV_PIPELINE, GOV_STAGE, seedGov, sql } from "./gov-helpers";
 
 /**
- * C4/D4/0403 — a unicidade de numeração passa a ser
+ * C4/D4/0413 — a unicidade de numeração passa a ser
  * (organization_id, ano, numero, versao), não mais (organization_id, ano,
  * numero): a v1 `enviada` e a v2 `rascunho` da mesma cadeia convivem com o
  * MESMO número enquanto a v2 não é enviada (índice

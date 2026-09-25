@@ -56,6 +56,7 @@ import { PainelDeSeguranca } from "./PainelDeSeguranca";
 import { BasesDoAgente, type MaterialDoAcervo } from "./BasesDoAgente";
 import { FunisDoAgente, type CoberturaPorFunil } from "./FunisDoAgente";
 import { PublishConfirmDialog } from "./PublishConfirmDialog";
+import { ComandosDoCelular } from "./ComandosDoCelular";
 import {
   saveAgentDraftAction,
   publishAgentAction,
@@ -731,6 +732,7 @@ export function AgentForm(props: Props) {
           toolIds={form.operator_tool_ids}
           onToolIdsChange={(ids) => patch({ operator_tool_ids: ids })}
           modeloDoConversador={form.model}
+          agentId={props.mode === "edit" ? props.agent.id : null}
           disabled={disabled}
         />
       ) : null}
@@ -1247,6 +1249,16 @@ export function AgentForm(props: Props) {
               disabled={disabled}
             />
           </Card>
+
+          {/* Comandos pelo celular (`#on`/`#off`, C-076). Salva em
+              `ai_agents.config.aceita_comandos_celular`. */}
+          {isEdit && (
+            <ComandosDoCelular
+              agentId={props.agent.id}
+              inicial={(props.agent.config ?? {}).aceita_comandos_celular}
+              disabled={disabled}
+            />
+          )}
         </div>
       </div>
 

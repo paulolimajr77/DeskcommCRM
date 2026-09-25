@@ -16,8 +16,12 @@ import { BookOpen, Lightbulb, ListChecks, Warning } from "@/lib/ui/icons";
 
 interface NavHubProps {
   interfaceSettings?: InterfaceSettings;
-  /** Módulos opcionais ligados na instalação. Ausente = o hub não filtra por módulo. */
-  modulosLigados?: readonly ModuloOpcional[];
+  /**
+   * Módulos opcionais ligados na instalação. OBRIGATÓRIO: quando era opcional,
+   * ausente queria dizer "não filtra", e o hub de IA mostrava a porta de um
+   * módulo desligado — o clique dava 404 (revisão do #1573, B1).
+   */
+  modulosLigados: readonly ModuloOpcional[];
   /** Capacidades que a organização ligou. Ausente = o hub não filtra por capacidade. */
   capacidadesLigadas?: readonly CapacidadeDaOrganizacao[];
   group: NavGroupId;

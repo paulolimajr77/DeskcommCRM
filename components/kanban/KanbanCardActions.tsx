@@ -30,6 +30,7 @@ import { useAssignableMembers } from "@/hooks/inbox/useAssignableMembers";
 import { useAssignableAgents } from "@/hooks/kanban/useAssignableAgents";
 import { usePermission } from "@/hooks/auth/AuthProvider";
 import { LoseLeadDialog } from "./LoseLeadDialog";
+import { MoveToOtherPipelineDialog } from "./MoveToOtherPipelineDialog";
 import { EditLeadDialog } from "./EditLeadDialog";
 import type { Lead } from "@/lib/types/leads";
 
@@ -41,6 +42,7 @@ interface KanbanCardActionsProps {
 export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) {
   const t = useT();
   const [loseOpen, setLoseOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const winMutation = useWinLead(pipelineId);
@@ -178,6 +180,21 @@ export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) 
           >
             {t("Marcar como perdido")}
           </DropdownMenuItem>
+          {/*
+            `canAssign` já É `usePermission("pipeline.move_card")` — a MESMA
+            permissão que `POST /api/v1/leads/[id]/clone` exige no servidor
+            (`requireRole("agent")`). Mostrar o item a quem o servidor
+            recusaria seria prometer o que não se cumpre.
+          */}
+          {canAssign && (
+            <DropdownMenuItem
+              onSelect={() => {
+                setMoveOpen(true);
+              }}
+            >
+              {t("Levar para outro funil")}
+            </DropdownMenuItem>
+          )}
           {canAssign && (
             <>
               <DropdownMenuSeparator />
@@ -249,6 +266,12 @@ export function KanbanCardActions({ lead, pipelineId }: KanbanCardActionsProps) 
       <LoseLeadDialog
         open={loseOpen}
         onOpenChange={setLoseOpen}
+        leadId={lead.id}
+        pipelineId={pipelineId}
+      />
+      <MoveToOtherPipelineDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
         leadId={lead.id}
         pipelineId={pipelineId}
       />

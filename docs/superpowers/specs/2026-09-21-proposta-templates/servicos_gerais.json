@@ -1,0 +1,139 @@
+{
+  "template": "servicos_gerais",
+  "version": "1.0.0",
+  "description": "Proposta para prestação de serviços em geral: obra, manutenção, agência e serviços técnicos.",
+  "rendering": {
+    "section_order": [
+      "summary",
+      "objectives",
+      "diagnosis",
+      "scope",
+      "materials",
+      "schedule",
+      "investment",
+      "payment",
+      "included",
+      "excluded",
+      "responsibilities",
+      "warranty",
+      "support",
+      "terms",
+      "approval"
+    ],
+    "variables": "{{variable.path}}",
+    "rules": [
+      "Se um campo obrigatório estiver ausente, não inventar.",
+      "Campos condicionais podem ser omitidos quando não aplicáveis.",
+      "Listas vazias devem ser omitidas na renderização.",
+      "number deve permanecer vazio/null enquanto status = draft.",
+      "Serviços de terceiros e custos recorrentes aparecem separados, nunca embutidos."
+    ]
+  },
+  "sections": [
+    {
+      "id": "summary",
+      "title": "Resumo da proposta",
+      "required": true,
+      "conditional": false,
+      "body": "Esta proposta apresenta a execução do serviço {{project.name}} para {{client.company_or_name}}, conforme levantamento realizado. Os serviços seguem o escopo, prazo e condições descritos neste documento."
+    },
+    {
+      "id": "objectives",
+      "title": "Objetivos do serviço",
+      "required": true,
+      "conditional": false,
+      "body": "O serviço tem como objetivo {{project.objective}}. O resultado será entregue conforme os critérios de aceitação definidos no escopo."
+    },
+    {
+      "id": "diagnosis",
+      "title": "Levantamento e visita técnica",
+      "required": false,
+      "conditional": true,
+      "body": "Levantamento realizado em {{scope.survey_date}}. Constatado: {{scope.survey_findings}}. Quando não houve visita, o escopo baseia-se nas informações e registros fornecidos pelo cliente."
+    },
+    {
+      "id": "scope",
+      "title": "Escopo dos serviços",
+      "required": true,
+      "conditional": false,
+      "body": "Serão executados: {{scope.services_list}}. Serviços não listados não fazem parte desta proposta e serão orçados separadamente quando solicitados."
+    },
+    {
+      "id": "materials",
+      "title": "Materiais",
+      "required": true,
+      "conditional": false,
+      "body": "Materiais por conta de: {{scope.materials_by}}. Lista de materiais, quando aplicável: {{scope.materials_list}}. Materiais não previstos, quando necessários, serão orçados antes da aplicação."
+    },
+    {
+      "id": "schedule",
+      "title": "Prazo",
+      "required": true,
+      "conditional": false,
+      "body": "Prazo estimado de execução: {{schedule.estimated_days}} dias úteis, contados a partir da aprovação, pagamento inicial quando aplicável, liberação do local e recebimento dos materiais. Interferências alheias à execução podem revisar o cronograma."
+    },
+    {
+      "id": "investment",
+      "title": "Investimento",
+      "required": true,
+      "conditional": false,
+      "body": "O investimento total pelos serviços descritos é de {{investment.total_formatted}}. Medições por etapa, quando aplicável: {{commercial_terms.milestones}}. As condições de pagamento estão na seção comercial."
+    },
+    {
+      "id": "payment",
+      "title": "Pagamento",
+      "required": true,
+      "conditional": false,
+      "body": "Condições: {{commercial_terms.payment_terms}}."
+    },
+    {
+      "id": "included",
+      "title": "O que está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{included.list}}"
+    },
+    {
+      "id": "excluded",
+      "title": "O que não está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{excluded.list}}"
+    },
+    {
+      "id": "responsibilities",
+      "title": "Responsabilidades do cliente",
+      "required": true,
+      "conditional": false,
+      "body": "O cliente deverá liberar o acesso ao local nos períodos combinados, fornecer informações, acessos e aprovações necessários e manter as condições acordadas para a execução. Paradas por falta de liberação ou de definição seguem a política descrita nas condições."
+    },
+    {
+      "id": "warranty",
+      "title": "Garantia",
+      "required": true,
+      "conditional": false,
+      "body": "Garantia dos serviços executados: {{support.warranty_period}}. A garantia cobre defeitos de execução dentro do período e não cobre desgaste natural, mau uso, intervenções de terceiros ou itens fora do escopo."
+    },
+    {
+      "id": "support",
+      "title": "Suporte pós-entrega",
+      "required": false,
+      "conditional": true,
+      "body": "Canais e prazos de atendimento após a entrega: {{support.channels}}. Manutenção contínua, quando contratada, segue instrumento próprio."
+    },
+    {
+      "id": "terms",
+      "title": "Condições comerciais",
+      "required": true,
+      "conditional": false,
+      "body": "A proposta possui validade de {{commercial_terms.validity_days}} dias. O início depende da aprovação e do cumprimento das condições comerciais estabelecidas. Alterações de escopo revisam prazo e investimento."
+    },
+    {
+      "id": "approval",
+      "title": "Aprovação",
+      "required": true,
+      "conditional": false,
+      "body": "Ao aprovar esta proposta, o cliente declara estar de acordo com o escopo, investimento, condições e premissas apresentados.\n\nCliente: {{client.name}}\nEmpresa: {{client.company}}\nData: {{approval.date}}\n\nAssinatura: __________________________________"
+    }
+  ]
+}

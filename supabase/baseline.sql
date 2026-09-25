@@ -37434,6 +37434,15 @@ alter table public.crm_proposals add constraint crm_proposals_template_slug_vers
 
 notify pgrst, 'reload schema';
 
+-- ---- M1: briefing e motivo de revisão (migration 0416) ----
+alter table public.crm_proposals add column if not exists briefing_json jsonb;
+alter table public.crm_proposals add column if not exists prazo_dias_uteis int;
+alter table public.crm_proposals add column if not exists pagamento text;
+alter table public.crm_proposals add column if not exists resumo_comercial text;
+alter table public.crm_proposals add column if not exists version_reason text;
+
+notify pgrst, 'reload schema';
+
 -- ---- fluxos de atendimento: a base, desligada por padrão (migration 0394, de @vgamkt, #1130) ----
 -- Os CHECKs de `surface` e de `status` ('atendimento', 'coletando') estão nos
 -- blocos únicos da 0196 e da 0145, acima. Aqui: o índice do roteiro vivo, o

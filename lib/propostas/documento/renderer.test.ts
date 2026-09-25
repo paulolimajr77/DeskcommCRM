@@ -62,4 +62,12 @@ describe("renderizarDocumento", () => {
     expect(doc.secoes).toEqual([]);
     expect(doc.variaveisFaltando).toEqual([]);
   });
+
+  it("cada seção carrega as PRÓPRIAS variáveis faltando (não só o agregado)", () => {
+    const doc = renderizarDocumento(MODELO, { project: { name: "X" } });
+    const garantia = doc.secoes.find((s) => s.id === "obrigatoria_e_condicional");
+    expect(garantia?.faltantes).toEqual(["warranty.days"]);
+    const resumo = doc.secoes.find((s) => s.id === "resumo");
+    expect(resumo?.faltantes).toEqual([]);
+  });
 });

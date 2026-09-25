@@ -6,6 +6,7 @@ export interface SecaoRenderizada {
   id: string;
   title: string;
   body: string;
+  faltantes: string[];
 }
 
 export interface DocumentoRenderizado {
@@ -36,7 +37,7 @@ export function renderizarDocumento(modelo: ModeloBase, dados: Record<string, un
     }
 
     const { textoRenderizado, faltantes } = substituirVariaveis(secao.body, dados);
-    secoes.push({ id: secao.id, title: secao.title, body: textoRenderizado });
+    secoes.push({ id: secao.id, title: secao.title, body: textoRenderizado, faltantes });
     variaveisFaltando.push(...faltantes);
   }
 

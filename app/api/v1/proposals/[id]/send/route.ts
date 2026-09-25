@@ -13,6 +13,9 @@ import { decidirVersao } from "@/lib/propostas/versao";
 import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
 import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-para-pdf";
+import { resolverModelo } from "@/lib/propostas/modelos/resolver";
+import { montarDadosDoDocumento } from "@/lib/propostas/documento/montar-dados";
+import { renderizarDocumento } from "@/lib/propostas/documento/renderer";
 import { assertSafeOutboundUrl } from "@/lib/automation/outbound-url";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
@@ -206,6 +209,36 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
 
   const destinatarioNome = rotuloDoContato(contato, t);
 
+  // M5 — snapshot do modelo/documento usados nesta emissão (spec §5.5:
+  // TEMPLATE, PROPOSTA e DOCUMENTO são 3 coisas — o que congela aqui nunca
+  // muda depois, mesmo que o modelo evolua). Best-effort: proposta sem
+  // modelo escolhido é o caso comum hoje, e falha ao montar isto nunca pode
+  // impedir o envio (mesmo padrão da imagem de produto e do follow-up,
+  // acima e abaixo neste arquivo).
+  let templateSnapshot: unknown = null;
+  let renderedSnapshot: unknown = null;
+  if (propostaAlvo.template_slug) {
+    try {
+      const modelo = await resolverModelo(admin, authz.org.orgId, propostaAlvo.template_slug as string);
+      if (modelo) {
+        const dados = montarDadosDoDocumento(propostaAlvo as { briefing_json: unknown });
+        const documento = renderizarDocumento(modelo, dados);
+        const overrides = (propostaAlvo.secoes_editadas as Record<string, string> | null) ?? {};
+        const secoes = documento.secoes.map((s) =>
+          overrides[s.id] !== undefined ? { ...s, body: overrides[s.id]!, faltantes: [] } : s,
+        );
+        templateSnapshot = modelo;
+        renderedSnapshot = { secoes, variaveisFaltando: secoes.flatMap((s) => s.faltantes) };
+      }
+    } catch (erro) {
+      logger.warn("proposal.send: falha ao montar snapshot do documento — envio segue sem ele", {
+        organizationId: authz.org.orgId,
+        propostaId: propostaAlvo.id,
+        erro: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
+  }
+
   // ─── PDF, upload e envio: qualquer EXCEÇÃO aqui (não só um desfecho de
   // mensagem) também é "falha em qualquer passo" (D3, ponto 3) — sem este
   // try/catch a proposta ficava presa em `enviando` até o cron
@@ -284,6 +317,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .update({
       status: "enviada", pdf_path: pdfPath, sent_at: new Date().toISOString(),
       sent_by_user_id: authz.user.id, message_id: mensagem.id, destinatario_nome: destinatarioNome,
+      template_snapshot: templateSnapshot, rendered_snapshot: renderedSnapshot,
     })
     .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
     .select("*").single();

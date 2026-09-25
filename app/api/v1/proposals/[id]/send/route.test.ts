@@ -19,6 +19,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   sendMessageHandler: vi.fn(),
   agendaRetornoNoCrm: vi.fn(),
   buscarPadroesDaOrganizacao: vi.fn(),
+  resolverModelo: vi.fn(),
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
 }));
@@ -39,6 +40,7 @@ vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: mocks.emitLea
 vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.sendMessageHandler }));
 vi.mock("@/lib/followup/retorno-crm", () => ({ agendaRetornoNoCrm: mocks.agendaRetornoNoCrm }));
 vi.mock("@/lib/propostas/padroes-da-organizacao", () => ({ buscarPadroesDaOrganizacao: mocks.buscarPadroesDaOrganizacao }));
+vi.mock("@/lib/propostas/modelos/resolver", () => ({ resolverModelo: mocks.resolverModelo }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
@@ -181,6 +183,16 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   });
 
   mocks.requireSupportWrite.mockResolvedValue(opts.suporteReadOnly ? new Response(JSON.stringify({ error: { code: "forbidden" } }), { status: 403 }) : null);
+
+  mocks.resolverModelo.mockImplementation(async (_db: unknown, _org: string, slug: string) => ({
+    slug,
+    version: 1,
+    sectionOrder: ["resumo"],
+    sections: [
+      { id: "resumo", title: "Resumo", titleEs: null, body: "Projeto: {{project.name}}", bodyEs: null, required: true, conditional: false },
+    ],
+    origem: "base",
+  }));
 
   mocks.createAdminClient.mockReturnValue({
     from: (tabela: string) => {
@@ -771,4 +783,56 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.propostaEnviada?.status).toBe("enviada");
     expect(mocks.agendaRetornoNoCrm).not.toHaveBeenCalled();
   });
+
+it("proposta COM template_slug: grava template_snapshot e rendered_snapshot no envio efetivo (M5)", async () => {
+  const mundo = montarMundoDeEnvio({
+    propostaOriginal: {
+      template_slug: "site_institucional",
+      briefing_json: { project: { name: "Site Catálogo" } },
+    },
+  });
+  const res = await mundo.POST();
+  expect(res.status).toBe(200);
+  expect(mundo.propostaEnviada?.template_snapshot).toMatchObject({ slug: "site_institucional" });
+  expect(mundo.propostaEnviada?.rendered_snapshot).toMatchObject({
+    secoes: [{ id: "resumo", body: "Projeto: Site Catálogo" }],
+  });
+});
+
+it("seção sobrescrita à mão (M3) entra no rendered_snapshot com o texto FINAL, não com [a definir] (Review Focus)", async () => {
+  const mundo = montarMundoDeEnvio({
+    propostaOriginal: {
+      template_slug: "site_institucional",
+      briefing_json: {},
+      secoes_editadas: { resumo: "Texto escrito à mão pelo gestor." },
+    },
+  });
+  const res = await mundo.POST();
+  expect(res.status).toBe(200);
+  expect(mundo.propostaEnviada?.rendered_snapshot).toMatchObject({
+    secoes: [{ id: "resumo", body: "Texto escrito à mão pelo gestor." }],
+  });
+});
+
+it("proposta SEM template_slug: os dois campos ficam null, envio continua igual (Review Focus)", async () => {
+  const mundo = montarMundoDeEnvio({});
+  const res = await mundo.POST();
+  expect(res.status).toBe(200);
+  expect(mundo.propostaEnviada?.status).toBe("enviada");
+  expect(mundo.propostaEnviada?.template_snapshot ?? null).toBeNull();
+  expect(mundo.propostaEnviada?.rendered_snapshot ?? null).toBeNull();
+  expect(mocks.resolverModelo).not.toHaveBeenCalled();
+});
+
+it("WhatsApp falha (branch de retorno a rascunho): o update daquele branch NÃO inclui template_snapshot (Review Focus)", async () => {
+  const mundo = montarMundoDeEnvio({
+    propostaOriginal: { template_slug: "site_institucional" },
+    envioResultado: { id: "msg-1", status: "failed", error_message: "canal desconectado" },
+  });
+  await mundo.POST();
+  const updateDeFalha = mundo.updatesCrmProposals.find(
+    (u) => u.id === PROPOSTA_ID && (u.dados as Record<string, unknown>).status === "rascunho",
+  );
+  expect(updateDeFalha?.dados).not.toHaveProperty("template_snapshot");
+});
 });

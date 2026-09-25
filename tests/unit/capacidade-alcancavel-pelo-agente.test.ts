@@ -109,6 +109,12 @@ const ESCRITA_QUE_E_TRABALHO_DE_ATENDENTE: ReadonlyArray<string> = [
   // `app/api/v1/conversation-tags` é leitura `viewer`; marcar conversa é trabalho
   // de atendente e o dano máximo é um filtro sujo, reversível na tela.
   "crm_manage_tags",
+  // `lib/mcp/tools/propostas.ts` — exige `agent`, de propósito (Tarefa 13 da
+  // proposta comercial). Rascunhar proposta é o mesmo tipo de escrita de
+  // `crm_create_lead`: cria um registro que uma PESSOA sempre revisa antes de
+  // qualquer efeito externo (nunca envia — só o manager envia, Tarefa 14). O
+  // dano máximo é um rascunho a mais para descartar.
+  "crm_draft_proposal",
 ];
 
 function alcancavelPeloAgente(requiresRole: Role): boolean {

@@ -1,0 +1,139 @@
+{
+  "template": "clinica_exames_laboratorial",
+  "version": "1.0.0",
+  "description": "Proposta de orçamento para clínicas de exames, diagnóstico por imagem e laboratórios de análises clínicas.",
+  "rendering": {
+    "section_order": [
+      "summary",
+      "objectives",
+      "exams",
+      "collection",
+      "results",
+      "packages",
+      "schedule",
+      "investment",
+      "payment",
+      "included",
+      "excluded",
+      "responsibilities",
+      "support",
+      "terms",
+      "approval"
+    ],
+    "variables": "{{variable.path}}",
+    "rules": [
+      "Se um campo obrigatório estiver ausente, não inventar.",
+      "Campos condicionais podem ser omitidos quando não aplicáveis.",
+      "Listas vazias devem ser omitidas na renderização.",
+      "number deve permanecer vazio/null enquanto status = draft.",
+      "Nenhum texto promete diagnóstico, cura ou interpretação clínica de resultado."
+    ]
+  },
+  "sections": [
+    {
+      "id": "summary",
+      "title": "Resumo da proposta",
+      "required": true,
+      "conditional": false,
+      "body": "Esta proposta apresenta o orçamento de {{project.name}} para {{client.company_or_name}}, conforme solicitação. Os exames, condições de coleta e prazos seguem o escopo descrito neste documento."
+    },
+    {
+      "id": "objectives",
+      "title": "Objetivos",
+      "required": true,
+      "conditional": false,
+      "body": "Realizar os exames solicitados com coleta adequada, processamento controlado e entrega de resultados no prazo, para subsidiar a conduta do médico solicitante. Laudo é documento técnico: interpretação e conduta cabem ao médico."
+    },
+    {
+      "id": "exams",
+      "title": "Exames orçados",
+      "required": true,
+      "conditional": false,
+      "body": "Exames incluídos: {{scope.exams_list}}. Exames com preparo específico estão sinalizados na seção de responsabilidades. Exames não listados serão orçados separadamente quando solicitados."
+    },
+    {
+      "id": "collection",
+      "title": "Coleta",
+      "required": true,
+      "conditional": false,
+      "body": "Local de coleta: {{scope.collection_site}}. Coleta domiciliar, quando prevista: {{scope.home_collection}}. Preparo exigido (jejum, suspensão de medicação, higiene): {{scope.preparation}}. O não cumprimento do preparo pode inviabilizar a coleta e gerar nova cobrança."
+    },
+    {
+      "id": "results",
+      "title": "Prazo de resultados",
+      "required": true,
+      "conditional": false,
+      "body": "Prazo de entrega dos laudos: {{schedule.results_deadline}}. Forma de entrega: {{scope.results_delivery}}. Prazos contam-se em dias úteis a partir da coleta válida. Recoletas por preparo inadequado reiniciam a contagem."
+    },
+    {
+      "id": "packages",
+      "title": "Pacotes e check-up",
+      "required": false,
+      "conditional": true,
+      "body": "Quando contratado em pacote (ex.: check-up): {{scope.package_contents}}. Itens fora do pacote seguem o orçamento individual."
+    },
+    {
+      "id": "schedule",
+      "title": "Agendamento",
+      "required": true,
+      "conditional": false,
+      "body": "A coleta depende de agendamento prévio e disponibilidade de agenda: {{schedule.booking_info}}. Tolerância de atraso e política de faltas seguem as condições comerciais."
+    },
+    {
+      "id": "investment",
+      "title": "Investimento",
+      "required": true,
+      "conditional": false,
+      "body": "O investimento total pelos exames descritos é de {{investment.total_formatted}}. As condições de pagamento estão apresentadas na seção comercial."
+    },
+    {
+      "id": "payment",
+      "title": "Pagamento e convênios",
+      "required": true,
+      "conditional": false,
+      "body": "Condições: {{commercial_terms.payment_terms}}. Convênios atendidos, quando aplicável: {{scope.insurance_list}}. Coberturas, carências e coparticipações seguem as regras da operadora e devem ser confirmadas antes da coleta."
+    },
+    {
+      "id": "included",
+      "title": "O que está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{included.list}}"
+    },
+    {
+      "id": "excluded",
+      "title": "O que não está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{excluded.list}}"
+    },
+    {
+      "id": "responsibilities",
+      "title": "Responsabilidades do paciente",
+      "required": true,
+      "conditional": false,
+      "body": "O paciente deverá cumprir o preparo informado, comparecer no horário agendado com documento e pedido médico quando exigido, e informar medicamentos em uso, alergias e condições relevantes. Dados incorretos podem invalidar resultados."
+    },
+    {
+      "id": "support",
+      "title": "Recoleta e suporte",
+      "required": true,
+      "conditional": false,
+      "body": "Amostras com problema técnico serão reavaliadas pela equipe, que definirá a conduta (nova coleta sem custo quando a falha for do laboratório). Dúvidas sobre o laudo devem ser dirigidas ao médico solicitante."
+    },
+    {
+      "id": "terms",
+      "title": "Condições comerciais",
+      "required": true,
+      "conditional": false,
+      "body": "A proposta possui validade de {{commercial_terms.validity_days}} dias. A coleta depende da confirmação do agendamento e do cumprimento das condições comerciais estabelecidas."
+    },
+    {
+      "id": "approval",
+      "title": "Aprovação",
+      "required": true,
+      "conditional": false,
+      "body": "Ao aprovar esta proposta, o paciente (ou responsável) declara estar de acordo com os exames, investimento, condições e premissas apresentados.\n\nPaciente: {{client.name}}\nResponsável: {{client.guardian}}\nData: {{approval.date}}\n\nAssinatura: __________________________________"
+    }
+  ]
+}

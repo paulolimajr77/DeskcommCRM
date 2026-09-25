@@ -200,19 +200,43 @@ atualizar_supabase_single_server() {
 # --volumes` devolve o nome LÓGICO (`waha-data`); passá-lo direto a `docker run
 # -v` cria/abre outro volume global com esse nome e produz um backup vazio que
 # parece válido. Perguntar ao contêiner pela montagem real mantém o prefixo do
-# projeto Compose (ex.: `deskcommcrm_waha-data`). Sem contêiner, o nome sai de
+# projeto Compose (ex.: `deskcommcrm_waha-data`).
+#
+# A montagem também diz de QUE ESPÉCIE ela é, e `.Name` só responde por uma: num
+# bind de pasta do host (`- /srv/waha:/app/.sessions`) ele vem VAZIO, e ficar só
+# com ele devolve exatamente o volume fantasma que esta função existe para não
+# usar. Volume nomeado → `.Name`; bind → `.Source`.
+#
+# Sem contêiner não há montagem para ler, e o nome sai de
 # nome_do_projeto_atual, o mesmo que o compose usa: respeita COMPOSE_PROJECT_NAME
 # e mantém o `-` de uma pasta como `deskcomm-crm`.
 volume_waha_data() {
-  local container vol
+  local container campos tipo nome origem
   container="$(dc ps -a -q waha 2>/dev/null || true)"
-  vol=""
+  campos=""
   if [ -n "$container" ]; then
-    vol="$(docker inspect "$container" \
-      --format '{{range .Mounts}}{{if eq .Destination "/app/.sessions"}}{{.Name}}{{end}}{{end}}' \
+    campos="$(docker inspect "$container" \
+      --format '{{range .Mounts}}{{if eq .Destination "/app/.sessions"}}{{.Type}}|{{.Name}}|{{.Source}}{{end}}{{end}}' \
       2>/dev/null || true)"
   fi
-  printf '%s' "${vol:-$(nome_do_projeto_atual)_waha-data}"
+  tipo="${campos%%|*}"
+  nome="${campos#*|}"; nome="${nome%%|*}"
+  origem="${campos##*|*|}"
+  case "$tipo" in
+    volume) if [ -n "$nome" ]; then printf '%s' "$nome"; return 0; fi ;;
+    bind)   if [ -n "$origem" ]; then printf '%s' "$origem"; return 0; fi ;;
+  esac
+  printf '%s' "$(nome_do_projeto_atual)_waha-data"
+}
+
+# O `.tgz` de um volume VAZIO tem ~87 bytes, uma entrada só (`.`) e o `tar` SAI
+# COM ZERO. Quem decide se o snapshot presta é o CONTEÚDO, não o código de saída
+# dele: contar as entradas além da raiz é o que separa um backup de verdade do
+# volume errado — a diferença que só aparecia no dia do restore.
+tar_tem_sessao() {  # tar_tem_sessao <arquivo.tgz>
+  local itens
+  itens="$(tar tzf "$1" 2>/dev/null | grep -cvxE '\./?$' || true)"
+  [ "${itens:-0}" -gt 0 ]
 }
 
 # ── QUEM FALA COM O BANCO E PODE SER PARADO ──────────────────────────────────
@@ -1642,4 +1666,69 @@ ensure_encryption_key() {
     >/dev/null 2>&1 \
     && c_grn "✓ chave de cifra ativa no banco (segredos de webhook são guardados cifrados)" \
     || c_ylw "⚠ não consegui semear a chave de cifra no banco — segredos de webhook não poderão ser salvos até rodar update.sh de novo."
+}
+
+# ── A ÚLTIMA RELEASE ESTÁVEL PUBLICADA ──────────────────────────────────────
+#
+# ⚠️ TAG EXISTIR NÃO É RELEASE PUBLICADA, e confundir as duas instala código
+# que ninguém lançou.
+#
+# Caso real (2026-09-13): `v1.20.0` existe como tag annotated criada À MÃO no
+# repositório oficial — a mensagem da própria tag registra que o CI recusou
+# criá-la — enquanto `/releases/latest` continuava devolvendo `v1.19.0`.
+# `git tag -l 'v*' --sort=-v:refname | head -1`, que era o que este kit usava,
+# responde "v1.20.0" e manda todo clone do mundo instalar um código sem
+# release, sem changelog e sem os cinco checks obrigatórios da `main`.
+#
+# `/releases/latest` é a pergunta certa: a própria API do GitHub define esse
+# endpoint como a última release que NÃO é draft e NÃO é prerelease — os dois
+# filtros que queremos, aplicados na origem, sem precisar ordenar nada aqui.
+#
+# O repositório sai do `origin` (e não de uma constante) para que um fork com
+# releases próprias funcione sem editar o kit; `DESKCOMM_RELEASES_LATEST_URL`
+# troca o endereço inteiro quando é preciso.
+#
+# Devolve string VAZIA quando não dá para saber (sem rede, API fora, fork sem
+# release). Vazio é "não sei" — e quem chama TEM de tratar isso como "não sei",
+# nunca como "não há versão nova". Cair de volta para `git tag` aqui seria
+# reintroduzir exatamente o defeito que esta função existe para matar.
+ultima_release_estavel() {
+  local origem slug url tag
+  origem="$(git config --get remote.origin.url 2>/dev/null || true)"
+
+  # Endereço explícito primeiro: é o caminho dos testes (um JSON local via
+  # `file://`) e de quem opera um fork com releases num lugar próprio.
+  url="${DESKCOMM_RELEASES_LATEST_URL:-}"
+
+  if [ -z "$url" ]; then
+    case "$origem" in
+      https://github.com/*|http://github.com/*|git@github.com:*)
+        slug="$(printf '%s' "$origem" \
+          | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##; s#^https?://[^/]+/##')"
+        url="https://api.github.com/repos/${slug}/releases/latest"
+        ;;
+      *)
+        # Origin FORA do GitHub (espelho, caminho local): ali não existe API de
+        # release, e a maior tag é a única resposta que existe — o mesmo que o
+        # kit fazia antes. Toda instalação real clona do GitHub (install.sh) e
+        # nunca cai aqui; quem cai é o repositório descartável dos testes.
+        git tag -l 'v*' --sort=-v:refname | head -1
+        return 0
+        ;;
+    esac
+  fi
+
+  # `-f` faz o curl falhar em 404 (repo sem release nenhuma) em vez de devolver
+  # o corpo de erro, que o sed abaixo interpretaria como ausência de tag_name.
+  tag="$(curl -fsSL --max-time 20 -H 'Accept: application/vnd.github+json' "$url" 2>/dev/null \
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+
+  # Sem jq de propósito: o kit não pode exigir jq numa VPS de cliente. O
+  # `tag_name` é o primeiro campo desse formato no JSON de uma release e não
+  # contém aspas, então o sed é suficiente — e a validação abaixo recusa
+  # qualquer coisa que não tenha cara de versão, em vez de confiar no parse.
+  case "$tag" in
+    v[0-9]*) printf '%s\n' "$tag" ;;
+    *) printf '' ;;
+  esac
 }

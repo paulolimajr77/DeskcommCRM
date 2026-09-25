@@ -173,7 +173,7 @@ describe("apagar dados operacionais alcança quem já enviou resposta revisada",
     ).toBe("<null>");
   });
 
-  it("a Zona de perigo apaga as seis raízes e a resposta revisada vai junto", () => {
+  it("a Zona de perigo apaga as raízes (sem propostas, fora do escopo deste arquivo) e a resposta revisada vai junto", () => {
     // A MESMA ordem de `lib/settings/apagar-dados-operacionais.ts`. A primeira
     // linha é a que a issue #949 relata recusada pelo banco (23503) quando
     // existia rascunho apontando para a mensagem.

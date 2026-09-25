@@ -97,6 +97,11 @@ const TOOLS_DO_SEED = [
   // Existe para a aritmética continuar estourando depois da #528; sem ela o
   // cenário de recusa vira um clique que sempre dá certo.
   "crm_list_knowledge_sources",
+  // A DÉCIMA: nesta branch o teto é 26 (a `main` tem 25 e a proposta comercial
+  // somou `crm_draft_proposal` ao pacote `vender`). Com nove, 9 + 17 = 26 cabe
+  // exato e a recusa some; com dez, 10 + 17 = 27 > 26 recusa por 1 vaga, e
+  // desligar uma deixa 26, que passa. Leitura pura do pacote "escalar".
+  "crm_list_human_cases",
 ];
 
 /**
@@ -244,6 +249,13 @@ test.describe("Configurar o que o agente pode fazer", () => {
     // faltam, e o operador faz o que a própria tela manda.
     await page.getByTestId("switch-pacote-atender").click();
     await expect(page.getByTestId("aviso-teto")).toContainText(/faltam? 1 vaga/);
+    // O aviso nasce DENTRO do cartão clicado, não no topo do seletor: com a
+    // tela rolada até um pacote lá de baixo, o aviso do topo ficava fora da
+    // vista e o clique parecia não fazer nada.
+    await expect(
+      page.getByTestId("pacote-atender").getByTestId("aviso-teto"),
+      "a recusa precisa aparecer onde a pessoa clicou",
+    ).toBeVisible();
     await expect(
       page.getByTestId("pacote-atender"),
       "recusar significa NÃO aplicar: pacote meio-ligado seria o pior dos dois mundos",

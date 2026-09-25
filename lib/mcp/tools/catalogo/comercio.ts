@@ -37,4 +37,15 @@ export const TOOLS_COMERCIO = declararTools([
     risco: "seguro",
     pacotes: ["organizar", "atender"],
   },
+  {
+    name: "crm_draft_proposal",
+    category: "write",
+    rotulo: "Rascunhar proposta comercial",
+    explicacao:
+      "Cria um rascunho de proposta a partir do que foi combinado na conversa — uma pessoa sempre revisa e envia depois, e pode editar antes de despachar.",
+    oQueToca: "Propostas comerciais",
+    risco: "atencao",
+    pacotes: ["vender"],
+    capacidade: "propostas",
+  },
 ]);

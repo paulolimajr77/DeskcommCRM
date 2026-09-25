@@ -1,0 +1,139 @@
+{
+  "template": "curso_infoproduto",
+  "version": "1.0.0",
+  "description": "Proposta para cursos, mentorias e infoprodutos (turmas, acesso e acompanhamento).",
+  "rendering": {
+    "section_order": [
+      "summary",
+      "objectives",
+      "audience",
+      "syllabus",
+      "format",
+      "materials",
+      "schedule",
+      "investment",
+      "payment",
+      "included",
+      "excluded",
+      "responsibilities",
+      "support",
+      "terms",
+      "approval"
+    ],
+    "variables": "{{variable.path}}",
+    "rules": [
+      "Se um campo obrigatório estiver ausente, não inventar.",
+      "Campos condicionais podem ser omitidos quando não aplicáveis.",
+      "Listas vazias devem ser omitidas na renderização.",
+      "number deve permanecer vazio/null enquanto status = draft.",
+      "Nenhum texto promete resultado financeiro, aprovação ou ganho do aluno."
+    ]
+  },
+  "sections": [
+    {
+      "id": "summary",
+      "title": "Resumo da proposta",
+      "required": true,
+      "conditional": false,
+      "body": "Esta proposta apresenta o programa {{project.name}} para {{client.company_or_name}}, conforme os objetivos definidos no briefing. O programa segue o conteúdo, formato e condições descritos neste documento."
+    },
+    {
+      "id": "objectives",
+      "title": "Objetivos do programa",
+      "required": true,
+      "conditional": false,
+      "body": "Ao final, o participante deverá ser capaz de {{project.objective}}. Os objetivos orientam o conteúdo, os exercícios e o acompanhamento oferecido."
+    },
+    {
+      "id": "audience",
+      "title": "Para quem é",
+      "required": true,
+      "conditional": false,
+      "body": "Indicado para {{scope.target_audience}}. Pré-requisitos, quando houver: {{scope.prerequisites}}."
+    },
+    {
+      "id": "syllabus",
+      "title": "Conteúdo programático",
+      "required": true,
+      "conditional": false,
+      "body": "Módulos e temas: {{scope.modules_list}}. A ordem e o detalhamento podem ser ajustados para a turma sem alterar os objetivos aprovados."
+    },
+    {
+      "id": "format",
+      "title": "Formato e carga horária",
+      "required": true,
+      "conditional": false,
+      "body": "Formato: {{scope.delivery_format}}. Carga horária total: {{scope.total_hours}}. Encontros: {{scope.sessions_info}}. Acesso ao material gravado, quando incluído: {{scope.recordings_access}}."
+    },
+    {
+      "id": "materials",
+      "title": "Materiais",
+      "required": false,
+      "conditional": true,
+      "body": "Materiais inclusos: {{scope.materials_list}}. Plataforma de acesso: {{scope.platform}}."
+    },
+    {
+      "id": "schedule",
+      "title": "Prazo e turmas",
+      "required": true,
+      "conditional": false,
+      "body": "Início previsto: {{schedule.start_date}}. Duração: {{schedule.estimated_days}} dias. O cronograma da turma será confirmado após o fechamento das inscrições."
+    },
+    {
+      "id": "investment",
+      "title": "Investimento",
+      "required": true,
+      "conditional": false,
+      "body": "O investimento total para participação conforme esta proposta é de {{investment.total_formatted}}. As condições de pagamento estão apresentadas na seção comercial."
+    },
+    {
+      "id": "payment",
+      "title": "Pagamento",
+      "required": true,
+      "conditional": false,
+      "body": "Condições: {{commercial_terms.payment_terms}}. Parcelamentos seguem as regras da operadora ou plataforma utilizada."
+    },
+    {
+      "id": "included",
+      "title": "O que está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{included.list}}"
+    },
+    {
+      "id": "excluded",
+      "title": "O que não está incluído",
+      "required": true,
+      "conditional": false,
+      "body": "{{excluded.list}}"
+    },
+    {
+      "id": "responsibilities",
+      "title": "Responsabilidades do participante",
+      "required": true,
+      "conditional": false,
+      "body": "O aproveitamento depende da participação: presença nos encontros, execução das atividades e uso dos materiais disponibilizados. Certificados, quando previstos, seguem os critérios informados no programa."
+    },
+    {
+      "id": "support",
+      "title": "Acompanhamento e garantia",
+      "required": true,
+      "conditional": false,
+      "body": "Canais de dúvidas durante o programa: {{scope.support_channels}}. Garantia de reembolso, quando aplicável: {{commercial_terms.refund_policy}}. Nada aqui promete resultado individual."
+    },
+    {
+      "id": "terms",
+      "title": "Condições comerciais",
+      "required": true,
+      "conditional": false,
+      "body": "A proposta possui validade de {{commercial_terms.validity_days}} dias. A participação depende da confirmação da inscrição e do cumprimento das condições comerciais estabelecidas."
+    },
+    {
+      "id": "approval",
+      "title": "Aprovação",
+      "required": true,
+      "conditional": false,
+      "body": "Ao aprovar esta proposta, o cliente declara estar de acordo com o programa, investimento, condições e premissas apresentados.\n\nCliente: {{client.name}}\nEmpresa: {{client.company}}\nData: {{approval.date}}\n\nAssinatura: __________________________________"
+    }
+  ]
+}

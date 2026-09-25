@@ -33,6 +33,7 @@
     { "id": "leads", "lane": "negocio", "col": 4, "type": "database", "label": "crm_leads", "sublabel": "owner_kind · stage_id · last_activity_at" },
     { "id": "stages", "lane": "negocio", "col": 5, "type": "database", "label": "crm_stages", "sublabel": "expected_duration_hours · agent_stage_hint" },
     { "id": "scores", "lane": "negocio", "col": 3, "type": "database", "label": "crm_lead_scores", "sublabel": "tabela à parte, FORA do realtime" },
+    { "id": "proposta", "lane": "negocio", "col": 6, "type": "database", "label": "crm_proposals", "sublabel": "rascunho → enviada → aceita/recusada/vencida, versionada" },
 
     { "id": "leadstate", "lane": "agente", "col": 0, "type": "database", "label": "lead_state", "sublabel": "estágio cognitivo · next_action · crm_lead_id" },
     { "id": "checkpoints", "lane": "agente", "col": 0, "type": "database", "label": "lead_checkpoints", "sublabel": "objeções e compromissos (por DIFF)" },
@@ -103,7 +104,11 @@
     { "id": "e49", "from": "interruptorcliente", "to": "auditoria", "label": "crm.cliente_pela_agenda_alterado com ganharam/perderam" },
     { "id": "e50", "from": "interruptorcliente", "to": "leads", "label": "lerClientePelaAgenda decide se o funil de clientes vale" },
     { "id": "e51", "from": "auditoria", "to": "telaauditoria", "label": "a linha vira texto legível (action + metadata)" },
-    { "id": "e52", "from": "telaauditoria", "to": "interruptorcliente", "label": "LAÇO DE RETORNO: quem vê o que a regra fez desliga se estiver errado" }
+    { "id": "e52", "from": "telaauditoria", "to": "interruptorcliente", "label": "LAÇO DE RETORNO: quem vê o que a regra fez desliga se estiver errado" },
+    { "id": "e53", "from": "leads", "to": "proposta", "label": "negócio ganha uma proposta" },
+    { "id": "e54", "from": "proposta", "to": "atividades", "label": "rascunho, envio e decisão viram atividade" },
+    { "id": "e55", "from": "proposta", "to": "inbox", "label": "vencida ou prometida-e-não-criada abre aviso" },
+    { "id": "e56", "from": "proposta", "to": "auditoria", "label": "toda ação (drafted/sent/aceita/recusada) audita" }
   ],
   "cards": [
     {

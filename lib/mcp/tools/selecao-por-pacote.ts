@@ -43,17 +43,21 @@ import { entraPorPacote, type ToolBundle, type ToolRisk } from "./pacotes";
  *    default de hoje NENHUM segundo pacote cabia: evoluir exigia 21, reter 22,
  *    escalar 28, atender 30, organizar 32.
  *
- * 25 é o MENOR passo que resolve: dá a um agente cheio as 5 vagas da família de
- * agenda e mantém `vender` inteiro com folga real. Não é número redondo
- * escolhido no olho — subir mais seria apostar contra um argumento que continua
- * de pé só porque ninguém o mediu.
+ * 25 era o MENOR passo que resolvia até o catálogo `vender` crescer de 17 para
+ * 18 tools (`crm_draft_proposal`, Tarefa 13 da proposta comercial — rascunhar
+ * proposta é trabalho do atendente, mesmo raciocínio de `crm_create_lead`).
+ * Medido de novo com a tool nova: no default de hoje, NENHUM segundo pacote
+ * cabia em 25 — evoluir exigia 26, reter 27, escalar 33, atender 35, organizar
+ * 37. Mesmo defeito D3 que motivou subir de 20 para 25, um degrau adiante. 26 é
+ * o menor passo que volta a abrir folga real, não número redondo escolhido no
+ * olho.
  *
  * ⚠️ O QUE FALTA, e é honesto dizer: não há instrumento para observar a
  * degradação que a heurística prevê. O lugar de observá-la é
  * `app/api/v1/ai/agents/[id]/tool-usage` e o log de invocação do run, com
  * "ferramenta errada escolhida" como sinal. Quem for subir de novo mede antes.
  */
-export const TETO_TOOLS_POR_AGENTE = 25;
+export const TETO_TOOLS_POR_AGENTE = 26;
 
 /** O mínimo que a regra precisa saber de uma capacidade. */
 export interface CapacidadeSelecionavel {

@@ -42,6 +42,7 @@ import { ModelPicker, useModelMeta } from "./ModelPicker";
 import { CHAVE_DA_INSTALACAO, CredentialPicker, STATUS_LABEL, findCredential } from "./CredentialPicker";
 import { rotuloDoEstadoDoCanal } from "@/lib/channels/estado";
 import { bloqueioDePublicacao } from "@/lib/ai/agents/bloqueio-de-publicacao";
+import { mesmoRascunho } from "@/lib/ai/agents/mesmo-rascunho";
 import { ToolPicker } from "./ToolPicker";
 import { TriggerEditor, type TriggerValue } from "./TriggerEditor";
 import { HandoffKeywordsInput } from "./HandoffKeywordsInput";
@@ -55,6 +56,7 @@ import { PainelDeSeguranca } from "./PainelDeSeguranca";
 import { BasesDoAgente, type MaterialDoAcervo } from "./BasesDoAgente";
 import { FunisDoAgente, type CoberturaPorFunil } from "./FunisDoAgente";
 import { PublishConfirmDialog } from "./PublishConfirmDialog";
+import { ComandosDoCelular } from "./ComandosDoCelular";
 import {
   saveAgentDraftAction,
   publishAgentAction,
@@ -166,6 +168,7 @@ interface FormState {
   history_token_window: number;
   handoff_keywords: string[];
   handoff_tool_enabled: boolean;
+  proposal_ai_draft_enabled: boolean;
   cases_enabled: boolean;
   split_messages: boolean;
   split_max_chars: number;
@@ -238,6 +241,7 @@ function buildState(args: {
       "pessoa real",
     ],
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
+    proposal_ai_draft_enabled: version?.proposal_ai_draft_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
     split_messages: version?.split_messages ?? false,
     split_max_chars: version?.split_max_chars ?? 600,
@@ -294,6 +298,7 @@ function toVersionPayload(s: FormState) {
     history_token_window: s.history_token_window,
     handoff_keywords: s.handoff_keywords,
     handoff_tool_enabled: s.handoff_tool_enabled,
+    proposal_ai_draft_enabled: s.proposal_ai_draft_enabled,
     cases_enabled: s.cases_enabled,
     split_messages: s.split_messages,
     split_max_chars: s.split_max_chars,
@@ -338,7 +343,19 @@ export function AgentForm(props: Props) {
    */
   const [papel, setPapel] = React.useState<"conversa" | "operacao" | "seguranca">("conversa");
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  /**
+   * A pergunta é "salvar mudaria alguma coisa?", e não "os dois objetos são
+   * idênticos". Por isso a comparação é feita sobre o que SERIA GRAVADO, de
+   * forma canônica (ver `lib/ai/agents/mesmo-rascunho.ts`): campo que o servidor
+   * completa sozinho e ordem de chaves do `jsonb` deixavam `dirty` verdadeiro
+   * para sempre, e o botão "Publicar" cinza com "Salve o rascunho antes de
+   * publicar" — medido numa instalação em produção, com o agente preso na versão
+   * anterior até alguém publicar por fora da tela.
+   */
+  const dirty = !mesmoRascunho(
+    { cadastro: toCadastroPayload(form), versao: toVersionPayload(form) },
+    { cadastro: toCadastroPayload(baseline), versao: toVersionPayload(baseline) },
+  );
 
   function patch(p: Partial<FormState>) {
     setForm((prev) => ({ ...prev, ...p }));
@@ -715,6 +732,7 @@ export function AgentForm(props: Props) {
           toolIds={form.operator_tool_ids}
           onToolIdsChange={(ids) => patch({ operator_tool_ids: ids })}
           modeloDoConversador={form.model}
+          agentId={props.mode === "edit" ? props.agent.id : null}
           disabled={disabled}
         />
       ) : null}
@@ -1174,6 +1192,22 @@ export function AgentForm(props: Props) {
             </p>
           </Card>
 
+          {/* Propostas comerciais */}
+          <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-medium">{t("Propostas comerciais")}</h3>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="proposal_ai_draft_enabled"
+                checked={form.proposal_ai_draft_enabled}
+                onCheckedChange={(v) => patch({ proposal_ai_draft_enabled: v })}
+                disabled={disabled}
+              />
+              <Label htmlFor="proposal_ai_draft_enabled">
+                {t("Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento")}
+              </Label>
+            </div>
+          </Card>
+
           {/* Follow-up */}
           <Card className="space-y-3 p-4">
             <h3 className="text-sm font-medium">{t("Follow-up")}</h3>
@@ -1215,6 +1249,16 @@ export function AgentForm(props: Props) {
               disabled={disabled}
             />
           </Card>
+
+          {/* Comandos pelo celular (`#on`/`#off`, C-076). Salva em
+              `ai_agents.config.aceita_comandos_celular`. */}
+          {isEdit && (
+            <ComandosDoCelular
+              agentId={props.agent.id}
+              inicial={(props.agent.config ?? {}).aceita_comandos_celular}
+              disabled={disabled}
+            />
+          )}
         </div>
       </div>
 

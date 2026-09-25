@@ -1431,6 +1431,7 @@ export type Database = {
           followup: Json
           handoff_keywords: string[]
           handoff_tool_enabled: boolean
+          proposal_ai_draft_enabled: boolean
           history_message_window: number
           history_token_window: number
           id: string
@@ -1468,6 +1469,7 @@ export type Database = {
           followup?: Json
           handoff_keywords?: string[]
           handoff_tool_enabled?: boolean
+          proposal_ai_draft_enabled?: boolean
           history_message_window?: number
           history_token_window?: number
           id?: string
@@ -1505,6 +1507,7 @@ export type Database = {
           followup?: Json
           handoff_keywords?: string[]
           handoff_tool_enabled?: boolean
+          proposal_ai_draft_enabled?: boolean
           history_message_window?: number
           history_token_window?: number
           id?: string
@@ -1930,6 +1933,7 @@ export type Database = {
           active_kb_version_id: string | null
           agent_id: string | null
           chunks_count: number
+          content_hash: string | null
           created_at: string
           id: string
           ingested_at: string | null
@@ -1948,6 +1952,7 @@ export type Database = {
           active_kb_version_id?: string | null
           agent_id?: string | null
           chunks_count?: number
+          content_hash?: string | null
           created_at?: string
           id?: string
           ingested_at?: string | null
@@ -1966,6 +1971,7 @@ export type Database = {
           active_kb_version_id?: string | null
           agent_id?: string | null
           chunks_count?: number
+          content_hash?: string | null
           created_at?: string
           id?: string
           ingested_at?: string | null
@@ -2368,6 +2374,7 @@ export type Database = {
           agent_id: string
           created_at: string
           examples: string[]
+          flow_pointer_id: string | null
           id: string
           intent_description: string
           intent_name: string
@@ -2380,6 +2387,7 @@ export type Database = {
           agent_id: string
           created_at?: string
           examples?: string[]
+          flow_pointer_id?: string | null
           id?: string
           intent_description: string
           intent_name: string
@@ -2392,6 +2400,7 @@ export type Database = {
           agent_id?: string
           created_at?: string
           examples?: string[]
+          flow_pointer_id?: string | null
           id?: string
           intent_description?: string
           intent_name?: string
@@ -2407,6 +2416,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "ai_agents"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_router_members_flow_pointer_mesma_org"
+            columns: ["organization_id", "flow_pointer_id"]
+            isOneToOne: false
+            referencedRelation: "followup_flow_pointers"
+            referencedColumns: ["organization_id", "id"]
           },
           {
             foreignKeyName: "ai_router_members_organization_id_fkey"

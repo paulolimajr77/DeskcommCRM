@@ -25,6 +25,7 @@ import { IDS_DO_HARNESS, motivoDoHarness } from '@/lib/mcp/tools/ferramentas-do-
 import type { McpAuthResult } from '@/lib/mcp/auth';
 import type { McpContext } from '@/lib/mcp/types';
 import { modulosLigados } from '@/lib/instalacao/modulos';
+import { capacidadesDaOrganizacao } from '@/lib/organizacao/capacidades';
 
 import type { Logger } from '../../obs/logger';
 import type { CrmEdgeConfig } from './mcp-client';
@@ -54,7 +55,8 @@ export interface McpTurnTools {
 
 export async function buildMcpTurnTools(
   cfg: CrmEdgeConfig,
-  ids: { organizationId: string; jobId: string },
+  /** `contactId`: o contato do turno — ver `contatoDoTurno` em `lib/ai/runtime/tools.ts`. */
+  ids: { organizationId: string; jobId: string; contactId?: string },
   agentConfig: PublishedAgentConfig,
   log: Logger,
   options?: { readOnly: boolean },
@@ -124,6 +126,7 @@ export async function buildMcpTurnTools(
     auth,
     toolIds: allowed,
     handoffToolEnabled: false,
+    proposalAiDraftEnabled: agentConfig.proposalAiDraftEnabled,
     handoffSignal,
     // "Em que negócios ele pode mexer" — o campo é OPCIONAL na interface, e
     // omiti-lo não é neutro: `escopo ?? []` e vazio significa NENHUM. Este
@@ -132,6 +135,8 @@ export async function buildMcpTurnTools(
     // tela e o card parado. Quem passava era só o dispatcher antigo.
     pipelineIds: agentConfig.pipelineIds,
     modulosLigados: await modulosLigados(cfg.supabase),
+    capacidadesLigadas: await capacidadesDaOrganizacao(cfg.supabase, ids.organizationId),
+    ...(ids.contactId ? { contatoDoTurno: ids.contactId } : {}),
   });
 
   return {

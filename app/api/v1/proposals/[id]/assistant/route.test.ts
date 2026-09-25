@@ -29,6 +29,7 @@ interface MundoOpts {
   lancarNoGerar?: "orcamento" | "provider" | "model";
   status?: string;
   suporteReadOnly?: boolean;
+  briefingJson?: Record<string, unknown> | null;
 }
 
 function montarMundoDeAssistente(opts: MundoOpts = {}) {
@@ -62,6 +63,7 @@ function montarMundoDeAssistente(opts: MundoOpts = {}) {
     titulo: "Proposta Teste",
     condicoes: "30 dias",
     valid_until: "2026-12-31",
+    briefing_json: opts.briefingJson ?? null,
     status: opts.status ?? "rascunho",
     revision: 1,
   };
@@ -163,5 +165,21 @@ describe("POST /api/v1/proposals/[id]/assistant", () => {
     const res = await mundo.POST({ instrucao: "baixa 10%" });
     expect(res.status).toBe(403);
     expect(mundo.gerarMudancasChamado).toBe(false);
+  });
+
+  it("passa o briefing_json atual para gerarMudancas, como Record vazio quando é null (Review Focus)", async () => {
+    const mundo = montarMundoDeAssistente({});
+    const res = await mundo.POST({ instrucao: "muda o prazo" });
+    expect(res.status).toBe(200);
+    const chamada = vi.mocked(gerarMudancas).mock.calls.at(-1)?.[0];
+    expect(chamada?.estado.briefing).toEqual({});
+  });
+
+  it("passa o briefing_json atual quando ele já tem conteúdo", async () => {
+    const mundo = montarMundoDeAssistente({ briefingJson: { project: { name: "Site Catálogo" } } });
+    const res = await mundo.POST({ instrucao: "muda o prazo" });
+    expect(res.status).toBe(200);
+    const chamada = vi.mocked(gerarMudancas).mock.calls.at(-1)?.[0];
+    expect(chamada?.estado.briefing).toEqual({ project: { name: "Site Catálogo" } });
   });
 });

@@ -140,18 +140,22 @@ describe("crm_find_free_slots", () => {
     expect(params.ate.toISOString()).toBe("2026-09-14T14:00:00.000Z");
   });
 
-  it("prioriza dia específico quando dia e dias_a_frente forem informados juntos (#1436)", async () => {
+  it("recusa dia e dias_a_frente juntos como período ambíguo (não dá precedência a nenhum)", async () => {
+    // A "caminhada de nove dias" (2026-09-16, cabeçalho de horariosLivresObject
+    // em lib/mcp/tools/agendamento.ts): o cliente pediu para agendar, o agente
+    // mandou dia + dias_a_frente juntos NOVE vezes, recebeu lista vazia nas
+    // nove e nunca chamou crm_book_appointment. Dar precedência a um dos dois
+    // campos escondia o pedido malformado atrás de uma resposta de sucesso —
+    // esta casa prefere a recusa explícita, que o modelo consegue corrigir.
     respondeCom(SUCESSO);
     const r = (await crmFindFreeSlots.handler(
       { event_type_slug: "c", dia: "2026-09-01", dias_a_frente: 7 },
       ctx,
-    )) as { horarios: unknown[]; total_de_horarios: number };
-    expect(r.total_de_horarios).toBe(1);
-    expect(horariosLivresDaOrg).toHaveBeenCalled();
-    const params = vi.mocked(horariosLivresDaOrg).mock.calls[0]![2];
-    // A janela consultada é a ampla do dia 2026-09-01 (-14h/+38h), ignorando o dias_a_frente: 7
-    expect(params.de.toISOString()).toBe("2026-08-31T10:00:00.000Z");
-    expect(params.ate.toISOString()).toBe("2026-09-02T14:00:00.000Z");
+    )) as { horarios: unknown[]; motivo: string; publicou_horarios: boolean | null };
+    expect(horariosLivresDaOrg).not.toHaveBeenCalled();
+    expect(r.horarios).toEqual([]);
+    expect(r.motivo).toBe("periodo_ambiguo");
+    expect(r.publicou_horarios).toBeNull();
   });
 
   it("⚠️ a recusa que sai é a do CLIENTE, nunca a do OPERADOR", async () => {

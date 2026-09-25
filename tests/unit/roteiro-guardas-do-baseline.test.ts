@@ -48,9 +48,9 @@ describe("superfície imutável e roteiro só manual", () => {
   });
 });
 
-describe("o roteiro encerra com humano, no opt-out e no prazo (0397)", () => {
-  const MIGRATION_0397 = readFileSync(
-    join(process.cwd(), "supabase", "migrations", "20260923230000_0397_roteiro_encerra_com_humano_e_prazo.sql"),
+describe("o roteiro encerra com humano, no opt-out e no prazo (0421, renumerada de 0397)", () => {
+  const MIGRATION_0421 = readFileSync(
+    join(process.cwd(), "supabase", "migrations", "20260923230000_0421_roteiro_encerra_com_humano_e_prazo.sql"),
     "utf8",
   );
   const varredura = BASELINE.indexOf("-- ---- VARREDURA anon:");
@@ -60,7 +60,7 @@ describe("o roteiro encerra com humano, no opt-out e no prazo (0397)", () => {
     "revoke execute on function public.fn_encerrar_roteiros_vencidos(int) from anon;",
     "revoke execute on function public.fn_encerrar_roteiros_vencidos(int) from authenticated;",
   ])("%s — na migration e no apêndice, antes da varredura anon", (trecho) => {
-    expect(MIGRATION_0397).toContain(trecho);
+    expect(MIGRATION_0421).toContain(trecho);
     const noBaseline = BASELINE.indexOf(trecho);
     expect(noBaseline).toBeGreaterThan(0);
     expect(noBaseline).toBeLessThan(varredura);

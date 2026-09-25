@@ -267,6 +267,7 @@ export const versionPatchSchema = versionShapeSchema
     operator_tool_ids: versionShapeSchema.shape.operator_tool_ids.removeDefault(),
     pipeline_ids: versionShapeSchema.shape.pipeline_ids.removeDefault(),
     knowledge_source_ids: versionShapeSchema.shape.knowledge_source_ids.removeDefault(),
+    proposal_ai_draft_enabled: versionShapeSchema.shape.proposal_ai_draft_enabled.removeDefault(),
   })
   .partial();
 

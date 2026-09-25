@@ -13,6 +13,8 @@ import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { autorizaCron } from "@/lib/auth/cron-auth";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { dataIsoNoFuso } from "@/lib/propostas/data-no-fuso";
+import { FUSO_PADRAO, fusoUtilizavel } from "@/lib/tempo/fusos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +26,14 @@ interface PropostaParaVerificar {
 export function encontrarPropostasVencidas(
   propostas: readonly PropostaParaVerificar[],
   agora: Date,
+  fusoPorOrganizacao: ReadonlyMap<string, string>,
 ): PropostaParaVerificar[] {
-  const hoje = agora.toISOString().slice(0, 10);
-  return propostas.filter((p) => p.status === "enviada" && p.valid_until !== null && p.valid_until < hoje);
+  return propostas.filter((p) => {
+    if (p.status !== "enviada" || p.valid_until === null) return false;
+    const fuso = fusoPorOrganizacao.get(p.organization_id) ?? FUSO_PADRAO;
+    const hoje = dataIsoNoFuso(agora, fuso);
+    return p.valid_until < hoje;
+  });
 }
 
 export interface VencimentoResult { vencidas: number }
@@ -42,7 +49,15 @@ async function rodarVencimento(
     .not("valid_until", "is", null);
   if (selErr) throw new Error(`query_failed: ${selErr.message}`);
 
-  const vencidas = encontrarPropostasVencidas(candidatas ?? [], new Date());
+  const orgIds = [...new Set((candidatas ?? []).map((p) => p.organization_id))];
+  const fusoPorOrganizacao = new Map<string, string>();
+  if (orgIds.length > 0) {
+    const { data: orgs } = await admin.from("organizations").select("id, timezone").in("id", orgIds);
+    for (const o of (orgs ?? []) as Array<{ id: string; timezone: string | null }>) {
+      fusoPorOrganizacao.set(o.id, fusoUtilizavel(o.timezone));
+    }
+  }
+  const vencidas = encontrarPropostasVencidas(candidatas ?? [], new Date(), fusoPorOrganizacao);
   if (vencidas.length === 0) return { vencidas: 0 };
 
   for (const p of vencidas) {

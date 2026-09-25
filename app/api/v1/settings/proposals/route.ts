@@ -15,6 +15,10 @@ const patchSchema = z.object({
   enabled: z.boolean(),
   default_valid_days: z.number().int().positive().max(365),
   default_conditions: z.string().max(4000).nullable(),
+  // N2 — OPCIONAL de propósito (não obrigatório como o plano escrevia): a
+  // tela de Configurações › Propostas manda só os 3 campos antigos, e ela não
+  // está no escopo desta task. Obrigatório quebraria o salvar dela com 422.
+  followup_dias: z.number().int().positive().max(365).optional(),
 });
 
 export async function GET(): Promise<Response> {
@@ -23,9 +27,11 @@ export async function GET(): Promise<Response> {
   if (!authz.ok) return authz.response;
   const supabase = await createClient();
   const { data } = await supabase.from("organizations").select("settings").eq("id", authz.org.orgId).single();
-  const proposals = (data?.settings as Record<string, unknown> | null)?.proposals ?? {
-    enabled: false, default_valid_days: 15, default_conditions: null,
-  };
+  const propostasGravadas = (data?.settings as Record<string, unknown> | null)?.proposals as Record<string, unknown> | null;
+  // N2 — o default de `followup_dias` vale também para organização que gravou
+  // o objeto ANTES do knob existir (o `??` abaixo só cobriria `proposals`
+  // inteiramente ausente).
+  const proposals = { followup_dias: 3, ...(propostasGravadas ?? { enabled: false, default_valid_days: 15, default_conditions: null }) };
   return ok(proposals, { requestId });
 }
 
@@ -46,7 +52,12 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   // continua sendo a protecao real.
   const supabase = createAdminClient();
   const { data: atual } = await supabase.from("organizations").select("settings").eq("id", authz.org.orgId).single();
-  const settingsMesclado = { ...(atual?.settings as Record<string, unknown> | null ?? {}), proposals: parsed.data };
+  const settingsAtual = (atual?.settings as Record<string, unknown> | null) ?? {};
+  // N2 — merge raso sobre o `proposals` já gravado (não substituição cega):
+  // a tela antiga manda só os 3 campos de sempre; sem isto, cada salvar dela
+  // apagaria o `followup_dias` de volta para o default.
+  const proposalsAtual = (settingsAtual.proposals as Record<string, unknown> | null) ?? {};
+  const settingsMesclado = { ...settingsAtual, proposals: { ...proposalsAtual, ...parsed.data } };
 
   const { error } = await supabase.from("organizations").update({ settings: settingsMesclado }).eq("id", authz.org.orgId);
   if (error) return fail("internal_error", t("Falha ao salvar."), 500, { requestId });

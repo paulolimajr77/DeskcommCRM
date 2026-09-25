@@ -10,15 +10,18 @@ import type { ApiSuccess } from "@/lib/api/wrappers";
 import { formatCents } from "@/lib/money";
 import type { ProposalStatus } from "@/lib/propostas/tipos";
 import { AssistantPanel } from "./_components/AssistantPanel";
+import { DocumentoCanvas } from "./_components/DocumentoCanvas";
 
 interface ProposalItem {
   id?: string;
   product_id: string | null;
   descricao: string;
   quantidade: number;
-  preco_unitario_cents: number;
+  preco_unitario_cents: number | null;
   desconto_cents: number;
   position: number;
+  /** N4 — preço ATUAL do catálogo (só quando product_id não é nulo). */
+  preco_catalogo_atual_cents?: number | null;
 }
 
 interface Proposta {
@@ -31,6 +34,7 @@ interface Proposta {
   total_cents: number;
   itens: ProposalItem[];
   moeda: string;
+  ultima_falha_envio: string | null;
 }
 
 interface Produto {
@@ -52,6 +56,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
   const [buscaProdutos, setBuscaProdutos] = useState<string>("");
   const [resultadosProdutos, setResultadosProdutos] = useState<Produto[]>([]);
   const [mostraBuscaProdutos, setMostraBuscaProdutos] = useState(false);
+  // N4 — "Manter" esconde a faixa só nesta sessão de edição (não persiste).
+  const [driftIgnorado, setDriftIgnorado] = useState(false);
   const abortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -99,9 +105,17 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
   if (!proposta) return <div className="p-6">{t("Carregando…")}</div>;
 
   const total = proposta.itens.reduce((acc, it) => {
+    if (it.preco_unitario_cents === null) return acc;
     const subtotal = Math.round(it.quantidade * it.preco_unitario_cents);
     return acc + Math.max(0, subtotal - it.desconto_cents);
   }, 0);
+
+  // N4 — itens de catálogo cujo preço mudou desde que entraram na proposta.
+  // Item manual (sem product_id) nunca participa; produto apagado
+  // (preco_catalogo_atual_cents null) também não.
+  const itensComDrift = proposta.itens.filter(
+    (it) => it.product_id !== null && it.preco_catalogo_atual_cents !== null && it.preco_catalogo_atual_cents !== undefined && it.preco_catalogo_atual_cents !== it.preco_unitario_cents,
+  );
 
   function atualizarItem(idx: number, patch: Partial<ProposalItem>) {
     setProposta((p) =>
@@ -122,7 +136,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
             product_id: null,
             descricao: "",
             quantidade: 1,
-            preco_unitario_cents: 0,
+            preco_unitario_cents: null,
             desconto_cents: 0,
             position: (p.itens.at(-1)?.position ?? 0) + 1000,
           },
@@ -183,6 +197,21 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
     }
   }
 
+  async function descartar() {
+    if (!window.confirm(t("Descartar este rascunho? A proposta anterior (se houver) não é afetada."))) return;
+    setSalvando(true);
+    setErro(null);
+    try {
+      await apiClient.delete(`/api/v1/proposals/${id}`);
+      window.location.href = "/app/proposals";
+    } catch (e) {
+      setErro(t("Não foi possível descartar. Confira se você tem papel de gestor."));
+      showApiError(e);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   async function enviar() {
     setSalvando(true);
     setErro(null);
@@ -231,6 +260,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         </div>
       )}
 
+      <DocumentoCanvas propostaId={id} />
+
       <div className="space-y-2">
         <label className="block text-sm font-medium">{t("Condições")}</label>
         <textarea
@@ -254,9 +285,56 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         />
       </div>
 
+      {editavel && itensComDrift.length > 0 && !driftIgnorado && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p>
+            {itensComDrift.length}{" "}
+            {itensComDrift.length === 1
+              ? t("item mudou de preço no catálogo")
+              : t("itens mudaram de preço no catálogo")}
+          </p>
+          {/*
+            Achado Importante da revisão final da C3b+E1: o botão "Manter" só
+            escondia este aviso — o preço do item de catálogo é SEMPRE
+            resolvido de novo pelo servidor ao salvar (resolverItensDaProposta,
+            por desenho: nunca aceita o preço que o cliente mandou). Um botão
+            "Manter" que não mantinha nada mentia pro usuário. Não existe hoje
+            um jeito de travar o preço antigo (exigiria pricing_status
+            'approved' chegando ao resolvedor, fora do escopo deste achado) —
+            então a cópia fica honesta em vez de fingir uma trava que não há.
+          */}
+          <p className="mt-1 text-xs text-amber-700">
+            {t("Ao salvar, o preço do catálogo será aplicado de qualquer forma.")}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // Só estado LOCAL — ainda precisa de "Salvar" para persistir.
+                setProposta((p) =>
+                  p && {
+                    ...p,
+                    itens: p.itens.map((it) =>
+                      it.product_id !== null && it.preco_catalogo_atual_cents != null && it.preco_catalogo_atual_cents !== it.preco_unitario_cents
+                        ? { ...it, preco_unitario_cents: it.preco_catalogo_atual_cents }
+                        : it,
+                    ),
+                  },
+                );
+              }}
+            >
+              {t("Atualizar preços")}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDriftIgnorado(true)}>
+              {t("Ignorar aviso")}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+        <table className="w-full text-sm">          <thead className="bg-gray-50">
             <tr className="border-b">
               <th scope="col" className="p-3 text-left">{t("Descrição")}</th>
               <th scope="col" className="p-3 text-right">{t("Qtd")}</th>
@@ -267,7 +345,9 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           </thead>
           <tbody className="divide-y">
             {proposta.itens.map((it, idx) => {
-              const subtotal = Math.round(it.quantidade * it.preco_unitario_cents) - it.desconto_cents;
+              const subtotal = it.preco_unitario_cents === null
+                ? null
+                : Math.round(it.quantidade * it.preco_unitario_cents) - it.desconto_cents;
               return (
                 <tr key={it.id ?? idx}>
                   <td className="p-3">
@@ -294,11 +374,15 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                     <input
                       type="number"
                       className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
-                      value={it.preco_unitario_cents / 100}
-                      disabled={!editavel}
-                      onChange={(e) =>
-                        atualizarItem(idx, { preco_unitario_cents: Math.round(Number(e.target.value) * 100) || 0 })
-                      }
+                      value={it.preco_unitario_cents === null ? "" : it.preco_unitario_cents / 100}
+                      placeholder={t("A definir")}
+                      disabled={!editavel || it.product_id !== null}
+                      onChange={(e) => {
+                        const texto = e.target.value;
+                        atualizarItem(idx, {
+                          preco_unitario_cents: texto === "" ? null : Math.round(Number(texto) * 100) || 0,
+                        });
+                      }}
                       min="0"
                       step="0.01"
                     />
@@ -317,7 +401,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
                     />
                   </td>
                   <td className="p-3 text-right font-medium tabular-nums">
-                    {formatCents(Math.max(0, subtotal), proposta.moeda)}
+                    {subtotal === null ? t("A definir") : formatCents(Math.max(0, subtotal), proposta.moeda)}
                   </td>
                 </tr>
               );
@@ -380,10 +464,25 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         <div className="text-2xl font-bold tabular-nums">{formatCents(total, proposta.moeda)}</div>
       </div>
 
+      {proposta.status === "rascunho" && proposta.ultima_falha_envio && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {t("O último envio falhou")}: {proposta.ultima_falha_envio}
+        </div>
+      )}
+      {proposta.status === "enviando" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {t("Na fila do WhatsApp — sai assim que o canal conectar.")}
+        </div>
+      )}
       {proposta.status === "rascunho" && (
-        <Button onClick={enviar} disabled={salvando} className="w-full">
-          {t("Enviar ao cliente")}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={enviar} disabled={salvando} className="flex-1">
+            {t("Enviar ao cliente")}
+          </Button>
+          <Button onClick={descartar} disabled={salvando} variant="outline">
+            {t("Descartar rascunho")}
+          </Button>
+        </div>
       )}
       {proposta.status === "enviada" && (
         <div className="flex gap-2">
@@ -398,6 +497,19 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
             }}
           >
             {t("Marcar como recusada")}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const resp = await apiClient.post<ApiSuccess<{ id: string }>>(`/api/v1/proposals/${proposta.id}/revise`, {});
+                window.location.href = `/app/proposals/${resp.data.id}`;
+              } catch (erro) {
+                showApiError(erro);
+              }
+            }}
+          >
+            {t("Revisar esta proposta")}
           </Button>
         </div>
       )}

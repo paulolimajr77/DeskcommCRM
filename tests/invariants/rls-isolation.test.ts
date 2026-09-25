@@ -227,7 +227,7 @@ beforeAll(() => {
             values (v_org, v_pipe, v_stage, 'RLS invariant lead');
         end if;
 
-        -- crm_proposals/crm_proposal_items (migration 0275): a proposta comercial.
+        -- crm_proposals/crm_proposal_items (migration 0394): a proposta comercial.
         -- crm_proposal_items ganhou organization_id proprio na revisao da Tarefa 0
         -- (Important 4), com trigger de consistencia contra crm_proposals.organization_id
         -- (fn_verificar_org_do_item_da_proposta) — o insert abaixo usa v_org nos dois
@@ -563,7 +563,7 @@ export const TABLES = [
   // controle positivo passaria por acerto. Quem mede a escrita é a rota, em
   // `tests/unit/tarefas-rota-nao-tem-porta-dos-fundos.test.ts`.
   "crm_tasks",
-  // migration 0275 — a proposta comercial. Read/write org-scoped sem gate de
+  // migration 0394 — a proposta comercial. Read/write org-scoped sem gate de
   // papel além de fn_role_at_least('agent'); o gate de ENVIO (manager) é
   // medido na rota, não aqui (mesmo eixo separado de catalog_products acima).
   "crm_proposals",

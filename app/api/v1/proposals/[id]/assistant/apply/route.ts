@@ -6,11 +6,12 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
-import { calcularTotal } from "@/lib/propostas/total";
 import { aplicarMudancas, mudancaSchema, type EstadoDaProposta } from "@/lib/propostas/assistente";
+import { resolverItensDaProposta } from "@/lib/propostas/itens";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
 const bodySchema = z.object({
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   const requestId = randomUUID();
   const authz = await requireRole("agent", { requestId, resource: "crm_proposals" });
   if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { id } = await ctx.params;
 
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   // duas vezes) — ja traz lead_id/contact_id que so seriam usados depois.
   const { data: proposta } = await supabase
     .from("crm_proposals")
-    .select("lead_id, contact_id, titulo, condicoes, valid_until, status, revision")
+    .select("lead_id, contact_id, titulo, condicoes, valid_until, briefing_json, status, revision, moeda")
     .eq("organization_id", authz.org.orgId)
     .eq("id", id)
     .maybeSingle();
@@ -56,14 +59,34 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("proposal_id", id)
     .order("position");
 
+  const briefing =
+    proposta.briefing_json && typeof proposta.briefing_json === "object" && !Array.isArray(proposta.briefing_json)
+      ? (proposta.briefing_json as Record<string, unknown>)
+      : {};
+
   const estadoAntes: EstadoDaProposta = {
     titulo: proposta.titulo,
     condicoes: proposta.condicoes,
     valid_until: proposta.valid_until,
+    briefing,
     itens: itens ?? [],
   };
   const estadoDepois = aplicarMudancas(estadoAntes, parsed.data.mudancas);
-  const totalCents = calcularTotal(estadoDepois.itens);
+
+  // C3 (revisão) — o assistente é mais um caminho que escreve item de
+  // proposta, e o preço de item de catálogo nunca pode vir de fora do
+  // servidor: sem isto, uma mudança "editar_item"/"preco_unitario_cents"
+  // gravava o valor sugerido pela IA (ou mandado no corpo) direto num item
+  // com product_id, furando a mesma regra que a criação/edição já cumprem.
+  const resolvido = await resolverItensDaProposta(
+    supabase,
+    authz.org.orgId,
+    estadoDepois.itens,
+    (proposta as { moeda: string }).moeda,
+  );
+  if (!resolvido.ok) {
+    return fail("validation_failed", t(resolvido.motivo), 422, { requestId });
+  }
 
   const { data: atualizada, error } = await supabase
     .from("crm_proposals")
@@ -71,7 +94,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       titulo: estadoDepois.titulo,
       condicoes: estadoDepois.condicoes,
       valid_until: estadoDepois.valid_until,
-      total_cents: totalCents,
+      briefing_json: estadoDepois.briefing,
+      total_cents: resolvido.totalCents,
+      pricing_status: resolvido.pricingStatus,
       revision: parsed.data.revision + 1,
     })
     .eq("organization_id", authz.org.orgId)
@@ -84,9 +109,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   }
 
   await supabase.from("crm_proposal_items").delete().eq("organization_id", authz.org.orgId).eq("proposal_id", id);
-  if (estadoDepois.itens.length > 0) {
+  if (resolvido.itens.length > 0) {
     await supabase.from("crm_proposal_items").insert(
-      estadoDepois.itens.map((it) => ({
+      resolvido.itens.map((it) => ({
         organization_id: authz.org.orgId,
         proposal_id: id,
         product_id: it.product_id,
@@ -99,16 +124,20 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     );
   }
 
-  await emitLeadActivity(supabase, {
-    organizationId: authz.org.orgId,
-    leadId: proposta.lead_id,
-    contactId: proposta.contact_id,
-    type: "proposal_drafted",
-    sourceModule: "proposals",
-    sourceId: id,
-    actor: { type: "user", id: authz.user.id },
-    reason: `Proposta ajustada pelo assistente (${parsed.data.mudancas.length} mudança(s))`,
-  });
+  // D10: proposta órfã (negócio apagado, `lead_id` nulo) segue editável pelo
+  // assistente — só não há negócio para registrar atividade nele.
+  if (proposta.lead_id) {
+    await emitLeadActivity(supabase, {
+      organizationId: authz.org.orgId,
+      leadId: proposta.lead_id,
+      contactId: proposta.contact_id,
+      type: "proposal_drafted",
+      sourceModule: "proposals",
+      sourceId: id,
+      actor: { type: "user", id: authz.user.id },
+      reason: `Proposta ajustada pelo assistente (${parsed.data.mudancas.length} mudança(s))`,
+    });
+  }
 
   void audit({
     action: "proposal.assistant_applied",
@@ -120,5 +149,5 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     metadata: { quantidade_de_mudancas: parsed.data.mudancas.length },
   });
 
-  return ok({ id, revision: atualizada.revision, total_cents: totalCents }, { requestId });
+  return ok({ id, revision: atualizada.revision, total_cents: resolvido.totalCents }, { requestId });
 }

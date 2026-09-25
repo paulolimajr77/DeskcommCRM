@@ -1,5 +1,6 @@
 import type { Role } from "@/lib/auth/types";
 import type { ModuloOpcional } from "@/lib/instalacao/modulos";
+import type { CapacidadeDaOrganizacao } from "@/lib/organizacao/capacidades";
 
 /**
  * Registro de navegação — a ÚNICA lista de destinos do app do tenant.
@@ -50,6 +51,12 @@ export interface NavMetadata {
    * É apresentação, como o resto deste arquivo: quem recusa é a tela e a rota.
    */
   modulo?: ModuloOpcional;
+  /**
+   * A porta de uma CAPACIDADE que a organização liga para si
+   * (`lib/organizacao/capacidades.ts`). Desligada, some do menu, do hub e do
+   * ⌘K. Apresentação, como `modulo`: quem recusa é a tela e a rota.
+   */
+  capacidade?: CapacidadeDaOrganizacao;
 }
 
 /**
@@ -305,6 +312,7 @@ export const NAV_CATALOG = [
     icon: "FileText",
     group: "crm",
     section: "Fechar a venda",
+    capacidade: "propostas",
   },
   {
     // A promessa que o comentário da Agenda fazia desde que ela nasceu. Aqui se
@@ -436,6 +444,23 @@ export const NAV_CATALOG = [
     sidebar: true,
   },
   {
+    // Os roteiros de atendimento (#1130, de @vgamkt): perguntas que a IA conduz
+    // durante a conversa. MÓDULO OPCIONAL da instalação, desligado por padrão
+    // (doc 64): a porta só existe onde quem administra o servidor o ligou.
+    //
+    // SEM `sidebar`, pela decisão (d) do doc 48: o menu lateral encheu e ficou
+    // configurável por empresa — o padrão não cresce; a porta mora no hub de IA
+    // e na busca, e quem usa pode pô-la no menu dela.
+    href: "/app/ai/atendimento",
+    label: "Fluxos de atendimento",
+    description: "Perguntas que a IA conduz durante a conversa, com as respostas guardadas na ficha do cliente.",
+    icon: "ListChecks",
+    group: "ia",
+    section: "Montar o agente",
+    minRole: "manager",
+    modulo: "fluxos_atendimento",
+  },
+  {
     href: "/app/ai/routers",
     label: "Roteadores",
     description: "Qual agente pega qual conversa, e quando o humano assume.",
@@ -466,7 +491,9 @@ export const NAV_CATALOG = [
     // havia onde responder "quem usa IA aqui, e com qual chave?".
     href: "/app/ai/providers",
     label: "Provedores",
-    description: "Qual inteligência atende cada parte do sistema — e o que acontece se ela falhar.",
+    // O "Jev" vem cedo: o ⌘K mostra só o começo da descrição, e a versão
+    // longa cortava antes do nome — quem procurava "jev" achava, mas não via por quê.
+    description: "Ligue o Jev para decisões rápidas e escolha qual inteligência atende cada parte do sistema.",
     icon: "Plugs",
     group: "ia",
     section: "Montar o agente",

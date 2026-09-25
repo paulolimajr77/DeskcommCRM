@@ -33,6 +33,7 @@ import {
   cabecalhosDeAtribuicaoOpenRouter,
   DEEPSEEK_ENDPOINT,
   OPENROUTER_ENDPOINT,
+  REQUESTY_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
 import { CredentialUnavailableError, loadCredential } from "@/lib/ai/credentials";
 import { decidirElegibilidadeDaConversaViaSupabase } from "@/lib/ai/elegibilidade/consulta-supabase";
@@ -49,6 +50,7 @@ import { loadHistoryWithBudget } from "./history";
 import { mintEphemeralToken, revokeEphemeralToken } from "./mcp_token";
 import { pickToolsFromMcp, type RuntimeHandoffSignal } from "./tools";
 import { modulosLigados } from "@/lib/instalacao/modulos";
+import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import { serializeSteps } from "./serialize";
 import {
   CHANNEL_SESSION_REF_COLUMNS,
@@ -190,6 +192,9 @@ export function buildModel(provider: string, apiKey: string, modelId: string): L
     // rígido que a produção mente sobre o que está quebrado.
     case "deepseek":
       return createOpenAI({ apiKey, baseURL: DEEPSEEK_ENDPOINT })(modelId);
+    // Requesty: roteador OpenAI-compatível, pelo mesmo `.chat()` do registry.
+    case "requesty":
+      return createOpenAI({ apiKey, baseURL: REQUESTY_ENDPOINT }).chat(modelId);
     default:
       throw new Error(`unsupported_provider: ${provider}`);
   }
@@ -487,6 +492,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       // `?? []` — o clone sem a coluna 0125 nasce FECHADO.
       pipelineIds: (version as { pipeline_ids?: string[] }).pipeline_ids ?? [],
       modulosLigados: await modulosLigados(admin),
+      capacidadesLigadas: await capacidadesDaOrganizacao(admin, run.organization_id),
       handoffSignal,
     });
 

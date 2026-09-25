@@ -79,13 +79,12 @@ export type InboxKind =
   // não distingue "tocou e ninguém pegou" de "o operador recusou", e para quem
   // lê a Central os dois pedem a mesma coisa: alguém precisa ligar de volta.
   | 'voice_call_missed'
-  // (migration 0276) O turno bateu no teto de passos e parou no meio, sem
-  // terminar naturalmente — o `return` mudo de antes virava conversa sem
-  // resposta e ninguém sabia a causa.
+  // (migration 0392 na vps/pljr-combinada) O turno bateu no teto de passos e
+  // parou no meio, sem terminar naturalmente — o `return` mudo de antes
+  // virava conversa sem resposta e ninguém sabia a causa.
   | 'passos_esgotados'
-  // (migration 0276) Uma das duas contagens do laço de retorno da organização
-  // caiu de forma sustentada. Reservado para uma tarefa futura (Peça 11); a
-  // constraint do banco já aceita o valor.
+  // (migration 0392 na vps/pljr-combinada) Uma das duas contagens do laço de
+  // retorno da organização caiu de forma sustentada.
   | 'laco_de_retorno_caiu'
   | 'proposal_expired_notice'
   | 'proposal_acceptance_rate_drop'
@@ -96,6 +95,9 @@ export type InboxKind =
   // `active` na tela, morto no motor. Quem abre e quem FECHA é o mesmo cron
   // (`followup-sem-agente`): o aviso some sozinho quando o vínculo aparece.
   | 'followup_sem_agente'
+  // (migration 0401, D3) Proposta presa em `enviando` há mais de 5min — o
+  // cron `proposta-travada` a devolveu a rascunho sozinho, sem reenviar nada.
+  | 'proposta_travada'
   | 'other';
 
 export interface InboxItemRow {

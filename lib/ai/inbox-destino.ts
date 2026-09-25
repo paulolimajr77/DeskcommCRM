@@ -119,6 +119,10 @@ export const POLITICAS_DE_AVISO = {
   // está pendente é o ATENDIMENTO, e quem abre o aviso precisa cair nele. A
   // conferência da conexão é o segundo passo, e vai na orientação.
   aviso_de_caso_nao_entregue: { refs: ["agent_case"], orientacao: "O aviso deste atendimento não saiu no WhatsApp. Abra o atendimento — ele continua esperando — e confira a conexão de avisos em Configurações." },
+  // (migration 0401, D3) Mesmo par de `message_send_stuck`, para a proposta —
+  // o cron devolve a rascunho sozinho, sem reenviar; quem lê decide se envia
+  // de novo.
+  proposta_travada: { refs: ["proposal"], orientacao: "Confira a proposta antes de decidir se precisa enviar novamente." },
   other: { refs: ["lead", "channel_session", "appointment", "ai_agent"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
 } satisfies Record<InboxKind, Politica>;
 
@@ -132,6 +136,7 @@ export const POLITICAS_DE_AVISO = {
  */
 const ROTULO_POR_KIND: Record<string, string> = {
   message_send_stuck: "Abrir uma conversa afetada",
+  proposta_travada: "Abrir proposta",
   voice_call_missed: "Ligar de volta",
   // "Abrir o fluxo" convida a olhar; o aviso pede CONFERIR qual fluxo está
   // parado antes de ir ligá-lo no agente.

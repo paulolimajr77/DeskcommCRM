@@ -9,13 +9,17 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   requireSupportWrite: vi.fn(),
   emitLeadActivity: vi.fn(),
+  cancelaRetornoNoCrm: vi.fn(),
 }));
 
+vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: mocks.requireSupportWrite }));
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: mocks.emitLeadActivity }));
+vi.mock("@/lib/followup/retorno-crm", () => ({ cancelaRetornoNoCrm: mocks.cancelaRetornoNoCrm }));
+vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
@@ -27,13 +31,17 @@ interface MundoOpts {
   status?: string;
   leadValueCentsAntes?: number;
   suporteReadOnly?: boolean;
+  /** D10: proposta órfã — o negócio foi apagado (lead_id virou null). */
+  leadIdNulo?: boolean;
+  /** N2: id do retorno automático agendado no envio (null = nunca teve). */
+  retornoId?: string | null;
 }
 
 function montarMundoDeDecisao(opts: MundoOpts = {}) {
   const proposta = {
     id: PROPOSAL_ID,
     organization_id: ORG_ID,
-    lead_id: LEAD_ID,
+    lead_id: opts.leadIdNulo ? null : LEAD_ID,
     contact_id: CONTACT_ID,
     status: opts.status ?? "enviada",
     numero: 1,
@@ -42,6 +50,7 @@ function montarMundoDeDecisao(opts: MundoOpts = {}) {
     decided_at: null as string | null,
     decided_by_user_id: null as string | null,
     decision_reason: null as string | null,
+    retorno_id: (opts.retornoId ?? null) as string | null,
   };
   let propostaAtualizada: typeof proposta | null = null;
   let atividadeGravada: { type: string } | null = null;
@@ -135,6 +144,15 @@ describe("POST /api/v1/proposals/[id]/decide", () => {
     expect(mundo.atividadeGravada?.type).toBe("proposal_accepted");
   });
 
+  it("decide uma proposta orfa (negocio apagado, lead_id nulo) sem lancar — D10", async () => {
+    const mundo = montarMundoDeDecisao({ status: "enviada", leadIdNulo: true });
+    const res = await mundo.POST({ decisao: "aceita" });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada?.status).toBe("aceita");
+    // sem negócio, não há atividade de negócio para gravar.
+    expect(mundo.atividadeGravada).toBeNull();
+  });
+
   it("recusada com motivo: grava decision_reason, value_cents do lead NÃO muda (spec §16.2)", async () => {
     const mundo = montarMundoDeDecisao({
       status: "enviada",
@@ -144,6 +162,33 @@ describe("POST /api/v1/proposals/[id]/decide", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaAtualizada?.decision_reason).toBe("preço acima do orçamento");
     expect(mundo.leadValueCentsDepois).toBe(800000);
+  });
+
+  it("decidir aceita/recusada: CANCELA o retorno automático quando a proposta tinha um agendado (N2)", async () => {
+    const mundo = montarMundoDeDecisao({ status: "enviada", retornoId: "retorno-1" });
+    const res = await mundo.POST({ decisao: "aceita" });
+    expect(res.status).toBe(200);
+    expect(mocks.cancelaRetornoNoCrm).toHaveBeenCalledWith(
+      expect.anything(),
+      "retorno-1",
+      expect.objectContaining({ motivo: expect.any(String) }),
+    );
+  });
+
+  it("cancelaRetornoNoCrm lança (banco instável): a decisão já gravada não vira 500, e a auditoria ainda sai (achado Importante da revisão final da C3b+E1)", async () => {
+    mocks.cancelaRetornoNoCrm.mockRejectedValueOnce(new Error("retorno_cancel_failed: timeout"));
+    const mundo = montarMundoDeDecisao({ status: "enviada", retornoId: "retorno-1" });
+    const res = await mundo.POST({ decisao: "aceita" });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada?.status).toBe("aceita");
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "proposal.aceita" }));
+  });
+
+  it("proposta sem retorno_id (nunca teve, ou falhou ao agendar): não tenta cancelar, não lança", async () => {
+    const mundo = montarMundoDeDecisao({ status: "enviada", retornoId: null });
+    const res = await mundo.POST({ decisao: "recusada" });
+    expect(res.status).toBe(200);
+    expect(mocks.cancelaRetornoNoCrm).not.toHaveBeenCalled();
   });
 
   it("proposta em rascunho: 409, não decide sobre o que não foi enviado", async () => {

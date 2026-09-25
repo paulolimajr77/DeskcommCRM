@@ -160,6 +160,11 @@ export function AssistantPanel({
                     {m.campo}: {String(m.de ?? t("(sem valor)"))} → {String(m.para)}
                   </span>
                 )}
+                {m.tipo === "editar_briefing" && (
+                  <span>
+                    {m.campo}: {String(m.de ?? t("(sem valor)"))} → {String(m.para)}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

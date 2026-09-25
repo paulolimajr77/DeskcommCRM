@@ -4,7 +4,9 @@ const PADRAO_VARIAVEL = /\{\{([a-zA-Z0-9_.]+)\}\}/g;
 export function extrairVariaveis(texto: string): string[] {
   const encontradas = new Set<string>();
   for (const m of texto.matchAll(PADRAO_VARIAVEL)) {
-    encontradas.add(m[1]);
+    // O padrão tem exatamente 1 grupo de captura — se `m` existe, `m[1]`
+    // existe. O TS não sabe disso e tipa `m[1]` como `string | undefined`.
+    encontradas.add(m[1]!);
   }
   return [...encontradas];
 }

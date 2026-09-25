@@ -37146,6 +37146,24 @@ create policy tenant_isolation_proposal_templates_all on public.proposal_templat
 
 notify pgrst, 'reload schema';
 
+-- ---- M0: proposta referencia modelo (migration 0411) ----
+-- `crm_proposals` ganha `template_slug`, `template_version`,
+-- `template_snapshot` e `rendered_snapshot` — nullable e aditiva: proposta sem
+-- modelo (todo o histórico de hoje) convive sem migração de dado nenhuma. Os
+-- snapshots ficam vazios até a Onda M5 (envio); a M0 só abre o lugar. CHECK
+-- `crm_proposals_template_slug_versao_juntos_check`: os dois campos de "qual
+-- modelo" nascem e morrem juntos.
+alter table public.crm_proposals add column if not exists template_slug text;
+alter table public.crm_proposals add column if not exists template_version int;
+alter table public.crm_proposals add column if not exists template_snapshot jsonb;
+alter table public.crm_proposals add column if not exists rendered_snapshot jsonb;
+
+alter table public.crm_proposals drop constraint if exists crm_proposals_template_slug_versao_juntos_check;
+alter table public.crm_proposals add constraint crm_proposals_template_slug_versao_juntos_check
+  check ((template_slug is null) = (template_version is null));
+
+notify pgrst, 'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria

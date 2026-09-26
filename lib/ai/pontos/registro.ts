@@ -255,6 +255,18 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     registraEm: "llm_calls",
   },
   {
+    id: "proposal_template_import",
+    rotulo: "Transformar proposta da empresa em modelo",
+    oQueFaz:
+      "Lê a proposta que a empresa já usa (PDF ou texto) e a divide em seções de modelo, trocando os dados de um cliente específico por campos preenchíveis, para uma pessoa revisar antes de salvar.",
+    papel: "atender",
+    exige: { tools: true },
+    emissor: "lib/propostas/modelos/importar.ts",
+    sintomaDeFalha:
+      "O botão de criar modelo a partir de um arquivo não devolve nada, e a pessoa monta o modelo seção por seção à mão.",
+    registraEm: "llm_calls",
+  },
+  {
     id: "bot_respond",
     rotulo: "Responder (motor antigo)",
     oQueFaz:

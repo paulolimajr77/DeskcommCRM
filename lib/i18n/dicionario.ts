@@ -2257,6 +2257,14 @@ export const DICIONARIO: Traducoes = {
   "Personalize o modelo da plataforma antes de editá-lo.": { es: "Personaliza el modelo de la plataforma antes de editarlo." },
   "Não há cópia da empresa para este modelo.": { es: "No hay copia de la empresa para este modelo." },
   "Falha ao desativar o modelo.": { es: "No fue posible desactivar el modelo." },
+  "O arquivo passa de 5 MB.": { es: "El archivo supera los 5 MB." },
+  "Não leio Word diretamente — no Word use \"Salvar como\" → PDF e envie o PDF.": {
+    es: "No leo Word directamente — en Word usa \"Guardar como\" → PDF y envía el PDF.",
+  },
+  "Envie a proposta em PDF, Markdown (.md) ou texto (.txt).": { es: "Envía la propuesta en PDF, Markdown (.md) o texto (.txt)." },
+  "Não encontrei texto neste arquivo. Se for um PDF escaneado, exporte a proposta original como PDF com texto.": {
+    es: "No encontré texto en este archivo. Si es un PDF escaneado, exporta la propuesta original como PDF con texto.",
+  },
   "Erro ao salvar": { es: "Error al guardar" },
   "Agent default": { es: "Agente predeterminado" },
   "Criado em": { es: "Creado el" },

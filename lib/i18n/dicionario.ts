@@ -6636,6 +6636,7 @@ export const DICIONARIO: Traducoes = {
   "Consentimento de contato recusado no formulário": { es: "Consentimiento de contacto rechazado en el formulario" },
   "Desqualificado na triagem inicial": { es: "Descalificado en el filtro inicial" },
   "Aguardando revisão humana": { es: "Pendiente de revisión humana" },
+  "Aguardando revisão": { es: "Esperando revisión" },
   "Assumiu a conversa": { es: "Asumió la conversación" },
   "Transferiu a conversa": { es: "Transfirió la conversación" },
   "Liberou a conversa": { es: "Liberó la conversación" },

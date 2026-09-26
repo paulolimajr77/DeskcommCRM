@@ -35,7 +35,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const leadId = req.nextUrl.searchParams.get("lead_id");
   let q = supabase
     .from("crm_proposals")
-    .select("id, lead_id, titulo, status, total_cents, moeda, numero, ano, versao, valid_until, created_at")
+    .select("id, lead_id, titulo, status, total_cents, moeda, numero, ano, versao, valid_until, created_at, drafted_by_agent_id")
     .eq("organization_id", authz.org.orgId)
     .order("created_at", { ascending: false })
     .limit(500);

@@ -21,6 +21,16 @@ interface PropostaResumo {
   ano: number | null;
   versao: number;
   created_at: string;
+  drafted_by_agent_id: string | null;
+}
+
+function aguardaRevisao(p: PropostaResumo): boolean {
+  return p.status === "rascunho" && p.drafted_by_agent_id !== null;
+}
+
+/** Rascunho da IA primeiro — é o que espera uma decisão; o resto na ordem da rota (mais novo primeiro). */
+function ordenarParaRevisao(lista: PropostaResumo[]): PropostaResumo[] {
+  return [...lista.filter(aguardaRevisao), ...lista.filter((p) => !aguardaRevisao(p))];
 }
 
 export function ProposalsClient({ podeCriar }: { podeCriar: boolean }) {
@@ -48,7 +58,7 @@ export function ProposalsClient({ podeCriar }: { podeCriar: boolean }) {
         signal: controller.signal,
       })
       .then((res) => {
-        if (!controller.signal.aborted) setPropostas(res.data);
+        if (!controller.signal.aborted) setPropostas(ordenarParaRevisao(res.data));
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -119,7 +129,15 @@ export function ProposalsClient({ podeCriar }: { podeCriar: boolean }) {
                       {p.titulo}
                     </Link>
                   </td>
-                  <td className="p-3">{statusLabels[p.status]}</td>
+                  <td className="p-3">
+                    {aguardaRevisao(p) ? (
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                        {t("Aguardando revisão")}
+                      </span>
+                    ) : (
+                      statusLabels[p.status]
+                    )}
+                  </td>
                   <td className="whitespace-nowrap p-3 text-right tabular-nums">
                     {formatCents(p.total_cents, p.moeda)}
                   </td>

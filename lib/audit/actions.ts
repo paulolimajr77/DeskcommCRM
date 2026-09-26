@@ -694,6 +694,10 @@ export const AUDIT_ACTIONS = [
   // Cron proposta-travada (D3, onda C2): proposta presa em `enviando` voltou
   // a rascunho sozinha — mesmo padrão de "message.recover_stuck_run".
   "proposal.recovered_from_stuck",
+  // P4B — aviso ao número da equipe quando a IA rascunha (sem tabela de
+  // entrega: a baixa do evento é a trava). Metadata leva ids e o destino MASCARADO.
+  "proposal.aviso_whatsapp_enviado",
+  "proposal.aviso_whatsapp_falhou",
 
   "organization.switched",
   // Chamada originada via /api/v1/calls (módulo VoIP, migration 0347).

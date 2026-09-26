@@ -33,6 +33,7 @@ async function buscarProposta(admin: ReturnType<typeof createAdminClient>, orgId
         id: string;
         organization_id: string;
         template_slug: string | null;
+        template_slug_sugerido: string | null;
         briefing_json: unknown;
         secoes_editadas: Record<string, string> | null;
         pricing_status: "missing" | "catalog" | "manual" | "custom" | "approved";
@@ -63,7 +64,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
 
   if (!proposta.template_slug) {
     return ok(
-      { modeloSlug: null, secoes: [], variaveisFaltando: [] as string[], prontidao: null, resumoComercial: null },
+      { modeloSlug: null, modeloSlugSugerido: proposta.template_slug_sugerido, secoes: [], variaveisFaltando: [] as string[], prontidao: null, resumoComercial: null },
       { requestId },
     );
   }
@@ -71,7 +72,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
   const modelo = await resolverModelo(admin, authz.org.orgId, proposta.template_slug);
   if (!modelo) {
     return ok(
-      { modeloSlug: proposta.template_slug, secoes: [], variaveisFaltando: [] as string[], prontidao: null, resumoComercial: null },
+      { modeloSlug: proposta.template_slug, modeloSlugSugerido: proposta.template_slug_sugerido, secoes: [], variaveisFaltando: [] as string[], prontidao: null, resumoComercial: null },
       { requestId },
     );
   }
@@ -105,7 +106,7 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
     temItensComPreco,
   );
 
-  return ok({ modeloSlug: modelo.slug, secoes, variaveisFaltando, prontidao, resumoComercial: null }, { requestId });
+  return ok({ modeloSlug: modelo.slug, modeloSlugSugerido: proposta.template_slug_sugerido, secoes, variaveisFaltando, prontidao, resumoComercial: null }, { requestId });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {

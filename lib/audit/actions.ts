@@ -677,6 +677,9 @@ export const AUDIT_ACTIONS = [
   "proposal.revised",
   // Edição manual de seção do documento pelo canvas (M3, onda de modelos).
   "proposal.documento_editado",
+  // Confirmação do modelo do documento pela tela (N1 — a IA sugere,
+  // uma pessoa confirma; limpa template_slug_sugerido).
+  "proposal.modelo_confirmado",
   "proposal.discarded",
   "proposal.aceita",
   "proposal.recusada",

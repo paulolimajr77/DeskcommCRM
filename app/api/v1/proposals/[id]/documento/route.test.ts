@@ -28,6 +28,7 @@ const ROLE_RANK: Record<string, number> = { viewer: 1, agent: 2, manager: 3, adm
 interface MundoOpts {
   papel?: keyof typeof ROLE_RANK;
   templateSlug?: string | null;
+  sugestao?: string | null;
   secoesEditadas?: Record<string, string> | null;
   briefingJson?: Record<string, unknown> | null;
 }
@@ -47,6 +48,7 @@ function montarMundo(opts: MundoOpts = {}) {
     id: PROPOSTA_ID,
     organization_id: ORG_ID,
     template_slug: opts.templateSlug ?? null,
+    template_slug_sugerido: opts.sugestao ?? null,
     briefing_json: opts.briefingJson ?? null,
     secoes_editadas: opts.secoesEditadas ?? null,
     pricing_status: "manual",
@@ -125,6 +127,13 @@ describe("GET /api/v1/proposals/[id]/documento", () => {
     const body = await res.json();
     expect(body.data.secoes[0].body).toBe("Texto final escrito à mão.");
     expect(body.data.variaveisFaltando).toEqual([]);
+  });
+
+  it("devolve modeloSlugSugerido quando a proposta tem sugestão pendente", async () => {
+    montarMundo({ templateSlug: null, sugestao: "ecommerce" });
+    const res = await GET(new Request("http://x") as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    const body = await res.json();
+    expect(body.data.modeloSlugSugerido).toBe("ecommerce");
   });
 });
 

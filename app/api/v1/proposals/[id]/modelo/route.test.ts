@@ -33,6 +33,7 @@ interface MundoOpts {
   templateSlug?: string | null;
   sugestao?: string | null;
   modeloResolve?: { slug: string; version: number } | null;
+  secoesEditadas?: Record<string, string> | null;
 }
 
 function montarMundo(opts: MundoOpts = {}) {
@@ -51,6 +52,7 @@ function montarMundo(opts: MundoOpts = {}) {
     status: opts.status ?? "rascunho",
     template_slug: opts.templateSlug ?? null,
     template_slug_sugerido: opts.sugestao ?? null,
+    secoes_editadas: opts.secoesEditadas ?? null,
   };
 
   let updateCapturado: Record<string, unknown> | undefined;
@@ -132,5 +134,26 @@ describe("PATCH /api/v1/proposals/[id]/modelo", () => {
     const res = await PATCH(reqComBody({ template_slug: "landing_page" }), ctx());
     expect(res.status).toBe(200);
     expect(mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSTA_ID);
+  });
+
+  it("troca de modelo com seção reescrita SEM confirmar: 409, nada muda", async () => {
+    const mundo = montarMundo({ templateSlug: "landing_page", secoesEditadas: { summary: "x" }, modeloResolve: { slug: "ecommerce", version: 1 } });
+    const res = await PATCH(reqComBody({ template_slug: "ecommerce" }), ctx());
+    expect(res.status).toBe(409);
+    expect(mundo.updateCapturado()).toBeUndefined();
+  });
+
+  it("troca de modelo com seção reescrita E confirmação: grava e descarta as reescritas", async () => {
+    const mundo = montarMundo({ templateSlug: "landing_page", secoesEditadas: { summary: "x" }, modeloResolve: { slug: "ecommerce", version: 1 } });
+    const res = await PATCH(reqComBody({ template_slug: "ecommerce", descartar_reescritas: true }), ctx());
+    expect(res.status).toBe(200);
+    expect(mundo.updateCapturado()).toMatchObject({ template_slug: "ecommerce", secoes_editadas: null });
+  });
+
+  it("reconfirmar o MESMO modelo não pede confirmação nem apaga reescrita", async () => {
+    const mundo = montarMundo({ templateSlug: "landing_page", secoesEditadas: { summary: "x" }, modeloResolve: { slug: "landing_page", version: 1 } });
+    const res = await PATCH(reqComBody({ template_slug: "landing_page" }), ctx());
+    expect(res.status).toBe(200);
+    expect(mundo.updateCapturado()).not.toHaveProperty("secoes_editadas");
   });
 });

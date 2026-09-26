@@ -205,6 +205,9 @@ export const DICIONARIO: Traducoes = {
   "Escolha o modelo da proposta antes de preencher campos.": {
     es: "Elige el modelo de la propuesta antes de completar campos.",
   },
+  "Esta proposta tem seções reescritas à mão. Confirme o descarte para trocar o modelo.": {
+    es: "Esta propuesta tiene secciones reescritas a mano. Confirma el descarte para cambiar el modelo.",
+  },
   "Ver conexões e proteções de envio": { es: "Ver conexiones y protecciones de envío" },
   "O que a IA deve oferecer e como iniciar": { es: "Qué debe ofrecer la IA y cómo iniciar" },
   "Descreva sua oferta e o objetivo da primeira conversa.": { es: "Describe tu oferta y el objetivo de la primera conversación." },

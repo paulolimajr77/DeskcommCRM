@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     .maybeSingle();
   if (!proposta) return fail("not_found", t("Proposta não encontrada."), 404, { requestId });
   if ((proposta as { status: string }).status !== "rascunho") {
-    return fail("validation_failed", t("Só é possível trocar o modelo de uma proposta em rascunho."), 409, { requestId });
+    return fail("proposal_context_stale", t("Só é possível trocar o modelo de uma proposta em rascunho."), 409, { requestId });
   }
 
   if (parsed.data.template_slug === null) {

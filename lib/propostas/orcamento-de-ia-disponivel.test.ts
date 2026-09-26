@@ -98,4 +98,17 @@ describe("orcamentoDeIaDisponivel", () => {
       disponivel: true, motivo: null,
     });
   });
+
+  it("o purpose passado chega a decidirOrcamento: purpose isento não bloqueia mesmo acima do teto", async () => {
+    const db = montarDb({ orcamento: ORCAMENTO_HARD, gasto: 15000, avisadoNesteMes: true });
+    expect(await orcamentoDeIaDisponivel(db, "org-1", "on", "connection_test")).toEqual({
+      disponivel: true, motivo: null,
+    });
+  });
+
+  it("sem o 4º argumento, o purpose cai no default proposal_assistant (bloqueia acima do teto)", async () => {
+    const db = montarDb({ orcamento: ORCAMENTO_HARD, gasto: 15000, avisadoNesteMes: true });
+    const r = await orcamentoDeIaDisponivel(db, "org-1");
+    expect(r.disponivel).toBe(false);
+  });
 });

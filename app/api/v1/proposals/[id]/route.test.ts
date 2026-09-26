@@ -340,6 +340,26 @@ describe("PATCH /api/v1/proposals/[id]", () => {
     if (falha !== "itens.insert") expect(mundo.inseridos).toHaveLength(0);
     if (falha === "proposta.update") expect(mundo.propostaAtualizada).toBeNull();
   });
+
+  it("grava prazo em dias úteis e pagamento (P1 — nada no produto escrevia essas colunas)", async () => {
+    const mundo = montarMundoDeEdicao();
+    const res = await mundo.PATCH({ revision: 1, prazo_dias_uteis: 30, pagamento: "50% no aceite, 50% na entrega", itens: [item] });
+    expect(res.status).toBe(200);
+    expect(mundo.propostaAtualizada).toMatchObject({ prazo_dias_uteis: 30, pagamento: "50% no aceite, 50% na entrega" });
+  });
+
+  it("prazo fora de 1..365 é recusado (422)", async () => {
+    const mundo = montarMundoDeEdicao();
+    expect((await mundo.PATCH({ revision: 1, prazo_dias_uteis: 0, itens: [item] })).status).toBe(422);
+    expect((await mundo.PATCH({ revision: 1, prazo_dias_uteis: 400, itens: [item] })).status).toBe(422);
+    expect(mundo.propostaAtualizada).toBeNull();
+  });
+
+  it("omitir prazo e pagamento não os apaga", async () => {
+    const mundo = montarMundoDeEdicao();
+    await mundo.PATCH({ revision: 1, itens: [item] });
+    expect(mundo.propostaAtualizada).not.toHaveProperty("pagamento");
+  });
 });
 
 // D4, item 3 da spec ("descartar a v2 em rascunho não toca na v1") — achado

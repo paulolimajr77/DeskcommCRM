@@ -44,7 +44,7 @@ describe("gerarModeloDoTexto", () => {
   it("o texto enviado à IA é cortado em 30.000 caracteres", async () => {
     respondeCom({ nome: "X", secoes: [{ id: "a", title: "A", body: "b", required: true, conditional: false }] });
     await gerarModeloDoTexto({ ...entrada, texto: "x".repeat(50000) });
-    const mensagem = runModelCall.mock.calls[0][2].messages[0].content as string;
+    const mensagem = runModelCall.mock.calls[0]![2].messages[0]!.content as string;
     expect(mensagem.length).toBeLessThan(31000);
   });
 });

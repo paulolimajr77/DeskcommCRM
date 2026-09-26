@@ -63,9 +63,8 @@ function montarMundo(papel: keyof typeof ROLE_RANK = "manager") {
   mocks.requireSupportWrite.mockResolvedValue(null);
 }
 
-function arquivo(nome: string, tipo: string, conteudo: string | Buffer) {
-  const buf = typeof conteudo === "string" ? Buffer.from(conteudo) : conteudo;
-  const file = new File([buf], nome, { type: tipo });
+function arquivo(nome: string, tipo: string, conteudo: string) {
+  const file = new File([conteudo], nome, { type: tipo });
   const form = new FormData();
   form.append("file", file);
   return new Request("http://x", { method: "POST", body: form });
@@ -101,7 +100,7 @@ describe("POST /api/v1/settings/proposal-templates/importar", () => {
   });
 
   it("arquivo de 6 MB → 413", async () => {
-    const res = await POST(arquivo("proposta.txt", "text/plain", Buffer.alloc(6 * 1024 * 1024)) as never);
+    const res = await POST(arquivo("proposta.txt", "text/plain", "x".repeat(6 * 1024 * 1024)) as never);
     expect(res.status).toBe(413);
     expect(mocks.gerarModeloDoTexto).not.toHaveBeenCalled();
   });
@@ -109,7 +108,7 @@ describe("POST /api/v1/settings/proposal-templates/importar", () => {
   it("PDF cujo extractPdfText lança PdfExtractError → 422 com PDF escaneado", async () => {
     const { PdfExtractError } = await import("@/lib/ai/rag/extractors/pdf");
     mocks.extractPdfText.mockRejectedValueOnce(new PdfExtractError("sem texto"));
-    const res = await POST(arquivo("proposta.pdf", "application/pdf", Buffer.from("%PDF")) as never);
+    const res = await POST(arquivo("proposta.pdf", "application/pdf", "%PDF sem texto") as never);
     expect(res.status).toBe(422);
     expect(await res.text()).toContain("PDF escaneado");
   });
@@ -127,7 +126,7 @@ describe("POST /api/v1/settings/proposal-templates/importar", () => {
   });
 
   it("gerarModeloDoTexto lança LlmBudgetExceededError → 200 com disponivel: false", async () => {
-    mocks.gerarModeloDoTexto.mockRejectedValueOnce(new LlmBudgetExceededError("sem orçamento"));
+    mocks.gerarModeloDoTexto.mockRejectedValueOnce(new LlmBudgetExceededError());
     const res = await POST(arquivo("proposta.txt", "text/plain", TEXTO_LONGO) as never);
     expect(res.status).toBe(200);
     const json = (await res.json()) as { data: { disponivel: boolean } };

@@ -29,6 +29,8 @@ interface Proposta {
   titulo: string;
   condicoes: string | null;
   valid_until: string | null;
+  prazo_dias_uteis: number | null;
+  pagamento: string | null;
   status: ProposalStatus;
   revision: number;
   total_cents: number;
@@ -48,7 +50,7 @@ interface Produto {
   moeda: string;
 }
 
-export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEditar: boolean }) {
+export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { id: string; podeEditar: boolean; podeRevisar?: boolean }) {
   const t = useT();
   const [proposta, setProposta] = useState<Proposta | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -58,6 +60,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
   const [mostraBuscaProdutos, setMostraBuscaProdutos] = useState(false);
   // N4 — "Manter" esconde a faixa só nesta sessão de edição (não persiste).
   const [driftIgnorado, setDriftIgnorado] = useState(false);
+  // Salvar prazo/itens muda o documento (prazo e investimento): o canvas recarrega.
+  const [versaoDoDocumento, setVersaoDoDocumento] = useState(0);
   const abortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -178,6 +182,8 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           titulo: proposta.titulo,
           condicoes: proposta.condicoes,
           valid_until: proposta.valid_until,
+          prazo_dias_uteis: proposta.prazo_dias_uteis,
+          pagamento: proposta.pagamento,
           itens: proposta.itens,
         },
       );
@@ -188,6 +194,7 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           total_cents: res.data.total_cents,
         },
       );
+      setVersaoDoDocumento((n) => n + 1);
     } catch (e) {
       const errorMsg = t("A proposta mudou desde que você abriu. Recarregue antes de editar.");
       setErro(errorMsg);
@@ -260,7 +267,12 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
         </div>
       )}
 
-      <DocumentoCanvas propostaId={id} />
+      <DocumentoCanvas
+        propostaId={id}
+        podeRevisar={podeRevisar}
+        emRascunho={proposta.status === "rascunho"}
+        versao={versaoDoDocumento}
+      />
 
       <div className="space-y-2">
         <label className="block text-sm font-medium">{t("Condições")}</label>
@@ -283,6 +295,38 @@ export function ProposalEditorClient({ id, podeEditar }: { id: string; podeEdita
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, valid_until: e.target.value || null })}
         />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="prazo-dias-uteis" className="block text-sm font-medium">{t("Prazo (dias úteis)")}</label>
+          <input
+            id="prazo-dias-uteis"
+            type="number"
+            min="1"
+            max="365"
+            step="1"
+            className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+            value={proposta.prazo_dias_uteis ?? ""}
+            disabled={!editavel}
+            onChange={(e) =>
+              setProposta((p) => p && { ...p, prazo_dias_uteis: e.target.value === "" ? null : Math.round(Number(e.target.value)) || null })
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="forma-de-pagamento" className="block text-sm font-medium">{t("Forma de pagamento")}</label>
+          <input
+            id="forma-de-pagamento"
+            type="text"
+            maxLength={500}
+            className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+            value={proposta.pagamento ?? ""}
+            disabled={!editavel}
+            onChange={(e) => setProposta((p) => p && { ...p, pagamento: e.target.value || null })}
+            placeholder={t("Ex: 50% no aceite e 50% na entrega")}
+          />
+        </div>
       </div>
 
       {editavel && itensComDrift.length > 0 && !driftIgnorado && (

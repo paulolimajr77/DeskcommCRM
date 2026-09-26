@@ -85,3 +85,89 @@ describe("DocumentoCanvas", () => {
     expect(screen.getByRole("option", { name: "E-commerce" })).toBeInTheDocument();
   });
 });
+
+describe("DocumentoCanvas — P1 (edição)", () => {
+  beforeEach(() => {
+    get.mockReset();
+    patch.mockReset();
+  });
+
+  const COM_MODELO = docBase({
+    status: "rascunho",
+    modeloSlug: "site_institucional",
+    secoes: [
+      { id: "summary", title: "Resumo", body: "Projeto: [a definir]", faltantes: ["project.name"], editada: false },
+      { id: "terms", title: "Condições", body: "Texto escrito à mão", faltantes: [], editada: true },
+    ],
+    variaveisFaltando: ["project.name", "schedule.estimated_days"],
+    camposFaltando: [
+      { caminho: "project.name", rotulo: "Nome do projeto", onde: "briefing", secoes: ["summary"] },
+      { caminho: "schedule.estimated_days", rotulo: "Prazo (dias úteis)", onde: "campo_prazo", secoes: ["schedule"] },
+    ],
+    temSecaoEditada: true,
+  });
+
+  it("sem papel de revisão, nada é editável", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    render(<DocumentoCanvas propostaId="p1" emRascunho />);
+    await screen.findByText("Resumo");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("salvar seção chama PATCH /documento com o texto", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    patch.mockResolvedValue({ data: {} });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    const caixa = await screen.findByLabelText("Resumo");
+    fireEvent.change(caixa, { target: { value: "Projeto: Site da imobiliária" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar seção" })[0]!);
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/documento", { secaoId: "summary", texto: "Projeto: Site da imobiliária" }),
+    );
+  });
+
+  it("voltar ao texto do modelo só aparece na seção reescrita, e manda texto null", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    patch.mockResolvedValue({ data: {} });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    const botoes = await screen.findAllByRole("button", { name: "Voltar ao texto do modelo" });
+    expect(botoes).toHaveLength(1);
+    fireEvent.click(botoes[0]!);
+    await waitFor(() => expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/documento", { secaoId: "terms", texto: null }));
+  });
+
+  it("campo do briefing tem caixa; prazo aponta para o campo de prazo", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    patch.mockResolvedValue({ data: {} });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    const campo = await screen.findByLabelText("Nome do projeto");
+    fireEvent.change(campo, { target: { value: "Site da imobiliária" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preencher" }));
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/documento", { campo: "project.name", valor: "Site da imobiliária" }),
+    );
+    expect(screen.getByText("Preencha no campo Prazo (dias úteis), abaixo.")).toBeInTheDocument();
+  });
+
+  it("trocar o modelo com seção reescrita: cancelar a confirmação não chama nada", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "ecommerce" } });
+    expect(confirmar).toHaveBeenCalled();
+    expect(patch).not.toHaveBeenCalled();
+    confirmar.mockRestore();
+  });
+
+  it("trocar o modelo confirmando manda descartar_reescritas", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    patch.mockResolvedValue({ data: {} });
+    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "ecommerce" } });
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/modelo", { template_slug: "ecommerce", descartar_reescritas: true }),
+    );
+    confirmar.mockRestore();
+  });
+});

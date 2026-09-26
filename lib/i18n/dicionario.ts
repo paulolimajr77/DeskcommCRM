@@ -12126,6 +12126,9 @@ export const DICIONARIO: Traducoes = {
   "Confira a proposta antes de decidir se precisa enviar novamente.": {"es": "Revise la propuesta antes de decidir si necesita enviarla de nuevo."},
   "Uma proposta ficou presa em envio e voltou a rascunho": {"es": "Una propuesta quedó atascada en el envío y volvió a borrador"},
   "Uma proposta está pronta para revisão": { es: "Una propuesta está lista para revisión" },
+  "A IA rascunhou esta proposta — confirme o modelo sugerido (ou escolha outro) e confira se todos os itens têm preço antes de enviar.": {
+    es: "La IA redactó esta propuesta — confirme el modelo sugerido (o elija otro) y verifique que todos los ítems tengan precio antes de enviar.",
+  },
   "A definir": { es: "A definir" },
   // ─── Roteiros de atendimento (PR 3 do port do #1130) ───
   "Nada (só encerra)": { es: "Nada (solo termina)" },

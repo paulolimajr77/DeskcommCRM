@@ -2439,6 +2439,9 @@ export const DICIONARIO: Traducoes = {
   "Só é possível editar o documento de uma proposta em rascunho.": {
     es: "Solo es posible editar el documento de una propuesta en borrador.",
   },
+  "Só é possível preencher o documento de uma proposta em rascunho.": {
+    es: "Solo es posible completar el documento de una propuesta en borrador.",
+  },
   "Criar roteador": { es: "Crear enrutador" },
   ativo: { es: "activo" },
   inativo: { es: "inactivo" },

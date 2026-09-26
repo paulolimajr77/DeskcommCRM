@@ -14,6 +14,16 @@ import type { McpContext, McpToolDefinition } from "@/lib/mcp/types";
 
 const itemShape = {
   product_id: z.string().uuid().nullable().optional(),
+  produto_codigo: z
+    .string()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe(
+      "Código do produto do catálogo — o MESMO campo que você já usa em `produto_codigo` no " +
+        "send_message para mandar foto. Use quando souber o código mas não tiver o product_id. " +
+        "Se os dois vierem juntos, product_id vale.",
+    ),
   descricao: z.string().min(1).max(500),
   quantidade: z.number().positive().default(1),
   /**
@@ -126,8 +136,31 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       return { error: `Modelo "${input.template_slug_sugerido}" não existe no catálogo.` };
     }
 
+    const codigosParaResolver = [
+      ...new Set(
+        input.itens
+          .filter((it) => !it.product_id && it.produto_codigo)
+          .map((it) => it.produto_codigo!),
+      ),
+    ];
+    const produtoIdPorCodigo = new Map<string, string>();
+    if (codigosParaResolver.length > 0) {
+      const { data: produtosPorCodigo } = await ctx.supabase
+        .from("catalog_products")
+        .select("id, codigo")
+        .eq("organization_id", ctx.organizationId)
+        .in("codigo", codigosParaResolver);
+      for (const p of (produtosPorCodigo ?? []) as Array<{ id: string; codigo: string }>) {
+        produtoIdPorCodigo.set(p.codigo, p.id);
+      }
+      const naoEncontrado = codigosParaResolver.find((c) => !produtoIdPorCodigo.has(c));
+      if (naoEncontrado) {
+        return { error: `Produto com código "${naoEncontrado}" não encontrado no catálogo desta organização.` };
+      }
+    }
+
     const itensNormalizados = input.itens.map((it, i) => ({
-      product_id: it.product_id ?? null,
+      product_id: it.product_id ?? (it.produto_codigo ? (produtoIdPorCodigo.get(it.produto_codigo) ?? null) : null),
       descricao: it.descricao,
       quantidade: it.quantidade,
       preco_unitario_cents: it.preco_unitario_cents ?? null,

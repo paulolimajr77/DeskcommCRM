@@ -30,6 +30,8 @@ interface MundoOpts {
   moedaDaOrganizacao?: string;
   /** Moeda que o mock de catalog_products devolve (D11). Default: "BRL". */
   moedaDoCatalogo?: string;
+  /** Mapa codigo → id que o mock de catalog_products devolve no `.in("codigo")`. */
+  produtosPorCodigo?: Record<string, string>;
 }
 
 const RASCUNHO_ID = "99999999-9999-4999-8999-999999999999";
@@ -119,6 +121,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
         return chain;
       }
       if (table === "catalog_products") {
+        const porCodigo: Record<string, string> = opts?.produtosPorCodigo ?? { "SITE-BASICO": productId };
         return {
           select: () => ({
             eq: () => ({
@@ -131,6 +134,10 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
                       : { data: { preco_cents: preco, moeda: opts?.moedaDoCatalogo ?? "BRL" }, error: null };
                   },
                 }),
+              }),
+              in: async (_coluna: string, codigos: string[]) => ({
+                data: codigos.filter((c) => porCodigo[c]).map((c) => ({ id: porCodigo[c], codigo: c })),
+                error: null,
               }),
             }),
           }),
@@ -429,5 +436,52 @@ describe("crm_draft_proposal", () => {
       mundo.ctx.organizationId,
       expect.any(String),
     );
+  });
+
+  it("resolve product_id a partir de produto_codigo quando product_id não foi mandado", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site institucional", quantidade: 1, produto_codigo: "SITE-BASICO" }],
+      } as never,
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(r).toMatchObject({ pricing_status: "catalog" }); // preço veio do catálogo, não "a definir"
+  });
+
+  it("recusa produto_codigo que não existe na organização, com o código na mensagem", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site institucional", quantidade: 1, produto_codigo: "NAO-EXISTE" }],
+      } as never,
+      mundo.ctx,
+    );
+    expect(r).toMatchObject({ error: expect.stringContaining("NAO-EXISTE") });
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("product_id explícito vence quando os dois vêm juntos no mesmo item", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site institucional", quantidade: 1, product_id: mundo.productId, produto_codigo: "OUTRO-CODIGO" }],
+      } as never,
+      mundo.ctx,
+    );
+    // "OUTRO-CODIGO" não existe no mock — se o handler consultasse por código, recusaria.
+    // product_id já resolve, então nem consulta: preço do catálogo, sem erro.
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(r).toMatchObject({ pricing_status: "catalog" });
   });
 });

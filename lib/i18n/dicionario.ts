@@ -11754,7 +11754,6 @@ export const DICIONARIO: Traducoes = {
   "A conversa não respondeu nenhum dos campos que faltam.": {
     es: "La conversación no respondió ninguno de los campos que faltan.",
   },
-  "A IA não está disponível agora.": { es: "La IA no está disponible ahora." },
   Preencher: { es: "Completar" },
   "Salvar seção": { es: "Guardar sección" },
   "Voltar ao texto do modelo": { es: "Volver al texto del modelo" },

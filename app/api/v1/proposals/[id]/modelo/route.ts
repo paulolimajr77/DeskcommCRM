@@ -1,0 +1,79 @@
+// app/api/v1/proposals/[id]/modelo/route.ts
+import { randomUUID } from "node:crypto";
+import { type NextRequest } from "next/server";
+import { z } from "zod";
+
+import { ok, fail } from "@/lib/api/wrappers";
+import { audit } from "@/lib/audit";
+import { requireRole } from "@/lib/auth/require-role";
+import { requireSupportWrite } from "@/lib/impersonate/support";
+import { traduzir } from "@/lib/i18n/dicionario";
+import { resolverModelo } from "@/lib/propostas/modelos/resolver";
+import { sePropostasDesligadas } from "@/lib/propostas/porta";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+
+const patchSchema = z.object({ template_slug: z.string().min(1).max(100).nullable() });
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+
+  const requestId = randomUUID();
+  const authz = await requireRole("manager", { requestId, resource: "crm_proposals" });
+  if (!authz.ok) return authz.response;
+  const desligada = await sePropostasDesligadas(authz.org.orgId, requestId);
+  if (desligada) return desligada;
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
+  const { id } = await ctx.params;
+
+  const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return fail("validation_failed", t("Campos inválidos."), 422, { requestId });
+
+  const admin = createAdminClient();
+  const { data: proposta } = await admin
+    .from("crm_proposals")
+    .select("id, status")
+    .eq("organization_id", authz.org.orgId)
+    .eq("id", id)
+    .maybeSingle();
+  if (!proposta) return fail("not_found", t("Proposta não encontrada."), 404, { requestId });
+  if ((proposta as { status: string }).status !== "rascunho") {
+    return fail("validation_failed", t("Só é possível trocar o modelo de uma proposta em rascunho."), 409, { requestId });
+  }
+
+  if (parsed.data.template_slug === null) {
+    const { error } = await admin
+      .from("crm_proposals")
+      .update({ template_slug: null, template_version: null })
+      .eq("organization_id", authz.org.orgId)
+      .eq("id", id);
+    if (error) return fail("internal_error", t("Falha ao remover o modelo."), 500, { requestId });
+    return ok({ template_slug: null }, { requestId });
+  }
+
+  const modelo = await resolverModelo(admin, authz.org.orgId, parsed.data.template_slug);
+  if (!modelo) return fail("validation_failed", t("Modelo não encontrado."), 422, { requestId });
+
+  const { error } = await admin
+    .from("crm_proposals")
+    .update({ template_slug: modelo.slug, template_version: modelo.version, template_slug_sugerido: null })
+    .eq("organization_id", authz.org.orgId)
+    .eq("id", id);
+  if (error) return fail("internal_error", t("Falha ao confirmar o modelo."), 500, { requestId });
+
+  void audit({
+    action: "proposal.modelo_confirmado",
+    actorUserId: authz.user.id,
+    organizationId: authz.org.orgId,
+    resourceType: "crm_proposals",
+    resourceId: id,
+    requestId,
+    metadata: { template_slug: modelo.slug, template_version: modelo.version },
+  });
+
+  return ok({ template_slug: modelo.slug, template_version: modelo.version }, { requestId });
+}

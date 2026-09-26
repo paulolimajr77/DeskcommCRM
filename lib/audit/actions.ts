@@ -699,6 +699,12 @@ export const AUDIT_ACTIONS = [
   "proposal.aviso_whatsapp_enviado",
   "proposal.aviso_whatsapp_falhou",
 
+  // Modelos de proposta da empresa (P5, spec de 26/09) — o texto que vai para
+  // todo cliente; quem mudou e quando é o que se disputa depois.
+  "proposal_template.saved",
+  "proposal_template.deactivated",
+  "proposal_template.imported",
+
   "organization.switched",
   // Chamada originada via /api/v1/calls (módulo VoIP, migration 0347).
   // Só o CREATE é auditado aqui — status/transcript são atualizados pelo

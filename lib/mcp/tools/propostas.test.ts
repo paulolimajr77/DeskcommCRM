@@ -173,6 +173,15 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
           }),
         };
       }
+      if (table === "proposal_templates") {
+        const cadeia: any = {
+          select: () => cadeia,
+          eq: () => cadeia,
+          maybeSingle: async () => ({ data: null, error: null }),
+          then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+        };
+        return cadeia;
+      }
       throw new Error(`tabela não mockada neste teste: ${table}`);
     }),
   };
@@ -416,6 +425,23 @@ describe("crm_draft_proposal", () => {
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toEqual(expect.stringContaining("modelo"));
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("slug de modelo que não existe: a recusa lista os modelos válidos DESTA organização (P5, D11)", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = (await crmDraftProposal.handler(
+      {
+        template_slug_sugerido: "imobiliaria",
+        lead_id: mundo.leadId,
+        titulo: "x",
+        conversation_id: mundo.conversationId,
+        itens: [{ descricao: "x", quantidade: 1 }],
+      },
+      mundo.ctx,
+    )) as { error?: string; modelos_validos?: Array<{ slug: string; nome: string }> };
+    expect(r.error).toMatch(/imobiliaria/);
+    expect(r.modelos_validos?.map((m) => m.slug)).toContain("catalogo_imobiliario");
     expect(mundo.propostaCriada).toBeNull();
   });
 

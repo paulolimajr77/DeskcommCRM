@@ -6,7 +6,8 @@ import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizac
 import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
-import { MODELOS_BASE } from "@/lib/propostas/modelos/catalogo-base";
+import { listarModelosDaOrganizacao } from "@/lib/propostas/modelos/catalogo-da-organizacao";
+import { resolverModelo } from "@/lib/propostas/modelos/resolver";
 import { ROTULO_DO_MODELO } from "@/lib/propostas/modelos/rotulos";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { Actor } from "@/lib/api/handlers/types";
@@ -64,7 +65,7 @@ const draftProposalInputShape = {
         Object.entries(ROTULO_DO_MODELO)
           .map(([slug, rotulo]) => `${slug} (${rotulo})`)
           .join(", ") +
-        ". Uma pessoa confirma antes de valer — errar a sugestão não é grave, mas não invente slug fora desta lista.",
+        ". Uma pessoa confirma antes de valer — errar a sugestão não é grave, mas não invente slug fora desta lista. A empresa pode ter modelos próprios: se o tipo de projeto não casar com estes, mande o slug mais próximo e a recusa lista todos os válidos.",
     ),
   briefing: z
     .record(z.string(), z.unknown())
@@ -143,8 +144,15 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       return { error: "Esta conversa não pertence ao contato deste negócio." };
     }
 
-    if (input.template_slug_sugerido !== undefined && !Object.hasOwn(MODELOS_BASE, input.template_slug_sugerido)) {
-      return { error: `Modelo "${input.template_slug_sugerido}" não existe no catálogo.` };
+    if (input.template_slug_sugerido !== undefined) {
+      const modelo = await resolverModelo(ctx.supabase, ctx.organizationId, input.template_slug_sugerido);
+      if (!modelo) {
+        const validos = await listarModelosDaOrganizacao(ctx.supabase, ctx.organizationId);
+        return {
+          error: `Modelo "${input.template_slug_sugerido}" não existe nesta organização. Escolha um de modelos_validos.`,
+          modelos_validos: validos.map((m) => ({ slug: m.slug, nome: m.nome })),
+        };
+      }
     }
 
     const codigosParaResolver = [

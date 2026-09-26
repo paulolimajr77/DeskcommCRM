@@ -22,28 +22,40 @@ const PROPOSTA_BASE = {
   moeda: "BRL",
 };
 
+// P5: o DocumentoCanvas busca a lista de modelos da organização em paralelo —
+// o mock roteia pela URL (a chamada de modelos devolve 1 item; o foco destes
+// testes é a proposta, não o seletor).
+function responderProposta(envelope: { data: unknown }) {
+  const dado = envelope.data;
+  get.mockImplementation(async (url: string) =>
+    url.includes("/settings/proposal-templates")
+      ? { data: [{ slug: "site_institucional", nome: "Site institucional" }] }
+      : { data: dado },
+  );
+}
+
 describe("ProposalEditorClient — desfecho do envio (D3)", () => {
   it("mostra o motivo da ultima falha de envio quando a proposta esta em rascunho com falha registrada", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: "canal desconectado" } });
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: "canal desconectado" } });
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     await waitFor(() => expect(screen.getByText(/canal desconectado/i)).toBeInTheDocument());
   });
 
   it("nao mostra aviso de falha quando rascunho nunca falhou", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null } });
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null } });
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     await waitFor(() => expect(screen.getByDisplayValue("Proposta X")).toBeInTheDocument());
     expect(screen.queryByText(/o último envio falhou/i)).not.toBeInTheDocument();
   });
 
   it("mostra 'na fila do WhatsApp' quando enviando", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "enviando", ultima_falha_envio: null } });
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "enviando", ultima_falha_envio: null } });
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     await waitFor(() => expect(screen.getByText(/na fila do whatsapp/i)).toBeInTheDocument());
   });
 
   it("item sem preço mostra 'A definir' no lugar do subtotal, nunca R$ 0,00", async () => {
-    get.mockResolvedValue({
+    responderProposta({
       data: {
         ...PROPOSTA_BASE,
         status: "rascunho",
@@ -58,7 +70,7 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
   });
 
   it("adicionar item manual novo: nasce com preço vazio ('A definir'), não com R$ 0,00", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null } });
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null } });
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     const botaoAdicionar = await screen.findByRole("button", { name: /item à mão/i });
     fireEvent.click(botaoAdicionar);
@@ -69,7 +81,7 @@ describe("ProposalEditorClient — desfecho do envio (D3)", () => {
 
 describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
   it("item com preço de catálogo desatualizado: mostra a faixa de aviso com 'Atualizar preços' e 'Ignorar aviso', com o aviso honesto de que o preço muda ao salvar de qualquer forma (achado Importante da revisão final da C3b+E1)", async () => {
-    get.mockResolvedValue({
+    responderProposta({
       data: {
         ...PROPOSTA_BASE,
         status: "rascunho",
@@ -91,7 +103,7 @@ describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
   });
 
   it("clicar 'Atualizar preços': troca o preco_unitario_cents do item pelo valor atual do catálogo, localmente (não salva sozinho)", async () => {
-    get.mockResolvedValue({
+    responderProposta({
       data: {
         ...PROPOSTA_BASE,
         status: "rascunho",
@@ -110,7 +122,7 @@ describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
   });
 
   it("nenhum item com drift: não mostra a faixa", async () => {
-    get.mockResolvedValue({
+    responderProposta({
       data: {
         ...PROPOSTA_BASE,
         status: "rascunho",
@@ -129,13 +141,13 @@ describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
 
 describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
   it("proposta enviada mostra o botão 'Revisar esta proposta'", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status: "enviada", ultima_falha_envio: null } });
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "enviada", ultima_falha_envio: null } });
     render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
     expect(await screen.findByRole("button", { name: /revisar esta proposta/i })).toBeInTheDocument();
   });
 
   it("clicar em 'Revisar esta proposta' chama a rota e navega para a v2", async () => {
-    get.mockResolvedValue({ data: { ...PROPOSTA_BASE, id: "prop-1", status: "enviada", ultima_falha_envio: null } });
+    responderProposta({ data: { ...PROPOSTA_BASE, id: "prop-1", status: "enviada", ultima_falha_envio: null } });
     const mockPost = vi.mocked(apiClient.post).mockResolvedValue({ data: { id: "v2-id" } } as never);
     render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
     const botao = await screen.findByRole("button", { name: /revisar esta proposta/i });
@@ -145,7 +157,7 @@ describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
 
   it("proposta rascunho/aceita/recusada/vencida: NÃO mostra o botão de revisar", async () => {
     for (const status of ["rascunho", "aceita", "recusada", "vencida"]) {
-      get.mockResolvedValue({ data: { ...PROPOSTA_BASE, status, ultima_falha_envio: null } });
+      responderProposta({ data: { ...PROPOSTA_BASE, status, ultima_falha_envio: null } });
       const { unmount } = render(<ProposalEditorClient id="prop-1" podeEditar={false} />);
       await waitFor(() => expect(screen.getByDisplayValue("Proposta X")).toBeInTheDocument());
       expect(screen.queryByRole("button", { name: /revisar esta proposta/i })).not.toBeInTheDocument();

@@ -23,6 +23,20 @@ function docBase(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// P5: o canvas busca a lista de modelos da organização em paralelo ao
+// documento — o mock roteia pela URL, como manda o plano (a lista mockada
+// tem um modelo da empresa para o caso "o seletor mostra o modelo da empresa").
+const MODELOS_MOCKADOS = [
+  { slug: "site_institucional", nome: "Site institucional" },
+  { slug: "empresa_locacao", nome: "Locação" },
+];
+
+function responderDocumento(dado: unknown) {
+  get.mockImplementation(async (url: string) =>
+    url.includes("/settings/proposal-templates") ? { data: MODELOS_MOCKADOS } : { data: dado },
+  );
+}
+
 describe("DocumentoCanvas", () => {
   beforeEach(() => {
     get.mockReset();
@@ -31,46 +45,42 @@ describe("DocumentoCanvas", () => {
   });
 
   it("sem modelo escolhido, mostra aviso em vez de tela vazia ou erro (Review Focus)", async () => {
-    get.mockResolvedValue({ data: docBase() });
+    responderDocumento(docBase());
     render(<DocumentoCanvas propostaId="p1" />);
     await waitFor(() => expect(screen.getByText(/nenhum modelo escolhido/i)).toBeInTheDocument());
   });
 
   it("com seções, mostra o título e o corpo de cada uma", async () => {
-    get.mockResolvedValue({
-      data: docBase({
+    responderDocumento(docBase({
         modeloSlug: "site_institucional",
         secoes: [{ id: "resumo", title: "Resumo", body: "Projeto: Site Catálogo", faltantes: [] }],
         prontidao: { status: "pronta_para_envio", checklist: {} },
-      }),
-    });
+      }));
     render(<DocumentoCanvas propostaId="p1" />);
     await waitFor(() => expect(screen.getByText("Resumo")).toBeInTheDocument());
     expect(screen.getByText("Projeto: Site Catálogo")).toBeInTheDocument();
   });
 
   it("com pendências, mostra a lista do que falta", async () => {
-    get.mockResolvedValue({
-      data: docBase({
+    responderDocumento(docBase({
         modeloSlug: "site_institucional",
         secoes: [{ id: "resumo", title: "Resumo", body: "Projeto: [a definir]", faltantes: ["project.name"] }],
         variaveisFaltando: ["project.name"],
         prontidao: { status: "incompleta", checklist: { cliente: false } },
-      }),
-    });
+      }));
     render(<DocumentoCanvas propostaId="p1" />);
     await waitFor(() => expect(screen.getByText(/1 pendência/i)).toBeInTheDocument());
   });
 
   it("mostra a sugestão da IA com botão de confirmar, quando não há modelo confirmado", async () => {
-    get.mockResolvedValue({ data: docBase({ modeloSlugSugerido: "site_institucional" }) });
+    responderDocumento(docBase({ modeloSlugSugerido: "site_institucional" }));
     render(<DocumentoCanvas propostaId="p1" />);
     expect(await screen.findByText(/A IA sugeriu o modelo/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /usar este modelo/i })).toBeInTheDocument();
   });
 
   it("ao confirmar, chama PATCH /modelo com o slug sugerido", async () => {
-    get.mockResolvedValue({ data: docBase({ modeloSlugSugerido: "site_institucional" }) });
+    responderDocumento(docBase({ modeloSlugSugerido: "site_institucional" }));
     patch.mockResolvedValue({ data: { template_slug: "site_institucional" } });
     render(<DocumentoCanvas propostaId="p1" />);
     fireEvent.click(await screen.findByRole("button", { name: /usar este modelo/i }));
@@ -79,12 +89,18 @@ describe("DocumentoCanvas", () => {
     );
   });
 
-  it("sem sugestão e sem modelo, mostra um seletor manual com os 8 modelos", async () => {
-    get.mockResolvedValue({ data: docBase() });
+  it("sem sugestão e sem modelo, mostra um seletor manual com os modelos da organização", async () => {
+    responderDocumento(docBase());
     render(<DocumentoCanvas propostaId="p1" />);
     const seletor = await screen.findByRole("combobox");
     expect(seletor).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "E-commerce" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Site institucional" })).toBeInTheDocument();
+  });
+
+  it("o seletor mostra o modelo da empresa", async () => {
+    responderDocumento(docBase());
+    render(<DocumentoCanvas propostaId="p1" />);
+    expect(await screen.findByRole("option", { name: "Locação" })).toBeInTheDocument();
   });
 });
 
@@ -111,14 +127,14 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("sem papel de revisão, nada é editável", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     render(<DocumentoCanvas propostaId="p1" emRascunho />);
     await screen.findByText("Resumo");
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("salvar seção chama PATCH /documento com o texto", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     patch.mockResolvedValue({ data: {} });
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
     const caixa = await screen.findByLabelText("Resumo");
@@ -130,7 +146,7 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("voltar ao texto do modelo só aparece na seção reescrita, e manda texto null", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     patch.mockResolvedValue({ data: {} });
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
     const botoes = await screen.findAllByRole("button", { name: "Voltar ao texto do modelo" });
@@ -140,7 +156,7 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("campo do briefing tem caixa; prazo aponta para o campo de prazo", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     patch.mockResolvedValue({ data: {} });
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
     const campo = await screen.findByLabelText("Nome do projeto");
@@ -153,23 +169,23 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("trocar o modelo com seção reescrita: cancelar a confirmação não chama nada", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
-    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "ecommerce" } });
+    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "empresa_locacao" } });
     expect(confirmar).toHaveBeenCalled();
     expect(patch).not.toHaveBeenCalled();
     confirmar.mockRestore();
   });
 
   it("trocar o modelo confirmando manda descartar_reescritas", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     patch.mockResolvedValue({ data: {} });
     const confirmar = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
-    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "ecommerce" } });
+    fireEvent.change(await screen.findByLabelText("Modelo do documento"), { target: { value: "empresa_locacao" } });
     await waitFor(() =>
-      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/modelo", { template_slug: "ecommerce", descartar_reescritas: true }),
+      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/modelo", { template_slug: "empresa_locacao", descartar_reescritas: true }),
     );
     confirmar.mockRestore();
   });

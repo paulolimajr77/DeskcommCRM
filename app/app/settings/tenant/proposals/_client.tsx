@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,11 @@ export function ProposalsSettingsClient() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
       <h1 className="text-xl font-semibold">{t("Propostas")}</h1>
+      <p className="text-sm">
+        <Link href="/app/settings/tenant/proposals/modelos" className="underline underline-offset-4">
+          {t("Modelos de proposta")}
+        </Link>
+      </p>
       <div className="flex items-center gap-2">
         <Switch id="proposals_enabled" checked={cfg.enabled} onCheckedChange={(v) => setCfg({ ...cfg, enabled: v })} />
         <Label htmlFor="proposals_enabled">{t("Ligar propostas comerciais para esta organização")}</Label>

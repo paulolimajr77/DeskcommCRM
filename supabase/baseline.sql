@@ -40988,3 +40988,22 @@ comment on column public.ai_agent_versions.lead_fields_propose_new is
 -- O kind volta no bloco Único (linha ~9982), edição in-place: apêndice não reescreve constraint de vocabulário.
 
 -- (As duas funções recriadas moram acima da varredura anon, como manda o bloco dela.)
+
+
+-- ---- modelos de proposta da empresa (migration 0433) ----
+-- Espelho idempotente de supabase/migrations/20260926193650_0433_modelos_de_proposta_da_empresa.sql
+alter table public.proposal_templates add column if not exists nome text;
+alter table public.proposal_templates add column if not exists descricao text;
+
+comment on column public.proposal_templates.nome is
+  'Nome do modelo para uma pessoa ler. Nulo numa cópia de modelo da plataforma = usa o rótulo do código (ROTULO_DO_MODELO).';
+comment on column public.proposal_templates.descricao is
+  'Para que serve este modelo, em uma frase. Opcional.';
+
+drop policy if exists proposal_templates_write on public.proposal_templates;
+create policy proposal_templates_write on public.proposal_templates
+  for all
+  using (organization_id in (select public.fn_user_org_ids())
+         and public.fn_role_at_least(organization_id, 'manager'))
+  with check (organization_id in (select public.fn_user_org_ids())
+              and public.fn_role_at_least(organization_id, 'manager'));

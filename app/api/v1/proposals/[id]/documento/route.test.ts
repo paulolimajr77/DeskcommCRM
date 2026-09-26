@@ -31,6 +31,7 @@ interface MundoOpts {
   sugestao?: string | null;
   secoesEditadas?: Record<string, string> | null;
   briefingJson?: Record<string, unknown> | null;
+  contato?: { name: string | null; display_name: string | null } | null;
 }
 
 function montarMundo(opts: MundoOpts = {}) {
@@ -57,6 +58,9 @@ function montarMundo(opts: MundoOpts = {}) {
     prazo_dias_uteis: 20,
     pagamento: "50_50",
     valid_until: "2026-12-31",
+    total_cents: 250000,
+    moeda: "BRL",
+    created_at: "2026-09-26T00:00:00.000Z",
   };
 
   let secoesEditadasCapturadas: Record<string, unknown> | undefined;
@@ -79,6 +83,17 @@ function montarMundo(opts: MundoOpts = {}) {
       }
       if (tabela === "crm_proposal_items") {
         return { select: () => ({ eq: () => ({ eq: () => Promise.resolve({ data: [{ preco_unitario_cents: 1000 }] }) }) }) };
+      }
+      if (tabela === "contacts") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: opts.contato ?? null }),
+              }),
+            }),
+          }),
+        };
       }
       throw new Error(`tabela inesperada no mock: ${tabela}`);
     }),

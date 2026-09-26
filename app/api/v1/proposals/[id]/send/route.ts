@@ -222,7 +222,7 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     try {
       const modelo = await resolverModelo(admin, authz.org.orgId, propostaAlvo.template_slug as string);
       if (modelo) {
-        const dados = montarDadosDoDocumento(propostaAlvo as { briefing_json: unknown });
+        const dados = montarDadosDoDocumento(propostaAlvo as never, contato ?? null);
         const documento = renderizarDocumento(modelo, dados);
         const overrides = (propostaAlvo.secoes_editadas as Record<string, string> | null) ?? {};
         const secoes = documento.secoes.map((s) =>

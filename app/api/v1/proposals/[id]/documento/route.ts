@@ -42,6 +42,9 @@ async function buscarProposta(admin: ReturnType<typeof createAdminClient>, orgId
         prazo_dias_uteis: number | null;
         pagamento: string | null;
         valid_until: string | null;
+        total_cents: number;
+        moeda: string;
+        created_at: string;
       }
     | null;
 }
@@ -77,7 +80,16 @@ export async function GET(_req: NextRequest, ctx: Ctx): Promise<Response> {
     );
   }
 
-  const dados = montarDadosDoDocumento(proposta);
+  const { data: contato } = proposta.contact_id
+    ? await admin
+        .from("contacts")
+        .select("name, display_name")
+        .eq("organization_id", authz.org.orgId)
+        .eq("id", proposta.contact_id)
+        .maybeSingle()
+    : { data: null };
+
+  const dados = montarDadosDoDocumento(proposta, contato);
   const documento = renderizarDocumento(modelo, dados);
   const overrides = proposta.secoes_editadas ?? {};
 

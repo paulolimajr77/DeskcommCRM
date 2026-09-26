@@ -135,6 +135,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     valid_until: "2026-12-31",
     total_cents: 500000,
     moeda: "BRL",
+    created_at: "2026-09-26T00:00:00.000Z",
     ...opts.propostaOriginal,
   };
   propostasNoMock[PROPOSTA_ID] = proposta;

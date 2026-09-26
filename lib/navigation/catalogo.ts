@@ -349,6 +349,17 @@ export const NAV_CATALOG = [
     // settings/tenant que não são de acompanhamento diário.
   },
   {
+    href: "/app/settings/tenant/proposals/modelos",
+    label: "Modelos de proposta",
+    description: "Personalize os modelos da plataforma ou crie os da sua empresa, inclusive a partir de uma proposta que você já usa.",
+    icon: "FileText",
+    group: "organizacao",
+    section: "Sua empresa",
+    minRole: "manager",
+    capacidade: "propostas",
+    // SEM `sidebar`, como a tela-mãe de Propostas: chega-se por Configurações.
+  },
+  {
     // O BALCÃO. Fica em CRM, e não em Configurações, porque é uso diário de quem
     // está com a cliente na frente — a tela irmã, em Configurações › Financeiro,
     // é onde o negócio se descreve uma vez.

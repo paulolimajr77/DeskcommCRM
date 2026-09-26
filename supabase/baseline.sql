@@ -10114,6 +10114,10 @@ alter table public.agent_inbox_items
     -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
+    -- (migration 0423) a IA rascunhou uma proposta e falta confirmar o modelo
+    -- sugerido (plano N1) ou falta preço de catálogo — a Central acompanha
+    -- até as duas pendências sumirem, ou até a proposta ser enviada/descartada.
+    'proposta_pronta_para_revisao',
     'other'
   ));
 

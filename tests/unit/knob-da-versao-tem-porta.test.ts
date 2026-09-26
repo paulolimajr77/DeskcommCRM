@@ -123,6 +123,12 @@ function colunasDaVersao(): string[] {
     for (const m of (st[1] ?? "").matchAll(/add\s+column\s+(?:if\s+not\s+exists\s+)?"?(\w+)"?/gi)) {
       if (m[1]) cols.add(m[1]);
     }
+    // E as que SAÍRAM depois (ex.: 0380 removeu as duas chaves dos campos do
+    // funil): sem isto, coluna derrubada seguiria na lista e a cerca cobraria
+    // porta de algo que não existe mais — o oposto do que ela vigia.
+    for (const m of (st[1] ?? "").matchAll(/drop\s+column\s+(?:if\s+exists\s+)?"?(\w+)"?/gi)) {
+      if (m[1]) cols.delete(m[1]);
+    }
   }
   return [...cols].sort();
 }
@@ -138,7 +144,7 @@ describe("toda chave da versão do agente tem porta", () => {
     // ficaria verde sem medir nada — que é como uma cerca morre em silêncio.
     expect(colunas.length, "nenhuma coluna lida do baseline — o regex quebrou?").toBeGreaterThan(25);
     expect(colunas, "coluna conhecida ausente: a leitura do DDL está incompleta").toContain(
-      "lead_fields_enabled",
+      "cases_enabled",
     );
     for (const [nome, src] of Object.entries(fontes)) {
       expect(src.length, `${nome}: arquivo vazio ou caminho errado`).toBeGreaterThan(500);

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { allTools } from "@/lib/mcp/tools";
 import { TOOL_CATALOG } from "@/lib/mcp/tools/catalog";
@@ -27,7 +26,6 @@ import {
 
 const FUNIL_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const FUNIL_B = "bbbbbbbb-0000-4000-8000-000000000002";
-const CONTATO = "c0a7aaaa-0000-4000-8000-0000000000c1";
 
 /** Resolve o funil sem tocar banco — a decisão é pura, o transporte é do chamador. */
 const resolveFixo = (p: string | null) => async () => p;
@@ -95,52 +93,6 @@ describe("a chamada de ferramenta", () => {
       argumentos: { pipeline_id: FUNIL_B },
     });
     expect(fora.permitido, "criar card no funil de outro time").toBe(false);
-  });
-
-  it("`crm_propose_lead_field` é escopada PELO ARGUMENTO — e não é teatro", async () => {
-    // ⛔ A tentação era `sem_funil`, porque a ferramenta "só abre um aviso".
-    // Mas o aviso é SOBRE um funil e ocupa a atenção de quem cuida DELE — e o
-    // `pipeline_id` é obrigatório no schema, então o alvo resolve de verdade.
-    // `funil_vem_do_lead` aqui seria teatro: procuraria um `lead_id` que esta
-    // ferramenta nunca recebe e liberaria sempre, com cara de escopado.
-    const dentro = await podeChamarFerramenta({
-      ...base,
-      ferramenta: "crm_propose_lead_field",
-      argumentos: { pipeline_id: FUNIL_A, key: "origem", label: "Origem" },
-    });
-    expect(dentro.permitido).toBe(true);
-
-    const fora = await podeChamarFerramenta({
-      ...base,
-      ferramenta: "crm_propose_lead_field",
-      argumentos: { pipeline_id: FUNIL_B, key: "origem", label: "Origem" },
-    });
-    expect(fora.permitido, "propor campo no funil de outro time").toBe(false);
-    if (fora.permitido) return;
-    expect(fora.motivo).toBe("funil_fora_do_escopo");
-
-    // ⛔ E AQUI A ACUSAÇÃO DE TEATRO VIRA MEDIÇÃO, em vez de ficar só no
-    // comentário. `crm_schedule_followup` é `funil_vem_do_lead`; dando a ela um
-    // alvo LEGÍTIMO por contato — que é o caso do paciente novo —, ela LIBERA.
-    // É esse o desfecho que `crm_propose_lead_field` teria com aquela
-    // classificação: um gate com cara de escopado que diz sim ao funil de outro
-    // time.
-    //
-    // ⚠️ O CONTROLE PASSA `contact_id` DESDE 2026-09-16, e a mudança é o ponto.
-    // A Tarefa 5 fechou o ramo `funil_vem_do_lead` contra ESCRITA SEM ALVO
-    // NENHUM (`pipeline_id` sozinho deixou de liberar), mas preservou o caminho
-    // legítimo: escrita com alvo por contato continua passando. Sem o
-    // `contact_id` aqui, este caso mediria a recusa nova em vez do furo que ele
-    // existe para mostrar — e o `expect` abaixo apodreceria medindo outra coisa.
-    const seFosseFunilVemDoLead = await podeChamarFerramenta({
-      ...base,
-      ferramenta: "crm_schedule_followup",
-      argumentos: { pipeline_id: FUNIL_B, contact_id: CONTATO },
-    });
-    expect(
-      seFosseFunilVemDoLead.permitido,
-      "o controle desta prova apodreceu: `funil_vem_do_lead` com alvo por contato deixou de liberar",
-    ).toBe(true);
   });
 
   it("`crm_move_lead_stage` resolve o funil PELO LEAD", async () => {
@@ -405,29 +357,4 @@ describe("VACUIDADE — nenhuma escrita escapa da tabela", () => {
     );
   });
 
-  it("⛔ a classificação de `crm_propose_lead_field` depende de `pipeline_id` CONTINUAR obrigatório", () => {
-    // Esta é a afirmação em que o alvo `pipeline_no_argumento` se apoia, e até
-    // aqui ela vivia só num comentário. Se alguém tornar `pipeline_id`
-    // opcional — "propor em todos os funis de uma vez" é um pedido plausível —,
-    // o gate passa a receber `null`, a classificação vira o TEATRO que o
-    // comentário denuncia, e nenhum outro teste percebe.
-    //
-    // E a prova é de COMPORTAMENTO, não de presença de símbolo: monta o schema
-    // como o runtime monta e tenta validar uma chamada SEM o funil. A primeira
-    // versão perguntava `isOptional()` ao objeto zod — o typecheck reprovou, e
-    // a troca saiu melhor que o conserto.
-    const tool = allTools.find((t) => t.name === "crm_propose_lead_field");
-    expect(tool, "a ferramenta sumiu do inventário").toBeDefined();
-    const schema = z.object(tool!.inputSchema as Record<string, z.ZodTypeAny>);
-    const semFunil = schema.safeParse({ key: "origem", label: "Origem" });
-    expect(
-      semFunil.success,
-      "`pipeline_id` virou opcional — reclassifique em ALVO_DE_FUNIL antes, ou o escopo vira teatro",
-    ).toBe(false);
-    // Controle: COM o funil, a mesma chamada passa — senão este caso ficaria
-    // verde por qualquer outro motivo de recusa do schema.
-    expect(schema.safeParse({ pipeline_id: FUNIL_A, key: "origem", label: "Origem" }).success).toBe(
-      true,
-    );
-  });
 });

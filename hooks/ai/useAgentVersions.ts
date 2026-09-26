@@ -25,8 +25,6 @@ export interface AgentVersionRow {
   handoff_tool_enabled: boolean;
   proposal_ai_draft_enabled: boolean;
   cases_enabled: boolean;
-  lead_fields_enabled: boolean;
-  lead_fields_propose_new: boolean;
   operator_enabled: boolean;
   operator_model: string | null;
   operator_tool_ids: string[];

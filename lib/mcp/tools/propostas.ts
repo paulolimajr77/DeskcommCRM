@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { avisarQuePropostaPrecisaDeRevisao } from "@/lib/propostas/aviso-de-revisao";
 import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
 import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
@@ -196,6 +197,8 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       actor: ctx.actor,
       reason: `Rascunho de proposta criado pela IA: ${input.titulo}`,
     });
+
+    void avisarQuePropostaPrecisaDeRevisao(ctx.supabase, ctx.organizationId, proposta.id);
 
     const a = actorAudit(ctx.actor);
     void audit({

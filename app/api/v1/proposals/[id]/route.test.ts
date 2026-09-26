@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   audit: vi.fn(),
   requireSupportWrite: vi.fn(),
+  resolverAvisoDeRevisaoSeProntaOuEncerrada: vi.fn(),
 }));
 
 vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
@@ -15,6 +16,7 @@ vi.mock("@/lib/auth/require-role", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: mocks.requireSupportWrite }));
+vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ resolverAvisoDeRevisaoSeProntaOuEncerrada: mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada }));
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
@@ -244,6 +246,13 @@ describe("PATCH /api/v1/proposals/[id]", () => {
     expect(mundo.propostaAtualizada).toMatchObject({ pricing_status: "missing" });
   });
 
+  it("ao editar itens com sucesso, tenta resolver o aviso de revisão", async () => {
+    const mundo = montarMundoDeEdicao();
+    const res = await mundo.PATCH({ revision: 1, itens: [item] });
+    expect(res.status).toBe(200);
+    expect(mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSAL_ID);
+  });
+
   it("revision desatualizada retorna 409 e não altera proposta nem itens", async () => {
     const mundo = montarMundoDeEdicao({ revisionAtual: 3 });
     const antes = [...mundo.itens];
@@ -367,6 +376,13 @@ describe("DELETE /api/v1/proposals/[id]", () => {
     const res = await mundo.DELETE();
     expect(res.status).toBe(409);
     expect(mundo.propostaAtualizada).toBeNull();
+  });
+
+  it("ao descartar com sucesso, resolve o aviso de revisão com forcar: true", async () => {
+    const mundo = montarMundoDeEdicao({ status: "rascunho" });
+    const res = await mundo.DELETE();
+    expect(res.status).toBe(200);
+    expect(mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSAL_ID, { forcar: true });
   });
 });
 

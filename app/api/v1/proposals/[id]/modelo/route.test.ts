@@ -9,6 +9,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
   resolverModelo: vi.fn(),
+  resolverAvisoDeRevisaoSeProntaOuEncerrada: vi.fn(),
 }));
 
 vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
@@ -18,6 +19,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminCli
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
 vi.mock("@/lib/propostas/modelos/resolver", () => ({ resolverModelo: mocks.resolverModelo }));
+vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ resolverAvisoDeRevisaoSeProntaOuEncerrada: mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada }));
 
 import { PATCH } from "./route";
 
@@ -123,5 +125,12 @@ describe("PATCH /api/v1/proposals/[id]/modelo", () => {
     expect(res.status).toBe(200);
     expect(mundo.updateCapturado()).toMatchObject({ template_slug: null, template_version: null });
     expect(mundo.updateCapturado()).not.toHaveProperty("template_slug_sugerido");
+  });
+
+  it("ao confirmar modelo com preço já ok, resolve o aviso de revisão", async () => {
+    montarMundo({ sugestao: "landing_page", modeloResolve: { slug: "landing_page", version: 1 } });
+    const res = await PATCH(reqComBody({ template_slug: "landing_page" }), ctx());
+    expect(res.status).toBe(200);
+    expect(mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSTA_ID);
   });
 });

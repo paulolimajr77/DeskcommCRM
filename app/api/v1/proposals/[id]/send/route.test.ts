@@ -20,6 +20,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   agendaRetornoNoCrm: vi.fn(),
   buscarPadroesDaOrganizacao: vi.fn(),
   resolverModelo: vi.fn(),
+  resolverAvisoDeRevisaoSeProntaOuEncerrada: vi.fn(),
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
 }));
@@ -41,6 +42,7 @@ vi.mock("@/app/api/v1/messages/_handler", () => ({ sendMessageHandler: mocks.sen
 vi.mock("@/lib/followup/retorno-crm", () => ({ agendaRetornoNoCrm: mocks.agendaRetornoNoCrm }));
 vi.mock("@/lib/propostas/padroes-da-organizacao", () => ({ buscarPadroesDaOrganizacao: mocks.buscarPadroesDaOrganizacao }));
 vi.mock("@/lib/propostas/modelos/resolver", () => ({ resolverModelo: mocks.resolverModelo }));
+vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ resolverAvisoDeRevisaoSeProntaOuEncerrada: mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
@@ -483,6 +485,13 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.propostaEnviada?.numero).toBe(42);
     expect(mundo.mensagemEnviada).toBe(true);
     expect(mundo.leadValueCentsDepois).toBe(mundo.propostaEnviada?.total_cents);
+  });
+
+  it("ao enviar com sucesso, resolve o aviso de revisão com forcar: true", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mocks.resolverAvisoDeRevisaoSeProntaOuEncerrada).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSTA_ID, { forcar: true });
   });
 
   it("WhatsApp falha: a proposta volta a rascunho retendo o numero, sem tocar o valor do negocio", async () => {

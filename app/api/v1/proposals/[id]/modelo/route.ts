@@ -10,6 +10,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { resolverModelo } from "@/lib/propostas/modelos/resolver";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
+import { resolverAvisoDeRevisaoSeProntaOuEncerrada } from "@/lib/propostas/aviso-de-revisao";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("organization_id", authz.org.orgId)
     .eq("id", id);
   if (error) return fail("internal_error", t("Falha ao confirmar o modelo."), 500, { requestId });
+
+  void resolverAvisoDeRevisaoSeProntaOuEncerrada(admin, authz.org.orgId, id);
 
   void audit({
     action: "proposal.modelo_confirmado",

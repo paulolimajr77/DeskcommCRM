@@ -1,5 +1,5 @@
 // lib/propostas/aviso-de-revisao.test.ts
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { avisarQuePropostaPrecisaDeRevisao, resolverAvisoDeRevisaoSeProntaOuEncerrada } from "./aviso-de-revisao";
 
 function montarSupabaseMock(opts: {

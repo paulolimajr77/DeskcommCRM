@@ -12125,6 +12125,7 @@ export const DICIONARIO: Traducoes = {
   "continua em Propostas": {"es": "sigue disponible en Propuestas"},
   "Confira a proposta antes de decidir se precisa enviar novamente.": {"es": "Revise la propuesta antes de decidir si necesita enviarla de nuevo."},
   "Uma proposta ficou presa em envio e voltou a rascunho": {"es": "Una propuesta quedó atascada en el envío y volvió a borrador"},
+  "Uma proposta está pronta para revisão": { es: "Una propuesta está lista para revisión" },
   "A definir": { es: "A definir" },
   // ─── Roteiros de atendimento (PR 3 do port do #1130) ───
   "Nada (só encerra)": { es: "Nada (solo termina)" },

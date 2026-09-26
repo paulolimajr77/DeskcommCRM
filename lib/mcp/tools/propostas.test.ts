@@ -2,10 +2,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { crmDraftProposal } from "./propostas";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
+import { avisarQuePropostaPrecisaDeRevisao } from "@/lib/propostas/aviso-de-revisao";
 import { audit } from "@/lib/audit";
 import type { McpContext } from "../types";
 
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ avisarQuePropostaPrecisaDeRevisao: vi.fn(async () => undefined) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 
 interface MundoOpts {
@@ -408,5 +410,24 @@ describe("crm_draft_proposal", () => {
     );
     expect((r as { error?: string }).error).toEqual(expect.stringContaining("modelo"));
     expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("abre o aviso de revisão na Central ao criar o rascunho", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Orçamento",
+        itens: [{ descricao: "Item", quantidade: 1 }],
+      },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(vi.mocked(avisarQuePropostaPrecisaDeRevisao)).toHaveBeenCalledWith(
+      mundo.ctx.supabase,
+      mundo.ctx.organizationId,
+      expect.any(String),
+    );
   });
 });

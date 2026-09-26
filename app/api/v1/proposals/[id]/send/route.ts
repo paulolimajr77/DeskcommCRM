@@ -25,6 +25,7 @@ import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
+import { resolverAvisoDeRevisaoSeProntaOuEncerrada } from "@/lib/propostas/aviso-de-revisao";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
@@ -321,6 +322,10 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     })
     .eq("organization_id", authz.org.orgId).eq("id", propostaAlvo.id)
     .select("*").single();
+
+  // N2 (aviso de revisão): enviada não está mais em rascunho — não faz mais
+  // sentido revisar. Fire-and-forget, nunca derruba o envio já confirmado.
+  void resolverAvisoDeRevisaoSeProntaOuEncerrada(admin, authz.org.orgId, propostaAlvo.id, { forcar: true });
 
   // D4 — a v2 foi EFETIVAMENTE enviada: a v1 sai de cena (vira
   // `substituida`). Só aqui: nem na criação da v2 (revise/route.ts, onde a v1

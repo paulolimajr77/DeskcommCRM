@@ -160,26 +160,15 @@ describe("pipelineConfigPatchSchema", () => {
   });
 });
 
-describe("customFieldSchema — a pergunta do dono", () => {
+describe("customFieldSchema — a chave `pergunta` saiu (P0 de 26/09)", () => {
   const base = { key: "segmento", label: "Segmento", type: "text" as const };
 
-  it("aceita campo SEM pergunta — e isto é o que protege o dado já gravado", () => {
-    // `camposDoFunil()` roda `safeParse` por item e DESCARTA o que não valida.
-    // Se `pergunta` fosse obrigatória, todo campo já gravado sumiria da ficha de
-    // todo lead, em toda instalação, no primeiro deploy.
-    expect(customFieldSchema.safeParse(base).success).toBe(true);
-  });
-
-  it("aceita a pergunta e a devolve", () => {
+  it("campo gravado COM pergunta continua valendo, e a chave é descartada — nenhum campo some da ficha", () => {
+    // Funis de clone que usou a caixa têm `pergunta` no jsonb. `camposDoFunil()`
+    // descarta o item que não valida: se a chave velha reprovasse, o campo
+    // inteiro sumiria da ficha de todo lead daquele funil.
     const r = customFieldSchema.safeParse({ ...base, pergunta: "Convênio ou particular?" });
     expect(r.success).toBe(true);
-    expect(r.success && r.data.pergunta).toBe("Convênio ou particular?");
-  });
-
-  it("recusa acima de 200 caracteres — cabe pergunta, não cabe roteiro", () => {
-    // Roteiro é `system_prompt`. Misturar os dois faria o prefixo do turno
-    // crescer sem teto: cada campo do funil entra nele.
-    expect(customFieldSchema.safeParse({ ...base, pergunta: "x".repeat(201) }).success).toBe(false);
-    expect(customFieldSchema.safeParse({ ...base, pergunta: "x".repeat(200) }).success).toBe(true);
+    expect(r.success && "pergunta" in r.data).toBe(false);
   });
 });

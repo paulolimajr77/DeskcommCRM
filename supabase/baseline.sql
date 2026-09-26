@@ -10068,12 +10068,6 @@ alter table public.agent_inbox_items
     -- lista, não em bloco novo (#159, bloco único por constraint).
     'voice_call_missed',
     'case_stale',
-    -- (migration 0392 na vps/pljr-combinada) O agente sugere campo de funil
-    -- que ainda não existe; volta com a restauração do preenchimento (tinha
-    -- saído e voltado). Mantido no merge de 25/09/2026 com a proposta
-    -- comercial — as duas features não têm relação, só compartilham esta
-    -- constraint (bloco único, #159).
-    'lead_field_proposed',
     -- (migration 0392 na vps/pljr-combinada) O turno bateu no teto de passos
     -- e parou no meio. Antes disto era um `return` mudo: o cliente via a
     -- conversa terminar sem resposta e ninguém no sistema sabia que o teto
@@ -39893,8 +39887,6 @@ begin
     or new.operator_tool_ids      is distinct from old.operator_tool_ids
     or new.pipeline_ids           is distinct from old.pipeline_ids
     or new.knowledge_source_ids   is distinct from old.knowledge_source_ids
-    or new.lead_fields_enabled     is distinct from old.lead_fields_enabled
-    or new.lead_fields_propose_new is distinct from old.lead_fields_propose_new
     or new.version_number         is distinct from old.version_number
     or new.agent_id               is distinct from old.agent_id
     or new.organization_id        is distinct from old.organization_id
@@ -41007,3 +40999,20 @@ create policy proposal_templates_write on public.proposal_templates
          and public.fn_role_at_least(organization_id, 'manager'))
   with check (organization_id in (select public.fn_user_org_ids())
               and public.fn_role_at_least(organization_id, 'manager'));
+
+-- ---- sai de novo o preenchimento de campos do funil pela IA (migration 0429) ----
+--
+-- Espelho de supabase/migrations/20260926171844_0429_sai_o_preenchimento_de_campos_do_funil_pela_ia.sql
+-- (o porquê está no cabeçalho de lá). Aqui só o que pode vir DEPOIS da
+-- varredura de anon: nenhum `create function`. A trava de imutabilidade sem
+-- as duas colunas mora na última definição dela, editada in-place; o kind saiu
+-- do bloco único, também in-place.
+alter table public.ai_agent_versions
+  drop column if exists lead_fields_enabled;
+
+alter table public.ai_agent_versions
+  drop column if exists lead_fields_propose_new;
+
+drop function if exists public.fn_inbox_item_unico(uuid, text, text, text, text, text, uuid);
+
+notify pgrst, 'reload schema';

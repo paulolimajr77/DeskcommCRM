@@ -115,6 +115,15 @@ const REMOCOES_DELIBERADAS: Record<string, { valores: string[]; porque: string }
       "só perde rótulo e orientação específicos. Sem isso, o `add constraint` " +
       "validaria as linhas antigas e quebraria o `update.sh` de quem tem aviso aberto.",
   },
+  "20260926171844_0429_sai_o_preenchimento_de_campos_do_funil_pela_ia.sql::agent_inbox_items_kind_check": {
+    valores: ["lead_field_proposed"],
+    porque:
+      "Remoção DELIBERADA, a segunda do mesmo valor: a 0395 o tirou, a 0397 o " +
+      "restaurou por ordem revertida do dono, e em 26/09/2026 o dono decidiu tirar " +
+      "de novo — fica só a versão do upstream dos campos do funil, que não tem " +
+      "sugestão de campo pela IA. As linhas existentes viram `other` ANTES da " +
+      "reconstrução, na própria migration e no bloco único do baseline.",
+  },
 };
 
 /** Uma reconstrução de constraint encontrada na cadeia. */

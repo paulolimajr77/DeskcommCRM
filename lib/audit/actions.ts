@@ -694,6 +694,11 @@ export const AUDIT_ACTIONS = [
   // Cron proposta-travada (D3, onda C2): proposta presa em `enviando` voltou
   // a rascunho sozinha — mesmo padrão de "message.recover_stuck_run".
   "proposal.recovered_from_stuck",
+  // Modelos de proposta da empresa (P5, spec de 26/09) — o texto que vai para
+  // todo cliente; quem mudou e quando é o que se disputa depois.
+  "proposal_template.saved",
+  "proposal_template.deactivated",
+  "proposal_template.imported",
 
   "organization.switched",
   // Chamada originada via /api/v1/calls (módulo VoIP, migration 0347).

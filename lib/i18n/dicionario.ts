@@ -12109,6 +12109,9 @@ export const DICIONARIO: Traducoes = {
   "Faltam {n} campo(s) do documento antes de enviar. Abra a proposta e revise.": {
     es: "Faltan {n} campo(s) del documento antes de enviar. Abra la propuesta y revise.",
   },
+  "Faltam {n} campo(s) do documento antes de enviar: {lista}. Abra a proposta e preencha.": {
+    es: "Faltan {n} campo(s) del documento antes de enviar: {lista}. Abre la propuesta y complétalos.",
+  },
   "Ligar propostas comerciais para esta organização": {"es": "Activar propuestas comerciales para esta organización"},
   "Validade padrão (dias)": {"es": "Validez predeterminada (días)"},
   "Condições padrão": {"es": "Condiciones predeterminadas"},

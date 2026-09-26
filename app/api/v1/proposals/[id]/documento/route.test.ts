@@ -9,6 +9,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   audit: vi.fn(),
   traduzir: vi.fn((txt: string) => txt),
   resolverModelo: vi.fn(),
+  resolverAviso: vi.fn(),
 }));
 
 vi.mock("@/lib/propostas/porta", () => ({ sePropostasDesligadas: vi.fn(async () => null) }));
@@ -18,6 +19,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminCli
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
 vi.mock("@/lib/i18n/dicionario", () => ({ traduzir: mocks.traduzir }));
 vi.mock("@/lib/propostas/modelos/resolver", () => ({ resolverModelo: mocks.resolverModelo }));
+vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ resolverAvisoDeRevisaoSeProntaOuEncerrada: mocks.resolverAviso }));
 
 import { GET, PATCH } from "./route";
 
@@ -27,6 +29,7 @@ const ROLE_RANK: Record<string, number> = { viewer: 1, agent: 2, manager: 3, adm
 
 interface MundoOpts {
   papel?: keyof typeof ROLE_RANK;
+  status?: string;
   templateSlug?: string | null;
   sugestao?: string | null;
   secoesEditadas?: Record<string, string> | null;
@@ -48,6 +51,7 @@ function montarMundo(opts: MundoOpts = {}) {
   const propostaRow = {
     id: PROPOSTA_ID,
     organization_id: ORG_ID,
+    status: opts.status ?? "rascunho",
     template_slug: opts.templateSlug ?? null,
     template_slug_sugerido: opts.sugestao ?? null,
     briefing_json: opts.briefingJson ?? null,
@@ -64,6 +68,7 @@ function montarMundo(opts: MundoOpts = {}) {
   };
 
   let secoesEditadasCapturadas: Record<string, unknown> | undefined;
+  let briefingCapturado: Record<string, unknown> | undefined;
   const admin = {
     from: vi.fn((tabela: string) => {
       if (tabela === "crm_proposals") {
@@ -76,7 +81,10 @@ function montarMundo(opts: MundoOpts = {}) {
             }),
           }),
           update: (payload: Record<string, unknown>) => {
-            secoesEditadasCapturadas = payload.secoes_editadas as Record<string, unknown>;
+            if ("secoes_editadas" in payload) {
+              secoesEditadasCapturadas = payload.secoes_editadas as Record<string, unknown>;
+            }
+            if ("briefing_json" in payload) briefingCapturado = payload.briefing_json as Record<string, unknown>;
             return { eq: () => ({ eq: () => Promise.resolve({ error: null }) }) };
           },
         };
@@ -111,7 +119,10 @@ function montarMundo(opts: MundoOpts = {}) {
     };
   });
 
-  return { capturedSecoesEditadas: () => secoesEditadasCapturadas };
+  return {
+    capturedSecoesEditadas: () => secoesEditadasCapturadas,
+    capturedBriefing: () => briefingCapturado,
+  };
 }
 
 describe("GET /api/v1/proposals/[id]/documento", () => {
@@ -182,5 +193,103 @@ describe("PATCH /api/v1/proposals/[id]/documento", () => {
     const req = new Request("http://x", { method: "PATCH", body: JSON.stringify({ secaoId: "resumo" }) });
     const res = await PATCH(req as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
     expect(res.status).toBe(422);
+  });
+});
+
+describe("PATCH /documento — P1 (spec de 26/09)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function patch(body: unknown) {
+    return PATCH(new Request("http://x", { method: "PATCH", body: JSON.stringify(body) }) as never, {
+      params: Promise.resolve({ id: PROPOSTA_ID }),
+    });
+  }
+
+  it("proposta enviada: salvar seção devolve 409 e não grava", async () => {
+    const mundo = montarMundo({ status: "enviada", templateSlug: "site_institucional" });
+    const res = await patch({ secaoId: "resumo", texto: "x" });
+    expect(res.status).toBe(409);
+    expect(mundo.capturedSecoesEditadas()).toBeUndefined();
+  });
+
+  it("proposta enviada: preencher campo devolve 409 e não grava", async () => {
+    const mundo = montarMundo({ status: "enviada", templateSlug: "site_institucional" });
+    const res = await patch({ campo: "project.name", valor: "Site" });
+    expect(res.status).toBe(409);
+    expect(mundo.capturedBriefing()).toBeUndefined();
+  });
+
+  it("texto null tira a reescrita (volta ao texto do modelo) e preserva as outras", async () => {
+    const mundo = montarMundo({ templateSlug: "site_institucional", secoesEditadas: { resumo: "A", outra: "B" } });
+    const res = await patch({ secaoId: "resumo", texto: null });
+    expect(res.status).toBe(200);
+    expect(mundo.capturedSecoesEditadas()).toEqual({ outra: "B" });
+  });
+
+  it("voltar ao modelo na última reescrita grava null, não objeto vazio", async () => {
+    const mundo = montarMundo({ templateSlug: "site_institucional", secoesEditadas: { resumo: "A" } });
+    await patch({ secaoId: "resumo", texto: null });
+    expect(mundo.capturedSecoesEditadas()).toBeNull();
+  });
+
+  it("texto só com espaços é recusado (422) — para esvaziar, use voltar ao modelo", async () => {
+    montarMundo({ templateSlug: "site_institucional" });
+    expect((await patch({ secaoId: "resumo", texto: "   " })).status).toBe(422);
+  });
+
+  it("preencher campo grava no briefing, preservando o que já havia", async () => {
+    const mundo = montarMundo({ templateSlug: "site_institucional", briefingJson: { client: { company: "X" } } });
+    const res = await patch({ campo: "project.name", valor: "  Site da imobiliária  " });
+    expect(res.status).toBe(200);
+    expect(mundo.capturedBriefing()).toEqual({ client: { company: "X" }, project: { name: "Site da imobiliária" } });
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "proposal.documento_campo_preenchido", metadata: { campo: "project.name" } }),
+    );
+  });
+
+  it("campo que o modelo não usa é recusado (422)", async () => {
+    const mundo = montarMundo({ templateSlug: "site_institucional" });
+    expect((await patch({ campo: "scope.pages_list", valor: "x" })).status).toBe(422);
+    expect(mundo.capturedBriefing()).toBeUndefined();
+  });
+
+  it("campo calculado pelo sistema é recusado (422) mesmo que o modelo o use", async () => {
+    mocks.resolverModelo.mockImplementationOnce(async () => ({
+      slug: "x", version: 1, sectionOrder: ["a"], origem: "base",
+      sections: [{ id: "a", title: "A", titleEs: null, body: "{{investment.total_formatted}}", bodyEs: null, required: true, conditional: false }],
+    }));
+    montarMundo({ templateSlug: "site_institucional" });
+    expect((await patch({ campo: "investment.total_formatted", valor: "R$ 1" })).status).toBe(422);
+  });
+
+  it("segmento perigoso no caminho é recusado (422)", async () => {
+    montarMundo({ templateSlug: "site_institucional" });
+    expect((await patch({ campo: "__proto__.x", valor: "y" })).status).toBe(422);
+  });
+
+  it("sem modelo confirmado, preencher campo é recusado (422)", async () => {
+    montarMundo({ templateSlug: null });
+    expect((await patch({ campo: "project.name", valor: "Site" })).status).toBe(422);
+  });
+
+  it("depois de gravar, tenta fechar o aviso de revisão", async () => {
+    montarMundo({ templateSlug: "site_institucional" });
+    await patch({ campo: "project.name", valor: "Site" });
+    expect(mocks.resolverAviso).toHaveBeenCalledWith(expect.anything(), ORG_ID, PROPOSTA_ID);
+  });
+});
+
+describe("GET /documento — P1", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("devolve status, camposFaltando com nome legível e temSecaoEditada", async () => {
+    montarMundo({ templateSlug: "site_institucional", briefingJson: {}, secoesEditadas: { outra: "x" } });
+    const res = await GET(new Request("http://x") as never, { params: Promise.resolve({ id: PROPOSTA_ID }) });
+    const body = await res.json();
+    expect(body.data.status).toBe("rascunho");
+    expect(body.data.temSecaoEditada).toBe(true);
+    expect(body.data.camposFaltando).toEqual([
+      { caminho: "project.name", rotulo: "Nome do projeto", onde: "briefing", secoes: ["resumo"] },
+    ]);
   });
 });

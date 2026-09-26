@@ -836,7 +836,10 @@ it("proposta SEM template_slug: os dois campos ficam null, envio continua igual 
 
 it("WhatsApp falha (branch de retorno a rascunho): o update daquele branch NÃO inclui template_snapshot (Review Focus)", async () => {
   const mundo = montarMundoDeEnvio({
-    propostaOriginal: { template_slug: "site_institucional" },
+    propostaOriginal: {
+      template_slug: "site_institucional",
+      briefing_json: { project: { name: "Site Catálogo" } },
+    },
     envioResultado: { id: "msg-1", status: "failed", error_message: "canal desconectado" },
   });
   await mundo.POST();
@@ -845,4 +848,40 @@ it("WhatsApp falha (branch de retorno a rascunho): o update daquele branch NÃO 
   );
   expect(updateDeFalha?.dados).not.toHaveProperty("template_snapshot");
 });
+
+  it("recusa enviar proposta com modelo escolhido e campo do documento sem preencher (§7 item 2)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { template_slug: "site_institucional", briefing_json: {} },
+    });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.message).toContain("documento");
+    expect(mundo.mensagemEnviada).toBe(false);
+    expect(mundo.numeroFoiAlocado).toBe(false);
+  });
+
+  it("permite enviar quando as seções com pendência foram todas cobertas por secoes_editadas", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: {
+        template_slug: "site_institucional",
+        briefing_json: {},
+        secoes_editadas: { resumo: "Projeto: Site Catálogo, escopo fechado." },
+      },
+    });
+    const res = await mundo.POST();
+    expect(res.status).not.toBe(422);
+    expect(res.status).toBe(200);
+  });
+
+  it("não recusa por pendência quando a proposta não tem modelo escolhido (template_slug null)", async () => {
+    const mundo = montarMundoDeEnvio({
+      papel: "manager",
+      propostaOriginal: { template_slug: null, briefing_json: {} },
+    });
+    const res = await mundo.POST();
+    expect(res.status).not.toBe(422);
+  });
 });

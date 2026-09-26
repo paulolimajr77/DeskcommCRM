@@ -12094,6 +12094,9 @@ export const DICIONARIO: Traducoes = {
   "Revisar esta proposta": {"es": "Revisar esta propuesta"},
   "Motivo da recusa (opcional):": {"es": "Motivo del rechazo (opcional):"},
   "Não foi possível enviar. Confira se você tem papel de gestor.": {"es": "No se pudo enviar. Confirma que tienes el rol de gestor."},
+  "Faltam {n} campo(s) do documento antes de enviar. Abra a proposta e revise.": {
+    es: "Faltan {n} campo(s) del documento antes de enviar. Abra la propuesta y revise.",
+  },
   "Ligar propostas comerciais para esta organização": {"es": "Activar propuestas comerciales para esta organización"},
   "Validade padrão (dias)": {"es": "Validez predeterminada (días)"},
   "Condições padrão": {"es": "Condiciones predeterminadas"},

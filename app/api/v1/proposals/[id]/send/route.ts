@@ -98,6 +98,38 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     );
   }
 
+  // §7 item 2 da spec — enviar com o documento cheio de "[a definir]" é pior
+  // que não enviar: o cliente recebe o PDF com a pendência que a tela já
+  // avisava e ninguém tinha bloqueado.
+  if (proposta.template_slug) {
+    const modelo = await resolverModelo(admin, authz.org.orgId, proposta.template_slug as string);
+    if (modelo) {
+      const { data: contatoParaDoc } = proposta.contact_id
+        ? await admin
+            .from("contacts")
+            .select("name, display_name")
+            .eq("organization_id", authz.org.orgId)
+            .eq("id", proposta.contact_id)
+            .maybeSingle()
+        : { data: null };
+      const dados = montarDadosDoDocumento(proposta as never, contatoParaDoc ?? null);
+      const documento = renderizarDocumento(modelo, dados);
+      const overrides = (proposta.secoes_editadas as Record<string, string> | null) ?? {};
+      const pendencias = documento.secoes.flatMap((s) => (overrides[s.id] !== undefined ? [] : s.faltantes));
+      if (pendencias.length > 0) {
+        return fail(
+          "validation_failed",
+          t("Faltam {n} campo(s) do documento antes de enviar. Abra a proposta e revise.").replace(
+            "{n}",
+            String(pendencias.length),
+          ),
+          422,
+          { requestId },
+        );
+      }
+    }
+  }
+
   // D5, último item da tabela: a proposta grava a conversa do turno que a
   // originou (Task 7) — o envio prefere ESSA conversa, e só cai no fallback
   // "mais recente do contato" para propostas manuais antigas sem o campo.

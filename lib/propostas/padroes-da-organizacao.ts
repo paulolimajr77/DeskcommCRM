@@ -8,6 +8,8 @@ export interface PadroesDaProposta {
   defaultValidDays: number;
   defaultConditions: string | null;
   followupDias: number;
+  /** P4B — ausente = ligado; só `false` explícito desliga. */
+  avisarNoWhatsApp: boolean;
 }
 
 function objeto(v: unknown): Record<string, unknown> | null {
@@ -24,6 +26,7 @@ export function resolverPadroesDaProposta(settings: unknown): PadroesDaProposta 
     defaultValidDays: typeof dias === "number" && dias > 0 ? dias : PADRAO_DIAS_DE_VALIDADE,
     defaultConditions: typeof condicoes === "string" ? condicoes : null,
     followupDias: typeof followup === "number" && followup > 0 ? followup : PADRAO_DIAS_DE_FOLLOWUP,
+    avisarNoWhatsApp: propostas?.avisar_no_whatsapp !== false,
   };
 }
 

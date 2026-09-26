@@ -11,7 +11,7 @@ import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import type { ApiSuccess } from "@/lib/api/wrappers";
 
-interface Config { enabled: boolean; default_valid_days: number; default_conditions: string | null }
+interface Config { enabled: boolean; default_valid_days: number; default_conditions: string | null; avisar_no_whatsapp?: boolean }
 
 export function ProposalsSettingsClient() {
   const t = useT();
@@ -66,6 +66,21 @@ export function ProposalsSettingsClient() {
           value={cfg.default_conditions ?? ""}
           onChange={(e) => setCfg({ ...cfg, default_conditions: e.target.value || null })}
         />
+      </div>
+      <div className="flex items-start gap-2">
+        <Switch
+          id="proposals_avisar_whatsapp"
+          checked={cfg.avisar_no_whatsapp !== false}
+          onCheckedChange={(v) => setCfg({ ...cfg, avisar_no_whatsapp: v })}
+        />
+        <div className="space-y-1">
+          <Label htmlFor="proposals_avisar_whatsapp">
+            {t("Avisar no WhatsApp da equipe quando a IA rascunhar uma proposta")}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            {t("Usa o número configurado em Aviso no WhatsApp. Sem ele configurado e ligado, nada é enviado.")}
+          </p>
+        </div>
       </div>
       <Button onClick={salvar} disabled={salvando}>{salvando ? t("Salvando…") : t("Salvar")}</Button>
     </div>

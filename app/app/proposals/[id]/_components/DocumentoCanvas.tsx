@@ -120,7 +120,7 @@ function EditorDeSecao({
   const mudou = texto.trim() !== secao.body.trim();
   return (
     <div className="space-y-1">
-      <label htmlFor={idDaCaixa} className="text-sm font-semibold">
+      <label htmlFor={idDaCaixa} className="block text-sm font-semibold">
         {secao.title}
       </label>
       <Textarea

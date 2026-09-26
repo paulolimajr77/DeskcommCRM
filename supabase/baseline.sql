@@ -38661,13 +38661,9 @@ create policy proposal_templates_select on public.proposal_templates
     (organization_id in (select public.fn_user_org_ids())) or public.fn_is_platform_admin()
   );
 
-drop policy if exists proposal_templates_write on public.proposal_templates;
-create policy proposal_templates_write on public.proposal_templates
-  for all
-  using (organization_id in (select public.fn_user_org_ids())
-         and public.fn_role_at_least(organization_id, 'agent'))
-  with check (organization_id in (select public.fn_user_org_ids())
-              and public.fn_role_at_least(organization_id, 'agent'));
+-- proposal_templates_write nasce no bloco "modelos de proposta da empresa
+-- (migration 0433)", mais abaixo, já com o piso de 'manager' — o drop dela
+-- ali cobre o clone que só tem esta versão (0415).
 
 revoke all on public.proposal_templates from anon;
 grant select, insert, update, delete on public.proposal_templates to authenticated;

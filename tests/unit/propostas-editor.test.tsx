@@ -45,9 +45,19 @@ const mockProposalData = {
   ],
 };
 
+// P5: DocumentoCanvas também busca a lista de modelos da organização em
+// paralelo ao documento — o mock roteia por URL, como em DocumentoCanvas.test.tsx,
+// senão a proposta cai na chamada de /settings/proposal-templates e quebra o
+// "modelosDisponiveis.map" do canvas.
+function mockProposalGet(data: unknown) {
+  mocks.get.mockImplementation(async (url: string) =>
+    url.includes("/settings/proposal-templates") ? { data: [] } : { data },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.get.mockResolvedValue({ data: mockProposalData });
+  mockProposalGet(mockProposalData);
   mocks.patch.mockResolvedValue({
     data: { id: "proposta-a", revision: 2, total_cents: 50000 },
   });
@@ -82,11 +92,9 @@ describe("editor de propostas", () => {
     // Item manual (sem product_id): preço editável. Item de catálogo tem o
     // preço travado na tela (C3 §5.1 — o servidor resolve do catálogo e
     // ignora o que a tela mandar).
-    mocks.get.mockResolvedValue({
-      data: {
-        ...mockProposalData,
-        itens: [{ ...mockProposalData.itens[0]!, product_id: null }],
-      },
+    mockProposalGet({
+      ...mockProposalData,
+      itens: [{ ...mockProposalData.itens[0]!, product_id: null }],
     });
     render(await ProposalPage({ params: Promise.resolve({ id: "proposta-a" }) }));
     const priceInputs = await screen.findAllByDisplayValue("50");
@@ -140,9 +148,7 @@ describe("editor de propostas", () => {
   });
 
   it("desabilita campos quando status não é rascunho", async () => {
-    mocks.get.mockResolvedValue({
-      data: { ...mockProposalData, status: "enviada" },
-    });
+    mockProposalGet({ ...mockProposalData, status: "enviada" });
     render(await ProposalPage({ params: Promise.resolve({ id: "proposta-a" }) }));
     await waitFor(() => {
       expect(screen.getByDisplayValue("Consultoria")).toBeDisabled();

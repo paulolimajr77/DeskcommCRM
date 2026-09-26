@@ -191,21 +191,21 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("botão 'Preencher com a conversa' só aparece com campo de briefing faltando e papel de revisão", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
     await screen.findByText("Resumo");
     expect(screen.getByRole("button", { name: "Preencher com a conversa" })).toBeInTheDocument();
   });
 
   it("sem papel de revisão, o botão não aparece", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     render(<DocumentoCanvas propostaId="p1" emRascunho />);
     await screen.findByText("Resumo");
     expect(screen.queryByRole("button", { name: "Preencher com a conversa" })).toBeNull();
   });
 
   it("clicar em 'Preencher com a conversa' pré-preenche a caixa do campo sugerido, sem gravar nada", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     post.mockResolvedValue({
       data: { disponivel: true, motivo: null, sugestoes: [{ campo: "project.name", rotulo: "Nome do projeto", valor: "Site da Imobiliária Rio" }] },
     });
@@ -219,7 +219,7 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   });
 
   it("nenhuma sugestão: mostra aviso, não mexe nas caixas", async () => {
-    get.mockResolvedValue({ data: COM_MODELO });
+    responderDocumento(COM_MODELO);
     post.mockResolvedValue({ data: { disponivel: true, motivo: null, sugestoes: [] } });
     render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
     await screen.findByText("Resumo");

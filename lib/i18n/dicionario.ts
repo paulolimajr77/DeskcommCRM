@@ -2266,6 +2266,9 @@ export const DICIONARIO: Traducoes = {
     es: "No encontré texto en este archivo. Si es un PDF escaneado, exporta la propuesta original como PDF con texto.",
   },
   "Modelos de proposta": { es: "Modelos de propuesta" },
+  "Personalize os modelos da plataforma ou crie os da sua empresa, inclusive a partir de uma proposta que você já usa.": {
+    es: "Personaliza los modelos de la plataforma o crea los de tu empresa, incluso a partir de una propuesta que ya usas.",
+  },
   "Criar a partir da proposta que a empresa já usa": { es: "Crear a partir de la propuesta que la empresa ya usa" },
   "Envie um PDF, .md ou .txt de até 5 MB. A IA divide em seções e troca os dados do cliente por campos; você revisa antes de salvar.": {
     es: "Envía un PDF, .md o .txt de hasta 5 MB. La IA lo divide en secciones y cambia los datos del cliente por campos; tú revisas antes de guardar.",
@@ -3158,6 +3161,24 @@ export const DICIONARIO: Traducoes = {
   },
   "O botão de ajustar a proposta por instrução não devolve nenhuma mudança, e quem está editando precisa mexer campo por campo à mão.": {
     es: "El botón de ajustar la propuesta por instrucción no devuelve ningún cambio, y quien está editando tiene que tocar campo por campo a mano.",
+  },
+  "Preencher proposta com a conversa": {
+    es: "Completar propuesta con la conversación",
+  },
+  "Lê a conversa com o cliente e sugere valores para os campos que faltam preencher no documento da proposta, para uma pessoa revisar e confirmar campo por campo.": {
+    es: "Lee la conversación con el cliente y sugiere valores para los campos que faltan completar en el documento de la propuesta, para que una persona los revise y confirme campo por campo.",
+  },
+  "O botão 'Preencher com a conversa' não sugere nada, e quem revisa preenche cada campo lendo a conversa manualmente.": {
+    es: "El botón 'Completar con la conversación' no sugiere nada, y quien revisa completa cada campo leyendo la conversación manualmente.",
+  },
+  "Transformar proposta da empresa em modelo": {
+    es: "Transformar propuesta de la empresa en modelo",
+  },
+  "Lê a proposta que a empresa já usa (PDF ou texto) e a divide em seções de modelo, trocando os dados de um cliente específico por campos preenchíveis, para uma pessoa revisar antes de salvar.": {
+    es: "Lee la propuesta que la empresa ya usa (PDF o texto) y la divide en secciones de modelo, cambiando los datos de un cliente específico por campos completables, para que una persona los revise antes de guardar.",
+  },
+  "O botão de criar modelo a partir de um arquivo não devolve nada, e a pessoa monta o modelo seção por seção à mão.": {
+    es: "El botón de crear modelo a partir de un archivo no devuelve nada, y la persona arma el modelo sección por sección a mano.",
   },
   "Escreve um rascunho de resposta para o atendente humano revisar antes de enviar.": {
     es: "Escribe un borrador de respuesta para que el asesor humano lo revise antes de enviarlo.",

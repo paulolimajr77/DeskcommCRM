@@ -129,7 +129,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     };
   }
 
-  const { error } = await admin.from("proposal_templates").insert(linha);
+  const { error } = await admin.from("proposal_templates").insert({ ...linha, organization_id: orgId });
   if (error) {
     if ((error as { code?: string }).code === "23505") return fail("state_conflict", t("Já existe um modelo ativo com este nome."), 409, { requestId });
     return fail("internal_error", t("Falha ao salvar o modelo."), 500, { requestId });

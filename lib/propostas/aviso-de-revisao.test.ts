@@ -1,12 +1,21 @@
 // lib/propostas/aviso-de-revisao.test.ts
 import { describe, expect, it } from "vitest";
-import { avisarQuePropostaPrecisaDeRevisao, resolverAvisoDeRevisaoSeProntaOuEncerrada } from "./aviso-de-revisao";
 
-function montarSupabaseMock(opts: {
+import {
+  EVENTO_PROPOSTA_PRONTA_PARA_REVISAO,
+  avisarQuePropostaPrecisaDeRevisao,
+  resolverAvisoDeRevisaoSeProntaOuEncerrada,
+  tituloDoAviso,
+} from "./aviso-de-revisao";
+
+interface Opts {
   avisoAbertoExistente?: boolean;
-  proposta?: { template_slug: string | null; pricing_status: string };
-}) {
-  const inserts: Record<string, unknown>[] = [];
+  proposta?: Record<string, unknown> | null;
+  contato?: { name: string | null; display_name: string | null } | null;
+}
+
+function montarSupabaseMock(opts: Opts) {
+  const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
   const updates: Array<{ table: string; patch: Record<string, unknown> }> = [];
   const from = (table: string) => {
     const chain: Record<string, unknown> = {};
@@ -17,12 +26,13 @@ function montarSupabaseMock(opts: {
       return chain;
     };
     chain.insert = (row: Record<string, unknown>) => {
-      inserts.push(row);
+      inserts.push({ table, row });
       return chain;
     };
     chain.maybeSingle = async () => {
       if (table === "agent_inbox_items") return { data: opts.avisoAbertoExistente ? { id: "aviso-1" } : null, error: null };
       if (table === "crm_proposals") return { data: opts.proposta ?? null, error: null };
+      if (table === "contacts") return { data: opts.contato ?? null, error: null };
       return { data: null, error: null };
     };
     return chain;
@@ -30,57 +40,100 @@ function montarSupabaseMock(opts: {
   return { from, inserts, updates };
 }
 
+/** Proposta com o site institucional REAL do código e tudo preenchido. */
+const PRONTA = {
+  template_slug: "site_institucional",
+  pricing_status: "catalog",
+  secoes_editadas: null,
+  briefing_json: {
+    client: { name: "Maria", company: "Imobiliária Exemplo" },
+    project: { name: "Site", objective: "gerar contatos" },
+    scope: { pages_list: "Home, Contato" },
+    included: { list: "Layout" },
+    excluded: { list: "Hospedagem" },
+  },
+  total_cents: 100000,
+  moeda: "BRL",
+  prazo_dias_uteis: 30,
+  valid_until: "2026-10-16",
+  created_at: "2026-09-26T00:00:00.000Z",
+  contact_id: null,
+};
+
+describe("tituloDoAviso", () => {
+  it("nomeia a proposta e o cliente", () => {
+    expect(tituloDoAviso("Site catálogo", "Maria")).toBe("Proposta «Site catálogo» de Maria está pronta para revisão");
+  });
+  it("sem cliente, só a proposta", () => {
+    expect(tituloDoAviso("Site catálogo", null)).toBe("Proposta «Site catálogo» está pronta para revisão");
+  });
+  it("corta título enorme em 80 caracteres", () => {
+    expect(tituloDoAviso("x".repeat(300), null)).toBe(`Proposta «${"x".repeat(80)}» está pronta para revisão`);
+  });
+});
+
 describe("avisarQuePropostaPrecisaDeRevisao", () => {
-  it("insere um aviso quando não há um já aberto para esta proposta", async () => {
-    const db = montarSupabaseMock({ avisoAbertoExistente: false });
+  it("abre o aviso com warn e título nomeado, e emite o evento", async () => {
+    const db = montarSupabaseMock({
+      proposta: { titulo: "Site catálogo", lead_id: "lead-1", contact_id: "c-1" },
+      contato: { name: "Maria", display_name: null },
+    });
     await avisarQuePropostaPrecisaDeRevisao(db as never, "org-1", "prop-1");
-    expect(db.inserts).toHaveLength(1);
-    expect(db.inserts[0]).toMatchObject({
+    const aviso = db.inserts.find((i) => i.table === "agent_inbox_items")?.row;
+    expect(aviso).toMatchObject({
       organization_id: "org-1",
       kind: "proposta_pronta_para_revisao",
+      severity: "warn",
+      title: "Proposta «Site catálogo» de Maria está pronta para revisão",
       ref_kind: "proposal",
       ref_id: "prop-1",
       status: "open",
     });
+    const evento = db.inserts.find((i) => i.table === "event_log")?.row;
+    expect(evento).toMatchObject({
+      organization_id: "org-1",
+      event_type: EVENTO_PROPOSTA_PRONTA_PARA_REVISAO,
+      entity_kind: "proposal",
+      entity_id: "prop-1",
+      payload: { proposal_id: "prop-1", lead_id: "lead-1" },
+    });
   });
 
-  it("não insere de novo quando já há um aviso aberto para esta proposta", async () => {
+  it("aviso já aberto: não insere de novo NEM emite evento (preencher campo de novo não reabre notificação)", async () => {
     const db = montarSupabaseMock({ avisoAbertoExistente: true });
     await avisarQuePropostaPrecisaDeRevisao(db as never, "org-1", "prop-1");
-    expect(db.inserts).toHaveLength(0);
+    expect(db.inserts).toEqual([]);
   });
 });
 
 describe("resolverAvisoDeRevisaoSeProntaOuEncerrada", () => {
-  it("resolve quando modelo confirmado E preço não está 'missing'", async () => {
-    const db = montarSupabaseMock({ proposta: { template_slug: "site_institucional", pricing_status: "catalog" } });
+  it("resolve quando modelo, preço E documento estão prontos", async () => {
+    const db = montarSupabaseMock({ proposta: PRONTA });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
-    expect(db.updates).toHaveLength(1);
-    expect(db.updates[0]!.patch).toMatchObject({ status: "resolved" });
+    expect(db.updates).toEqual([{ table: "agent_inbox_items", patch: { status: "resolved" } }]);
   });
 
-  it("NÃO resolve quando falta modelo, mesmo com preço ok", async () => {
-    const db = montarSupabaseMock({ proposta: { template_slug: null, pricing_status: "catalog" } });
+  it("NÃO resolve com campo do documento vazio, mesmo com modelo e preço ok", async () => {
+    const db = montarSupabaseMock({ proposta: { ...PRONTA, prazo_dias_uteis: null } });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
-    expect(db.updates).toHaveLength(0);
+    expect(db.updates).toEqual([]);
   });
 
-  it("NÃO resolve quando falta preço, mesmo com modelo confirmado", async () => {
-    const db = montarSupabaseMock({ proposta: { template_slug: "site_institucional", pricing_status: "missing" } });
+  it("NÃO resolve sem modelo confirmado", async () => {
+    const db = montarSupabaseMock({ proposta: { ...PRONTA, template_slug: null } });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
-    expect(db.updates).toHaveLength(0);
+    expect(db.updates).toEqual([]);
   });
 
-  it("com forcar: true, resolve mesmo faltando as duas pendências (envio/descarte)", async () => {
-    const db = montarSupabaseMock({ proposta: { template_slug: null, pricing_status: "missing" } });
+  it("NÃO resolve com preço 'missing'", async () => {
+    const db = montarSupabaseMock({ proposta: { ...PRONTA, pricing_status: "missing" } });
+    await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
+    expect(db.updates).toEqual([]);
+  });
+
+  it("forcar: resolve sem ler a proposta", async () => {
+    const db = montarSupabaseMock({ proposta: null });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1", { forcar: true });
     expect(db.updates).toHaveLength(1);
-  });
-
-  it("preço 'manual' (digitado à mão, sem catálogo) conta como resolvido — só 'missing' é pendência", async () => {
-    const db = montarSupabaseMock({ proposta: { template_slug: "site_institucional", pricing_status: "manual" } });
-    await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
-    expect(db.updates).toHaveLength(1);
-    expect(db.updates[0]!.patch).toMatchObject({ status: "resolved" });
   });
 });

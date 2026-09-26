@@ -38688,6 +38688,7 @@ alter table public.crm_proposals add column if not exists template_slug text;
 alter table public.crm_proposals add column if not exists template_version int;
 alter table public.crm_proposals add column if not exists template_snapshot jsonb;
 alter table public.crm_proposals add column if not exists rendered_snapshot jsonb;
+alter table public.crm_proposals add column if not exists template_slug_sugerido text;
 
 alter table public.crm_proposals drop constraint if exists crm_proposals_template_slug_versao_juntos_check;
 alter table public.crm_proposals add constraint crm_proposals_template_slug_versao_juntos_check

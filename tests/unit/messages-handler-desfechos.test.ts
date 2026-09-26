@@ -309,6 +309,34 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
     );
   });
 
+  // Achado ao investigar "proposta manda PDF e o cliente não recebe nada
+  // anexado": `input.media_url` (spec `2026-09-16-proposta-comercial-design.md`
+  // §"Enviar" — `sendFile` com `media_url` — nunca foi ligado ao dispatcher.
+  // Antes deste teste, um envio com `media_url` (sem `media_storage_path`) caía
+  // no branch de texto puro e ia para `/api/sendText` com corpo vazio — sem
+  // nenhum arquivo. Testa exatamente esse-input, contra o texto puro logo
+  // abaixo, para os dois nunca convergirem de novo por acidente.
+  it('4b. com media_url (sem media_storage_path): sent + external_id, pelo endpoint de arquivo', async () => {
+    wahaConfigured(true);
+    const fetchMock = vi.fn(async (..._args: unknown[]) => Response.json({ id: { _serialized: 'FILE1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const msg = await sendMessageHandler(
+      makeSupabase(conversationRow()),
+      ctx,
+      textInput({ type: 'document', body: undefined, media_url: 'https://storage.example/propostas/a.pdf', media_mime: 'application/pdf' }),
+    );
+
+    expect(msg.status).toBe('sent');
+    expect(msg.external_id).toBe('FILE1');
+    expect(msg.ack).toBe(0);
+    expect(msg.error_code).toBeNull();
+    const sendFile = fetchMock.mock.calls.find(([url]) => String(url) === `${WAHA_BASE}/api/sendFile`);
+    expect(sendFile, 'sendFile não foi chamado').toBeTruthy();
+    const body = JSON.parse(String((sendFile![1] as RequestInit).body)) as { file?: { url?: string } };
+    expect(body.file?.url).toBe('https://storage.example/propostas/a.pdf');
+  });
+
   it('5. texto puro: sent + external_id + ack 0, pelo endpoint de texto', async () => {
     wahaConfigured(true);
     const fetchMock = vi.fn(async (..._args: unknown[]) => Response.json({ key: { id: 'TEXT1' } }));

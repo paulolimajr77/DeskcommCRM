@@ -856,6 +856,29 @@ export async function sendMessageHandler(
           // cópia guardada no envio, que poderia divergir da linha.
           replyToExternalId: citada?.external_id ?? null,
         }));
+      } else if (input.media_url) {
+        // Spec `2026-09-16-proposta-comercial-design.md` já previa isto
+        // ("Enviar | sendFile com media_url") e nunca chegou a ser ligado: um
+        // envio só com `media_url` (sem `media_storage_path` — que é só para
+        // arquivo já dentro da PRÓPRIA conversa, ver `isMediaPathOwnedBy`
+        // acima) caía no `else` de texto puro, com corpo vazio — nenhum
+        // arquivo saía. URL externa não tem "dono" para checar: quem chama
+        // este handler já é código de servidor confiável (proposta, MCP).
+        await checkBoundary();
+        ({ externalId } = await adapter.send({
+          beforeSend: checkBoundary,
+          organizationId: ctx.organization_id,
+          sessionRef: resolveSessionRef(c.channel_sessions),
+          to: chatId,
+          providerConversationId: c.provider_conversation_id,
+          kind: input.type,
+          media: {
+            url: input.media_url,
+            mime: input.media_mime ?? "application/octet-stream",
+            caption: input.body ?? null,
+          },
+          replyToExternalId: citada?.external_id ?? null,
+        }));
       } else if (input.type === "contact") {
         const sc = outboundMetadata.shared_contact as
           { name: string; phone_number: string } | undefined;

@@ -118,6 +118,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   let leadValueCentsDepois: number | null = null;
   let propostaDeletadaId: string | null = null;
   const updatesCrmProposals: Array<{ id: string | null; dados: unknown }> = [];
+  const atualizacoesDeMensagem: Array<{ id: string; patch: Record<string, unknown> }> = [];
   const propostasNoMock: Record<string, Proposta> = {};
 
   const proposta: Proposta = {
@@ -370,6 +371,16 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
           }),
         };
       }
+      if (tabela === "messages") {
+        return {
+          update: (patch: Record<string, unknown>) => ({
+            eq: (_c: string, id: string) => {
+              atualizacoesDeMensagem.push({ id, patch });
+              return Promise.resolve({ error: null });
+            },
+          }),
+        };
+      }
       throw new Error(`Tabela desconhecida: ${tabela}`);
     },
   });
@@ -457,6 +468,7 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     get leadValueCentsDepois() { return leadValueCentsDepois; },
     get propostaDeletadaId() { return propostaDeletadaId; },
     get updatesCrmProposals() { return updatesCrmProposals; },
+    get atualizacoesDeMensagem() { return atualizacoesDeMensagem; },
     obterProposta(id: string) { return propostasNoMock[id]; },
     async POST() {
       const { POST } = await import("./route");
@@ -476,6 +488,18 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(res.status).toBe(403);
     expect(mundo.mensagemEnviada).toBe(false);
     expect(mundo.numeroFoiAlocado).toBe(false);
+  });
+
+  // Achado ao investigar "clico no PDF enviado e dá bad_gateway": o envio
+  // gravava só `media_url` (a signed URL de 7 dias) e nunca `media_storage_path`
+  // — que é o único campo que `GET /api/v1/messages/[id]/media` sabe reler
+  // depois. Sem ele, todo clique caía no fallback de mídia de ENTRADA (WAHA),
+  // que não serve para um documento que SAÍMOS enviando.
+  it("grava media_storage_path na mensagem depois do envio, para o clique funcionar depois", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.atualizacoesDeMensagem).toContainEqual({ id: "msg-123", patch: { media_storage_path: "/pdf" } });
   });
 
   it("WhatsApp confirma (sent): vira enviada, ganha sent_at e muda o valor do negocio", async () => {

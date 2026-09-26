@@ -1,7 +1,9 @@
 // app/api/v1/messages/[id]/media/route.ts
 /**
  * GET /api/v1/messages/[id]/media — acesso autenticado à mídia da mensagem.
- * Persistida → 302 pra signed URL (TTL 1h) do bucket whatsapp-media.
+ * Persistida → 302 pra signed URL (TTL 1h). Bucket decidido por
+ * `bucketDoCaminhoDeMedia` — `whatsapp-media` para toda mídia de canal, e a
+ * exceção do PDF de proposta (bucket `propostas`, fora de qualquer conversa).
  * Ainda não persistida (janela até o worker rodar) → proxy dos bytes do WAHA.
  * A URL desta rota é usada diretamente como src de <img>/<video>/<audio>
  * (cookie de sessão vai junto por ser same-origin; RLS decide o acesso).
@@ -22,6 +24,7 @@ import {
 } from "@/lib/channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { bucketDoCaminhoDeMedia } from "./bucket-do-caminho";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +71,7 @@ export async function GET(_req: NextRequest, ctx: RouteCtx): Promise<Response> {
   if (msg.media_storage_path) {
     const admin = createAdminClient();
     const { data: signed, error: signErr } = await admin.storage
-      .from("whatsapp-media")
+      .from(bucketDoCaminhoDeMedia(msg.media_storage_path))
       .createSignedUrl(msg.media_storage_path, SIGNED_URL_TTL_S);
     if (!signErr && signed?.signedUrl) {
       const response = NextResponse.redirect(signed.signedUrl, 302);

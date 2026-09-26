@@ -377,4 +377,36 @@ describe("crm_draft_proposal", () => {
     expect((r as { error?: string }).error).toBeDefined();
     expect(mundo.propostaCriada).toBeNull();
   });
+
+  it("grava template_slug_sugerido quando a IA sugere um modelo válido", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Orçamento site",
+        itens: [{ descricao: "Site institucional", quantidade: 1 }],
+        template_slug_sugerido: "site_institucional",
+      } as never,
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(mundo.propostaCriada?.template_slug_sugerido).toBe("site_institucional");
+  });
+
+  it("recusa template_slug_sugerido que não existe no catálogo", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Orçamento site",
+        itens: [{ descricao: "Site institucional", quantidade: 1 }],
+        template_slug_sugerido: "modelo_que_nao_existe",
+      } as never,
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toEqual(expect.stringContaining("modelo"));
+    expect(mundo.propostaCriada).toBeNull();
+  });
 });

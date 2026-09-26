@@ -5,6 +5,8 @@ import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizac
 import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
+import { MODELOS_BASE } from "@/lib/propostas/modelos/catalogo-base";
+import { ROTULO_DO_MODELO } from "@/lib/propostas/modelos/rotulos";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { Actor } from "@/lib/api/handlers/types";
 import type { McpContext, McpToolDefinition } from "@/lib/mcp/types";
@@ -42,6 +44,16 @@ const draftProposalInputShape = {
       "Itens do que está sendo oferecido. Use product_id quando o item vier do catálogo — o " +
         "preço é resolvido pelo servidor e o que você mandar em preco_unitario_cents é ignorado. " +
         "Sem product_id e sem preco_unitario_cents, o item nasce 'a definir'.",
+    ),
+  template_slug_sugerido: z
+    .string()
+    .optional()
+    .describe(
+      "Se você já entendeu o tipo de projeto, sugira um destes modelos pelo slug: " +
+        Object.entries(ROTULO_DO_MODELO)
+          .map(([slug, rotulo]) => `${slug} (${rotulo})`)
+          .join(", ") +
+        ". Uma pessoa confirma antes de valer — errar a sugestão não é grave, mas não invente slug fora desta lista.",
     ),
 };
 
@@ -109,6 +121,10 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       return { error: "Esta conversa não pertence ao contato deste negócio." };
     }
 
+    if (input.template_slug_sugerido !== undefined && !Object.hasOwn(MODELOS_BASE, input.template_slug_sugerido)) {
+      return { error: `Modelo "${input.template_slug_sugerido}" não existe no catálogo.` };
+    }
+
     const itensNormalizados = input.itens.map((it, i) => ({
       product_id: it.product_id ?? null,
       descricao: it.descricao,
@@ -144,6 +160,7 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         moeda,
         status: "rascunho",
         drafted_by_agent_id: agentId,
+        template_slug_sugerido: input.template_slug_sugerido ?? null,
       })
       .select("id")
       .single();

@@ -146,6 +146,22 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
   const [doc, setDoc] = useState<Documento | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [recarga, setRecarga] = useState(0);
+  const [modelosDisponiveis, setModelosDisponiveis] = useState<Array<{ slug: string; nome: string }> | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    apiClient
+      .get<ApiSuccess<Array<{ slug: string; nome: string }>>>("/api/v1/settings/proposal-templates", { signal: controller.signal })
+      .then((res) => !controller.signal.aborted && setModelosDisponiveis(res.data))
+      .catch(() => {
+        /* sem a lista, o seletor cai nos 8 da plataforma — nunca some */
+      });
+    return () => controller.abort();
+  }, []);
+
+  const opcoesDeModelo: Array<[string, string]> = modelosDisponiveis
+    ? modelosDisponiveis.map((m) => [m.slug, m.nome])
+    : Object.entries(ROTULO_DO_MODELO);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -190,7 +206,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
   const editavel = podeRevisar && emRascunho;
 
   if (!doc.modeloSlug) {
-    const rotuloSugerido = doc.modeloSlugSugerido ? ROTULO_DO_MODELO[doc.modeloSlugSugerido] : null;
+    const rotuloSugerido = doc.modeloSlugSugerido ? opcoesDeModelo.find(([s]) => s === doc.modeloSlugSugerido)?.[1] : null;
     return (
       <div className="rounded-lg border border-dashed p-4 text-sm text-gray-600 space-y-3">
         {doc.modeloSlugSugerido ? (
@@ -220,7 +236,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
             <option value="" disabled>
               {t("Ou escolha outro modelo")}
             </option>
-            {Object.entries(ROTULO_DO_MODELO).map(([slug, rotulo]) => (
+            {opcoesDeModelo.map(([slug, rotulo]) => (
               <option key={slug} value={slug}>
                 {rotulo}
               </option>
@@ -253,7 +269,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
             onChange={(e) => trocarModelo(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
           >
-            {Object.entries(ROTULO_DO_MODELO).map(([slug, rotulo]) => (
+            {opcoesDeModelo.map(([slug, rotulo]) => (
               <option key={slug} value={slug}>
                 {rotulo}
               </option>

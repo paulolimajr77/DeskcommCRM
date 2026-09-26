@@ -1,4 +1,5 @@
 // lib/propostas/documento/montar-dados.ts
+import { nomeDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { formatCents } from "@/lib/money";
 
 export interface DadosDaPropostaParaDocumento {
@@ -45,7 +46,7 @@ export function montarDadosDoDocumento(
       : {}
   ) as Record<string, unknown>;
 
-  const nomeDoContato = contato?.display_name || contato?.name || null;
+  const nomeApresentavel = nomeDoContato(contato);
   const company = (briefingClient.company as string | undefined) ?? null;
   const nomeDoBriefing = (briefingClient.name as string | undefined) ?? null;
 
@@ -54,9 +55,9 @@ export function montarDadosDoDocumento(
     numero: null,
     client: {
       ...briefingClient,
-      name: nomeDoContato ?? nomeDoBriefing ?? null,
+      name: nomeApresentavel ?? nomeDoBriefing ?? null,
       company,
-      company_or_name: company ?? nomeDoContato ?? nomeDoBriefing ?? null,
+      company_or_name: company ?? nomeApresentavel ?? nomeDoBriefing ?? null,
     },
     investment: { total_formatted: formatCents(proposta.total_cents, proposta.moeda) },
     schedule: { estimated_days: proposta.prazo_dias_uteis },

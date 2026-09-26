@@ -63,13 +63,13 @@ describe("montarDadosDoDocumento — preço, prazo e validade (nunca vêm do bri
     expect(dados.commercial_terms).toMatchObject({ validity_days: null });
   });
 
-  it("client.name vem do contato (display_name antes de name); client.company vem do briefing", () => {
+  it("client.name vem do contato (name escolhido antes de display_name — regra da #906); client.company vem do briefing", () => {
     const dados = montarDadosDoDocumento(
       { ...PROPOSTA_BASE, briefing_json: { client: { company: "Imobiliária Rio" } } },
       { name: "João da Silva", display_name: "João" },
     );
     expect(dados.client).toMatchObject({
-      name: "João",
+      name: "João da Silva",
       company: "Imobiliária Rio",
       company_or_name: "Imobiliária Rio",
     });

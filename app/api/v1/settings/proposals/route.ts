@@ -19,6 +19,7 @@ const patchSchema = z.object({
   // tela de Configurações › Propostas manda só os 3 campos antigos, e ela não
   // está no escopo desta task. Obrigatório quebraria o salvar dela com 422.
   followup_dias: z.number().int().positive().max(365).optional(),
+  avisar_no_whatsapp: z.boolean().optional(),
 });
 
 export async function GET(): Promise<Response> {
@@ -31,7 +32,11 @@ export async function GET(): Promise<Response> {
   // N2 — o default de `followup_dias` vale também para organização que gravou
   // o objeto ANTES do knob existir (o `??` abaixo só cobriria `proposals`
   // inteiramente ausente).
-  const proposals = { followup_dias: 3, ...(propostasGravadas ?? { enabled: false, default_valid_days: 15, default_conditions: null }) };
+  const proposals = {
+    followup_dias: 3,
+    avisar_no_whatsapp: true,
+    ...(propostasGravadas ?? { enabled: false, default_valid_days: 15, default_conditions: null }),
+  };
   return ok(proposals, { requestId });
 }
 

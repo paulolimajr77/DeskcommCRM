@@ -12160,6 +12160,18 @@ export const DICIONARIO: Traducoes = {
   },
   "Ligar propostas comerciais para esta organização": {"es": "Activar propuestas comerciales para esta organización"},
   "Validade padrão (dias)": {"es": "Validez predeterminada (días)"},
+  "Avisar no WhatsApp da equipe quando a IA rascunhar uma proposta": {
+    es: "Avisar en el WhatsApp del equipo cuando la IA redacte una propuesta",
+  },
+  "Usa o número configurado em Aviso no WhatsApp. Sem ele configurado e ligado, nada é enviado.": {
+    es: "Usa el número configurado en Aviso en WhatsApp. Sin él configurado y activado, no se envía nada.",
+  },
+  "a IA rascunhou uma proposta": { es: "la IA redactó una propuesta" },
+  "Revisar e enviar": { es: "Revisar y enviar" },
+  "Responder aqui não chega ao cliente — abra o link para revisar.": {
+    es: "Responder aquí no llega al cliente — abre el enlace para revisar.",
+  },
+  "Proposta": { es: "Propuesta" },
   "Condições padrão": {"es": "Condiciones predeterminadas"},
   "Por favor, selecione o negócio associado à proposta.": {"es": "Selecciona el negocio asociado a la propuesta."},
   "Por favor, informe o título da proposta.": {"es": "Indica el título de la propuesta."},

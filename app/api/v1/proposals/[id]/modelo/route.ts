@@ -9,13 +9,17 @@ import { requireRole } from "@/lib/auth/require-role";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { resolverModelo } from "@/lib/propostas/modelos/resolver";
+import { lerSecoesEditadas } from "@/lib/propostas/documento/documento-da-proposta";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
 import { resolverAvisoDeRevisaoSeProntaOuEncerrada } from "@/lib/propostas/aviso-de-revisao";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const patchSchema = z.object({ template_slug: z.string().min(1).max(100).nullable() });
+const patchSchema = z.object({
+  template_slug: z.string().min(1).max(100).nullable(),
+  descartar_reescritas: z.boolean().optional(),
+});
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -37,7 +41,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   const admin = createAdminClient();
   const { data: proposta } = await admin
     .from("crm_proposals")
-    .select("id, status")
+    .select("id, status, template_slug, secoes_editadas")
     .eq("organization_id", authz.org.orgId)
     .eq("id", id)
     .maybeSingle();
@@ -59,9 +63,28 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   const modelo = await resolverModelo(admin, authz.org.orgId, parsed.data.template_slug);
   if (!modelo) return fail("validation_failed", t("Modelo não encontrado."), 422, { requestId });
 
+  // §6.1 da spec de 21/09: trocar o modelo com rascunho em andamento perde o
+  // texto ajustado à mão — por isso exige confirmação explícita.
+  const atual = proposta as { template_slug: string | null; secoes_editadas: unknown };
+  const trocaDeModelo = atual.template_slug !== null && atual.template_slug !== modelo.slug;
+  const temReescrita = Object.keys(lerSecoesEditadas(atual.secoes_editadas)).length > 0;
+  if (trocaDeModelo && temReescrita && parsed.data.descartar_reescritas !== true) {
+    return fail(
+      "proposal_context_stale",
+      t("Esta proposta tem seções reescritas à mão. Confirme o descarte para trocar o modelo."),
+      409,
+      { requestId },
+    );
+  }
+
   const { error } = await admin
     .from("crm_proposals")
-    .update({ template_slug: modelo.slug, template_version: modelo.version, template_slug_sugerido: null })
+    .update({
+      template_slug: modelo.slug,
+      template_version: modelo.version,
+      template_slug_sugerido: null,
+      ...(trocaDeModelo ? { secoes_editadas: null } : {}),
+    })
     .eq("organization_id", authz.org.orgId)
     .eq("id", id);
   if (error) return fail("internal_error", t("Falha ao confirmar o modelo."), 500, { requestId });
@@ -75,7 +98,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     resourceType: "crm_proposals",
     resourceId: id,
     requestId,
-    metadata: { template_slug: modelo.slug, template_version: modelo.version },
+    metadata: { template_slug: modelo.slug, template_version: modelo.version, descartou_reescritas: trocaDeModelo && temReescrita },
   });
 
   return ok({ template_slug: modelo.slug, template_version: modelo.version }, { requestId });

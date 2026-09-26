@@ -13,9 +13,8 @@ import { decidirVersao } from "@/lib/propostas/versao";
 import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
 import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-para-pdf";
-import { resolverModelo } from "@/lib/propostas/modelos/resolver";
-import { montarDadosDoDocumento } from "@/lib/propostas/documento/montar-dados";
-import { renderizarDocumento } from "@/lib/propostas/documento/renderer";
+import { montarDocumentoDaProposta } from "@/lib/propostas/documento/documento-da-proposta";
+import { renderDocumentoPdf } from "@/lib/propostas/documento/pdf-do-documento";
 import { assertSafeOutboundUrl } from "@/lib/automation/outbound-url";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
@@ -101,33 +100,26 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // §7 item 2 da spec — enviar com o documento cheio de "[a definir]" é pior
   // que não enviar: o cliente recebe o PDF com a pendência que a tela já
   // avisava e ninguém tinha bloqueado.
-  if (proposta.template_slug) {
-    const modelo = await resolverModelo(admin, authz.org.orgId, proposta.template_slug as string);
-    if (modelo) {
-      const { data: contatoParaDoc } = proposta.contact_id
-        ? await admin
-            .from("contacts")
-            .select("name, display_name")
-            .eq("organization_id", authz.org.orgId)
-            .eq("id", proposta.contact_id)
-            .maybeSingle()
-        : { data: null };
-      const dados = montarDadosDoDocumento(proposta as never, contatoParaDoc ?? null);
-      const documento = renderizarDocumento(modelo, dados);
-      const overrides = (proposta.secoes_editadas as Record<string, string> | null) ?? {};
-      const pendencias = documento.secoes.flatMap((s) => (overrides[s.id] !== undefined ? [] : s.faltantes));
-      if (pendencias.length > 0) {
-        return fail(
-          "validation_failed",
-          t("Faltam {n} campo(s) do documento antes de enviar. Abra a proposta e revise.").replace(
-            "{n}",
-            String(pendencias.length),
-          ),
-          422,
-          { requestId },
-        );
-      }
-    }
+  // D1 da spec de 26/09: o documento é calculado num lugar só, e é o MESMO
+  // objeto que trava, congela no snapshot e vira o PDF abaixo.
+  const { data: contatoParaDoc } = proposta.template_slug && proposta.contact_id
+    ? await admin
+        .from("contacts")
+        .select("name, display_name")
+        .eq("organization_id", authz.org.orgId)
+        .eq("id", proposta.contact_id)
+        .maybeSingle()
+    : { data: null };
+  const documento = await montarDocumentoDaProposta(admin, authz.org.orgId, proposta as never, contatoParaDoc ?? null);
+  if (documento && documento.camposFaltando.length > 0) {
+    return fail(
+      "validation_failed",
+      t("Faltam {n} campo(s) do documento antes de enviar: {lista}. Abra a proposta e preencha.")
+        .replace("{n}", String(documento.camposFaltando.length))
+        .replace("{lista}", documento.camposFaltando.map((c) => t(c.rotulo)).join(", ")),
+      422,
+      { requestId },
+    );
   }
 
   // D5, último item da tabela: a proposta grava a conversa do turno que a
@@ -248,29 +240,10 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   // modelo escolhido é o caso comum hoje, e falha ao montar isto nunca pode
   // impedir o envio (mesmo padrão da imagem de produto e do follow-up,
   // acima e abaixo neste arquivo).
-  let templateSnapshot: unknown = null;
-  let renderedSnapshot: unknown = null;
-  if (propostaAlvo.template_slug) {
-    try {
-      const modelo = await resolverModelo(admin, authz.org.orgId, propostaAlvo.template_slug as string);
-      if (modelo) {
-        const dados = montarDadosDoDocumento(propostaAlvo as never, contato ?? null);
-        const documento = renderizarDocumento(modelo, dados);
-        const overrides = (propostaAlvo.secoes_editadas as Record<string, string> | null) ?? {};
-        const secoes = documento.secoes.map((s) =>
-          overrides[s.id] !== undefined ? { ...s, body: overrides[s.id]!, faltantes: [] } : s,
-        );
-        templateSnapshot = modelo;
-        renderedSnapshot = { secoes, variaveisFaltando: secoes.flatMap((s) => s.faltantes) };
-      }
-    } catch (erro) {
-      logger.warn("proposal.send: falha ao montar snapshot do documento — envio segue sem ele", {
-        organizationId: authz.org.orgId,
-        propostaId: propostaAlvo.id,
-        erro: erro instanceof Error ? erro.message : String(erro),
-      });
-    }
-  }
+  const templateSnapshot: unknown = documento ? documento.modelo : null;
+  const renderedSnapshot: unknown = documento
+    ? { secoes: documento.secoes, variaveisFaltando: documento.pendencias }
+    : null;
 
   // ─── PDF, upload e envio: qualquer EXCEÇÃO aqui (não só um desfecho de
   // mensagem) também é "falha em qualquer passo" (D3, ponto 3) — sem este
@@ -281,7 +254,21 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   let signedUrl: string;
   let mensagem: Awaited<ReturnType<typeof sendMessageHandler>>;
   try {
-    const pdfBuffer = await renderPropostaPdf({
+    const itensDoPdf = itens.map((it) => ({
+      descricao: it.descricao, quantidade: it.quantidade,
+      precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents,
+      imagemUrl: it.product_id ? (imagensPorProduto.get(it.product_id) ?? null) : null,
+    }));
+    const pdfBuffer = documento
+      ? await renderDocumentoPdf({
+          titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
+          versao: propostaAlvo.versao, destinatario: { nome: destinatarioNome },
+          secoes: documento.secoes, itens: itensDoPdf,
+          totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
+          validUntil: propostaAlvo.valid_until, condicoes: propostaAlvo.condicoes,
+          marca: { app_name: marca.appName, accent_hex: marca.accentHex, logoUrl: marca.logoUrl },
+        })
+      : await renderPropostaPdf({
       titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
       versao: propostaAlvo.versao,
       condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,

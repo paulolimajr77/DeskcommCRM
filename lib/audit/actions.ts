@@ -677,6 +677,9 @@ export const AUDIT_ACTIONS = [
   "proposal.revised",
   // Edição manual de seção do documento pelo canvas (M3, onda de modelos).
   "proposal.documento_editado",
+  // Campo do documento preenchido pela tela (P1, spec de 26/09) — grava no
+  // briefing; o metadata leva só o CAMINHO, nunca o valor digitado.
+  "proposal.documento_campo_preenchido",
   // Confirmação do modelo do documento pela tela (N1 — a IA sugere,
   // uma pessoa confirma; limpa template_slug_sugerido).
   "proposal.modelo_confirmado",

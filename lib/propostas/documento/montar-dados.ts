@@ -21,6 +21,13 @@ function diasEntre(inicio: string, fim: string): number {
 }
 
 /**
+ * `{{approval.date}}` é a data em que o CLIENTE assina — ninguém a sabe no
+ * envio. Sem valor ela virava pendência em todos os 8 modelos, e a trava de
+ * envio recusava toda proposta com modelo (spec de 26/09, §1.5).
+ */
+export const LINHA_EM_BRANCO = "____/____/______";
+
+/**
  * Monta o objeto de dados que `renderizarDocumento` (M2) consome — spec §7
  * item 1: "briefing_json + proposta + cliente", as três fontes juntas.
  * `investment`, `schedule`, `commercial_terms.validity_days` e `client.name`
@@ -65,5 +72,6 @@ export function montarDadosDoDocumento(
       ...briefingCommercialTerms,
       validity_days: proposta.valid_until ? diasEntre(proposta.created_at, proposta.valid_until) : null,
     },
+    approval: { date: LINHA_EM_BRANCO },
   };
 }

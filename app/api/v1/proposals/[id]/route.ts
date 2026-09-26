@@ -21,6 +21,8 @@ const patchSchema = z.object({
   titulo: z.string().trim().min(1).max(200).optional(),
   condicoes: z.string().max(4000).nullable().optional(),
   valid_until: z.string().date().nullable().optional(),
+  prazo_dias_uteis: z.number().int().min(1).max(365).nullable().optional(),
+  pagamento: z.string().trim().max(500).nullable().optional(),
   itens: z.array(propostaItemSchema),
 });
 
@@ -131,6 +133,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
       ...(input.titulo !== undefined ? { titulo: input.titulo } : {}),
       ...(input.condicoes !== undefined ? { condicoes: input.condicoes } : {}),
       ...(input.valid_until !== undefined ? { valid_until: input.valid_until } : {}),
+      ...(input.prazo_dias_uteis !== undefined ? { prazo_dias_uteis: input.prazo_dias_uteis } : {}),
+      ...(input.pagamento !== undefined ? { pagamento: input.pagamento === "" ? null : input.pagamento } : {}),
       total_cents: resolvido.totalCents,
       pricing_status: resolvido.pricingStatus,
       revision: input.revision + 1,

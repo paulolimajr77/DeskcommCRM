@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MODELOS_BASE } from "@/lib/propostas/modelos/catalogo-base";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mocks: Record<string, any> = vi.hoisted(() => ({
   requireRole: vi.fn(),
@@ -12,6 +14,7 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   alocarNumero: vi.fn(),
   decidirVersao: vi.fn(),
   renderPropostaPdf: vi.fn(),
+  renderDocumentoPdf: vi.fn(),
   salvarPdfDaProposta: vi.fn(),
   marcaDaSaida: vi.fn(),
   marcaDaOrganizacaoParaPdf: vi.fn(),
@@ -34,6 +37,7 @@ vi.mock("@/lib/automation/throttle", () => ({ checkDailyLimit: mocks.checkDailyL
 vi.mock("@/lib/propostas/numeracao", () => ({ alocarNumero: mocks.alocarNumero }));
 vi.mock("@/lib/propostas/versao", () => ({ decidirVersao: mocks.decidirVersao }));
 vi.mock("@/lib/propostas/pdf", () => ({ renderPropostaPdf: mocks.renderPropostaPdf }));
+vi.mock("@/lib/propostas/documento/pdf-do-documento", () => ({ renderDocumentoPdf: mocks.renderDocumentoPdf }));
 vi.mock("@/lib/propostas/storage", () => ({ salvarPdfDaProposta: mocks.salvarPdfDaProposta }));
 vi.mock("@/lib/branding/saida", () => ({ marcaDaSaida: mocks.marcaDaSaida }));
 vi.mock("@/lib/propostas/marca-da-organizacao-para-pdf", () => ({ marcaDaOrganizacaoParaPdf: mocks.marcaDaOrganizacaoParaPdf }));
@@ -421,6 +425,10 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
   mocks.renderPropostaPdf.mockImplementation(async () => {
     pdfFoiGerado = true;
     return Buffer.from("PDF");
+  });
+  mocks.renderDocumentoPdf.mockImplementation(async () => {
+    pdfFoiGerado = true;
+    return Buffer.from("PDF-DOCUMENTO");
   });
 
   mocks.salvarPdfDaProposta.mockResolvedValue({ path: "/pdf", signedUrl: "https://url" });
@@ -907,5 +915,45 @@ it("não recusa por pendência quando a proposta não tem modelo escolhido (temp
   });
   const res = await mundo.POST();
   expect(res.status).not.toBe(422);
+});
+
+describe("P1 — o documento chega ao cliente", () => {
+  const BRIEFING_COMPLETO = {
+    client: { company: "Imobiliária Exemplo" },
+    project: { name: "Site da imobiliária", objective: "gerar contatos de compradores" },
+    scope: { pages_list: "Home, Sobre, Contato" },
+    included: { list: "Layout, desenvolvimento e publicação" },
+    excluded: { list: "Hospedagem e domínio" },
+  };
+
+  it("MODELO REAL com tudo preenchido é enviado, e o PDF é o do documento", async () => {
+    const mundo = montarMundoDeEnvio({
+      propostaOriginal: { template_slug: "site_institucional", prazo_dias_uteis: 30, briefing_json: BRIEFING_COMPLETO },
+    });
+    mocks.resolverModelo.mockImplementation(async () => ({ ...MODELOS_BASE.site_institucional!, origem: "base" }));
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    expect(mundo.propostaEnviada?.status).toBe("enviada");
+    expect(mocks.renderDocumentoPdf).toHaveBeenCalledTimes(1);
+    expect(mocks.renderPropostaPdf).not.toHaveBeenCalled();
+    const entrada = mocks.renderDocumentoPdf.mock.calls[0][0];
+    expect(entrada.secoes.map((s: { id: string }) => s.id)).toContain("investment");
+    expect(entrada.itens).toHaveLength(1);
+  });
+
+  it("sem modelo, o PDF continua o de itens", async () => {
+    const mundo = montarMundoDeEnvio({});
+    await mundo.POST();
+    expect(mocks.renderPropostaPdf).toHaveBeenCalledTimes(1);
+    expect(mocks.renderDocumentoPdf).not.toHaveBeenCalled();
+  });
+
+  it("a recusa por pendência NOMEIA o que falta", async () => {
+    const mundo = montarMundoDeEnvio({ propostaOriginal: { template_slug: "site_institucional", briefing_json: {} } });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.message).toContain("Nome do projeto");
+  });
 });
 });

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type pg from "pg";
 import { tool, type ModelMessage, runModelCall, type LlmEdgeConfig } from "@/lib/agent-engine/edge/llm/run-model-call";
 import type { ProposalItemInput } from "./tipos";
+import { definirCaminho } from "./briefing-caminho";
 
 export const mudancaSchema = z.discriminatedUnion("tipo", [
   z.object({
@@ -52,18 +53,6 @@ export interface EstadoDaProposta {
  * existe mais é IGNORADO — silencioso de propósito (rascunho pode ter mudado
  * entre gerar e aplicar; a revision otimista da Tarefa 10 cobre o resto).
  */
-/** Grava `valor` em `caminho` (dot path) dentro de `obj`, sem apagar chaves
- * irmãs — clona só os níveis no caminho, o resto do objeto é preservado. */
-function definirCaminho(obj: Record<string, unknown>, caminho: string, valor: string): Record<string, unknown> {
-  const [primeira, ...resto] = caminho.split(".");
-  if (resto.length === 0) {
-    return { ...obj, [primeira!]: valor };
-  }
-  const atual = obj[primeira!];
-  const sub = atual && typeof atual === "object" && !Array.isArray(atual) ? (atual as Record<string, unknown>) : {};
-  return { ...obj, [primeira!]: definirCaminho(sub, resto.join("."), valor) };
-}
-
 export function aplicarMudancas(estado: EstadoDaProposta, mudancas: readonly Mudanca[]): EstadoDaProposta {
   let novo: EstadoDaProposta = { ...estado, itens: estado.itens.map((it) => ({ ...it })) };
 

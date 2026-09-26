@@ -1,7 +1,7 @@
 // lib/propostas/documento/montar-dados.test.ts
 import { describe, expect, it } from "vitest";
 
-import { montarDadosDoDocumento } from "./montar-dados";
+import { LINHA_EM_BRANCO, montarDadosDoDocumento } from "./montar-dados";
 
 describe("montarDadosDoDocumento", () => {
   it("espalha o briefing_json no resultado", () => {
@@ -84,5 +84,17 @@ describe("montarDadosDoDocumento — preço, prazo e validade (nunca vêm do bri
     expect(() => montarDadosDoDocumento(PROPOSTA_BASE, null)).not.toThrow();
     const dados = montarDadosDoDocumento(PROPOSTA_BASE, null);
     expect(dados.client).toMatchObject({ name: null, company_or_name: null });
+  });
+});
+
+describe("montarDadosDoDocumento — aprovação (D2 da spec de 26/09)", () => {
+  it("approval.date é sempre a linha em branco da assinatura", () => {
+    const dados = montarDadosDoDocumento(PROPOSTA_BASE, null);
+    expect(dados.approval).toEqual({ date: LINHA_EM_BRANCO });
+  });
+
+  it("o briefing não consegue preencher approval.date", () => {
+    const dados = montarDadosDoDocumento({ ...PROPOSTA_BASE, briefing_json: { approval: { date: "01/01/2026" } } }, null);
+    expect(dados.approval).toEqual({ date: LINHA_EM_BRANCO });
   });
 });

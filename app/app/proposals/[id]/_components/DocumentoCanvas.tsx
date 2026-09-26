@@ -4,6 +4,9 @@
 import { useEffect, useState } from "react";
 
 import { showApiError } from "@/components/feedback/ApiErrorToast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import type { ApiSuccess } from "@/lib/api/wrappers";
@@ -14,23 +17,137 @@ interface SecaoDocumento {
   title: string;
   body: string;
   faltantes: string[];
+  editada?: boolean;
+}
+
+type Onde = "briefing" | "campo_prazo" | "itens" | "contato" | "sistema";
+
+interface CampoFaltando {
+  caminho: string;
+  rotulo: string;
+  onde: Onde;
+  secoes: string[];
 }
 
 interface Documento {
+  status?: string;
   modeloSlug: string | null;
   modeloSlugSugerido: string | null;
   secoes: SecaoDocumento[];
   variaveisFaltando: string[];
+  camposFaltando?: CampoFaltando[];
+  temSecaoEditada?: boolean;
   prontidao: { status: string; checklist: Record<string, boolean> } | null;
   resumoComercial: string | null;
 }
 
-export function DocumentoCanvas({ propostaId }: { propostaId: string }) {
+type Traduz = (chave: string) => string;
+
+export interface DocumentoCanvasProps {
+  propostaId: string;
+  /** manager+ e sem suporte só-leitura — quem a rota PATCH aceita. */
+  podeRevisar?: boolean;
+  emRascunho?: boolean;
+  /** O editor incrementa quando salva algo que muda o documento (prazo, itens). */
+  versao?: number;
+}
+
+const DICA_POR_ONDE: Record<Exclude<Onde, "briefing">, string> = {
+  campo_prazo: "Preencha no campo Prazo (dias úteis), abaixo.",
+  itens: "Vem do total dos itens da proposta.",
+  contato: "Vem do cadastro do contato.",
+  sistema: "Calculado pelo sistema.",
+};
+
+function CampoQueFalta({
+  campo,
+  editavel,
+  ocupado,
+  onPreencher,
+  t,
+}: {
+  campo: CampoFaltando;
+  editavel: boolean;
+  ocupado: boolean;
+  onPreencher: (valor: string) => void;
+  t: Traduz;
+}) {
+  const [valor, setValor] = useState("");
+  const idDoCampo = `campo-${campo.caminho}`;
+  if (campo.onde !== "briefing" || !editavel) {
+    return (
+      <li>
+        <span className="font-medium">{t(campo.rotulo)}</span>
+        {campo.onde !== "briefing" ? (
+          <>
+            <span aria-hidden> — </span>
+            <span>{t(DICA_POR_ONDE[campo.onde])}</span>
+          </>
+        ) : null}
+      </li>
+    );
+  }
+  return (
+    <li className="flex flex-col gap-1 sm:flex-row sm:items-center">
+      <label htmlFor={idDoCampo} className="font-medium sm:w-56">
+        {t(campo.rotulo)}
+      </label>
+      <Input id={idDoCampo} value={valor} onChange={(e) => setValor(e.target.value)} className="flex-1 bg-white" />
+      <Button size="sm" disabled={ocupado || valor.trim().length === 0} onClick={() => onPreencher(valor.trim())}>
+        {t("Preencher")}
+      </Button>
+    </li>
+  );
+}
+
+function EditorDeSecao({
+  secao,
+  ocupado,
+  onSalvar,
+  onRestaurar,
+  t,
+}: {
+  secao: SecaoDocumento;
+  ocupado: boolean;
+  onSalvar: (texto: string) => void;
+  onRestaurar: () => void;
+  t: Traduz;
+}) {
+  const [texto, setTexto] = useState(secao.body);
+  const idDaCaixa = `secao-${secao.id}`;
+  const mudou = texto.trim() !== secao.body.trim();
+  return (
+    <div className="space-y-1">
+      <label htmlFor={idDaCaixa} className="text-sm font-semibold">
+        {secao.title}
+      </label>
+      <Textarea
+        id={idDaCaixa}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        rows={Math.min(12, Math.max(3, Math.ceil(texto.length / 90)))}
+      />
+      <div className="flex gap-2">
+        <Button size="sm" disabled={ocupado || !mudou || texto.trim().length === 0} onClick={() => onSalvar(texto.trim())}>
+          {t("Salvar seção")}
+        </Button>
+        {secao.editada ? (
+          <Button size="sm" variant="outline" disabled={ocupado} onClick={onRestaurar}>
+            {t("Voltar ao texto do modelo")}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = false, versao = 0 }: DocumentoCanvasProps) {
   const t = useT();
   const [doc, setDoc] = useState<Documento | null>(null);
-  const [confirmando, setConfirmando] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [recarga, setRecarga] = useState(0);
 
-  const carregar = () => {
+  useEffect(() => {
     const controller = new AbortController();
     apiClient
       .get<ApiSuccess<Documento>>(`/api/v1/proposals/${propostaId}/documento`, { signal: controller.signal })
@@ -41,28 +158,36 @@ export function DocumentoCanvas({ propostaId }: { propostaId: string }) {
         if (controller.signal.aborted) return;
         showApiError(error);
       });
-    return controller;
-  };
-
-  useEffect(() => {
-    const controller = carregar();
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propostaId]);
+  }, [propostaId, versao, recarga]);
 
-  const confirmarModelo = async (slug: string) => {
-    setConfirmando(true);
+  async function executar(acao: () => Promise<unknown>) {
+    setOcupado(true);
     try {
-      await apiClient.patch(`/api/v1/proposals/${propostaId}/modelo`, { template_slug: slug });
-      carregar();
+      await acao();
+      setRecarga((n) => n + 1);
     } catch (error) {
       showApiError(error);
     } finally {
-      setConfirmando(false);
+      setOcupado(false);
     }
-  };
+  }
+
+  const confirmarModelo = (slug: string, descartar = false) =>
+    executar(() =>
+      apiClient.patch(
+        `/api/v1/proposals/${propostaId}/modelo`,
+        descartar ? { template_slug: slug, descartar_reescritas: true } : { template_slug: slug },
+      ),
+    );
 
   if (!doc) return null;
+
+  const secoes = doc.secoes ?? [];
+  const camposFaltando = doc.camposFaltando ?? [];
+  // Resposta de rota antiga (sem camposFaltando) ainda conta pelas ocorrências.
+  const totalDePendencias = camposFaltando.length > 0 ? camposFaltando.length : (doc.variaveisFaltando ?? []).length;
+  const editavel = podeRevisar && emRascunho;
 
   if (!doc.modeloSlug) {
     const rotuloSugerido = doc.modeloSlugSugerido ? ROTULO_DO_MODELO[doc.modeloSlugSugerido] : null;
@@ -79,7 +204,7 @@ export function DocumentoCanvas({ propostaId }: { propostaId: string }) {
           {doc.modeloSlugSugerido && (
             <button
               type="button"
-              disabled={confirmando}
+              disabled={ocupado}
               onClick={() => confirmarModelo(doc.modeloSlugSugerido!)}
               className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
@@ -87,7 +212,7 @@ export function DocumentoCanvas({ propostaId }: { propostaId: string }) {
             </button>
           )}
           <select
-            disabled={confirmando}
+            disabled={ocupado}
             defaultValue=""
             onChange={(e) => e.target.value && confirmarModelo(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
@@ -106,20 +231,86 @@ export function DocumentoCanvas({ propostaId }: { propostaId: string }) {
     );
   }
 
+  const trocarModelo = (slug: string) => {
+    if (!slug || slug === doc.modeloSlug) return;
+    if (doc.temSecaoEditada) {
+      if (!window.confirm(t("Trocar o modelo descarta as seções reescritas à mão. Continuar?"))) return;
+      void confirmarModelo(slug, true);
+      return;
+    }
+    void confirmarModelo(slug);
+  };
+
   return (
     <div className="rounded-lg border p-4 space-y-4">
-      {doc.variaveisFaltando.length > 0 && (
-        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {t("Não é possível enviar")} — {doc.variaveisFaltando.length} {t("pendência(s)")}
+      {editavel && (
+        <div className="flex items-center gap-2 text-sm">
+          <span>{t("Modelo do documento")}</span>
+          <select
+            aria-label={t("Modelo do documento")}
+            disabled={ocupado}
+            value={doc.modeloSlug}
+            onChange={(e) => trocarModelo(e.target.value)}
+            className="rounded-md border px-2 py-1.5 text-sm"
+          >
+            {Object.entries(ROTULO_DO_MODELO).map(([slug, rotulo]) => (
+              <option key={slug} value={slug}>
+                {rotulo}
+              </option>
+            ))}
+          </select>
         </div>
       )}
-      <div className="space-y-3">
-        {doc.secoes.map((s) => (
-          <div key={s.id}>
-            <div className="text-sm font-semibold">{s.title}</div>
-            <div className="text-sm whitespace-pre-wrap">{s.body}</div>
-          </div>
-        ))}
+
+      {totalDePendencias > 0 && (
+        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-2">
+          <p className="font-medium">
+            {t("Não é possível enviar")} — {totalDePendencias} {t("pendência(s)")}
+          </p>
+          {camposFaltando.length > 0 && (
+            <>
+              <p>{t("O que falta preencher:")}</p>
+              <ul className="space-y-2">
+                {camposFaltando.map((c) => (
+                  <CampoQueFalta
+                    key={c.caminho}
+                    campo={c}
+                    editavel={editavel}
+                    ocupado={ocupado}
+                    t={t}
+                    onPreencher={(valor) =>
+                      executar(() => apiClient.patch(`/api/v1/proposals/${propostaId}/documento`, { campo: c.caminho, valor }))
+                    }
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {secoes.map((s) =>
+          editavel ? (
+            <EditorDeSecao
+              key={`${s.id}:${s.body}`}
+              secao={s}
+              ocupado={ocupado}
+              t={t}
+              onSalvar={(texto) =>
+                executar(() => apiClient.patch(`/api/v1/proposals/${propostaId}/documento`, { secaoId: s.id, texto }))
+              }
+              onRestaurar={() =>
+                executar(() => apiClient.patch(`/api/v1/proposals/${propostaId}/documento`, { secaoId: s.id, texto: null }))
+              }
+            />
+          ) : (
+            <div key={s.id}>
+              <div className="text-sm font-semibold">{s.title}</div>
+              <div className="text-sm whitespace-pre-wrap">{s.body}</div>
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

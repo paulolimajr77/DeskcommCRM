@@ -98,6 +98,9 @@ export type InboxKind =
   // (migration 0401, D3) Proposta presa em `enviando` há mais de 5min — o
   // cron `proposta-travada` a devolveu a rascunho sozinho, sem reenviar nada.
   | 'proposta_travada'
+  // (migration 0423) A proposta rascunhada pela IA falta confirmar o modelo
+  // (plano N1) ou falta preço de catálogo — a Central acompanha até resolver.
+  | 'proposta_pronta_para_revisao'
   | 'other';
 
 export interface InboxItemRow {

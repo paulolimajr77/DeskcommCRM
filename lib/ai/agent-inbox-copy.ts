@@ -100,6 +100,7 @@ export const KIND_LABEL = {
   // o aviso. O passo que conserta fica no corpo.
   followup_sem_agente: "Um follow-up está publicado e não está disparando",
   proposta_travada: "Uma proposta ficou presa em envio e voltou a rascunho",
+  proposta_pronta_para_revisao: "Uma proposta está pronta para revisão",
   other: "Aviso do assistente",
 } as const satisfies Record<InboxKind, string>;
 

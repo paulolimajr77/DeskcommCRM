@@ -123,6 +123,10 @@ export const POLITICAS_DE_AVISO = {
   // o cron devolve a rascunho sozinho, sem reenviar; quem lê decide se envia
   // de novo.
   proposta_travada: { refs: ["proposal"], orientacao: "Confira a proposta antes de decidir se precisa enviar novamente." },
+  proposta_pronta_para_revisao: {
+    refs: ["proposal"],
+    orientacao: "A IA rascunhou esta proposta — confirme o modelo sugerido (ou escolha outro) e confira se todos os itens têm preço antes de enviar.",
+  },
   other: { refs: ["lead", "channel_session", "appointment", "ai_agent"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
 } satisfies Record<InboxKind, Politica>;
 

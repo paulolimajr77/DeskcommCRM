@@ -63,16 +63,18 @@ function CampoQueFalta({
   campo,
   editavel,
   ocupado,
+  valorInicial,
   onPreencher,
   t,
 }: {
   campo: CampoFaltando;
   editavel: boolean;
   ocupado: boolean;
+  valorInicial?: string;
   onPreencher: (valor: string) => void;
   t: Traduz;
 }) {
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState(valorInicial ?? "");
   const idDoCampo = `campo-${campo.caminho}`;
   if (campo.onde !== "briefing" || !editavel) {
     return (
@@ -146,6 +148,33 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
   const [doc, setDoc] = useState<Documento | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [recarga, setRecarga] = useState(0);
+
+  const [sugestoes, setSugestoes] = useState<Record<string, string>>({});
+  const [preenchendo, setPreenchendo] = useState(false);
+  const [avisoDeSugestao, setAvisoDeSugestao] = useState<string | null>(null);
+
+  async function preencherComConversa() {
+    setPreenchendo(true);
+    setAvisoDeSugestao(null);
+    try {
+      const res = await apiClient.post<
+        ApiSuccess<{ disponivel: boolean; motivo: string | null; sugestoes: Array<{ campo: string; rotulo: string; valor: string }> }>
+      >(`/api/v1/proposals/${propostaId}/preencher-com-conversa`, {});
+      if (!res.data.disponivel) {
+        setAvisoDeSugestao(res.data.motivo ?? t("A IA não está disponível agora."));
+        return;
+      }
+      if (res.data.sugestoes.length === 0) {
+        setAvisoDeSugestao(t("A conversa não respondeu nenhum dos campos que faltam."));
+        return;
+      }
+      setSugestoes(Object.fromEntries(res.data.sugestoes.map((s) => [s.campo, s.valor])));
+    } catch (error) {
+      showApiError(error);
+    } finally {
+      setPreenchendo(false);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -270,13 +299,22 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
           {camposFaltando.length > 0 && (
             <>
               <p>{t("O que falta preencher:")}</p>
+              {editavel && camposFaltando.some((c) => c.onde === "briefing") && (
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={preenchendo || ocupado} onClick={preencherComConversa}>
+                    {preenchendo ? t("Lendo a conversa…") : t("Preencher com a conversa")}
+                  </Button>
+                  {avisoDeSugestao && <span className="text-gray-500">{avisoDeSugestao}</span>}
+                </div>
+              )}
               <ul className="space-y-2">
                 {camposFaltando.map((c) => (
                   <CampoQueFalta
-                    key={c.caminho}
+                    key={`${c.caminho}:${sugestoes[c.caminho] ?? ""}`}
                     campo={c}
                     editavel={editavel}
                     ocupado={ocupado}
+                    valorInicial={sugestoes[c.caminho]}
                     t={t}
                     onPreencher={(valor) =>
                       executar(() => apiClient.patch(`/api/v1/proposals/${propostaId}/documento`, { campo: c.caminho, valor }))

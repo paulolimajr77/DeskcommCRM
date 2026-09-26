@@ -6,7 +6,8 @@ import { DocumentoCanvas } from "./DocumentoCanvas";
 
 const get = vi.hoisted(() => vi.fn());
 const patch = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/client", () => ({ apiClient: { get, patch } }));
+const post = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/api/client", () => ({ apiClient: { get, patch, post } }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (chave: string) => chave }));
 vi.mock("@/components/feedback/ApiErrorToast", () => ({ showApiError: vi.fn() }));
 
@@ -26,6 +27,7 @@ describe("DocumentoCanvas", () => {
   beforeEach(() => {
     get.mockReset();
     patch.mockReset();
+    post.mockReset();
   });
 
   it("sem modelo escolhido, mostra aviso em vez de tela vazia ou erro (Review Focus)", async () => {
@@ -90,6 +92,7 @@ describe("DocumentoCanvas — P1 (edição)", () => {
   beforeEach(() => {
     get.mockReset();
     patch.mockReset();
+    post.mockReset();
   });
 
   const COM_MODELO = docBase({
@@ -169,5 +172,42 @@ describe("DocumentoCanvas — P1 (edição)", () => {
       expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/modelo", { template_slug: "ecommerce", descartar_reescritas: true }),
     );
     confirmar.mockRestore();
+  });
+
+  it("botão 'Preencher com a conversa' só aparece com campo de briefing faltando e papel de revisão", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    await screen.findByText("Resumo");
+    expect(screen.getByRole("button", { name: "Preencher com a conversa" })).toBeInTheDocument();
+  });
+
+  it("sem papel de revisão, o botão não aparece", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    render(<DocumentoCanvas propostaId="p1" emRascunho />);
+    await screen.findByText("Resumo");
+    expect(screen.queryByRole("button", { name: "Preencher com a conversa" })).toBeNull();
+  });
+
+  it("clicar em 'Preencher com a conversa' pré-preenche a caixa do campo sugerido, sem gravar nada", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    post.mockResolvedValue({
+      data: { disponivel: true, motivo: null, sugestoes: [{ campo: "project.name", rotulo: "Nome do projeto", valor: "Site da Imobiliária Rio" }] },
+    });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    await screen.findByText("Resumo");
+    fireEvent.click(screen.getByRole("button", { name: "Preencher com a conversa" }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/proposals/p1/preencher-com-conversa", {}));
+    const campo = await screen.findByLabelText("Nome do projeto");
+    expect(campo).toHaveValue("Site da Imobiliária Rio");
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("nenhuma sugestão: mostra aviso, não mexe nas caixas", async () => {
+    get.mockResolvedValue({ data: COM_MODELO });
+    post.mockResolvedValue({ data: { disponivel: true, motivo: null, sugestoes: [] } });
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    await screen.findByText("Resumo");
+    fireEvent.click(screen.getByRole("button", { name: "Preencher com a conversa" }));
+    await waitFor(() => expect(screen.getByText("A conversa não respondeu nenhum dos campos que faltam.")).toBeInTheDocument());
   });
 });

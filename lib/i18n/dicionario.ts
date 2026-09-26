@@ -11678,6 +11678,12 @@ export const DICIONARIO: Traducoes = {
   "pendência(s)": { es: "pendiente(s)" },
   "Modelo do documento": { es: "Modelo del documento" },
   "O que falta preencher:": { es: "Qué falta completar:" },
+  "Preencher com a conversa": { es: "Completar con la conversación" },
+  "Lendo a conversa…": { es: "Leyendo la conversación…" },
+  "A conversa não respondeu nenhum dos campos que faltam.": {
+    es: "La conversación no respondió ninguno de los campos que faltan.",
+  },
+  "A IA não está disponível agora.": { es: "La IA no está disponible ahora." },
   Preencher: { es: "Completar" },
   "Salvar seção": { es: "Guardar sección" },
   "Voltar ao texto do modelo": { es: "Volver al texto del modelo" },

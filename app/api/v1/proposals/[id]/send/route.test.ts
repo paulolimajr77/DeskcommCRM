@@ -493,8 +493,8 @@ describe("POST /api/v1/proposals/[id]/send", () => {
   // Achado ao investigar "clico no PDF enviado e dá bad_gateway": o envio
   // gravava só `media_url` (a signed URL de 7 dias) e nunca `media_storage_path`
   // — que é o único campo que `GET /api/v1/messages/[id]/media` sabe reler
-  // depois. Sem ele, todo clique caía no fallback de mídia de ENTRADA (WAHA),
-  // que não serve para um documento que SAÍMOS enviando.
+  // depois. Sem ele, todo clique caía no fallback de mídia de ENTRADA (o canal
+  // de mensagens), que não serve para um documento que SAÍMOS enviando.
   it("grava media_storage_path na mensagem depois do envio, para o clique funcionar depois", async () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
     const res = await mundo.POST();

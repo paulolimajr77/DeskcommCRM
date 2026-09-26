@@ -38,6 +38,7 @@ export async function orcamentoDeIaDisponivel(
   db: SupabaseClient,
   organizationId: string,
   chave: ChaveDeOrcamento = "on",
+  purpose = "proposal_assistant",
 ): Promise<OrcamentoDeIaDisponivel> {
   try {
     const { data: orcamento } = await db
@@ -76,7 +77,7 @@ export async function orcamentoDeIaDisponivel(
       gastoCents: Number(gasto ?? 0),
       efetivoEm: o.enforcement_effective_at ? new Date(o.enforcement_effective_at) : null,
       agora,
-      purpose: "proposal_assistant",
+      purpose,
       chave,
       limiarPct: o.alarm_threshold_pct ?? LIMIAR_PADRAO_PCT,
       avisadoNesteMes: (avisos?.length ?? 0) > 0,

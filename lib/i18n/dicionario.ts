@@ -2439,6 +2439,9 @@ export const DICIONARIO: Traducoes = {
   "Só é possível editar o documento de uma proposta em rascunho.": {
     es: "Solo es posible editar el documento de una propuesta en borrador.",
   },
+  "Só é possível preencher o documento de uma proposta em rascunho.": {
+    es: "Solo es posible completar el documento de una propuesta en borrador.",
+  },
   "Criar roteador": { es: "Crear enrutador" },
   ativo: { es: "activo" },
   inativo: { es: "inactivo" },
@@ -11675,6 +11678,12 @@ export const DICIONARIO: Traducoes = {
   "pendência(s)": { es: "pendiente(s)" },
   "Modelo do documento": { es: "Modelo del documento" },
   "O que falta preencher:": { es: "Qué falta completar:" },
+  "Preencher com a conversa": { es: "Completar con la conversación" },
+  "Lendo a conversa…": { es: "Leyendo la conversación…" },
+  "A conversa não respondeu nenhum dos campos que faltam.": {
+    es: "La conversación no respondió ninguno de los campos que faltan.",
+  },
+  "A IA não está disponível agora.": { es: "La IA no está disponible ahora." },
   Preencher: { es: "Completar" },
   "Salvar seção": { es: "Guardar sección" },
   "Voltar ao texto do modelo": { es: "Volver al texto del modelo" },

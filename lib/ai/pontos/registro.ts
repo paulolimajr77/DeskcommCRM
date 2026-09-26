@@ -255,6 +255,18 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     registraEm: "llm_calls",
   },
   {
+    id: "proposal_fill_from_conversation",
+    rotulo: "Preencher proposta com a conversa",
+    oQueFaz:
+      "Lê a conversa com o cliente e sugere valores para os campos que faltam preencher no documento da proposta, para uma pessoa revisar e confirmar campo por campo.",
+    papel: "atender",
+    exige: { tools: true },
+    emissor: "lib/propostas/preencher-com-conversa.ts",
+    sintomaDeFalha:
+      "O botão 'Preencher com a conversa' não sugere nada, e quem revisa preenche cada campo lendo a conversa manualmente.",
+    registraEm: "llm_calls",
+  },
+  {
     id: "bot_respond",
     rotulo: "Responder (motor antigo)",
     oQueFaz:

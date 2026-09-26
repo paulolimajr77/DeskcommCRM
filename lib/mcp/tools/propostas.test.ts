@@ -484,4 +484,36 @@ describe("crm_draft_proposal", () => {
     expect((r as { error?: string }).error).toBeUndefined();
     expect(r).toMatchObject({ pricing_status: "catalog" });
   });
+
+  it("grava o briefing recebido em briefing_json ao criar o rascunho", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const briefing = { project: { name: "Site da Imobiliária Rio" }, client: { company: "Imobiliária Rio" } };
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site institucional", quantidade: 1 }],
+        briefing,
+      } as never,
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(mundo.propostaCriada?.briefing_json).toEqual(briefing);
+  });
+
+  it("briefing é opcional — rascunho sem ele grava briefing_json null (comportamento de hoje)", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+      },
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    expect(mundo.propostaCriada).toMatchObject({ briefing_json: null });
+  });
 });

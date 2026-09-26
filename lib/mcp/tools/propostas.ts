@@ -66,6 +66,17 @@ const draftProposalInputShape = {
           .join(", ") +
         ". Uma pessoa confirma antes de valer — errar a sugestão não é grave, mas não invente slug fora desta lista.",
     ),
+  briefing: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      "O que você entendeu da conversa até agora, para preencher o documento: nome/empresa do " +
+        "cliente, objetivo do projeto, escopo (páginas, funcionalidades, integrações...), o que " +
+        "está incluído e o que não está. Use as MESMAS chaves que o documento usa — ex.: " +
+        '{"project":{"name":"..."},"client":{"company":"..."},"scope":{"pages_list":"Home, Sobre, Contato"},' +
+        '"included":{"list":"..."},"excluded":{"list":"..."}}. Preço, prazo e validade NÃO entram ' +
+        "aqui — o sistema já sabe e calcula sozinho.",
+    ),
 };
 
 /** Ator do ctx → o que a auditoria grava. Mesmo padrão de retencao.ts/escalacao.ts. */
@@ -195,6 +206,7 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         status: "rascunho",
         drafted_by_agent_id: agentId,
         template_slug_sugerido: input.template_slug_sugerido ?? null,
+        briefing_json: input.briefing ?? null,
       })
       .select("id")
       .single();

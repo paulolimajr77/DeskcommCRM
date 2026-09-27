@@ -2477,7 +2477,6 @@ export const DICIONARIO: Traducoes = {
   "Não usar": { es: "No usar" },
   "(desligado)": { es: "(desactivado)" },
   "Modelo «{nome}» salvo.": { es: "Modelo «{nome}» guardado." },
-  "Fechar": { es: "Cerrar" },
   "Este modelo vai pedir ao cliente:": { es: "Este modelo le va a pedir al cliente:" },
   "Este modelo quase não pede nada ao cliente: a IA não saberá o que perguntar. Troque por {{campo}} o que muda de um projeto para outro.": {
     es: "Este modelo casi no le pide nada al cliente: la IA no sabrá qué preguntar. Cambia por {{campo}} lo que varía de un proyecto a otro.",

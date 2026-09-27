@@ -106,7 +106,9 @@ function AvisoVisivel() {
   const destino = atual.destination.estado === "disponivel" ? atual.destination.href : "/app/ai/inbox";
 
   function dispensar(): void {
-    setDispensados((antes) => new Set(antes).add(atual.id));
+    if (!atual) return;
+    const id = atual.id;
+    setDispensados((antes) => new Set(antes).add(id));
     setAtual(null);
   }
 

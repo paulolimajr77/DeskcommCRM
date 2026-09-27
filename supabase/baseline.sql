@@ -36564,6 +36564,26 @@ begin
   get diagnostics v_count = row_count;
   v_counts := v_counts || jsonb_build_object('orders', v_count);
 
+  -- 6b. crm_proposals (migration 0454, #1504) — PRESERVA número, valores,
+  -- itens, datas e status; redige só o que identifica a PESSOA:
+  --   destinatario_nome — nome impresso no PDF (D10/0442: gravado para o
+  --     documento continuar legível sozinho); recebe o rótulo, não null —
+  --     mesma razão de `crm_leads.title`.
+  --   briefing_json — insumo estruturado do briefing (0416/0440): descreve
+  --     o que o CLIENTE disse sobre o próprio negócio.
+  --   resumo_comercial — texto gerado na emissão a partir do briefing e do
+  --     nome do destinatário.
+  -- `template_slug_sugerido` NÃO entra: é slug de MODELO, nunca dado do contato.
+  update crm_proposals set
+    destinatario_nome = v_anon_label,
+    briefing_json = '{}'::jsonb,
+    resumo_comercial = null,
+    updated_at = now()
+  where organization_id = p_organization_id
+    and contact_id = p_contact_id;
+  get diagnostics v_count = row_count;
+  v_counts := v_counts || jsonb_build_object('crm_proposals', v_count);
+
   -- CAMPANHAS: o que foi DITO à pessoa e o endereço para onde foi.
   --
   -- `rendered_body` é a mensagem que ela recebeu e `recipient_address` o

@@ -156,6 +156,11 @@ const DECISOES: Record<string, Decisao> = {
     caminho: "cascata",
     razao: "Passo 6: só os campos PESSOAIS do payload jsonb saem; valores, status e timestamps ficam — pedido tem obrigação fiscal de guarda, e a issue pede essa decisão escrita.",
   },
+  crm_proposals: {
+    decidida: "redigir",
+    caminho: "cascata",
+    razao: "0454: destinatario_nome (nome impresso no PDF, D10/0442), briefing_json e resumo_comercial saem — número, valores, itens, datas e status ficam, mesmo molde de orders/crm_leads.",
+  },
   sales: {
     decidida: "redigir",
     caminho: "cascata",

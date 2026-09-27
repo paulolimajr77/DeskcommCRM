@@ -31,8 +31,11 @@ const CONVERSA = "03911000-2222-4000-8000-000000000001";
 
 function cura(): void {
   const dir = join(process.cwd(), "supabase/migrations");
-  const arquivo = readdirSync(dir).find((n) => /_0391_/.test(n));
-  if (!arquivo) throw new Error("migration 0391 não encontrada");
+  // Pelo SLUG, não pelo NNNN: esta migration já foi renumerada mais de uma
+  // vez ao atualizar a branch com a main (0391 -> 0418 -> 0444), e um número
+  // cravado aqui envelhece a cada renumeração — foi o que aconteceu.
+  const arquivo = readdirSync(dir).find((n) => /_anonimizar_pela_tela_redige_conversas\.sql$/.test(n));
+  if (!arquivo) throw new Error("migration anonimizar_pela_tela_redige_conversas não encontrada");
   const migration = readFileSync(join(dir, arquivo), "utf8");
   sql(migration.slice(migration.indexOf("-- Cura:")));
 }

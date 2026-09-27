@@ -945,6 +945,13 @@ export const AUDIT_ACTIONS = [
   // o dado que importa quando alguém pergunta "por que este cliente voltou a
   // receber?".
   "contact.unblocked",
+  // Desligar/religar um modelo de proposta da plataforma na tela de Modelos
+  // (spec de 27/09, C3). Guarda em `organizations.settings.proposals.
+  // modelos_ocultos`; o metadata leva só o slug. Duas ações, e não um campo
+  // no metadata de `proposal_template.saved`: "quem desligou este modelo?"
+  // filtra por `action`, nunca por metadata.
+  "proposal_template.hidden",
+  "proposal_template.shown",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

@@ -16,6 +16,7 @@ interface ModeloListado {
   origem: "plataforma" | "personalizado" | "empresa";
   secoes: number;
   version: number;
+  oculto?: boolean;
 }
 
 const ROTULO_DA_ORIGEM: Record<ModeloListado["origem"], string> = {
@@ -141,8 +142,24 @@ export function ModelosDeProposta() {
               <div className="text-xs text-muted-foreground">
                 {t(ROTULO_DA_ORIGEM[m.origem])} · {m.secoes} {t("seções")}
               </div>
+              {m.oculto ? (
+                <div className="text-xs text-muted-foreground">
+                  {t("Desligado — não aparece para a IA nem no seletor")}
+                </div>
+              ) : null}
             </div>
             <div className="flex gap-2">
+              {(m.origem === "plataforma" || m.origem === "personalizado") && (
+                <Button size="sm" variant="outline" disabled={ocupado}
+                  onClick={() => acao(() =>
+                    apiClient.post("/api/v1/settings/proposal-templates", {
+                      acao: m.oculto ? "mostrar" : "ocultar",
+                      slug: m.slug,
+                    }),
+                  )}>
+                  {m.oculto ? t("Usar") : t("Não usar")}
+                </Button>
+              )}
               {m.origem === "plataforma" ? (
                 <Button size="sm" variant="outline" disabled={ocupado}
                   onClick={() => acao(async () => {

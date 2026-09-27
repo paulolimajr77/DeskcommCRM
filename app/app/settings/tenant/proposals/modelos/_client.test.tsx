@@ -55,4 +55,43 @@ describe("ModelosDeProposta", () => {
       confirmar.mockRestore();
     }
   });
+
+  it("modelo da plataforma tem botão Não usar, que chama POST ocultar", async () => {
+    render(<ModelosDeProposta />);
+    const botoes = await screen.findAllByRole("button", { name: "Não usar" });
+    fireEvent.click(botoes[0]!);
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith("/api/v1/settings/proposal-templates", {
+        acao: "ocultar",
+        slug: "site_institucional",
+      }),
+    );
+  });
+
+  it("modelo oculto mostra Desligado e botão Usar, que chama POST mostrar", async () => {
+    get.mockResolvedValue({
+      data: [{ slug: "ecommerce", nome: "E-commerce", origem: "plataforma", secoes: 3, version: 1, oculto: true }],
+    });
+    render(<ModelosDeProposta />);
+    await waitFor(() =>
+      expect(screen.getByText("Desligado — não aparece para a IA nem no seletor")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Usar" }));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith("/api/v1/settings/proposal-templates", {
+        acao: "mostrar",
+        slug: "ecommerce",
+      }),
+    );
+  });
+
+  it("modelo da empresa não tem botão Não usar", async () => {
+    get.mockResolvedValue({
+      data: [{ slug: "empresa_locacao", nome: "Locação", origem: "empresa", secoes: 1, version: 1 }],
+    });
+    render(<ModelosDeProposta />);
+    await waitFor(() => expect(screen.getByText("Locação")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Não usar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Usar" })).toBeNull();
+  });
 });

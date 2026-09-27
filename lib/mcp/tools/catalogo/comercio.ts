@@ -48,4 +48,15 @@ export const TOOLS_COMERCIO = declararTools([
     pacotes: ["vender"],
     capacidade: "propostas",
   },
+  {
+    name: "crm_preparar_proposta",
+    category: "read",
+    rotulo: "Preparar a proposta com o cliente",
+    explicacao:
+      "Mostra os modelos de proposta da empresa, diz o que perguntar ao cliente antes de rascunhar e lista os campos que o modelo escolhido pede, para a proposta nascer completa.",
+    oQueToca: "Propostas comerciais",
+    risco: "seguro",
+    pacotes: ["vender"],
+    capacidade: "propostas",
+  },
 ]);

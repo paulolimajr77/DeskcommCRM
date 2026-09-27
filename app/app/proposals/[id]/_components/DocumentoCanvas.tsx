@@ -22,6 +22,29 @@ interface SecaoDocumento {
 
 type Onde = "briefing" | "campo_prazo" | "itens" | "contato" | "sistema";
 
+interface ModeloDisponivel {
+  slug: string;
+  nome: string;
+  oculto?: boolean;
+}
+
+/**
+ * O seletor mostra só os modelos não ocultos — MAS sempre inclui o modelo
+ * atual do documento, marcado " (desligado)" quando estiver oculto. Sem
+ * isto, o `<select>` controlado exibiria outra opção sem aviso.
+ */
+function opcoesVisiveis(modelos: ModeloDisponivel[] | null, slugAtual: string | null): Array<[string, string]> {
+  if (!modelos) return Object.entries(ROTULO_DO_MODELO);
+  const visiveis: Array<[string, string]> = modelos
+    .filter((m) => !m.oculto)
+    .map((m) => [m.slug, m.nome]);
+  const atual = slugAtual ? modelos.find((m) => m.slug === slugAtual) : undefined;
+  if (atual?.oculto && !visiveis.some(([s]) => s === atual.slug)) {
+    visiveis.push([atual.slug, `${atual.nome} (desligado)`]);
+  }
+  return visiveis;
+}
+
 interface CampoFaltando {
   caminho: string;
   rotulo: string;
@@ -155,12 +178,12 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
   const [doc, setDoc] = useState<Documento | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [recarga, setRecarga] = useState(0);
-  const [modelosDisponiveis, setModelosDisponiveis] = useState<Array<{ slug: string; nome: string }> | null>(null);
+  const [modelosDisponiveis, setModelosDisponiveis] = useState<ModeloDisponivel[] | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     apiClient
-      .get<ApiSuccess<Array<{ slug: string; nome: string }>>>("/api/v1/settings/proposal-templates", { signal: controller.signal })
+      .get<ApiSuccess<ModeloDisponivel[]>>("/api/v1/settings/proposal-templates", { signal: controller.signal })
       .then((res) => !controller.signal.aborted && setModelosDisponiveis(res.data))
       .catch(() => {
         /* sem a lista, o seletor cai nos 8 da plataforma — nunca some */
@@ -168,9 +191,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
     return () => controller.abort();
   }, []);
 
-  const opcoesDeModelo: Array<[string, string]> = modelosDisponiveis
-    ? modelosDisponiveis.map((m) => [m.slug, m.nome])
-    : Object.entries(ROTULO_DO_MODELO);
+  const opcoesDeModelo = opcoesVisiveis(modelosDisponiveis, doc?.modeloSlug ?? doc?.modeloSlugSugerido ?? null);
 
   const [sugestoes, setSugestoes] = useState<Record<string, string>>({});
   const [preenchendo, setPreenchendo] = useState(false);

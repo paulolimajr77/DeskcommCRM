@@ -141,8 +141,12 @@ export function capacidadesEntreguesAoOperador(input: {
  * Decidir QUANDO a conversa já sustenta uma proposta é do papel que conversa.
  * A chave `proposal_ai_draft_enabled` acrescentava a ferramenta aos dois papéis;
  * a partir daqui ela vale só para o Conversador.
+ *
+ * `crm_preparar_proposta` vai junto na mesma lista: é a primeira metade da
+ * mesma decisão (levantar o que perguntar), e o Operador não tem a conversa
+ * para perguntar nada.
  */
-export const FORA_DO_OPERADOR: readonly string[] = ['crm_draft_proposal'];
+export const FORA_DO_OPERADOR: readonly string[] = ['crm_draft_proposal', 'crm_preparar_proposta'];
 
 /**
  * A configuração com que a MÃO do Operador é montada: a lista dele

@@ -30,6 +30,8 @@ interface MundoOpts {
   copiaAtiva?: Record<string, unknown> | null;
   /** maior versão devolvida ao `.maybeSingle()` com `order` */
   maiorVersao?: number | null;
+  /** settings devolvidos à leitura de organizations (merge de modelos_ocultos) */
+  settings?: unknown;
 }
 
 function montarMundo(opts: MundoOpts = {}) {
@@ -44,6 +46,8 @@ function montarMundo(opts: MundoOpts = {}) {
   mocks.requireSupportWrite.mockResolvedValue(null);
 
   let inserido: Record<string, unknown> | undefined;
+  let atualizado: Record<string, unknown> | undefined;
+  let tabela = "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cadeia: any = {};
   cadeia.select = () => cadeia;
@@ -54,6 +58,9 @@ function montarMundo(opts: MundoOpts = {}) {
   };
   cadeia.limit = () => cadeia;
   cadeia.maybeSingle = async () => {
+    if (tabela === "organizations") {
+      return { data: opts.settings === undefined ? null : { settings: opts.settings }, error: null };
+    }
     if (cadeia.ordenou) {
       cadeia.ordenou = false;
       return { data: opts.maiorVersao == null ? null : { version: opts.maiorVersao }, error: null };
@@ -64,13 +71,20 @@ function montarMundo(opts: MundoOpts = {}) {
     inserido = linha;
     return Promise.resolve({ error: null });
   };
+  cadeia.update = (linha: Record<string, unknown>) => {
+    atualizado = linha;
+    return cadeia;
+  };
   cadeia.then = (resolve: (r: unknown) => unknown) =>
     Promise.resolve({ data: opts.ativas ?? [], error: null }).then(resolve);
 
-  const admin = { from: vi.fn(() => cadeia) };
+  const admin = { from: vi.fn((nome: string) => {
+    tabela = nome;
+    return cadeia;
+  }) };
   mocks.createAdminClient.mockReturnValue(admin);
 
-  return { capturado: () => inserido };
+  return { capturado: () => inserido, atualizado: () => atualizado };
 }
 
 const corpo = (res: Response) => res.json() as Promise<{ data?: unknown; error?: { code?: string; message?: string } }>;
@@ -144,5 +158,60 @@ describe("POST /api/v1/settings/proposal-templates", () => {
     const json = await corpo(res);
     expect(JSON.stringify(json)).toContain("erros");
     expect(mundo.capturado()).toBeUndefined();
+  });
+
+  it("ocultar como agent → 403 e nenhum update", async () => {
+    const mundo = montarMundo({ papel: "agent" });
+    const res = await POST(post({ acao: "ocultar", slug: "ecommerce" }) as never);
+    expect(res.status).toBe(403);
+    expect(mundo.atualizado()).toBeUndefined();
+  });
+
+  it("ocultar slug fora do catálogo → 422 e nenhum update", async () => {
+    const mundo = montarMundo();
+    const res = await POST(post({ acao: "ocultar", slug: "empresa_locacao" }) as never);
+    expect(res.status).toBe(422);
+    expect(mundo.atualizado()).toBeUndefined();
+  });
+
+  it("ocultar faz merge: não apaga enabled nem outras chaves de settings", async () => {
+    const mundo = montarMundo({
+      settings: {
+        outra_chave: 1,
+        proposals: { enabled: true, default_valid_days: 15, modelos_ocultos: ["ecommerce"] },
+      },
+    });
+    const res = await POST(post({ acao: "ocultar", slug: "site_institucional" }) as never);
+    expect(res.status).toBe(200);
+    expect(mundo.atualizado()).toEqual({
+      settings: {
+        outra_chave: 1,
+        proposals: {
+          enabled: true,
+          default_valid_days: 15,
+          modelos_ocultos: ["ecommerce", "site_institucional"],
+        },
+      },
+    });
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "proposal_template.hidden" }));
+  });
+
+  it("ocultar slug já oculto não duplica", async () => {
+    const mundo = montarMundo({ settings: { proposals: { modelos_ocultos: ["ecommerce"] } } });
+    const res = await POST(post({ acao: "ocultar", slug: "ecommerce" }) as never);
+    expect(res.status).toBe(200);
+    expect((mundo.atualizado()?.settings as { proposals: { modelos_ocultos: string[] } }).proposals.modelos_ocultos).toEqual([
+      "ecommerce",
+    ]);
+  });
+
+  it("mostrar tira o slug e mantém os outros, auditando proposal_template.shown", async () => {
+    const mundo = montarMundo({ settings: { proposals: { enabled: true, modelos_ocultos: ["ecommerce", "automacao"] } } });
+    const res = await POST(post({ acao: "mostrar", slug: "ecommerce" }) as never);
+    expect(res.status).toBe(200);
+    expect((mundo.atualizado()?.settings as { proposals: { modelos_ocultos: string[] } }).proposals.modelos_ocultos).toEqual([
+      "automacao",
+    ]);
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "proposal_template.shown" }));
   });
 });

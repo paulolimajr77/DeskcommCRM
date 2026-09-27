@@ -102,6 +102,37 @@ describe("DocumentoCanvas", () => {
     render(<DocumentoCanvas propostaId="p1" />);
     expect(await screen.findByRole("option", { name: "Locação" })).toBeInTheDocument();
   });
+
+  it("o seletor esconde o modelo desligado", async () => {
+    get.mockImplementation(async (url: string) =>
+      url.includes("/settings/proposal-templates")
+        ? { data: [{ slug: "site_institucional", nome: "Site institucional", oculto: true }, { slug: "empresa_locacao", nome: "Locação" }] }
+        : { data: docBase() },
+    );
+    render(<DocumentoCanvas propostaId="p1" />);
+    await screen.findByRole("combobox");
+    expect(screen.queryByRole("option", { name: "Site institucional" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Locação" })).toBeInTheDocument();
+  });
+
+  it("o modelo atual desligado continua no seletor, marcado (desligado)", async () => {
+    get.mockImplementation(async (url: string) =>
+      url.includes("/settings/proposal-templates")
+        ? { data: [{ slug: "site_institucional", nome: "Site institucional", oculto: true }, { slug: "empresa_locacao", nome: "Locação" }] }
+        : {
+            data: docBase({
+              modeloSlug: "site_institucional",
+              secoes: [],
+              prontidao: { status: "incompleta", checklist: {} },
+            }),
+          },
+    );
+    render(<DocumentoCanvas propostaId="p1" podeRevisar emRascunho />);
+    const seletor = await screen.findByLabelText("Modelo do documento");
+    expect(seletor).toHaveValue("site_institucional");
+    expect(screen.getByRole("option", { name: "Site institucional (desligado)" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Site institucional" })).toBeNull();
+  });
 });
 
 describe("DocumentoCanvas — P1 (edição)", () => {

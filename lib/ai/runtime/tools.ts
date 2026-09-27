@@ -116,6 +116,7 @@ export async function leadIdDoContatoDoTurno(
 
 const HANDOFF_TOOL_NAME = "crm_request_human_handoff";
 const DRAFT_PROPOSAL_TOOL_NAME = "crm_draft_proposal";
+const PREPARAR_PROPOSTA_TOOL_NAME = "crm_preparar_proposta";
 
 /**
  * O NEGÓCIO DESTA CONVERSA — derivado do contato, nunca do modelo.
@@ -463,8 +464,13 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
 
     // A chave da VERSÃO DO AGENTE manda nos dois sentidos (spec, D2): antes ela
     // só impedia o acréscimo automático, e a ferramenta vinda do pacote
-    // `vender` passava com a chave desligada.
-    if (def.name === DRAFT_PROPOSAL_TOOL_NAME && !input.proposalAiDraftEnabled) continue;
+    // `vender` passava com a chave desligada. Vale para o rascunho e para o
+    // preparo — os dois andam juntos, nas mesmas condições.
+    if (
+      (def.name === DRAFT_PROPOSAL_TOOL_NAME || def.name === PREPARAR_PROPOSTA_TOOL_NAME) &&
+      !input.proposalAiDraftEnabled
+    )
+      continue;
 
     result[def.name] = wrapMcpTool(def, input);
   }
@@ -478,15 +484,16 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     }
   }
 
-  // Auto-inject proposal draft tool when enabled — G23 design decision.
-  if (
-    input.proposalAiDraftEnabled &&
-    !deCapacidadeDesligada(DRAFT_PROPOSAL_TOOL_NAME, input.capacidadesLigadas ?? []) &&
-    !result[DRAFT_PROPOSAL_TOOL_NAME]
-  ) {
-    const draft = allTools.find((t) => t.name === DRAFT_PROPOSAL_TOOL_NAME);
-    if (draft) {
-      result[DRAFT_PROPOSAL_TOOL_NAME] = wrapMcpTool(draft, input);
+  // Auto-inject proposal draft tool when enabled — G23 design decision. O
+  // preparo vai junto, nas mesmas condições: sem ele o modelo não tem como
+  // saber o que perguntar antes de rascunhar.
+  if (input.proposalAiDraftEnabled) {
+    for (const nome of [DRAFT_PROPOSAL_TOOL_NAME, PREPARAR_PROPOSTA_TOOL_NAME]) {
+      if (deCapacidadeDesligada(nome, input.capacidadesLigadas ?? []) || result[nome]) continue;
+      const tool = allTools.find((t) => t.name === nome);
+      if (tool) {
+        result[nome] = wrapMcpTool(tool, input);
+      }
     }
   }
 

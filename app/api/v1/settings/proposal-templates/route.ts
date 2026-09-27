@@ -27,6 +27,7 @@ const postSchema = z.union([
     sections: z.array(secaoSchema).max(40).optional(),
     section_order: z.array(z.string().max(60)).max(40).optional(),
   }),
+  z.object({ acao: z.union([z.literal("ocultar"), z.literal("mostrar")]), slug: z.string().min(1).max(100) }),
 ]);
 
 const SECAO_INICIAL = {
@@ -64,6 +65,47 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (!parsed.success) return fail("validation_failed", t("Campos inválidos."), 422, { requestId });
   const admin = createAdminClient();
   const orgId = authz.org.orgId;
+
+  // Desligar um modelo da plataforma: some do seletor e da lista da IA, mas
+  // continua resolvendo para propostas que já o usam. Guardado em
+  // `settings.proposals.modelos_ocultos`, por MERGE — nunca sobrescrever
+  // `settings` nem `settings.proposals` (o mesmo cuidado do PATCH de
+  // `settings/proposals`, que manda só os campos dele).
+  if (parsed.data.acao === "ocultar" || parsed.data.acao === "mostrar") {
+    const slug = parsed.data.slug;
+    if (!Object.hasOwn(ROTULO_DO_MODELO, slug)) {
+      return fail("validation_failed", t("Modelo desconhecido."), 422, { requestId });
+    }
+    const { data: atual } = await admin.from("organizations").select("settings").eq("id", orgId).maybeSingle();
+    const bruto = (atual as { settings?: unknown } | null)?.settings;
+    const settingsAtual = bruto && typeof bruto === "object" && !Array.isArray(bruto) ? (bruto as Record<string, unknown>) : {};
+    const brutoPropostas = settingsAtual.proposals;
+    const proposalsAtual =
+      brutoPropostas && typeof brutoPropostas === "object" && !Array.isArray(brutoPropostas)
+        ? (brutoPropostas as Record<string, unknown>)
+        : {};
+    const brutoOcultos = proposalsAtual.modelos_ocultos;
+    const ocultosAtual = Array.isArray(brutoOcultos) ? brutoOcultos.filter((s): s is string => typeof s === "string") : [];
+    const lista =
+      parsed.data.acao === "ocultar"
+        ? [...new Set([...ocultosAtual, slug])]
+        : ocultosAtual.filter((s) => s !== slug);
+    const settingsMesclado = { ...settingsAtual, proposals: { ...proposalsAtual, modelos_ocultos: lista } };
+
+    const { error } = await admin.from("organizations").update({ settings: settingsMesclado }).eq("id", orgId);
+    if (error) return fail("internal_error", t("Falha ao salvar."), 500, { requestId });
+
+    void audit({
+      action: parsed.data.acao === "ocultar" ? "proposal_template.hidden" : "proposal_template.shown",
+      actorUserId: authz.user.id,
+      organizationId: orgId,
+      resourceType: "proposal_templates",
+      resourceId: null,
+      requestId,
+      metadata: { slug },
+    });
+    return ok({ slug, oculto: parsed.data.acao === "ocultar" }, { requestId });
+  }
 
   let linha: Record<string, unknown>;
   if (parsed.data.acao === "personalizar") {

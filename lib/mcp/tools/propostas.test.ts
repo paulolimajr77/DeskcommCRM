@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { crmDraftProposal } from "./propostas";
+import { crmDraftProposal, crmPrepararProposta } from "./propostas";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { avisarQuePropostaPrecisaDeRevisao } from "@/lib/propostas/aviso-de-revisao";
 import { audit } from "@/lib/audit";
@@ -9,6 +9,16 @@ import type { McpContext } from "../types";
 vi.mock("@/lib/leads/activity-emitter", () => ({ emitLeadActivity: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/propostas/aviso-de-revisao", () => ({ avisarQuePropostaPrecisaDeRevisao: vi.fn(async () => undefined) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
+
+interface MensagemMock {
+  organization_id?: string;
+  conversation_id?: string;
+  direction: string;
+  sent_via?: string;
+  body: string | null;
+  media_derived_text?: string | null;
+  created_at: string;
+}
 
 interface MundoOpts {
   leadDeOutraOrg?: boolean;
@@ -32,9 +42,34 @@ interface MundoOpts {
   moedaDoCatalogo?: string;
   /** Mapa codigo → id que o mock de catalog_products devolve no `.in("codigo")`. */
   produtosPorCodigo?: Record<string, string>;
+  /** Slugs desligados em settings.proposals.modelos_ocultos (C3). */
+  modelosOcultos?: string[];
+  /** Linhas da tabela messages; default: turno com confirmação válida. */
+  mensagens?: MensagemMock[];
 }
 
 const RASCUNHO_ID = "99999999-9999-4999-8999-999999999999";
+
+/** A frase com que o cliente confirma o resumo no turno padrão do mock. */
+const FRASE_PADRAO = "Certo, pode mandar o resumo";
+
+/** Briefing que passa na trava: núcleo completo + confirmação do turno. */
+function briefingCompleto() {
+  return {
+    project: { name: "Site da Imobiliária Rio" },
+    client: { company: "Imobiliária Rio" },
+    nucleo: {
+      objetivo: "Vender mais pelo site",
+      entregas: "Site com catálogo e contato",
+      o_que_o_cliente_tem: "Domínio e logo",
+      responsabilidades: "Cliente manda fotos, empresa monta",
+      prazo: "Até o fim do mês",
+      decisao_e_orcamento: "O dono decide, faixa de 5 mil",
+      referencia: "Gosta do site da Perfil",
+    },
+    confirmacao: { frase_do_cliente: FRASE_PADRAO },
+  };
+}
 
 function montarMundoDeFerramenta(opts?: MundoOpts) {
   const leadId = "11111111-1111-4111-8111-111111111111";
@@ -51,6 +86,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
       enabled: true,
       default_valid_days: opts?.defaultValidDays ?? 15,
       default_conditions: opts?.defaultConditions ?? null,
+      modelos_ocultos: opts?.modelosOcultos ?? [],
     },
   };
 
@@ -173,6 +209,46 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
           }),
         };
       }
+      if (table === "messages") {
+        // A trava do briefing lê o turno atual: qualifica pelos `.eq` que o
+        // handler manda — linha de outra organização ou conversa nunca conta.
+        const filtros: Record<string, unknown> = {};
+        const cadeia: any = {
+          select: () => cadeia,
+          eq: (coluna: string, valor: unknown) => {
+            filtros[coluna] = valor;
+            return cadeia;
+          },
+          order: () => cadeia,
+          then: (resolve: any) => {
+            const base: MensagemMock[] = opts?.mensagens ?? [
+              {
+                organization_id: organizationId,
+                conversation_id: conversationId,
+                direction: "outbound",
+                sent_via: "ai",
+                body: "Qual o prazo ideal?",
+                media_derived_text: null,
+                created_at: "2026-09-27T10:00:00.000Z",
+              },
+              {
+                organization_id: organizationId,
+                conversation_id: conversationId,
+                direction: "inbound",
+                sent_via: "waha",
+                body: FRASE_PADRAO,
+                media_derived_text: null,
+                created_at: "2026-09-27T10:01:00.000Z",
+              },
+            ];
+            const linhas = base.filter((m) =>
+              Object.entries(filtros).every(([col, val]) => (m as Record<string, unknown>)[col] === val),
+            );
+            return Promise.resolve({ data: linhas, error: null }).then(resolve);
+          },
+        };
+        return cadeia;
+      }
       if (table === "proposal_templates") {
         const cadeia: any = {
           select: () => cadeia,
@@ -230,6 +306,7 @@ describe("crm_draft_proposal", () => {
         titulo: "Orçamento site",
         conversation_id: mundo.conversationId,
         itens: [{ descricao: "Site", quantidade: 1, preco_unitario_cents: 500000 }],
+        briefing: briefingCompleto(),
       },
       mundo.ctx,
     );
@@ -251,6 +328,7 @@ describe("crm_draft_proposal", () => {
           titulo: "x",
           conversation_id: mundo.conversationId,
           itens: [{ descricao: "Site", quantidade: 1, preco_unitario_cents: 500000 }],
+          briefing: briefingCompleto(),
         },
         mundo.ctx,
       );
@@ -281,6 +359,7 @@ describe("crm_draft_proposal", () => {
       {
         lead_id: mundo.leadId, titulo: "Com catálogo", conversation_id: mundo.conversationId,
         itens: [{ product_id: mundo.productId, descricao: "Ignorado", quantidade: 1, preco_unitario_cents: 999999 }],
+        briefing: briefingCompleto(),
       },
       mundo.ctx,
     );
@@ -292,7 +371,7 @@ describe("crm_draft_proposal", () => {
   it("item sem product_id e sem preco_unitario_cents: cria como 'a definir' (missing)", async () => {
     const mundo = montarMundoDeFerramenta();
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "A definir", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1 }] },
+      { lead_id: mundo.leadId, titulo: "A definir", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toBeUndefined();
@@ -315,7 +394,7 @@ describe("crm_draft_proposal", () => {
   it("grava conversation_id, valid_until (default da org) e condicoes (default da org) — D7 + D5", async () => {
     const mundo = montarMundoDeFerramenta({ defaultValidDays: 10, defaultConditions: "Pagamento à vista." });
     await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect(mundo.propostaCriada?.conversation_id).toBe(mundo.conversationId);
@@ -326,7 +405,7 @@ describe("crm_draft_proposal", () => {
   it("emite atividade na timeline E auditoria ao criar o rascunho (D5 — hoje não emite nada)", async () => {
     const mundo = montarMundoDeFerramenta();
     await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect(mundo.atividadesEmitidas.length).toBe(1);
@@ -348,7 +427,7 @@ describe("crm_draft_proposal", () => {
   it("corrida: pré-checagem não pega, mas o índice único (23505) do INSERT devolve erro ensinável, não exceção (revisão C3, I4)", async () => {
     const mundo = montarMundoDeFerramenta({ insercaoColide23505: true });
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     const res = r as { error?: string; motivo?: string };
@@ -359,7 +438,7 @@ describe("crm_draft_proposal", () => {
   it("falha ao gravar os itens: a proposta recém-criada é APAGADA, não fica rascunho vazio travando o negócio (revisão C3, I2)", async () => {
     const mundo = montarMundoDeFerramenta({ itensFalham: true });
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toBeDefined();
@@ -369,7 +448,7 @@ describe("crm_draft_proposal", () => {
   it("grava a MOEDA DA ORGANIZAÇÃO na proposta, não sempre BRL (D11)", async () => {
     const mundo = montarMundoDeFerramenta({ moedaDaOrganizacao: "USD" });
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ descricao: "x", quantidade: 1, preco_unitario_cents: 100 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toBeUndefined();
@@ -379,7 +458,7 @@ describe("crm_draft_proposal", () => {
   it("item de catálogo em moeda diferente da organização: erro devolvido ao modelo, nada é gravado (D11)", async () => {
     const mundo = montarMundoDeFerramenta({ moedaDaOrganizacao: "BRL", moedaDoCatalogo: "USD", precoDoCatalogo: 5000 });
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ product_id: mundo.productId, descricao: "x", quantidade: 1 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ product_id: mundo.productId, descricao: "x", quantidade: 1 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toContain("moeda");
@@ -389,7 +468,7 @@ describe("crm_draft_proposal", () => {
   it("product_id que não existe na organização: erro devolvido ao modelo, nada é gravado", async () => {
     const mundo = montarMundoDeFerramenta({ precoDoCatalogo: null });
     const r = await crmDraftProposal.handler(
-      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ product_id: mundo.productId, descricao: "x", quantidade: 1 }] },
+      { lead_id: mundo.leadId, titulo: "x", conversation_id: mundo.conversationId, itens: [{ product_id: mundo.productId, descricao: "x", quantidade: 1 }], briefing: briefingCompleto() },
       mundo.ctx,
     );
     expect((r as { error?: string }).error).toBeDefined();
@@ -405,6 +484,7 @@ describe("crm_draft_proposal", () => {
         titulo: "Orçamento site",
         itens: [{ descricao: "Site institucional", quantidade: 1 }],
         template_slug_sugerido: "site_institucional",
+        briefing: briefingCompleto(),
       } as never,
       mundo.ctx,
     );
@@ -421,6 +501,7 @@ describe("crm_draft_proposal", () => {
         titulo: "Orçamento site",
         itens: [{ descricao: "Site institucional", quantidade: 1 }],
         template_slug_sugerido: "modelo_que_nao_existe",
+        briefing: briefingCompleto(),
       } as never,
       mundo.ctx,
     );
@@ -437,11 +518,31 @@ describe("crm_draft_proposal", () => {
         titulo: "x",
         conversation_id: mundo.conversationId,
         itens: [{ descricao: "x", quantidade: 1 }],
+        briefing: briefingCompleto(),
       },
       mundo.ctx,
     )) as { error?: string; modelos_validos?: Array<{ slug: string; nome: string }> };
     expect(r.error).toMatch(/imobiliaria/);
     expect(r.modelos_validos?.map((m) => m.slug)).toContain("catalogo_imobiliario");
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("sugestão de modelo desligado é inválida: a recusa lista só os ativos", async () => {
+    const mundo = montarMundoDeFerramenta({ modelosOcultos: ["site_institucional"] });
+    const r = (await crmDraftProposal.handler(
+      {
+        template_slug_sugerido: "site_institucional",
+        lead_id: mundo.leadId,
+        titulo: "x",
+        conversation_id: mundo.conversationId,
+        itens: [{ descricao: "x", quantidade: 1 }],
+        briefing: briefingCompleto(),
+      },
+      mundo.ctx,
+    )) as { error?: string; modelos_validos?: Array<{ slug: string; nome: string }> };
+    expect(r.error).toMatch(/site_institucional/);
+    expect(r.modelos_validos?.map((m) => m.slug)).not.toContain("site_institucional");
+    expect(r.modelos_validos?.map((m) => m.slug)).toContain("ecommerce");
     expect(mundo.propostaCriada).toBeNull();
   });
 
@@ -453,6 +554,7 @@ describe("crm_draft_proposal", () => {
         conversation_id: mundo.conversationId,
         titulo: "Orçamento",
         itens: [{ descricao: "Item", quantidade: 1 }],
+        briefing: briefingCompleto(),
       },
       mundo.ctx,
     );
@@ -472,6 +574,7 @@ describe("crm_draft_proposal", () => {
         conversation_id: mundo.conversationId,
         titulo: "Proposta",
         itens: [{ descricao: "Site institucional", quantidade: 1, produto_codigo: "SITE-BASICO" }],
+        briefing: briefingCompleto(),
       } as never,
       mundo.ctx,
     );
@@ -487,6 +590,7 @@ describe("crm_draft_proposal", () => {
         conversation_id: mundo.conversationId,
         titulo: "Proposta",
         itens: [{ descricao: "Site institucional", quantidade: 1, produto_codigo: "NAO-EXISTE" }],
+        briefing: briefingCompleto(),
       } as never,
       mundo.ctx,
     );
@@ -502,6 +606,7 @@ describe("crm_draft_proposal", () => {
         conversation_id: mundo.conversationId,
         titulo: "Proposta",
         itens: [{ descricao: "Site institucional", quantidade: 1, product_id: mundo.productId, produto_codigo: "OUTRO-CODIGO" }],
+        briefing: briefingCompleto(),
       } as never,
       mundo.ctx,
     );
@@ -513,7 +618,7 @@ describe("crm_draft_proposal", () => {
 
   it("grava o briefing recebido em briefing_json ao criar o rascunho", async () => {
     const mundo = montarMundoDeFerramenta();
-    const briefing = { project: { name: "Site da Imobiliária Rio" }, client: { company: "Imobiliária Rio" } };
+    const briefing = briefingCompleto();
     const r = await crmDraftProposal.handler(
       {
         lead_id: mundo.leadId,
@@ -528,9 +633,29 @@ describe("crm_draft_proposal", () => {
     expect(mundo.propostaCriada?.briefing_json).toEqual(briefing);
   });
 
-  it("briefing é opcional — rascunho sem ele grava briefing_json null (comportamento de hoje)", async () => {
+  it("sucesso grava nucleo e confirmacao dentro de briefing_json, sem apagar o resto", async () => {
     const mundo = montarMundoDeFerramenta();
-    const r = await crmDraftProposal.handler(
+    const briefing = briefingCompleto();
+    await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing,
+      } as never,
+      mundo.ctx,
+    );
+    const gravado = mundo.propostaCriada?.briefing_json as Record<string, unknown>;
+    expect(gravado.nucleo).toEqual(briefing.nucleo);
+    expect(gravado.confirmacao).toEqual({ frase_do_cliente: FRASE_PADRAO });
+    expect(gravado.project).toEqual({ name: "Site da Imobiliária Rio" });
+    expect(gravado.client).toEqual({ company: "Imobiliária Rio" });
+  });
+
+  it("sem briefing: recusa com briefing_incompleto, sem insert (a trava da C5)", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = (await crmDraftProposal.handler(
       {
         lead_id: mundo.leadId,
         conversation_id: mundo.conversationId,
@@ -538,8 +663,265 @@ describe("crm_draft_proposal", () => {
         itens: [{ descricao: "Site", quantidade: 1 }],
       },
       mundo.ctx,
-    );
-    expect((r as { error?: string }).error).toBeUndefined();
-    expect(mundo.propostaCriada).toMatchObject({ briefing_json: null });
+    )) as { error?: string; motivo?: string; faltando?: string[] };
+    expect(r.motivo).toBe("briefing_incompleto");
+    expect(r.error).toMatch(/Faltam categorias do briefing: .* Pergunte ao cliente antes de rascunhar\./);
+    expect(r.faltando).toHaveLength(7);
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("núcleo incompleto: a recusa lista os rótulos do que falta", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const briefing = briefingCompleto();
+    const nucleo = { ...briefing.nucleo, prazo: "", referencia: "  " };
+    const r = (await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing: { ...briefing, nucleo },
+      } as never,
+      mundo.ctx,
+    )) as { error?: string; motivo?: string; faltando?: string[] };
+    expect(r.motivo).toBe("briefing_incompleto");
+    expect(r.faltando).toEqual(["prazo", "referencia"]);
+    expect(r.error).toContain("Prazo");
+    expect(r.error).toContain("Referência");
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("sem confirmacao: recusa com sem_confirmacao, sem insert", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const semConfirmacao = { ...briefingCompleto(), confirmacao: undefined };
+    const r = (await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing: semConfirmacao,
+      } as never,
+      mundo.ctx,
+    )) as { error?: string; motivo?: string };
+    expect(r.motivo).toBe("sem_confirmacao");
+    expect(r.error).toBeDefined();
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("frase que só aparece numa mensagem ANTIGA (antes da última resposta da IA): confirmacao_nao_encontrada", async () => {
+    const mundo = montarMundoDeFerramenta({
+      mensagens: [
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "inbound",
+          sent_via: "waha",
+          body: FRASE_PADRAO,
+          media_derived_text: null,
+          created_at: "2026-09-27T09:00:00.000Z",
+        },
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "outbound",
+          sent_via: "ai",
+          body: "Anotado! E o prazo?",
+          media_derived_text: null,
+          created_at: "2026-09-27T09:30:00.000Z",
+        },
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "inbound",
+          sent_via: "waha",
+          body: "Preciso para o mês que vem",
+          media_derived_text: null,
+          created_at: "2026-09-27T09:31:00.000Z",
+        },
+      ],
+    });
+    const r = (await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing: briefingCompleto(),
+      } as never,
+      mundo.ctx,
+    )) as { error?: string; motivo?: string };
+    expect(r.motivo).toBe("confirmacao_nao_encontrada");
+    expect(r.error).toContain(FRASE_PADRAO);
+    expect(r.error).toMatch(/não repita a ferramenta com a mesma frase/);
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("áudio sem transcrição no lote: transcricao_pendente", async () => {
+    const mundo = montarMundoDeFerramenta({
+      mensagens: [
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "outbound",
+          sent_via: "ai",
+          body: "Pode confirmar o resumo?",
+          media_derived_text: null,
+          created_at: "2026-09-27T10:00:00.000Z",
+        },
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "inbound",
+          sent_via: "waha",
+          body: null,
+          media_derived_text: null,
+          created_at: "2026-09-27T10:01:00.000Z",
+        },
+      ],
+    });
+    const r = (await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing: briefingCompleto(),
+      } as never,
+      mundo.ctx,
+    )) as { error?: string; motivo?: string };
+    expect(r.motivo).toBe("transcricao_pendente");
+    expect(r.error).toMatch(/ainda está sendo transcrita/);
+    expect(mundo.propostaCriada).toBeNull();
+  });
+
+  it("isolamento: mensagem de outra organização com a frase não conta como confirmação", async () => {
+    const mundo = montarMundoDeFerramenta({
+      mensagens: [
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "outbound",
+          sent_via: "ai",
+          body: "Pode confirmar o resumo?",
+          media_derived_text: null,
+          created_at: "2026-09-27T10:00:00.000Z",
+        },
+        {
+          organization_id: "22222222-2222-4222-8222-222222222222",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "inbound",
+          sent_via: "waha",
+          body: "Só olhando preços",
+          media_derived_text: null,
+          created_at: "2026-09-27T10:01:00.000Z",
+        },
+        {
+          organization_id: "99999999-9999-4999-8999-999999999999",
+          conversation_id: "55555555-5555-4555-8555-555555555555",
+          direction: "inbound",
+          sent_via: "waha",
+          body: FRASE_PADRAO,
+          media_derived_text: null,
+          created_at: "2026-09-27T10:02:00.000Z",
+        },
+      ],
+    });
+    const r = (await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1 }],
+        briefing: briefingCompleto(),
+      } as never,
+      mundo.ctx,
+    )) as { error?: string; motivo?: string };
+    // Se a linha da outra organização contasse, a frase casaria e o rascunho nasceria.
+    expect(r.motivo).toBe("confirmacao_nao_encontrada");
+    expect(mundo.propostaCriada).toBeNull();
+  });
+});
+
+describe("crm_preparar_proposta", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("devolve modelos, categorias e instrucao", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = (await crmPrepararProposta.handler({}, mundo.ctx)) as {
+      modelos?: Array<{ slug: string; nome: string; origem: string }>;
+      categorias?: Array<{ chave: string; rotulo: string; orientacao: string }>;
+      instrucao?: string;
+    };
+    expect(r.modelos).toHaveLength(8);
+    expect(r.modelos?.[0]).toEqual({ slug: "site_institucional", nome: "Site institucional", origem: "plataforma" });
+    expect(r.categorias?.map((c) => c.chave)).toEqual([
+      "objetivo",
+      "entregas",
+      "o_que_o_cliente_tem",
+      "responsabilidades",
+      "prazo",
+      "decisao_e_orcamento",
+      "referencia",
+    ]);
+    for (const categoria of r.categorias ?? []) {
+      expect(categoria.rotulo.trim()).not.toBe("");
+      expect(categoria.orientacao.trim()).not.toBe("");
+    }
+    expect(r.instrucao).toMatch(/Pergunte ao cliente/);
+    expect(r.instrucao).toMatch(/não se aplica/);
+  });
+
+  it("devolve só modelos ativos — o desligado some", async () => {
+    const mundo = montarMundoDeFerramenta({ modelosOcultos: ["site_institucional"] });
+    const r = (await crmPrepararProposta.handler({}, mundo.ctx)) as {
+      modelos?: Array<{ slug: string }>;
+    };
+    expect(r.modelos?.map((m) => m.slug)).not.toContain("site_institucional");
+    expect(r.modelos).toHaveLength(7);
+  });
+
+  it("com template_slug válido e ativo devolve campos_do_modelo legíveis, sem os calculados", async () => {
+    const mundo = montarMundoDeFerramenta();
+    const r = (await crmPrepararProposta.handler({ template_slug: "site_institucional" }, mundo.ctx)) as {
+      campos_do_modelo?: string[];
+    };
+    expect(r.campos_do_modelo).toContain("Lista de páginas");
+    expect(r.campos_do_modelo).toContain("Objetivo do projeto");
+    for (const calculado of ["Investimento total", "Validade da proposta (dias)", "Data da aprovação", "Nome do cliente", "Empresa ou nome do cliente"]) {
+      expect(r.campos_do_modelo).not.toContain(calculado);
+    }
+    expect(new Set(r.campos_do_modelo).size).toBe(r.campos_do_modelo?.length);
+  });
+
+  it("com template_slug desligado ou inexistente: recusa com os válidos", async () => {
+    const mundo = montarMundoDeFerramenta({ modelosOcultos: ["automacao"] });
+    for (const slug of ["automacao", "modelo_que_nao_existe"]) {
+      const r = (await crmPrepararProposta.handler({ template_slug: slug }, mundo.ctx)) as {
+        error?: string;
+        modelos_validos?: Array<{ slug: string }>;
+      };
+      expect(r.error).toMatch(new RegExp(slug));
+      expect(r.modelos_validos?.map((m) => m.slug)).not.toContain("automacao");
+      expect(r.modelos_validos?.map((m) => m.slug)).toContain("site_institucional");
+    }
+  });
+
+  it("capacidade desligada recusa sem ler modelo nenhum", async () => {
+    const supabase: any = {
+      from: (tabela: string) => {
+        if (tabela === "organizations") {
+          return {
+            select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: { proposals: { enabled: false } } }, error: null }) }) }),
+          };
+        }
+        throw new Error(`não devia ler ${tabela} com a capacidade desligada`);
+      },
+    };
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmPrepararProposta.handler({}, { ...mundo.ctx, supabase });
+    expect(r).toEqual({ error: "Propostas estão desligadas nesta organização." });
   });
 });

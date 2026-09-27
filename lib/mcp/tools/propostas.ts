@@ -3,12 +3,19 @@ import { audit } from "@/lib/audit";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { avisarQuePropostaPrecisaDeRevisao } from "@/lib/propostas/aviso-de-revisao";
 import { buscarPadroesDaOrganizacao } from "@/lib/propostas/padroes-da-organizacao";
+import {
+  CATEGORIAS_DO_BRIEFING,
+  categoriasFaltando,
+  fraseConfere,
+  rotuloDaCategoria,
+} from "@/lib/propostas/briefing-universal";
 import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { fusoDaOrganizacao, somarDiasNoFuso } from "@/lib/propostas/data-no-fuso";
+import { rotuloDaVariavel } from "@/lib/propostas/documento/rotulos-das-variaveis";
+import { extrairVariaveis } from "@/lib/propostas/documento/variaveis";
 import { resolverItensDaProposta } from "@/lib/propostas/itens";
-import { listarModelosDaOrganizacao } from "@/lib/propostas/modelos/catalogo-da-organizacao";
+import { listarModelosAtivos } from "@/lib/propostas/modelos/catalogo-da-organizacao";
 import { resolverModelo } from "@/lib/propostas/modelos/resolver";
-import { ROTULO_DO_MODELO } from "@/lib/propostas/modelos/rotulos";
 import { capacidadesDaOrganizacao } from "@/lib/organizacao/capacidades";
 import type { Actor } from "@/lib/api/handlers/types";
 import type { McpContext, McpToolDefinition } from "@/lib/mcp/types";
@@ -61,11 +68,9 @@ const draftProposalInputShape = {
     .string()
     .optional()
     .describe(
-      "Se você já entendeu o tipo de projeto, sugira um destes modelos pelo slug: " +
-        Object.entries(ROTULO_DO_MODELO)
-          .map(([slug, rotulo]) => `${slug} (${rotulo})`)
-          .join(", ") +
-        ". Uma pessoa confirma antes de valer — errar a sugestão não é grave, mas não invente slug fora desta lista. A empresa pode ter modelos próprios: se o tipo de projeto não casar com estes, mande o slug mais próximo e a recusa lista todos os válidos.",
+      "Se você já entendeu o tipo de projeto, sugira um modelo pelo slug. Use um slug " +
+        "devolvido por crm_preparar_proposta. Uma pessoa confirma antes de valer — errar a " +
+        "sugestão não é grave, mas não invente slug.",
     ),
   briefing: z
     .record(z.string(), z.unknown())
@@ -75,8 +80,13 @@ const draftProposalInputShape = {
         "cliente, objetivo do projeto, escopo (páginas, funcionalidades, integrações...), o que " +
         "está incluído e o que não está. Use as MESMAS chaves que o documento usa — ex.: " +
         '{"project":{"name":"..."},"client":{"company":"..."},"scope":{"pages_list":"Home, Sobre, Contato"},' +
-        '"included":{"list":"..."},"excluded":{"list":"..."}}. Preço, prazo e validade NÃO entram ' +
-        "aqui — o sistema já sabe e calcula sozinho.",
+        '"included":{"list":"..."},"excluded":{"list":"..."}}. Além das chaves do documento, o ' +
+        "briefing EXIGE `nucleo` (as 7 categorias: objetivo, entregas, o_que_o_cliente_tem, " +
+        "responsabilidades, prazo, decisao_e_orcamento, referencia — cada uma com o texto, ou " +
+        '"cliente_nao_sabe" ou "nao_se_aplica") e `confirmacao` (`{ frase_do_cliente }`, a frase ' +
+        "exata com que o cliente confirmou o resumo). Sem `nucleo` completo e sem `confirmacao`, " +
+        "o rascunho é recusado. Preço, prazo e validade NÃO entram aqui — o sistema já sabe e " +
+        "calcula sozinho.",
     ),
 };
 
@@ -84,6 +94,43 @@ const draftProposalInputShape = {
 function actorAudit(actor: Actor): { actorUserId: string | null; metadataActor: Record<string, unknown> } {
   if (actor.type === "user") return { actorUserId: actor.id, metadataActor: { actor_type: "user" } };
   return { actorUserId: null, metadataActor: { actor_type: actor.type, actor_id: actor.id } };
+}
+
+interface MensagemDoLote {
+  direction: string;
+  sent_via: string;
+  body: string | null;
+  media_derived_text: string | null;
+  created_at: string;
+}
+
+/**
+ * As mensagens RECEBIDAS do turno atual: as inbound que chegaram depois da
+ * última mensagem enviada pela IA anterior a elas. Isto é: pega a data da
+ * última outbound de IA anterior à inbound mais recente, e as inbound
+ * posteriores a essa data. Um "sim" antigo, de antes da última resposta da
+ * IA, não serve como confirmação.
+ */
+async function loteDoTurnoAtual(
+  ctx: McpContext,
+  conversationId: string,
+): Promise<{ pendente: boolean; textos: string[] }> {
+  const { data } = await ctx.supabase
+    .from("messages")
+    .select("direction, sent_via, body, media_derived_text, created_at")
+    .eq("organization_id", ctx.organizationId)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  const recebidas = ((data ?? []) as MensagemDoLote[]).filter((m) => m.direction === "inbound");
+  if (recebidas.length === 0) return { pendente: false, textos: [] };
+  const maisRecente = recebidas.map((m) => m.created_at).reduce((a, b) => (a > b ? a : b));
+  const cortes = ((data ?? []) as MensagemDoLote[])
+    .filter((m) => m.direction === "outbound" && m.sent_via === "ai" && m.created_at < maisRecente)
+    .map((m) => m.created_at);
+  const corte = cortes.length > 0 ? cortes.reduce((a, b) => (a > b ? a : b)) : null;
+  const lote = corte === null ? recebidas : recebidas.filter((m) => m.created_at > corte);
+  const textos = lote.map((m) => (m.body?.trim() ? m.body : (m.media_derived_text ?? "")));
+  return { pendente: textos.some((t) => t.trim().length === 0), textos };
 }
 
 export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape> = {
@@ -144,13 +191,50 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
       return { error: "Esta conversa não pertence ao contato deste negócio." };
     }
 
+    // C5 — o briefing universal trava no código: sem as 7 categorias e sem a
+    // frase de confirmação do cliente, nada é criado. A recusa diz o motivo
+    // exato para a IA saber o que perguntar.
+    const faltando = categoriasFaltando(input.briefing);
+    if (faltando.length > 0) {
+      return {
+        error: `Faltam categorias do briefing: ${faltando.map(rotuloDaCategoria).join(", ")}. Pergunte ao cliente antes de rascunhar.`,
+        motivo: "briefing_incompleto",
+        faltando,
+      };
+    }
+    const briefingObjeto = input.briefing as Record<string, unknown>;
+    const confirmacao = briefingObjeto.confirmacao as Record<string, unknown> | undefined;
+    const frase = confirmacao?.frase_do_cliente;
+    if (typeof frase !== "string" || frase.trim().length === 0) {
+      return {
+        error:
+          "Falta a confirmação do cliente no briefing (briefing.confirmacao.frase_do_cliente). " +
+          "Mostre o resumo e peça confirmação antes de rascunhar.",
+        motivo: "sem_confirmacao",
+      };
+    }
+    const lote = await loteDoTurnoAtual(ctx, input.conversation_id);
+    if (lote.pendente) {
+      return {
+        error: "A mensagem do cliente ainda está sendo transcrita; responda e tente no próximo turno.",
+        motivo: "transcricao_pendente",
+      };
+    }
+    if (!fraseConfere(frase, lote.textos)) {
+      return {
+        error:
+          `Não encontrei a frase "${frase}" entre as últimas mensagens do cliente. ` +
+          "Peça a confirmação ao cliente; não repita a ferramenta com a mesma frase.",
+        motivo: "confirmacao_nao_encontrada",
+      };
+    }
+
     if (input.template_slug_sugerido !== undefined) {
-      const modelo = await resolverModelo(ctx.supabase, ctx.organizationId, input.template_slug_sugerido);
-      if (!modelo) {
-        const validos = await listarModelosDaOrganizacao(ctx.supabase, ctx.organizationId);
+      const ativos = await listarModelosAtivos(ctx.supabase, ctx.organizationId);
+      if (!ativos.some((m) => m.slug === input.template_slug_sugerido)) {
         return {
           error: `Modelo "${input.template_slug_sugerido}" não existe nesta organização. Escolha um de modelos_validos.`,
-          modelos_validos: validos.map((m) => ({ slug: m.slug, nome: m.nome })),
+          modelos_validos: ativos.map((m) => ({ slug: m.slug, nome: m.nome })),
         };
       }
     }
@@ -266,5 +350,89 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
     });
 
     return { proposal_id: proposta.id, total_cents: resolvido.totalCents, pricing_status: resolvido.pricingStatus };
+  },
+};
+
+const prepararPropostaInputShape = {
+  template_slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe(
+      "O slug de um modelo da organização para listar os campos que ele pede, com rótulo legível. " +
+        "Omita para receber só os modelos e as categorias do briefing.",
+    ),
+};
+
+/**
+ * O que o sistema calcula sozinho e nunca pede ao cliente: espelha
+ * `montarDadosDoDocumento` (investment, schedule e commercial_terms vêm de
+ * coluna gravada) mais `client.name`/`client.company_or_name` (vêm do
+ * contato) e a data de aprovação (ninguém a sabe no rascunho).
+ */
+function variavelCalculadaPeloSistema(caminho: string): boolean {
+  return (
+    caminho === "client.name" ||
+    caminho === "client.company_or_name" ||
+    caminho === "investment" ||
+    caminho.startsWith("investment.") ||
+    caminho === "commercial_terms" ||
+    caminho.startsWith("commercial_terms.") ||
+    caminho === "approval" ||
+    caminho.startsWith("approval.")
+  );
+}
+
+export const crmPrepararProposta: McpToolDefinition<typeof prepararPropostaInputShape> = {
+  name: "crm_preparar_proposta",
+  category: "read",
+  requiresRole: "agent",
+  requiresScope: "mcp:read",
+  description:
+    "Prepara o terreno da proposta: lista os modelos ativos desta organização, diz o que " +
+    "perguntar ao cliente (as 7 categorias do briefing) e — com um modelo — quais campos ele " +
+    "pede. Chame antes de rascunhar; nunca cria nada.",
+  inputSchema: prepararPropostaInputShape,
+  handler: async (input, ctx: McpContext) => {
+    if (!(await capacidadesDaOrganizacao(ctx.supabase, ctx.organizationId)).includes("propostas")) {
+      return { error: "Propostas estão desligadas nesta organização." };
+    }
+    const ativos = await listarModelosAtivos(ctx.supabase, ctx.organizationId);
+    const resposta = {
+      modelos: ativos.map((m) => ({ slug: m.slug, nome: m.nome, origem: m.origem })),
+      categorias: CATEGORIAS_DO_BRIEFING.map((c) => ({ chave: c.chave, rotulo: c.rotulo, orientacao: c.orientacao })),
+      instrucao:
+        "Pergunte ao cliente, com as suas palavras e no contexto do pedido, o que faltar destas " +
+        "categorias; 'cliente não sabe' e 'não se aplica' são respostas válidas. Antes de rascunhar, " +
+        "mostre um resumo e peça confirmação; 'certo' com informação nova NÃO é confirmação — " +
+        "ajuste o resumo e peça de novo.",
+    };
+    if (input.template_slug === undefined) return resposta;
+    if (!ativos.some((m) => m.slug === input.template_slug)) {
+      return {
+        error: `Modelo "${input.template_slug}" não existe nesta organização. Escolha um de modelos_validos.`,
+        modelos_validos: ativos.map((m) => ({ slug: m.slug, nome: m.nome })),
+      };
+    }
+    const modelo = await resolverModelo(ctx.supabase, ctx.organizationId, input.template_slug);
+    if (!modelo) {
+      return {
+        error: `Modelo "${input.template_slug}" não existe nesta organização. Escolha um de modelos_validos.`,
+        modelos_validos: ativos.map((m) => ({ slug: m.slug, nome: m.nome })),
+      };
+    }
+    const vistos = new Set<string>();
+    const caminhos: string[] = [];
+    for (const secao of modelo.sections) {
+      for (const texto of [secao.title, secao.body]) {
+        for (const caminho of extrairVariaveis(texto ?? "")) {
+          if (vistos.has(caminho) || variavelCalculadaPeloSistema(caminho)) continue;
+          vistos.add(caminho);
+          caminhos.push(caminho);
+        }
+      }
+    }
+    return { ...resposta, campos_do_modelo: caminhos.map(rotuloDaVariavel) };
   },
 };

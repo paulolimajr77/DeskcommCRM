@@ -7,8 +7,11 @@ import { montarDocumentoDaProposta, type PropostaParaDocumento } from "./documen
 import type { ContatoParaDocumento } from "./documento/montar-dados";
 
 /**
- * Consumido por `lib/notifications/push.handler.ts`. O literal está repetido
- * dentro do `.insert` abaixo de propósito: é lá que a cerca de eventos o lê.
+ * Consumido por `lib/propostas/aviso-no-whatsapp.handler.ts` — o aviso no
+ * WhatsApp da equipe que pode revisar. O push ao celular NÃO vem por aqui: ele
+ * nasce no barramento da Central (`central.aviso_criado`, migration 0442) e sai
+ * por `lib/notifications/push-dos-avisos.ts`. O literal está repetido dentro do
+ * `.insert` abaixo de propósito: é lá que a cerca de eventos o lê.
  */
 export const EVENTO_PROPOSTA_PRONTA_PARA_REVISAO = "proposal.ready_for_review";
 
@@ -36,9 +39,10 @@ async function contatoDaProposta(
 
 /**
  * Abre o aviso "proposta pronta para revisão" na Central quando a IA
- * rascunha — e, SÓ quando abre um item novo, emite o evento que vira
- * notificação no navegador (P4A). Fire-and-forget: nada aqui derruba o
- * rascunho.
+ * rascunha — e, SÓ quando abre um item novo, emite o evento que o aviso no
+ * WhatsApp consome. O push ao celular é outro caminho: nasce do
+ * `central.aviso_criado` que o trigger da Central emite (0442), não deste
+ * evento. Fire-and-forget: nada aqui derruba o rascunho.
  */
 export async function avisarQuePropostaPrecisaDeRevisao(
   supabase: SupabaseClient,

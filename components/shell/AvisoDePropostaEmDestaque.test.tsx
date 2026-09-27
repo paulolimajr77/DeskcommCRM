@@ -12,6 +12,13 @@
  * sai por lá). Aqui é o lado da TELA: o que acontece quando o polling traz um
  * item que nasceu depois que a pessoa abriu o CRM. O cartão não tem som nem
  * `Notification` próprios — o caso final prende isso.
+ *
+ * E é aqui que mora o `portal`: o cartão é `fixed`, e o componente é filho do
+ * `<header>` do `TopBar`, que tem `backdrop-blur`. Isso cria bloco containing
+ * e o `fixed` passa a se posicionar contra a barra — o balão nascia cortado no
+ * topo e o "Dispensar" ficava fora do alcance do olho. O caso novo monta o
+ * componente dentro de um header com `backdrop-blur` de propósito, e prova que
+ * o cartão NÃO está mais lá dentro.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,6 +43,16 @@ vi.mock("@/hooks/auth/AuthProvider", () => ({
 }));
 vi.mock("@/lib/navigation/interface", () => ({ destinosDaInterface: () => [{ href: "/app/ai/inbox" }] }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (s: string) => s }));
+// O `Link` de verdade pede o router do App Router por contexto; no jsdom não há
+// nenhum, e o clique morreria antes de chegar ao `onClick`. A âncora simples
+// preserva o que o cartão faz de observável: o `href` e o dispensar.
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...p }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...p}>
+      {children}
+    </a>
+  ),
+}));
 
 import { AvisoDePropostaEmDestaque } from "./AvisoDePropostaEmDestaque";
 
@@ -145,6 +162,47 @@ describe("aviso de proposta em destaque", () => {
 
     // E a carga seguinte não ressuscita: dispensar vale para o aviso, não só
     // para o clique.
+    caixa.data = abertos([ANTIGO, NOVO]);
+    rerender(<AvisoDePropostaEmDestaque />);
+    expect(cartao()).toBeNull();
+  });
+
+  it("o cartão é PORTAL para o `document.body`: dentro do `header` com backdrop-blur ele nascia cortado", async () => {
+    // O defeito era a ÁRVORE, não a classe: `backdrop-blur` no `<header>` do
+    // `TopBar` cria bloco containing, e o `position: fixed` do cartão passava a
+    // se posicionar em relação à barra — colado no topo, cortado, e com o
+    // "Dispensar" fora do alcance do olho (que é o "não fecha" que o dono viu).
+    // Nenhuma troca de classe resolve; o que resolve é sair do header.
+    caixa.data = abertos([ANTIGO]);
+    const { rerender } = render(
+      <header data-testid="barra-do-topo" className="sticky top-0 backdrop-blur">
+        <AvisoDePropostaEmDestaque />
+      </header>,
+    );
+    caixa.data = abertos([ANTIGO, NOVO]);
+    rerender(
+      <header data-testid="barra-do-topo" className="sticky top-0 backdrop-blur">
+        <AvisoDePropostaEmDestaque />
+      </header>,
+    );
+
+    const aviso = await screen.findByTestId("aviso-proposta-destaque");
+    expect(document.body.contains(aviso)).toBe(true);
+    expect(screen.getByTestId("barra-do-topo").contains(aviso)).toBe(false);
+  });
+
+  it("Abrir proposta também dispensa: o aviso atendido não volta no polling seguinte", async () => {
+    caixa.data = abertos([ANTIGO]);
+    const { rerender } = render(<AvisoDePropostaEmDestaque />);
+    caixa.data = abertos([ANTIGO, NOVO]);
+    rerender(<AvisoDePropostaEmDestaque />);
+    await screen.findByTestId("aviso-proposta-destaque");
+
+    fireEvent.click(screen.getByRole("link", { name: "Abrir proposta" }));
+    expect(cartao()).toBeNull();
+
+    // A proposta fica aberta na frente da pessoa; o cartão não pode reaparecer
+    // em cima dela trinta segundos depois, quando o polling repete a lista.
     caixa.data = abertos([ANTIGO, NOVO]);
     rerender(<AvisoDePropostaEmDestaque />);
     expect(cartao()).toBeNull();

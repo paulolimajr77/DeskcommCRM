@@ -96,6 +96,38 @@ function actorAudit(actor: Actor): { actorUserId: string | null; metadataActor: 
   return { actorUserId: null, metadataActor: { actor_type: actor.type, actor_id: actor.id } };
 }
 
+/**
+ * O PRAZO QUE O CLIENTE FALOU EM VOZ ALTA — e só quando a frase é inequívoca.
+ *
+ * O campo `Prazo (dias úteis)` do editor nascia vazio mesmo com a IA tendo
+ * perguntado o prazo e ouvido "até 30 dias": `briefing.nucleo.prazo` é o que a
+ * conversa sabe, e nada o levava até a coluna.
+ *
+ * A régua é estreita de propósito, e é a mesma do resto do produto: NADA é
+ * inventado. Só entra número que a frase traz por extenso — "30 dias", "15
+ * dias úteis". Sem número ("quando der", "cliente_nao_sabe", "nao_se_aplica")
+ * fica nulo, e a pessoa preenche. Faixa "2-3 dias" também fica nula: escolher
+ * um dos dois números seria chutar em campo que vai para o documento.
+ *
+ * O limite 1–365 é o do schema (`lib/schemas/propostas.ts` e a rota do PATCH):
+ * gravar fora dele é devolver 422 na edição de um rascunho que a IA acabou de
+ * criar.
+ */
+const NUMERO_DE_DIAS = /(?:^|[^\d\-–—~àá])\s*(\d+)\s*dias?\b/i;
+
+function prazoEmDiasUteisDoBriefing(briefing: unknown): number | null {
+  if (typeof briefing !== "object" || briefing === null) return null;
+  const nucleo = (briefing as { nucleo?: unknown }).nucleo;
+  if (typeof nucleo !== "object" || nucleo === null) return null;
+  const prazo = (nucleo as { prazo?: unknown }).prazo;
+  if (typeof prazo !== "string") return null;
+  const digitos = NUMERO_DE_DIAS.exec(prazo)?.[1];
+  if (digitos === undefined) return null;
+  const dias = Number.parseInt(digitos, 10);
+  if (!Number.isInteger(dias) || dias < 1 || dias > 365) return null;
+  return dias;
+}
+
 interface MensagemDoLote {
   direction: string;
   sent_via: string;
@@ -292,6 +324,9 @@ export const crmDraftProposal: McpToolDefinition<typeof draftProposalInputShape>
         titulo: input.titulo,
         condicoes: padroes.defaultConditions,
         valid_until: validUntil,
+        // O prazo que a pessoa falou no briefing, quando a frase trazia número
+        // por extenso. Sem número, nulo — a pessoa preenche no editor.
+        prazo_dias_uteis: prazoEmDiasUteisDoBriefing(input.briefing),
         total_cents: resolvido.totalCents,
         pricing_status: resolvido.pricingStatus,
         moeda,

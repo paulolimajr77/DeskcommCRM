@@ -6,6 +6,7 @@ import { showApiError } from "@/components/feedback/ApiErrorToast";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/types";
 import type { ApiSuccess } from "@/lib/api/wrappers";
 import { formatCents } from "@/lib/money";
 import type { ProposalStatus } from "@/lib/propostas/tipos";
@@ -52,6 +53,85 @@ interface Produto {
   moeda: string;
 }
 
+/**
+ * O que a pessoa EDITA — a impressão digital do rascunho na tela.
+ *
+ * `sujo` não é um estado: é esta assinatura contra a última coisa gravada, e é
+ * por isso que ele responde a pergunta certa sem lista de `setState` espalhada
+ * por cada campo. O `preco_catalogo_atual_cents` fica de fora de propósito: é
+ * informação do CATÁLOGO que viaja junto no GET, e a tela não a edita.
+ */
+function assinaturaDoRascunho(p: Proposta): string {
+  return JSON.stringify({
+    titulo: p.titulo,
+    condicoes: p.condicoes,
+    valid_until: p.valid_until,
+    prazo_dias_uteis: p.prazo_dias_uteis,
+    pagamento: p.pagamento,
+    itens: p.itens.map((it) => [
+      it.product_id,
+      it.descricao,
+      it.quantidade,
+      it.preco_unitario_cents,
+      it.desconto_cents,
+    ]),
+  });
+}
+
+/**
+ * A LINHA EM BRANCO QUE A PESSOA NÃO PREENCHEU.
+ *
+ * "+ Item à mão" nasce com descrição vazia e preço vazio. Quem clica no botão e
+ * não escreve nada — ou clica e desiste — deixa essa linha para trás, e ela vai
+ * no PATCH: o `descricao` do schema é `min(1)`, a rota responde 422 "Campos
+ * inválidos." e a pessoa não descobre que era a linha que ela mesma criou. É
+ * lixo de formulário, não intenção: some.
+ *
+ * O que NÃO pode sumir é a linha com PREÇO e sem descrição — dinheiro sem nome
+ * é proposta pela metade, e descartá-la apagaria calado o que a pessoa já
+ * digitou. Essa a tela acusa, dizendo o número.
+ */
+function linhasParaGravar(itens: ProposalItem[]): ProposalItem[] {
+  return itens.filter((it) => it.descricao.trim().length > 0 || it.preco_unitario_cents !== null);
+}
+
+/** O caminho do campo que a rota recusou (`itens.2.descricao`), legível. */
+function campoRecusado(caminho: string): string {
+  const item = /^itens\.(\d+)\.(\w+)$/.exec(caminho);
+  const indice = item?.[1];
+  if (indice === undefined) return caminho;
+  return `item ${Number(indice) + 1} · ${item[2] ?? ""}`;
+}
+
+/**
+ * Os campos que a rota recusou, lidos do `details` que ela devolve.
+ *
+ * A rota responde 422 com `parsed.error.flatten()`, que é `{ formErrors,
+ * fieldErrors }`; `fieldErrors` é o mapa do Zod e a chave é o CAMINHO. A tela
+ * repetia "Campos inválidos." — que não é mentira, é inútil: a pessoa tem sete
+ * campos na frente e nenhum sinal de qual deles a rota viu.
+ *
+ * Devolve lista VAZIA quando não há `details` legível, e quem chama cai na
+ * frase que descreve o outro caso (a proposta mudou, o 409) — que é a majori-
+ * tária do que volta de uma edição.
+ */
+function camposRecusados(details: Record<string, unknown> | undefined): string[] {
+  if (!details) return [];
+  const porCampo = details.fieldErrors;
+  const mapa =
+    porCampo && typeof porCampo === "object"
+      ? (porCampo as Record<string, unknown>)
+      : // `lib/schemas/_validate.ts` e várias rotas gravam o mapa direto, sem
+        // a casca do Zod: os dois formatos chegam aqui. `formErrors` é a lista
+        // de erros do formulário INTEIRO — não é campo, e não vira nome na frase.
+        Object.fromEntries(
+          Object.entries(details).filter(
+            ([chave, v]) => chave !== "formErrors" && Array.isArray(v) && v.every((m) => typeof m === "string"),
+          ),
+        );
+  return Object.keys(mapa).map(campoRecusado);
+}
+
 export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { id: string; podeEditar: boolean; podeRevisar?: boolean }) {
   const t = useT();
   const [proposta, setProposta] = useState<Proposta | null>(null);
@@ -66,6 +146,11 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
   const [versaoDoDocumento, setVersaoDoDocumento] = useState(0);
   const [gerandoPrevia, setGerandoPrevia] = useState(false);
   const abortController = useRef<AbortController | null>(null);
+  /**
+   * O que estava GRAVADO na última gravação. `null` = ainda não carregou, e aí
+   * não há "alteração não salva" para falar: o que está na tela veio do servidor.
+   */
+  const ultimaGravacao = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,7 +159,9 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
     apiClient
       .get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`, { signal: controller.signal })
       .then((res) => {
-        if (!controller.signal.aborted) setProposta(res.data);
+        if (controller.signal.aborted) return;
+        ultimaGravacao.current = assinaturaDoRascunho(res.data);
+        setProposta(res.data);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -173,10 +260,24 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
     setBuscaProdutos("");
   }
 
-  async function salvar() {
-    if (!proposta) return;
-    setSalvando(true);
+  /**
+   * Grava o rascunho. Devolve `boolean` porque `enviar()` depende da RESPOSTA:
+   * salvar para depois enviar só faz sentido se o salvar deu certo.
+   *
+   * Antes de sair, duas checagens que só a tela pode fazer:
+   * a linha em branco que ninguém preencheu é descartada (`linhasParaGravar`),
+   * e a linha com preço e sem descrição é ACUSADA, com o número dela.
+   */
+  async function salvar(): Promise<boolean> {
+    if (!proposta) return false;
     setErro(null);
+    const itens = linhasParaGravar(proposta.itens);
+    const semDescricao = itens.findIndex((it) => it.descricao.trim().length === 0);
+    if (semDescricao >= 0) {
+      setErro(t("Preencha a descrição do item {n}.").replace("{n}", String(semDescricao + 1)));
+      return false;
+    }
+    setSalvando(true);
     try {
       const res = await apiClient.patch<ApiSuccess<{ id: string; revision: number; total_cents: number }>>(
         `/api/v1/proposals/${id}`,
@@ -187,24 +288,47 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
           valid_until: proposta.valid_until,
           prazo_dias_uteis: proposta.prazo_dias_uteis,
           pagamento: proposta.pagamento,
-          itens: proposta.itens,
+          itens,
         },
       );
+      // A tabela passa a refletir EXATAMENTE o que foi gravado — a linha
+      // descartada some de vez, e `sujo` (que compara com isto) volta a falso.
+      ultimaGravacao.current = assinaturaDoRascunho({ ...proposta, itens });
       setProposta((p) =>
         p && {
           ...p,
           revision: res.data.revision,
           total_cents: res.data.total_cents,
+          itens,
         },
       );
       setVersaoDoDocumento((n) => n + 1);
+      return true;
     } catch (e) {
-      const errorMsg = t("A proposta mudou desde que você abriu. Recarregue antes de editar.");
-      setErro(errorMsg);
+      setErro(mensagemDaEdicaoRecusada(e));
       showApiError(e);
+      return false;
     } finally {
       setSalvando(false);
     }
+  }
+
+  /**
+   * O que a tela diz quando a gravação não deu certo.
+   *
+   * Antes era uma frase só, e ela era a errada: 422 de validação recebia
+   * "A proposta mudou desde que você abriu" — que descreve o 409 e não o que
+   * tinha acontecido. Agora o `details` da rota diz o campo, e a frase nomeia o
+   * campo. Sem `details` legível, sobra o caso comum: a proposta mudou.
+   */
+  function mensagemDaEdicaoRecusada(e: unknown): string {
+    if (e instanceof ApiError) {
+      const campos = camposRecusados(e.details);
+      if (campos.length > 0) {
+        return t("O servidor recusou estes campos: {campos}.").replace("{campos}", campos.join("; "));
+      }
+    }
+    return t("A proposta mudou desde que você abriu. Recarregue antes de editar.");
   }
 
   async function descartar() {
@@ -222,7 +346,19 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
     }
   }
 
+  /**
+   * "Enviar ao cliente" envia o que a pessoa acabou de DIGITAR.
+   *
+   * O defeito medido: ela escreve o preço, clica em Enviar e recebe "Item sem
+   * preço" — porque o envio leu a versão GRAVADA, e o preço que ela digitou
+   * estava só na tela. O conserto é gravar antes, e abortar o envio se a
+   * gravação falhar: enviar o rascunho velho é pior do que não enviar.
+   */
   async function enviar() {
+    if (sujo) {
+      const salvou = await salvar();
+      if (!salvou) return;
+    }
     setSalvando(true);
     setErro(null);
     try {
@@ -231,6 +367,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
         {},
       );
       const res = await apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`);
+      ultimaGravacao.current = assinaturaDoRascunho(res.data);
       setProposta(res.data);
     } catch (e) {
       setErro(t("Não foi possível enviar. Confira se você tem papel de gestor."));
@@ -272,6 +409,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
     try {
       await apiClient.post(`/api/v1/proposals/${id}/decide`, { decisao, motivo });
       const res = await apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`);
+      ultimaGravacao.current = assinaturaDoRascunho(res.data);
       setProposta(res.data);
     } catch (e) {
       showApiError(e);
@@ -279,6 +417,10 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
   }
 
   const editavel = podeEditar && proposta.status === "rascunho";
+  // "Enviar" só reenvia o que está GRAVADO. Sem esta pergunta, a pessoa
+  // digita o preço, clica em Enviar e recebe "Item sem preço" — porque o que
+  // foi enviado foi a versão antiga, não a que está na tela.
+  const sujo = ultimaGravacao.current !== null && ultimaGravacao.current !== assinaturaDoRascunho(proposta);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 p-6">
@@ -293,7 +435,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
       </header>
 
       {erro && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {erro}
         </div>
       )}
@@ -309,7 +451,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
       <div className="space-y-2">
         <label className="block text-sm font-medium">{t("Condições")}</label>
         <textarea
-          className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+          className="w-full rounded-md border p-2 text-sm disabled:bg-muted"
           value={proposta.condicoes ?? ""}
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, condicoes: e.target.value || null })}
@@ -322,7 +464,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
         <label className="block text-sm font-medium">{t("Válido até")}</label>
         <input
           type="date"
-          className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+          className="w-full rounded-md border p-2 text-sm disabled:bg-muted"
           value={proposta.valid_until ?? ""}
           disabled={!editavel}
           onChange={(e) => setProposta((p) => p && { ...p, valid_until: e.target.value || null })}
@@ -338,7 +480,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
             min="1"
             max="365"
             step="1"
-            className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+            className="w-full rounded-md border p-2 text-sm disabled:bg-muted"
             value={proposta.prazo_dias_uteis ?? ""}
             disabled={!editavel}
             onChange={(e) =>
@@ -352,7 +494,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
             id="forma-de-pagamento"
             type="text"
             maxLength={500}
-            className="w-full rounded-md border p-2 text-sm disabled:bg-gray-100"
+            className="w-full rounded-md border p-2 text-sm disabled:bg-muted"
             value={proposta.pagamento ?? ""}
             disabled={!editavel}
             onChange={(e) => setProposta((p) => p && { ...p, pagamento: e.target.value || null })}
@@ -362,7 +504,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
       </div>
 
       {editavel && itensComDrift.length > 0 && !driftIgnorado && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-warning/40 bg-warning-bg p-3 text-sm text-warning-fg">
           <p>
             {itensComDrift.length}{" "}
             {itensComDrift.length === 1
@@ -379,7 +521,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
             'approved' chegando ao resolvedor, fora do escopo deste achado) —
             então a cópia fica honesta em vez de fingir uma trava que não há.
           */}
-          <p className="mt-1 text-xs text-amber-700">
+          <p className="mt-1 text-xs text-warning-fg">
             {t("Ao salvar, o preço do catálogo será aplicado de qualquer forma.")}
           </p>
           <div className="mt-2 flex gap-2">
@@ -410,7 +552,8 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
       )}
 
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">          <thead className="bg-gray-50">
+        <table className="w-full text-sm">
+          <thead className="bg-muted">
             <tr className="border-b">
               <th scope="col" className="p-3 text-left">{t("Descrição")}</th>
               <th scope="col" className="p-3 text-right">{t("Qtd")}</th>
@@ -428,7 +571,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
                 <tr key={it.id ?? idx}>
                   <td className="p-3">
                     <input
-                      className="w-full border rounded-md px-2 py-1 text-sm disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm disabled:bg-muted"
                       value={it.descricao}
                       disabled={!editavel}
                       onChange={(e) => atualizarItem(idx, { descricao: e.target.value })}
@@ -438,7 +581,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-muted"
                       value={it.quantidade}
                       disabled={!editavel}
                       onChange={(e) => atualizarItem(idx, { quantidade: Number(e.target.value) || 0 })}
@@ -449,7 +592,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-muted"
                       value={it.preco_unitario_cents === null ? "" : it.preco_unitario_cents / 100}
                       placeholder={t("A definir")}
                       disabled={!editavel || it.product_id !== null}
@@ -466,7 +609,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
                   <td className="p-3">
                     <input
                       type="number"
-                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-gray-100"
+                      className="w-full border rounded-md px-2 py-1 text-sm text-right disabled:bg-muted"
                       value={it.desconto_cents / 100}
                       disabled={!editavel}
                       onChange={(e) =>
@@ -493,7 +636,12 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
           onAplicado={(r) => {
             setProposta((p) => p && { ...p, revision: r.revision, total_cents: r.total_cents });
             // recarrega a proposta inteira para refletir os itens que o assistente mudou
-            apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`).then((res) => setProposta(res.data));
+            apiClient.get<ApiSuccess<Proposta>>(`/api/v1/proposals/${id}`).then((res) => {
+              // O assistente grava no servidor: o que voltou É o que está
+              // gravado, e `sujo` precisa saber disso.
+              ultimaGravacao.current = assinaturaDoRascunho(res.data);
+              setProposta(res.data);
+            });
           }}
         />
       )}
@@ -516,15 +664,15 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
               onFocus={() => buscaProdutos && setMostraBuscaProdutos(true)}
             />
             {mostraBuscaProdutos && resultadosProdutos.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg">
+              <div className="absolute z-10 mt-1 w-full rounded-lg border bg-popover text-popover-foreground shadow-lg">
                 {resultadosProdutos.map((produto) => (
                   <button
                     key={produto.id}
-                    className="block w-full border-b px-3 py-2 text-left text-sm hover:bg-gray-100 last:border-b-0"
+                    className="block w-full border-b px-3 py-2 text-left text-sm hover:bg-accent last:border-b-0"
                     onClick={() => adicionarItemDoCatalogo(produto)}
                   >
                     <div className="font-medium">{produto.nome}</div>
-                    <div className="text-xs text-gray-600">
+                    <div className="text-xs text-muted-foreground">
                       {t("Código")}: {produto.codigo} • {formatCents(produto.preco_cents, produto.moeda)}
                     </div>
                   </button>
@@ -535,18 +683,18 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
         </div>
       )}
 
-      <div className="flex items-center justify-between rounded-lg border bg-gray-50 p-4">
+      <div className="flex items-center justify-between rounded-lg border bg-muted p-4">
         <div className="text-lg font-semibold">{t("Total")}</div>
         <div className="text-2xl font-bold tabular-nums">{formatCents(total, proposta.moeda)}</div>
       </div>
 
       {proposta.status === "rascunho" && proposta.ultima_falha_envio && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("O último envio falhou")}: {proposta.ultima_falha_envio}
         </div>
       )}
       {proposta.status === "enviando" && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-warning/40 bg-warning-bg p-3 text-sm text-warning-fg">
           {t("Na fila do WhatsApp — sai assim que o canal conectar.")}
         </div>
       )}
@@ -554,7 +702,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
           escrito ao lado, em vez de devolver 422 depois de a pessoa ter
           preenchido a proposta inteira. */}
       {proposta.status === "rascunho" && !proposta.template_slug && (
-        <p className="text-sm text-amber-800">{t("Escolha e confirme o modelo da proposta antes de enviar.")}</p>
+        <p className="text-sm text-warning-fg">{t("Escolha e confirme o modelo da proposta antes de enviar.")}</p>
       )}
       {proposta.status === "rascunho" && (
         <div className="flex gap-2">

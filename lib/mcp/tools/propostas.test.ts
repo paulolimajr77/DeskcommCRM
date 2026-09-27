@@ -843,6 +843,68 @@ describe("crm_draft_proposal", () => {
   });
 });
 
+/**
+ * O PRAZO QUE O CLIENTE FALOU CHEGA AO CAMPO "Prazo (dias úteis)".
+ *
+ * O editor abria vazio mesmo com a IA tendo perguntado o prazo e ouvido a
+ * resposta: `briefing.nucleo.prazo` é o que a conversa sabe, e nada o levava
+ * até a coluna. A régua é estreita de propósito — número por extenso, na
+ * faixa que o schema aceita, e NADA quando a frase não traz número. Campo de
+ * prazo inventado aparece no documento assinado.
+ */
+describe("crm_draft_proposal — prazo do briefing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function rascunhoComPrazo(prazo: string) {
+    const briefing = briefingCompleto();
+    const mundo = montarMundoDeFerramenta();
+    const r = await crmDraftProposal.handler(
+      {
+        lead_id: mundo.leadId,
+        conversation_id: mundo.conversationId,
+        titulo: "Proposta",
+        itens: [{ descricao: "Site", quantidade: 1, preco_unitario_cents: 500000 }],
+        briefing: { ...briefing, nucleo: { ...briefing.nucleo, prazo } },
+      } as never,
+      mundo.ctx,
+    );
+    expect((r as { error?: string }).error).toBeUndefined();
+    return mundo.propostaCriada;
+  }
+
+  it("\"até 30 dias\" grava prazo_dias_uteis: 30", async () => {
+    const criada = await rascunhoComPrazo("até 30 dias");
+    expect(criada?.prazo_dias_uteis).toBe(30);
+  });
+
+  it("\"15 dias úteis\" também conta — o número é o que vale, não o resto da frase", async () => {
+    const criada = await rascunhoComPrazo("Prazo de 15 dias úteis, com entrega em duas etapas");
+    expect(criada?.prazo_dias_uteis).toBe(15);
+  });
+
+  it("\"quando der\" grava NULO: sem número no texto, não há prazo a inventar", async () => {
+    const criada = await rascunhoComPrazo("quando der");
+    expect(criada?.prazo_dias_uteis).toBeNull();
+  });
+
+  it("as respostas da trava do briefing também ficam nulas (\"cliente_nao_sabe\")", async () => {
+    const criada = await rascunhoComPrazo("cliente_nao_sabe");
+    expect(criada?.prazo_dias_uteis).toBeNull();
+  });
+
+  it("faixa (\"2-3 dias\") fica nula: escolher um dos dois seria chutar campo que vai para o documento", async () => {
+    const criada = await rascunhoComPrazo("2-3 dias");
+    expect(criada?.prazo_dias_uteis).toBeNull();
+  });
+
+  it("fora da faixa do schema (0 e 400 dias) fica nulo, e não grava o que a edição recusaria", async () => {
+    expect((await rascunhoComPrazo("0 dias"))?.prazo_dias_uteis).toBeNull();
+    expect((await rascunhoComPrazo("400 dias"))?.prazo_dias_uteis).toBeNull();
+  });
+});
+
 describe("crm_preparar_proposta", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -12977,6 +12977,8 @@ export const DICIONARIO: Traducoes = {
   "Manter": {"es": "Mantener"},
   "Ignorar aviso": {"es": "Ignorar aviso"},
   "Ao salvar, o preço do catálogo será aplicado de qualquer forma.": {"es": "Al guardar, el precio del catálogo se aplicará de todos modos."},
+  "Preencha a descrição do item {n}.": {"es": "Rellena la descripción del elemento {n}."},
+  "O servidor recusou estes campos: {campos}.": {"es": "El servidor rechazó estos campos: {campos}."},
   "item mudou de preço no catálogo": {"es": "artículo cambió de precio en el catálogo"},
   "itens mudaram de preço no catálogo": {"es": "artículos cambiaron de precio en el catálogo"},
   "Deixar o agente rascunhar uma proposta quando o cliente pedir orçamento": {"es": "Dejar que el agente redacte una propuesta cuando el cliente pida un presupuesto"},

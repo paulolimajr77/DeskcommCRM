@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/types";
 
 import { ProposalEditorClient } from "./_client";
 
@@ -246,5 +247,169 @@ describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
       expect(screen.queryByRole("button", { name: /revisar esta proposta/i })).not.toBeInTheDocument();
       unmount();
     }
+  });
+});
+
+/**
+ * A LINHA EM BRANCO E O "CAMPOS INVÁLIDOS" QUE NÃO DIZ QUAL CAMPO.
+ *
+ * O que o dono viu na tela: um "Campos inválidos." sem nome de campo, ao salvar.
+ * A causa era a linha que "+ Item à mão" deixa para trás quando ninguém escreve
+ * nada nela — `descricao` é `min(1)`, e a rota recusa o PATCH inteiro sem dizer
+ * que era aquela linha. E a mesma frase saía quando o motivo era outro: o 409
+ * do conflito de revisão, que descreve um caso que não era o que acontecia.
+ */
+const ITEM_DE_REFERENCIA = {
+  id: "i1",
+  product_id: null,
+  descricao: "Site institucional",
+  quantidade: 1,
+  preco_unitario_cents: 500000,
+  desconto_cents: 0,
+  position: 1000,
+};
+
+function rascunhoComItens(itens: unknown[]) {
+  responderProposta({
+    data: {
+      ...PROPOSTA_BASE,
+      status: "rascunho",
+      ultima_falha_envio: null,
+      template_slug: "site_institucional",
+      itens,
+    },
+  });
+}
+
+describe("ProposalEditorClient — o que realmente sai no PATCH", () => {
+  beforeEach(() => {
+    get.mockReset();
+    vi.mocked(apiClient.patch).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  it("linha em branco (sem descrição e sem preço) é DESCARTADA: o PATCH não a leva", async () => {
+    // A linha existe porque alguém clicou "+ Item à mão" e não escreveu nada.
+    // Mandá-la é jogar fora a gravação inteira por um resíduo de formulário.
+    rascunhoComItens([ITEM_DE_REFERENCIA]);
+    const patch = vi
+      .mocked(apiClient.patch)
+      .mockResolvedValue({ data: { id: "p1", revision: 2, total_cents: 500000 } } as never);
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: /item à mão/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar", exact: true }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    const gravado = patch.mock.calls[0]![1] as { itens: Array<{ descricao: string }> };
+    expect(gravado.itens).toHaveLength(1);
+    expect(gravado.itens[0]!.descricao).toBe("Site institucional");
+  });
+
+  it("item com preço e SEM descrição não é enviado: a tela diz o número dele", async () => {
+    // Preço sem nome é proposta pela metade, e apagar a linha seria apagar o
+    // dinheiro que a pessoa já digitou. A tela recusa e aponta qual é.
+    rascunhoComItens([
+      ITEM_DE_REFERENCIA,
+      { ...ITEM_DE_REFERENCIA, id: "i2", descricao: "", preco_unitario_cents: 120000, position: 2000 },
+    ]);
+    const patch = vi.mocked(apiClient.patch);
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Salvar", exact: true }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Preencha a descrição do item 2.");
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("422 com `details` mostra o CAMPO recusado, não a frase do conflito de revisão", async () => {
+    rascunhoComItens([ITEM_DE_REFERENCIA]);
+    vi.mocked(apiClient.patch).mockRejectedValue(
+      new ApiError(
+        422,
+        "validation_failed",
+        { formErrors: [], fieldErrors: { "itens.0.descricao": ["Too small"] } },
+        "req-1",
+        "Campos inválidos.",
+      ),
+    );
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Salvar", exact: true }));
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("O servidor recusou estes campos: item 1 · descricao.");
+    // A frase antiga descrevia o 409 e era falsa aqui.
+    expect(alerta).not.toHaveTextContent(/recarregue antes de editar/i);
+  });
+});
+
+describe("ProposalEditorClient — Enviar envia o que está NA TELA", () => {
+  beforeEach(() => {
+    get.mockReset();
+    vi.mocked(apiClient.patch).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+  });
+
+  const COM_PRECO_A_DIGITAR = {
+    ...ITEM_DE_REFERENCIA,
+    preco_unitario_cents: null,
+  };
+
+  it("alteração não salva: o PATCH acontece ANTES do POST de envio", async () => {
+    // O defeito medido: a pessoa digita o preço, clica em Enviar e recebe
+    // "Item sem preço" — porque o envio leu a versão GRAVADA, e o preço
+    // digitado estava só na tela.
+    const ordem: string[] = [];
+    rascunhoComItens([COM_PRECO_A_DIGITAR]);
+    const patch = vi.mocked(apiClient.patch).mockImplementation(async () => {
+      ordem.push("patch");
+      return { data: { id: "p1", revision: 2, total_cents: 120000 } } as never;
+    });
+    const post = vi.mocked(apiClient.post).mockImplementation(async (url: string) => {
+      ordem.push(`post ${url}`);
+      return { data: { id: "p1", numero: 1, ano: 2026, message_id: "m1" } } as never;
+    });
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.change(await screen.findByPlaceholderText("A definir"), { target: { value: "1200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar ao cliente" }));
+
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(ordem).toEqual(["patch", "post /api/v1/proposals/p1/send"]);
+    const gravado = patch.mock.calls[0]![1] as { itens: Array<{ preco_unitario_cents: number }> };
+    expect(gravado.itens[0]!.preco_unitario_cents).toBe(120000);
+  });
+
+  it("sem alteração, o Enviar vai direto ao POST (não grava o que não mudou)", async () => {
+    const ordem: string[] = [];
+    rascunhoComItens([ITEM_DE_REFERENCIA]);
+    const patch = vi.mocked(apiClient.patch);
+    const post = vi.mocked(apiClient.post).mockImplementation(async (url: string) => {
+      ordem.push(`post ${url}`);
+      return { data: { id: "p1", numero: 1, ano: 2026, message_id: "m1" } } as never;
+    });
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar ao cliente" }));
+
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(patch).not.toHaveBeenCalled();
+    expect(ordem).toEqual(["post /api/v1/proposals/p1/send"]);
+  });
+
+  it("se a gravação falha, o envio NÃO sai — mandar o rascunho velho é pior que não mandar", async () => {
+    rascunhoComItens([COM_PRECO_A_DIGITAR]);
+    vi.mocked(apiClient.patch).mockRejectedValue(
+      new ApiError(409, "proposal_context_stale", undefined, "req-1", "A proposta mudou."),
+    );
+    const post = vi.mocked(apiClient.post);
+
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.change(await screen.findByPlaceholderText("A definir"), { target: { value: "1200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar ao cliente" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/recarregue antes de editar/i);
+    expect(post).not.toHaveBeenCalled();
   });
 });

@@ -62,6 +62,14 @@ interface Props {
   value: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
+  /**
+   * Capacidades que ESTE papel não recebe no runtime, marcadas ou não (ex.:
+   * `FORA_DO_OPERADOR`). Somem do catálogo em vez de aparecerem marcáveis:
+   * uma caixa que se marca e não faz nada é promessa que a tela não cumpre.
+   * Id já salvo com um destes valores é ignorado aqui (e pelo runtime), e sai
+   * da versão na próxima vez que a lista for alterada.
+   */
+  ocultar?: readonly string[];
 }
 
 interface ApiResponse {
@@ -173,8 +181,12 @@ function AvisoTeto({ texto }: { texto: string }) {
   );
 }
 
-export function ToolPicker({ value, onChange, disabled }: Props) {
+export function ToolPicker({ value: valorSalvo, onChange, disabled, ocultar }: Props) {
   const t = useT();
+  const value = React.useMemo(
+    () => (ocultar === undefined ? valorSalvo : valorSalvo.filter((id) => !ocultar.includes(id))),
+    [valorSalvo, ocultar],
+  );
   const [avancado, setAvancado] = React.useState(false);
   // `pacote` diz ONDE a recusa aconteceu. O aviso nascia só no topo do seletor,
   // e quem clicava num pacote lá embaixo (com a tela rolada) via o interruptor
@@ -197,7 +209,10 @@ export function ToolPicker({ value, onChange, disabled }: Props) {
     staleTime: 60_000,
   });
 
-  const catalogo = React.useMemo<McpToolMeta[]>(() => query.data?.tools ?? [], [query.data]);
+  const catalogo = React.useMemo<McpToolMeta[]>(
+    () => (query.data?.tools ?? []).filter((c) => !(ocultar ?? []).includes(c.name)),
+    [query.data, ocultar],
+  );
   const desligadasPelaOrg = React.useMemo(
     () => new Set(query.data?.desligadas ?? []),
     [query.data],

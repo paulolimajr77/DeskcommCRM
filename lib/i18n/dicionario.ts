@@ -1747,6 +1747,9 @@ export const DICIONARIO: Traducoes = {
   "A mesma que conversa": { es: "La misma que conversa" },
   "Usar a mesma que conversa": { es: "Usar la misma que conversa" },
   "O que ele pode mexer no sistema": { es: "Lo que puede modificar en el sistema" },
+  "Criar rascunho de proposta fica só com o assistente que conversa: ele segue o seu roteiro e sabe quando o cliente já explicou o que quer.": {
+    es: "Crear el borrador de propuesta queda solo con el asistente que conversa: sigue tu guion y sabe cuándo el cliente ya explicó lo que quiere.",
+  },
   "Esta lista é só deste papel — nada aqui é usado enquanto ele conversa com o cliente. Ligue por jornada de trabalho.": {
     es: "Esta lista es solo de este rol: nada de aquí se usa mientras conversa con el cliente. Activa las opciones según cada jornada de trabajo.",
   },

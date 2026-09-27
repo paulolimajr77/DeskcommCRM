@@ -10138,10 +10138,10 @@ alter table public.agent_inbox_items
     -- mesma constraint em N blocos quebra o `update.sh` de todo clone com
     -- vocabulário posterior (lição do #159).
     'canal_mudo_sem_numero',
-    -- (migration 0436) a proposta comercial: vencimento sem decisão, queda da taxa
+    -- (migration 0455) a proposta comercial: vencimento sem decisão, queda da taxa
     -- de aceite e promessa de proposta que não virou proposta.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
-    -- (migration 0442, D3) proposta presa em 'enviando' há mais de 5min — o
+    -- (migration 0461, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
     -- (migration 0449) a IA rascunhou uma proposta e falta confirmar o modelo
@@ -36566,10 +36566,10 @@ begin
 
   -- 6b. crm_proposals (migration 0454, #1504) — PRESERVA número, valores,
   -- itens, datas e status; redige só o que identifica a PESSOA:
-  --   destinatario_nome — nome impresso no PDF (D10/0442: gravado para o
+  --   destinatario_nome — nome impresso no PDF (D10/0461: gravado para o
   --     documento continuar legível sozinho); recebe o rótulo, não null —
   --     mesma razão de `crm_leads.title`.
-  --   briefing_json — insumo estruturado do briefing (0416/0440): descreve
+  --   briefing_json — insumo estruturado do briefing (0416/0459): descreve
   --     o que o CLIENTE disse sobre o próprio negócio.
   --   resumo_comercial — texto gerado na emissão a partir do briefing e do
   --     nome do destinatário.
@@ -38170,7 +38170,7 @@ update public.lead_checkpoints l set
         or l.next_action is not null
         or l.declaracao is not null);
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0436) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0455) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -38448,7 +38448,7 @@ create trigger trg_crm_proposals_org_consistente
   on public.crm_proposals
   for each row execute function public.fn_verificar_org_da_proposta();
 
--- ---- C2: contador de propostas, estado enviando e sobrevivencia ao negocio (migration 0442) ----
+-- ---- C2: contador de propostas, estado enviando e sobrevivencia ao negocio (migration 0461) ----
 -- D9 — auditoria de produção (org 59914589, 19/09/2026): `fn_proposta_aloca_numero`
 -- calculava `max(numero)+1` sobre linhas que EXISTEM; apagar a linha liberava
 -- o número. O contador abaixo nunca deriva de linha nenhuma — só cresce.
@@ -38602,7 +38602,7 @@ update public.crm_proposals p
 -- rascunho mais recente por (organization_id, lead_id); os demais viram
 -- 'cancelada' — NUNCA apagados, o histórico continua na timeline/auditoria.
 -- `lead_id` nulo (proposta órfã, D10) nunca colide aqui: a trigger
--- `fn_cancelar_propostas_rascunho_do_lead` (migration 0442) já vira
+-- `fn_cancelar_propostas_rascunho_do_lead` (migration 0461) já vira
 -- 'cancelada' TODO rascunho antes do lead ser apagado, então nenhuma linha
 -- com status='rascunho' e lead_id nulo pode existir.
 with ranking as (
@@ -38626,7 +38626,7 @@ create unique index if not exists crm_proposals_rascunho_unico_por_negocio_uidx
 
 notify pgrst, 'reload schema';
 
--- ---- C4: revisão por versão e auditoria (migration 0437) ----
+-- ---- C4: revisão por versão e auditoria (migration 0456) ----
 -- Onda C4 da spec de Propostas (2026-09-23): D4 (revisar cria v2 em
 -- rascunho pela tela — a v1 e a v2 convivem, a v1 ainda `enviada`, até a v2
 -- ser enviada). A unicidade de numeração vigente é (organization_id, ano,
@@ -38662,7 +38662,7 @@ create unique index if not exists crm_proposals_numero_ano_versao_org_uidx
 
 notify pgrst, 'reload schema';
 
--- ---- E1: followup automatico ao enviar (migration 0438) ----
+-- ---- E1: followup automatico ao enviar (migration 0457) ----
 -- Onda E1 da spec de Propostas (2026-09-24): N2 (a proposta ENVIADA agenda um
 -- retorno automático via lib/followup/retorno-crm.ts). `retorno_id` guarda QUAL
 -- retorno foi agendado, para cancelá-lo se o cliente decidir (aceita/recusada)
@@ -38675,7 +38675,7 @@ comment on column public.crm_proposals.retorno_id is
 
 notify pgrst, 'reload schema';
 
--- ---- M0: tabela de modelos de proposta (migration 0439) ----
+-- ---- M0: tabela de modelos de proposta (migration 0458) ----
 -- proposal_templates guarda só CÓPIAS por organização (spec-mãe §6.1: a base
 -- da plataforma mora no código, MODELOS_BASE, nunca no banco com
 -- organization_id nulo). SEM CHECK fechado de slug: os 8 modelos-piloto da
@@ -38685,7 +38685,7 @@ notify pgrst, 'reload schema';
 -- slug por organização. `base_slug`/`base_version` guardam de qual modelo da
 -- base a cópia veio (spec-mãe §6.1, achado Important da revisão final — sem
 -- isto a "atualização sugerida" da decisão 15 não tem como comparar). RLS em
--- duas policies, molde de crm_proposals (migration 0442): SELECT aberto a
+-- duas policies, molde de crm_proposals (migration 0461): SELECT aberto a
 -- todo membro da organização (+ bypass de suporte da plataforma), WRITE com
 -- piso `fn_role_at_least(organization_id, 'agent')` — sem esse piso (achado
 -- Important da revisão final), qualquer viewer conseguia escrever/apagar
@@ -38734,7 +38734,7 @@ create policy proposal_templates_select on public.proposal_templates
 
 -- proposal_templates_write nasce no bloco "modelos de proposta da empresa
 -- (migration 0433)", mais abaixo, já com o piso de 'manager' — o drop dela
--- ali cobre o clone que só tem esta versão (0439).
+-- ali cobre o clone que só tem esta versão (0458).
 
 revoke all on public.proposal_templates from anon;
 grant select, insert, update, delete on public.proposal_templates to authenticated;
@@ -38761,7 +38761,7 @@ alter table public.crm_proposals add constraint crm_proposals_template_slug_vers
 
 notify pgrst, 'reload schema';
 
--- ---- M1: briefing e motivo de revisão (migration 0440) ----
+-- ---- M1: briefing e motivo de revisão (migration 0459) ----
 alter table public.crm_proposals add column if not exists briefing_json jsonb;
 alter table public.crm_proposals add column if not exists prazo_dias_uteis int;
 alter table public.crm_proposals add column if not exists pagamento text;
@@ -38770,7 +38770,7 @@ alter table public.crm_proposals add column if not exists version_reason text;
 
 notify pgrst, 'reload schema';
 
--- ---- M3: edição manual por seção do documento (migration 0441) ----
+-- ---- M3: edição manual por seção do documento (migration 0460) ----
 alter table public.crm_proposals add column if not exists secoes_editadas jsonb;
 
 -- ---- fluxos de atendimento: a base, desligada por padrão (migration 0394, de @vgamkt, #1130) ----

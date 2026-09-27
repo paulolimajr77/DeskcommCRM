@@ -54,7 +54,7 @@ update public.crm_proposals p
 -- rascunho mais recente por (organization_id, lead_id); os demais viram
 -- 'cancelada' — NUNCA apagados, o histórico continua na timeline/auditoria.
 -- `lead_id` nulo (proposta órfã, D10) nunca colide aqui: a trigger
--- `fn_cancelar_propostas_rascunho_do_lead` (migration 0442) já vira
+-- `fn_cancelar_propostas_rascunho_do_lead` (migration 0461) já vira
 -- 'cancelada' TODO rascunho antes do lead ser apagado, então nenhuma linha
 -- com status='rascunho' e lead_id nulo pode existir.
 with ranking as (

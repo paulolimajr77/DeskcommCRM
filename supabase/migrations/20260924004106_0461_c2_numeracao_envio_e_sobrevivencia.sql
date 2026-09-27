@@ -1,5 +1,6 @@
--- 0442 (renumerada de 0401 -> 0442 ao atualizar a branch com a main: 0401
--- colidia com 0401_conversoes_processamento_e_reenvio do Rafael) — Onda C2
+-- 0461 (renumerada de 0401 -> 0442 -> 0461: 0401 e 0442 já estavam tomados por
+-- migrations diferentes — o último, 0442, pelo
+-- 0442_aviso_da_central_no_barramento do upstream) — Onda C2
 -- da spec de Propostas (2026-09-23): D9 (contador que não
 -- depende das linhas existentes), D3 (estado intermediário `enviando`) e D10
 -- (a proposta sobrevive ao negócio). Uma migration só porque as três mexem na

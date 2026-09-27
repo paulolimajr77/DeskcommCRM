@@ -1,5 +1,6 @@
--- 0439 (renumerada de 0410 -> 0415 -> 0439 ao atualizar a branch com a main:
--- 0410 e depois 0415 já estavam tomados por migrations diferentes) — Onda M0
+-- 0458 (renumerada de 0410 -> 0415 -> 0439 -> 0458: 0410, 0415 e 0439 já
+-- estavam tomados por migrations diferentes — o último, 0439, pelo
+-- 0439_aviso_de_caso_confere_o_destino_no_envio do upstream) — Onda M0
 -- (fundamento de modelos): proposal_templates guarda só
 -- CÓPIAS por organização (decisão da spec-mãe §6.1: a base da plataforma mora
 -- no código, MODELOS_BASE, nunca no banco com organization_id nulo — a spec
@@ -55,7 +56,7 @@ alter table public.proposal_templates enable row level security;
 -- Achado Important da revisão final da M0: a policy original ("tenant_
 -- isolation_proposal_templates_all") só filtrava organização, sem piso de
 -- papel — qualquer `viewer` da organização conseguia escrever/apagar modelo
--- pela REST direto. Molde de crm_proposals (migration 0442/baseline): SELECT
+-- pela REST direto. Molde de crm_proposals (migration 0461/baseline): SELECT
 -- aberto a todo membro (mais bypass de suporte da plataforma), WRITE exige
 -- `fn_role_at_least(organization_id, 'agent')`. A spec de modelos quer
 -- edição só de manager+ (decisão 10) — esse piso mais estrito é gate de ROTA

@@ -159,7 +159,7 @@ const DECISOES: Record<string, Decisao> = {
   crm_proposals: {
     decidida: "redigir",
     caminho: "cascata",
-    razao: "0454: destinatario_nome (nome impresso no PDF, D10/0442), briefing_json e resumo_comercial saem — número, valores, itens, datas e status ficam, mesmo molde de orders/crm_leads.",
+    razao: "0454: destinatario_nome (nome impresso no PDF, D10/0461), briefing_json e resumo_comercial saem — número, valores, itens, datas e status ficam, mesmo molde de orders/crm_leads.",
   },
   sales: {
     decidida: "redigir",

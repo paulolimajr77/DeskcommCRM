@@ -1,4 +1,7 @@
--- 0437 (renumerada de 0403 -> 0413 -> 0437 ao atualizar a branch com a main: 0403 e depois 0413 já estavam tomados por migrations diferentes) — Onda C4 da spec de Propostas (2026-09-23): D4 (revisar cria v2 em
+-- 0456 (renumerada de 0403 -> 0413 -> 0437 -> 0456: 0403, 0413 e 0437 já
+-- estavam tomados por migrations diferentes — o último, 0437, pelo
+-- 0437_links_rastreaveis do upstream) — Onda C4 da spec de Propostas
+-- (2026-09-23): D4 (revisar cria v2 em
 -- rascunho pela tela — a v1 e a v2 convivem, a v1 ainda `enviada`, até a v2
 -- ser enviada). A unicidade de numeração vigente é (organization_id, ano,
 -- numero) — cedo demais para D4: as duas linhas da mesma cadeia teriam o

@@ -19,7 +19,7 @@ alter table public.agent_inbox_items
     'budget_warning','conhecimento_nao_indexado','voice_call_missed','case_stale',
     'aviso_de_caso_nao_entregue','followup_sem_agente','canal_mudo_sem_numero',
     'proposal_expired_notice','proposal_acceptance_rate_drop','proposal_promised_not_created',
-    -- (migration 0442, D3) proposta presa em 'enviando' há mais de 5min — o
+    -- (migration 0461, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
     -- (migration 0393 na vps/pljr-combinada) turno que bateu no teto de

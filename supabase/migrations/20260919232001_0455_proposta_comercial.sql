@@ -1,6 +1,8 @@
--- 20260919232001_0436_proposta_comercial.sql
--- (renumerada de 0394 -> 0412 -> 0436 ao atualizar a branch com a main: 0394
--- e depois 0412 já estavam tomados por migrations diferentes do Rafael)
+-- 20260919232001_0455_proposta_comercial.sql
+-- (renumerada de 0394 -> 0412 -> 0436 -> 0455: 0394, 0412 e 0436 já estavam
+-- tomados por migrations diferentes — o último, 0436, pelo
+-- 0436_conversao_google_por_etapa publicado no upstream depois da renumeração
+-- anterior)
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.

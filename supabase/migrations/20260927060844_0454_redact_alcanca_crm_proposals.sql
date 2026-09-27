@@ -2,7 +2,7 @@
 --
 -- Achado por tests/invariants/lgpd-redact-unificado-alcanca-pelo-catalogo.test.ts
 -- (issue #1504): o catálogo (`pg_constraint`) mede TODA tabela com FK para
--- `contacts`, e `crm_proposals.contact_id` (nascida na 0401/0442, D9) nunca
+-- `contacts`, e `crm_proposals.contact_id` (nascida na 0401/0461, D9) nunca
 -- ganhou decisão escrita. Sem este passo, anonimizar o contato devolvia
 -- SUCESSO com o nome dele ainda impresso na proposta.
 --
@@ -10,11 +10,11 @@
 -- número, valores, itens, datas e status (é o documento comercial e a conta
 -- que a organização precisa poder auditar), redige só o que identifica a
 -- PESSOA:
---   destinatario_nome  — nome impresso no PDF (D10/0442: gravado justamente
+--   destinatario_nome  — nome impresso no PDF (D10/0461: gravado justamente
 --                        para o documento continuar legível sozinho depois
 --                        do negócio/lead ser apagado). Recebe o rótulo, não
 --                        null — mesma razão de `crm_leads.title`.
---   briefing_json      — insumo estruturado do briefing (0416/0440): descreve
+--   briefing_json      — insumo estruturado do briefing (0416/0459): descreve
 --                        o que o CLIENTE disse sobre o próprio negócio.
 --   resumo_comercial   — texto gerado na emissão a partir do briefing e do
 --                        nome do destinatário (lib/propostas/resumo-comercial.ts).

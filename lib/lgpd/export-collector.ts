@@ -176,7 +176,7 @@ export interface SaleRow {
 }
 
 /**
- * Proposta comercial (migration 0436 em diante). O par com a redação: a
+ * Proposta comercial (migration 0455 em diante). O par com a redação: a
  * migration 0454 liga `destinatario_nome`, `briefing_json` e
  * `resumo_comercial` à cascata de anonimização, e este bloco é a outra
  * metade — o que se apaga a pedido do titular é o que se entrega a pedido
@@ -1035,7 +1035,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     }
   }
 
-  // Propostas comerciais — contact_id direto em crm_proposals (migration 0436
+  // Propostas comerciais — contact_id direto em crm_proposals (migration 0455
   // em diante). A 0454 acrescentou destinatario_nome/briefing_json/
   // resumo_comercial à cascata de redação; este bloco é a outra metade —
   // sem ele, o titular pediria acesso e receberia um relatório que não

@@ -354,6 +354,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
    * gravação falhar: enviar o rascunho velho é pior do que não enviar.
    */
   async function enviar() {
+    if (!proposta) return;
     // A mesma pergunta do render, respondida NO CLIQUE: o que está na tela é
     // diferente do que está gravado? Ler o `ref` aqui (evento) é permitido —
     // era a leitura durante o render que o `react-hooks` reprovava.

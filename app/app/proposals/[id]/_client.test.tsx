@@ -139,6 +139,89 @@ describe("ProposalEditorClient — drift de preço do catálogo (N4)", () => {
   });
 });
 
+describe("ProposalEditorClient — C1: enviar exige modelo confirmado", () => {
+  it("sem template_slug: o botão 'Enviar ao cliente' fica desabilitado e o motivo aparece na tela", async () => {
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null, template_slug: null } });
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /enviar ao cliente/i })).toBeDisabled());
+    expect(screen.getByText(/escolha e confirme o modelo da proposta antes de enviar/i)).toBeInTheDocument();
+  });
+
+  it("com template_slug: o botão fica disponível e o aviso some", async () => {
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null, template_slug: "site_institucional" } });
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /enviar ao cliente/i })).toBeEnabled());
+    expect(screen.queryByText(/escolha e confirme o modelo da proposta antes de enviar/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ProposalEditorClient — C2: ver como o cliente recebe", () => {
+  it("o botão existe em qualquer status (é leitura: não precisa de rascunho)", async () => {
+    for (const status of ["rascunho", "enviada", "aceita"]) {
+      responderProposta({ data: { ...PROPOSTA_BASE, status, ultima_falha_envio: null, template_slug: "site_institucional" } });
+      const { unmount } = render(<ProposalEditorClient id="p1" podeEditar={true} />);
+      expect(await screen.findByRole("button", { name: /ver como o cliente recebe/i })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("sucesso: abre o PDF numa aba nova, sem recarregar a página", async () => {
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null, template_slug: "site_institucional" } });
+    // jsdom não implementa `URL.createObjectURL` — o duviê é instalado à mão e
+    // desfeito no fim, senão ele vaza para os outros testes do arquivo.
+    const createObjectURLOriginal = URL.createObjectURL;
+    const abrirOriginal = window.open;
+    const criarUrl = vi.fn(() => "blob:previa");
+    const abrir = vi.fn();
+    URL.createObjectURL = criarUrl;
+    window.open = abrir;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, blob: async () => new Blob(["%PDF"]) }) as unknown as Response),
+    );
+    try {
+      render(<ProposalEditorClient id="p1" podeEditar={true} />);
+      fireEvent.click(await screen.findByRole("button", { name: /ver como o cliente recebe/i }));
+      await waitFor(() => expect(abrir).toHaveBeenCalledWith("blob:previa", "_blank", "noopener"));
+    } finally {
+      URL.createObjectURL = createObjectURLOriginal;
+      window.open = abrirOriginal;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("recusa 422: mostra a mensagem do corpo JSON no bloco de erro da tela", async () => {
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null, template_slug: "site_institucional" } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { code: "validation_failed", message: "Escolha e confirme o modelo da proposta antes de enviar." } }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: /ver como o cliente recebe/i }));
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/escolha e confirme o modelo/i);
+    vi.unstubAllGlobals();
+  });
+
+  it("corpo que não é JSON: mostra a frase genérica, nunca silêncio", async () => {
+    responderProposta({ data: { ...PROPOSTA_BASE, status: "rascunho", ultima_falha_envio: null, template_slug: "site_institucional" } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>502</html>", { status: 502, headers: { "Content-Type": "text/html" } })),
+    );
+    render(<ProposalEditorClient id="p1" podeEditar={true} />);
+    fireEvent.click(await screen.findByRole("button", { name: /ver como o cliente recebe/i }));
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("Não foi possível gerar a prévia agora.");
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("ProposalEditorClient — revisar cria a v2 (D4)", () => {
   it("proposta enviada mostra o botão 'Revisar esta proposta'", async () => {
     responderProposta({ data: { ...PROPOSTA_BASE, status: "enviada", ultima_falha_envio: null } });

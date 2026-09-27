@@ -41,6 +41,13 @@ export interface DocumentoPdfInput {
   condicoes: string | null;
   /** SÓ a organização (D6 da spec-mãe) — quem monta é `marcaDaOrganizacaoParaPdf`. */
   marca: { app_name: string | null; accent_hex: string | null; logoUrl: string | null };
+  /**
+   * PRÉVIA DE TELA ("Ver como o cliente recebe"): o arquivo é o mesmo que o
+   * envio faria, mas o número ainda não existe — e o lugar dele diz isso, em vez
+   * de ficar em branco (quem lê não pode confundir "sem número" com "faltou
+   * alguma coisa no PDF").
+   */
+  previa?: boolean;
 }
 
 export type BlocoDoPdf = { tipo: "secao"; secao: SecaoRenderizada } | { tipo: "itens" };
@@ -89,7 +96,9 @@ function DocumentoPdfDoc({ d }: { d: DocumentoPdfInput }): React.ReactElement {
         <View style={styles.header}>
           <View>
             <Text style={[styles.titulo, accent ? { color: accent } : {}]}>{d.titulo}</Text>
-            {d.numero !== null && d.ano !== null ? (
+            {d.previa ? (
+              <Text>Prévia — sem número</Text>
+            ) : d.numero !== null && d.ano !== null ? (
               <Text>
                 Proposta {String(d.numero).padStart(4, "0")}/{d.ano}
                 {d.versao > 1 ? ` — v${d.versao}` : ""}

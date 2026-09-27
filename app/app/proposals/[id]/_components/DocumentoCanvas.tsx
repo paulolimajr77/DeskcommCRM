@@ -50,6 +50,13 @@ export interface DocumentoCanvasProps {
   emRascunho?: boolean;
   /** O editor incrementa quando salva algo que muda o documento (prazo, itens). */
   versao?: number;
+  /**
+   * Chamado depois que o PATCH de `/modelo` volta bem — com o slug confirmado.
+   * É o que o editor usa para liberar "Enviar ao cliente" sem recarregar a
+   * página: a rota de envio recusa proposta sem modelo, e a tela não pode
+   * continuar mostrando a proposta como se não tivesse.
+   */
+  onModeloConfirmado?: (slug: string) => void;
 }
 
 const DICA_POR_ONDE: Record<Exclude<Onde, "briefing">, string> = {
@@ -143,7 +150,7 @@ function EditorDeSecao({
   );
 }
 
-export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = false, versao = 0 }: DocumentoCanvasProps) {
+export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = false, versao = 0, onModeloConfirmado }: DocumentoCanvasProps) {
   const t = useT();
   const [doc, setDoc] = useState<Documento | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -218,13 +225,15 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
     }
   }
 
-  const confirmarModelo = (slug: string, descartar = false) =>
-    executar(() =>
+  const confirmarModelo = async (slug: string, descartar = false) => {
+    await executar(() =>
       apiClient.patch(
         `/api/v1/proposals/${propostaId}/modelo`,
         descartar ? { template_slug: slug, descartar_reescritas: true } : { template_slug: slug },
       ),
     );
+    onModeloConfirmado?.(slug);
+  };
 
   if (!doc) return null;
 
@@ -250,7 +259,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
             <button
               type="button"
               disabled={ocupado}
-              onClick={() => confirmarModelo(doc.modeloSlugSugerido!)}
+              onClick={() => void confirmarModelo(doc.modeloSlugSugerido!)}
               className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
               {t("Usar este modelo")}
@@ -259,7 +268,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
           <select
             disabled={ocupado}
             defaultValue=""
-            onChange={(e) => e.target.value && confirmarModelo(e.target.value)}
+            onChange={(e) => e.target.value && void confirmarModelo(e.target.value)}
             className="rounded-md border px-2 py-1.5 text-sm"
           >
             <option value="" disabled>

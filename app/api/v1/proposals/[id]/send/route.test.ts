@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MODELOS_BASE } from "@/lib/propostas/modelos/catalogo-base";
@@ -13,7 +14,6 @@ const mocks: Record<string, any> = vi.hoisted(() => ({
   espacarEnvio: vi.fn(),
   alocarNumero: vi.fn(),
   decidirVersao: vi.fn(),
-  renderPropostaPdf: vi.fn(),
   renderDocumentoPdf: vi.fn(),
   salvarPdfDaProposta: vi.fn(),
   marcaDaSaida: vi.fn(),
@@ -36,7 +36,6 @@ vi.mock("@/lib/automation/janela-do-canal", () => ({ adiarAteAJanelaAbrir: mocks
 vi.mock("@/lib/automation/throttle", () => ({ checkDailyLimit: mocks.checkDailyLimit, espacarEnvio: mocks.espacarEnvio }));
 vi.mock("@/lib/propostas/numeracao", () => ({ alocarNumero: mocks.alocarNumero }));
 vi.mock("@/lib/propostas/versao", () => ({ decidirVersao: mocks.decidirVersao }));
-vi.mock("@/lib/propostas/pdf", () => ({ renderPropostaPdf: mocks.renderPropostaPdf }));
 vi.mock("@/lib/propostas/documento/pdf-do-documento", () => ({ renderDocumentoPdf: mocks.renderDocumentoPdf }));
 vi.mock("@/lib/propostas/storage", () => ({ salvarPdfDaProposta: mocks.salvarPdfDaProposta }));
 vi.mock("@/lib/branding/saida", () => ({ marcaDaSaida: mocks.marcaDaSaida }));
@@ -141,6 +140,13 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     total_cents: 500000,
     moeda: "BRL",
     created_at: "2026-09-26T00:00:00.000Z",
+    // C1 (spec de 27/09): o envio passa a exigir modelo CONFIRMADO, então o
+    // mundo padrão é a proposta BOA — modelo escolhido e o briefing que o
+    // modelo de teste pede preenchido. Sem isto, todo caso que espera 200
+    // passaria a medir a recusa nova em vez do que foi escrito para medir. O
+    // caso SEM modelo é explícito (`template_slug: null`).
+    template_slug: "site_institucional",
+    briefing_json: { project: { name: "Site de Teste" } },
     ...opts.propostaOriginal,
   };
   propostasNoMock[PROPOSTA_ID] = proposta;
@@ -422,10 +428,6 @@ function montarMundoDeEnvio(opts: MundoOpts = {}) {
     throw new Error(`status_nao_editavel: ${prop.status}`);
   });
 
-  mocks.renderPropostaPdf.mockImplementation(async () => {
-    pdfFoiGerado = true;
-    return Buffer.from("PDF");
-  });
   mocks.renderDocumentoPdf.mockImplementation(async () => {
     pdfFoiGerado = true;
     return Buffer.from("PDF-DOCUMENTO");
@@ -542,7 +544,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
 
   it("erro ao gerar o PDF (excecao, nao desfecho de mensagem): volta a rascunho na hora, sem esperar o cron", async () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
-    mocks.renderPropostaPdf.mockRejectedValueOnce(new Error("falha ao renderizar"));
+    mocks.renderDocumentoPdf.mockRejectedValueOnce(new Error("falha ao renderizar"));
     const res = await mundo.POST();
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.status).toBe("rascunho");
@@ -685,7 +687,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
     const res = await mundo.POST();
     expect(res.status).toBe(200);
-    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+    expect(mocks.renderDocumentoPdf).toHaveBeenCalledWith(
       expect.objectContaining({ marca: { app_name: "Clínica X", accent_hex: "#111111", logoUrl: "https://logo" } }),
     );
   });
@@ -694,7 +696,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true });
     const res = await mundo.POST();
     expect(res.status).toBe(200);
-    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+    expect(mocks.renderDocumentoPdf).toHaveBeenCalledWith(
       expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: "https://cdn/produto.png" })]) }),
     );
   });
@@ -703,7 +705,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
     const res = await mundo.POST();
     expect(res.status).toBe(200);
-    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+    expect(mocks.renderDocumentoPdf).toHaveBeenCalledWith(
       expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: null })]) }),
     );
   });
@@ -720,7 +722,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
       const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true, imagemUrlDoCatalogo: urlPerigosa });
       const res = await mundo.POST();
       expect(res.status).toBe(200);
-      expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+      expect(mocks.renderDocumentoPdf).toHaveBeenCalledWith(
         expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: null })]) }),
       );
     },
@@ -730,7 +732,7 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     const mundo = montarMundoDeEnvio({ papel: "manager", itemDeCatalogo: true, imagemUrlDoCatalogo: "https://cdn.exemplo.com/produto.png" });
     const res = await mundo.POST();
     expect(res.status).toBe(200);
-    expect(mocks.renderPropostaPdf).toHaveBeenCalledWith(
+    expect(mocks.renderDocumentoPdf).toHaveBeenCalledWith(
       expect.objectContaining({ itens: expect.arrayContaining([expect.objectContaining({ imagemUrl: "https://cdn.exemplo.com/produto.png" })]) }),
     );
   });
@@ -856,14 +858,23 @@ it("seção sobrescrita à mão (M3) entra no rendered_snapshot com o texto FINA
   });
 });
 
-it("proposta SEM template_slug: os dois campos ficam null, envio continua igual (Review Focus)", async () => {
-  const mundo = montarMundoDeEnvio({});
+it("proposta SEM template_slug: o envio é RECUSADO com 422 e nada acontece (C1 da spec de 27/09)", async () => {
+  const mundo = montarMundoDeEnvio({ papel: "manager", propostaOriginal: { template_slug: null } });
   const res = await mundo.POST();
-  expect(res.status).toBe(200);
-  expect(mundo.propostaEnviada?.status).toBe("enviada");
-  expect(mundo.propostaEnviada?.template_snapshot ?? null).toBeNull();
-  expect(mundo.propostaEnviada?.rendered_snapshot ?? null).toBeNull();
+  expect(res.status).toBe(422);
+  const body = await res.json();
+  expect(body.error.message).toContain("modelo da proposta");
+  expect(mundo.numeroFoiAlocado).toBe(false);
+  expect(mundo.mensagemEnviada).toBe(false);
+  expect(mundo.pdfFoiGerado).toBe(false);
+  expect(mundo.updatesCrmProposals).toEqual([]);
+});
+
+it("sem modelo confirmado: a resposta nomeia o que fazer, e o documento NEM é montado", async () => {
+  const mundo = montarMundoDeEnvio({ papel: "manager", propostaOriginal: { template_slug: null } });
+  await mundo.POST();
   expect(mocks.resolverModelo).not.toHaveBeenCalled();
+  expect(mocks.renderDocumentoPdf).not.toHaveBeenCalled();
 });
 
 it("WhatsApp falha (branch de retorno a rascunho): o update daquele branch NÃO inclui template_snapshot (Review Focus)", async () => {
@@ -908,13 +919,19 @@ it("permite enviar quando as seções com pendência foram todas cobertas por se
   expect(res.status).toBe(200);
 });
 
-it("não recusa por pendência quando a proposta não tem modelo escolhido (template_slug null)", async () => {
+it("não deixa passar por pendência quem não tem modelo escolhido: a recusa é a do MODELO (C1)", async () => {
   const mundo = montarMundoDeEnvio({
     papel: "manager",
     propostaOriginal: { template_slug: null, briefing_json: {} },
   });
   const res = await mundo.POST();
-  expect(res.status).not.toBe(422);
+  expect(res.status).toBe(422);
+  const body = await res.json();
+  // A recusa de pendência NOMEARIA campos do documento; aqui o que falta é o
+  // modelo, e a frase tem que dizer isso — senão a pessoa sai caçando campo.
+  expect(body.error.message).toContain("modelo da proposta");
+  expect(body.error.message).not.toContain("campo(s) do documento");
+  expect(mundo.numeroFoiAlocado).toBe(false);
 });
 
 describe("P1 — o documento chega ao cliente", () => {
@@ -935,17 +952,34 @@ describe("P1 — o documento chega ao cliente", () => {
     expect(res.status).toBe(200);
     expect(mundo.propostaEnviada?.status).toBe("enviada");
     expect(mocks.renderDocumentoPdf).toHaveBeenCalledTimes(1);
-    expect(mocks.renderPropostaPdf).not.toHaveBeenCalled();
     const entrada = mocks.renderDocumentoPdf.mock.calls[0][0];
     expect(entrada.secoes.map((s: { id: string }) => s.id)).toContain("investment");
     expect(entrada.itens).toHaveLength(1);
   });
 
-  it("sem modelo, o PDF continua o de itens", async () => {
-    const mundo = montarMundoDeEnvio({});
-    await mundo.POST();
-    expect(mocks.renderPropostaPdf).toHaveBeenCalledTimes(1);
+  // C1: o gerador legado (`lib/propostas/pdf.tsx`) saiu do envio. Ele continua
+  // no repositório com o teste dele — o que não pode é a rota de entrega
+  // recorrer a ele, porque o arquivo que ele produz não tem as seções do
+  // modelo, e a proposta nem podia chegar lá (é recusada antes).
+  it("o envio não importa mais o gerador legado de PDF", () => {
+    const fonte = readFileSync("app/api/v1/proposals/[id]/send/route.ts", "utf8");
+    expect(fonte).not.toMatch(/propostas\/pdf"/);
+    expect(fonte).not.toMatch(/renderPropostaPdf\(/);
+  });
+
+  // C2: a prévia e o envio montam o PDF pela MESMA função. Duas cópias
+  // divergem, e a divergência é invisível na tela.
+  it("o PDF do envio sai da função compartilhada com a prévia", () => {
+    const fonte = readFileSync("app/api/v1/proposals/[id]/send/route.ts", "utf8");
+    expect(fonte).toMatch(/montarPdfDaProposta/);
+  });
+
+  it("sem modelo confirmado: o PDF legado não é gerado — o cliente nunca recebe o arquivo sem as seções do modelo (C1)", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager", propostaOriginal: { template_slug: null } });
+    const res = await mundo.POST();
+    expect(res.status).toBe(422);
     expect(mocks.renderDocumentoPdf).not.toHaveBeenCalled();
+    expect(mundo.mensagemEnviada).toBe(false);
   });
 
   it("a recusa por pendência NOMEIA o que falta", async () => {

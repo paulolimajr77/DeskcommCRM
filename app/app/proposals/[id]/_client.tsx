@@ -37,6 +37,8 @@ interface Proposta {
   itens: ProposalItem[];
   moeda: string;
   ultima_falha_envio: string | null;
+  /** C1 — modelo CONFIRMADO. Nulo/vazio: a rota de envio recusa com 422. */
+  template_slug: string | null;
 }
 
 interface Produto {
@@ -62,6 +64,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
   const [driftIgnorado, setDriftIgnorado] = useState(false);
   // Salvar prazo/itens muda o documento (prazo e investimento): o canvas recarrega.
   const [versaoDoDocumento, setVersaoDoDocumento] = useState(0);
+  const [gerandoPrevia, setGerandoPrevia] = useState(false);
   const abortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -237,6 +240,33 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
     }
   }
 
+  /**
+   * "Ver como o cliente recebe" — abre o PDF que o envio faria AGORA, numa
+   * aba nova. `fetch` cru (e não `apiClient`) porque a resposta não é JSON: é o
+   * arquivo, que vira blob para o navegador abrir sem sair da tela. A rota é de
+   * leitura — não aloca número, não muda status, não envia nada.
+   */
+  async function verPrevia() {
+    setGerandoPrevia(true);
+    setErro(null);
+    try {
+      const res = await fetch(`/api/v1/proposals/${id}/previa`, { credentials: "same-origin" });
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        window.open(url, "_blank", "noopener");
+        return;
+      }
+      // O corpo da recusa é o mesmo envelope de erro das outras rotas; quando
+      // não é JSON (proxy no meio, 502), a frase genérica é o que a tela mostra.
+      const corpo = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setErro(corpo?.error?.message ?? t("Não foi possível gerar a prévia agora."));
+    } catch {
+      setErro(t("Não foi possível gerar a prévia agora."));
+    } finally {
+      setGerandoPrevia(false);
+    }
+  }
+
   async function decidir(decisao: "aceita" | "recusada", motivo?: string) {
     try {
       await apiClient.post(`/api/v1/proposals/${id}/decide`, { decisao, motivo });
@@ -272,6 +302,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
         podeRevisar={podeRevisar}
         emRascunho={proposta.status === "rascunho"}
         versao={versaoDoDocumento}
+        onModeloConfirmado={(slug) => setProposta((p) => p && { ...p, template_slug: slug })}
       />
 
       <div className="space-y-2">
@@ -518,9 +549,15 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
           {t("Na fila do WhatsApp — sai assim que o canal conectar.")}
         </div>
       )}
+      {/* C1 — o envio exige modelo confirmado: o botão desliga com o motivo
+          escrito ao lado, em vez de devolver 422 depois de a pessoa ter
+          preenchido a proposta inteira. */}
+      {proposta.status === "rascunho" && !proposta.template_slug && (
+        <p className="text-sm text-amber-800">{t("Escolha e confirme o modelo da proposta antes de enviar.")}</p>
+      )}
       {proposta.status === "rascunho" && (
         <div className="flex gap-2">
-          <Button onClick={enviar} disabled={salvando} className="flex-1">
+          <Button onClick={enviar} disabled={salvando || !proposta.template_slug} className="flex-1">
             {t("Enviar ao cliente")}
           </Button>
           <Button onClick={descartar} disabled={salvando} variant="outline">
@@ -528,6 +565,13 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
           </Button>
         </div>
       )}
+      {/* C2 — a prévia é leitura: serve em qualquer status, e o arquivo sai da
+          MESMA função que monta o do envio. */}
+      <div className="flex justify-end">
+        <Button onClick={verPrevia} disabled={gerandoPrevia} variant="outline">
+          {t("Ver como o cliente recebe")}
+        </Button>
+      </div>
       {proposta.status === "enviada" && (
         <div className="flex gap-2">
           <Button onClick={() => decidir("aceita")}>

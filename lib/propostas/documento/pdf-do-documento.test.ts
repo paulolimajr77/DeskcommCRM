@@ -1,5 +1,14 @@
-// lib/propostas/documento/pdf-do-documento.test.ts
+// @vitest-environment node
+//
+// O ambiente é `node` (e não o jsdom da suíte) porque os casos do cabeçalho
+// precisam LER o texto de dentro do PDF: em jsdom o `pdfjs-dist` que o
+// `extractPdfText` usa abre o arquivo e devolve "no text" com
+// `Bad FCHECK in flate stream` — o mesmo motor que extrai o PDF do RAG na
+// produção. Nenhum caso deste arquivo toca DOM: o react-pdf renderiza igual
+// nos dois ambientes.
 import { describe, expect, it } from "vitest";
+
+import { extractPdfText } from "@/lib/ai/rag/extractors/pdf";
 
 import { blocosDoDocumento, renderDocumentoPdf, type DocumentoPdfInput } from "./pdf-do-documento";
 
@@ -52,5 +61,22 @@ describe("renderDocumentoPdf", () => {
   it("gera mesmo com ZERO seções e sem número (rascunho), sem lançar", async () => {
     const buf = await renderDocumentoPdf({ ...BASE, secoes: [], numero: null, ano: null, condicoes: null, validUntil: null });
     expect(buf.byteLength).toBeGreaterThan(0);
+  });
+
+  // C2 da spec de 27/09 — a prévia ("Ver como o cliente recebe") não aloca
+  // número, e o lugar que ele ocuparia no cabeçalho DIZ que não existe: um
+  // lugar em branco ali se lê como "o PDF saiu incompleto".
+  it("previa: onde entraria 'Proposta 0000/AAAA' aparece 'Prévia — sem número'", async () => {
+    const buf = await renderDocumentoPdf({ ...BASE, numero: null, ano: null, previa: true });
+    const texto = await extractPdfText(buf);
+    expect(texto).toContain("Prévia — sem número");
+    expect(texto).not.toContain("Proposta 0012/2026");
+  });
+
+  it("sem prévia e sem número, o cabeçalho não inventa número nem aviso", async () => {
+    const buf = await renderDocumentoPdf({ ...BASE, numero: null, ano: null });
+    const texto = await extractPdfText(buf);
+    expect(texto).not.toContain("Prévia — sem número");
+    expect(texto).not.toContain("Proposta 0000");
   });
 });

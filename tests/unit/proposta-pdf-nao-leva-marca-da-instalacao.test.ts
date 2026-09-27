@@ -21,9 +21,20 @@ describe("PDF de propostas não leva marca da instalação/revendedor", () => {
     expect(src).not.toMatch(/branding\/instalacao/);
   });
 
-  it("send/route.ts monta a marca do PDF via marcaDaOrganizacaoParaPdf, não via marcaDaSaida", () => {
-    const src = readFileSync("app/api/v1/proposals/[id]/send/route.ts", "utf-8");
+  // A montagem do PDF da proposta saiu da rota de envio e passou a viver na
+  // função que a PRÉVIA ("Ver como o cliente recebe") também chama — é lá que a
+  // marca do PDF é resolvida, e o nome do arquivo é o que mudou, não a régua.
+  it("pdf-da-proposta.ts monta a marca do PDF via marcaDaOrganizacaoParaPdf, não via marcaDaSaida", () => {
+    const src = readFileSync("lib/propostas/pdf-da-proposta.ts", "utf-8");
     expect(src).toMatch(/marcaDaOrganizacaoParaPdf/);
     expect(src).not.toMatch(/marcaDaSaida/);
+    expect(src).not.toMatch(/branding\/saida/);
+    expect(src).not.toMatch(/branding\/instalacao/);
+  });
+
+  it("send/route.ts não importa marcaDaSaida: a marca do PDF vem da função compartilhada", () => {
+    const src = readFileSync("app/api/v1/proposals/[id]/send/route.ts", "utf-8");
+    expect(src).not.toMatch(/marcaDaSaida/);
+    expect(src).not.toMatch(/branding\/saida/);
   });
 });

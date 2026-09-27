@@ -12720,6 +12720,11 @@ export const DICIONARIO: Traducoes = {
   "Aplicando…": {"es": "Aplicando…"},
   "Não entendi o que mudar nesta proposta.": {"es": "No entendí qué cambiar en esta propuesta."},
   "Enviar ao cliente": {"es": "Enviar al cliente"},
+  "Escolha e confirme o modelo da proposta antes de enviar.": {
+    es: "Elige y confirma el modelo de la propuesta antes de enviar.",
+  },
+  "Ver como o cliente recebe": {"es": "Ver como lo recibe el cliente"},
+  "Não foi possível gerar a prévia agora.": {"es": "No fue posible generar la vista previa ahora."},
   "Descartar rascunho": {"es": "Descartar borrador"},
   "Descartar este rascunho? A proposta anterior (se houver) não é afetada.": {"es": "¿Descartar este borrador? La propuesta anterior (si la hay) no se ve afectada."},
   "Não foi possível descartar. Confira se você tem papel de gestor.": {"es": "No fue posible descartar. Verifica que tengas el rol de gestor."},

@@ -10,12 +10,9 @@ import { checkDailyLimit, espacarEnvio } from "@/lib/automation/throttle";
 import { sendMessageHandler } from "@/app/api/v1/messages/_handler";
 import { alocarNumero } from "@/lib/propostas/numeracao";
 import { decidirVersao } from "@/lib/propostas/versao";
-import { renderPropostaPdf } from "@/lib/propostas/pdf";
 import { salvarPdfDaProposta } from "@/lib/propostas/storage";
-import { marcaDaOrganizacaoParaPdf } from "@/lib/propostas/marca-da-organizacao-para-pdf";
+import { montarPdfDaProposta } from "@/lib/propostas/pdf-da-proposta";
 import { montarDocumentoDaProposta } from "@/lib/propostas/documento/documento-da-proposta";
-import { renderDocumentoPdf } from "@/lib/propostas/documento/pdf-do-documento";
-import { assertSafeOutboundUrl } from "@/lib/automation/outbound-url";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { agendaRetornoNoCrm } from "@/lib/followup/retorno-crm";
@@ -97,11 +94,26 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     );
   }
 
+  // C1 da spec de 27/09 — sem modelo CONFIRMADO não há documento. Antes a
+  // proposta seguia e caía no PDF legado (`renderPropostaPdf`), que não tem as
+  // seções do modelo: o cliente recebia um arquivo diferente do que a tela
+  // mostrava, e a diferença era invisível. Mesma frase da prévia
+  // (`lib/propostas/pdf-da-proposta.ts`).
+  if (!proposta.template_slug) {
+    return fail("validation_failed", t("Escolha e confirme o modelo da proposta antes de enviar."), 422, { requestId });
+  }
+
   // §7 item 2 da spec — enviar com o documento cheio de "[a definir]" é pior
   // que não enviar: o cliente recebe o PDF com a pendência que a tela já
   // avisava e ninguém tinha bloqueado.
   // D1 da spec de 26/09: o documento é calculado num lugar só, e é o MESMO
   // objeto que trava, congela no snapshot e vira o PDF abaixo.
+  //
+  // ⚠️ A checada de pendência fica AQUI, e não só dentro de
+  // `montarPdfDaProposta`: ela precisa acontecer ANTES de alocar número, e a
+  // função compartilhada só roda depois dele (o número vai impresso no PDF). A
+  // MONTAGEM do arquivo, essa sim, é a função — a prévia da tela monta o PDF
+  // por ela e não diverge por construção.
   const { data: contatoParaDoc } = proposta.template_slug && proposta.contact_id
     ? await admin
         .from("contacts")
@@ -146,39 +158,6 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
         .maybeSingle();
   if (!conversa) return fail("validation_failed", t("Nenhuma conversa com este contato para enviar."), 422, { requestId });
 
-  // D6 — a imagem do item de catálogo (primeira foto/capa) viaja para o PDF.
-  // Só leitura, filtrada pela organização; item manual (sem product_id)
-  // contribui com null e o layout fecha sem buraco.
-  const idsDeProduto = itens.map((it) => it.product_id).filter((id): id is string => id !== null);
-  const imagensPorProduto = new Map<string, string | null>();
-  if (idsDeProduto.length > 0) {
-    const { data: produtos } = await admin
-      .from("catalog_products")
-      .select("id, imagem_url")
-      .eq("organization_id", authz.org.orgId)
-      .in("id", idsDeProduto);
-    // Achado Importante da revisão C4: `imagem_url` é gravável por qualquer
-    // manager+ da organização (rota de produto) e o schema só exige "é uma
-    // URL", sem restringir protocolo/destino — `file://`, IP privado/
-    // link-local e host inalcançável chegavam direto ao `<Image src>` do
-    // react-pdf, que busca no SERVIDOR (leitura de arquivo local do
-    // contêiner, SSRF para a rede interna, ou trava o envio até o timeout).
-    // Mesmo guard textual que `call-webhook.ts` já usa para egress outbound;
-    // falha = trata como "sem imagem" (null), nunca lança nem barra o envio.
-    for (const p of (produtos ?? []) as Array<{ id: string; imagem_url: string | null }>) {
-      if (p.imagem_url === null) {
-        imagensPorProduto.set(p.id, null);
-        continue;
-      }
-      try {
-        assertSafeOutboundUrl(p.imagem_url);
-        imagensPorProduto.set(p.id, p.imagem_url);
-      } catch {
-        imagensPorProduto.set(p.id, null);
-      }
-    }
-  }
-
   // ─── THROTTLE PRIMEIRO — antes de gastar numero ou gerar PDF (correção 1/2) ───
   const foraDaJanela = await adiarAteAJanelaAbrir(admin, authz.org.orgId, conversa.channel_session_id);
   if (foraDaJanela) {
@@ -205,7 +184,6 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
     .eq("organization_id", authz.org.orgId)
     .eq("id", proposta.contact_id)
     .maybeSingle();
-  const marca = await marcaDaOrganizacaoParaPdf(admin, authz.org.orgId);
 
   // C4/D4: só chega até aqui quem está em `rascunho` (decidirVersao lança
   // para qualquer outro status, virando 409 acima). Criar a v2 é
@@ -236,10 +214,9 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
 
   // M5 — snapshot do modelo/documento usados nesta emissão (spec §5.5:
   // TEMPLATE, PROPOSTA e DOCUMENTO são 3 coisas — o que congela aqui nunca
-  // muda depois, mesmo que o modelo evolua). Best-effort: proposta sem
-  // modelo escolhido é o caso comum hoje, e falha ao montar isto nunca pode
-  // impedir o envio (mesmo padrão da imagem de produto e do follow-up,
-  // acima e abaixo neste arquivo).
+  // muda depois, mesmo que o modelo evolua). Best-effort: falha ao montar isto
+  // nunca pode impedir o envio (mesmo padrão do follow-up, abaixo neste
+  // arquivo).
   const templateSnapshot: unknown = documento ? documento.modelo : null;
   const renderedSnapshot: unknown = documento
     ? { secoes: documento.secoes, variaveisFaltando: documento.pendencias }
@@ -254,33 +231,19 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
   let signedUrl: string;
   let mensagem: Awaited<ReturnType<typeof sendMessageHandler>>;
   try {
-    const itensDoPdf = itens.map((it) => ({
-      descricao: it.descricao, quantidade: it.quantidade,
-      precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents,
-      imagemUrl: it.product_id ? (imagensPorProduto.get(it.product_id) ?? null) : null,
-    }));
-    const pdfBuffer = documento
-      ? await renderDocumentoPdf({
-          titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
-          versao: propostaAlvo.versao, destinatario: { nome: destinatarioNome },
-          secoes: documento.secoes, itens: itensDoPdf,
-          totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
-          validUntil: propostaAlvo.valid_until, condicoes: propostaAlvo.condicoes,
-          marca: { app_name: marca.appName, accent_hex: marca.accentHex, logoUrl: marca.logoUrl },
-        })
-      : await renderPropostaPdf({
-      titulo: propostaAlvo.titulo, numero: numeroEAno.numero, ano: numeroEAno.ano,
-      versao: propostaAlvo.versao,
-      condicoes: propostaAlvo.condicoes, validUntil: propostaAlvo.valid_until,
-      itens: itens.map((it) => ({
-        descricao: it.descricao, quantidade: it.quantidade,
-        precoUnitarioCents: it.preco_unitario_cents, descontoCents: it.desconto_cents,
-        imagemUrl: it.product_id ? (imagensPorProduto.get(it.product_id) ?? null) : null,
-      })),
-      totalCents: propostaAlvo.total_cents, moeda: propostaAlvo.moeda,
-      marca: { app_name: marca.appName, accent_hex: marca.accentHex, logoUrl: marca.logoUrl },
-      destinatario: { nome: destinatarioNome, email: contato?.email ?? null, telefone: contato?.phone_number ?? null },
+    // A montagem do PDF é a MESMA função que a prévia da tela chama
+    // (`lib/propostas/pdf-da-proposta.ts`): uma diferença entre o arquivo que
+    // o gestor confere e o que o cliente recebe é defeito por construção.
+    // Recusa aqui é o caso degenerado que a trava de pendência acima já
+    // desarmou — e cai no mesmo "falha em qualquer passo" de sempre, com a
+    // proposta voltando a rascunho e o motivo escrito em `ultima_falha_envio`.
+    const montagem = await montarPdfDaProposta(admin, authz.org.orgId, propostaAlvo, {
+      numero: numeroEAno.numero,
+      ano: numeroEAno.ano,
+      t,
     });
+    if (!montagem.ok) throw new Error(montagem.motivo);
+    const pdfBuffer = montagem.buffer;
     const salvo = await salvarPdfDaProposta(admin, {
       orgId: authz.org.orgId, propostaId: propostaAlvo.id, buffer: pdfBuffer,
     });

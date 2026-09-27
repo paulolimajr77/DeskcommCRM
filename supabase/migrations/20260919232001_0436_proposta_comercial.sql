@@ -1,4 +1,4 @@
--- 20260927044901_0436_proposta_comercial.sql
+-- 20260919232001_0436_proposta_comercial.sql
 -- (renumerada de 0394 -> 0412 -> 0436 ao atualizar a branch com a main: 0394
 -- e depois 0412 já estavam tomados por migrations diferentes do Rafael)
 --

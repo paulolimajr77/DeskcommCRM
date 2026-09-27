@@ -41,7 +41,9 @@ describe("API Central projeta destinos com sessão", () => {
     // contagem de não vistos (`unseen_count`, migration 0275).
     expect(calls.filter(c => c[0] === "admin")).toEqual(Array(5).fill(["admin", "agent_inbox_items"]));
     expect(calls).toContainEqual(["authenticated", "conversations"]);
-    expect(calls.filter(c => c[0] === "organization_id")).toEqual(Array(5).fill(["organization_id", org]));
+    // A sexta vem da leitura autenticada de "conversations" (resolverDestinosDosAvisos),
+    // que também filtra por organization_id, além das 5 do lado admin.
+    expect(calls.filter(c => c[0] === "organization_id")).toEqual(Array(6).fill(["organization_id", org]));
     expect(requireRole).toHaveBeenCalledWith("agent", expect.any(Object));
     expect(audit).not.toHaveBeenCalled();
   });
@@ -82,6 +84,7 @@ describe("Central: fila aberta por gravidade", () => {
         limit: (n: number) => { teto = n; return chain; },
         eq: (k: string, v: string) => { filtros[k] = v; return chain; },
         in: () => chain,
+        is: () => chain,
         then: (resolve: (d: unknown) => unknown) => {
           consultas.push(filtros);
           const data = linhas.filter(l => !filtros.severity || l.severity === filtros.severity).slice(0, teto);

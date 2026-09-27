@@ -50,7 +50,7 @@ describe("superfície imutável e roteiro só manual", () => {
 
 describe("o roteiro encerra com humano, no opt-out e no prazo (0421, renumerada de 0397)", () => {
   const MIGRATION_0421 = readFileSync(
-    join(process.cwd(), "supabase", "migrations", "20260923230000_0421_roteiro_encerra_com_humano_e_prazo.sql"),
+    join(process.cwd(), "supabase", "migrations", "20260923230001_0447_roteiro_encerra_com_humano_e_prazo.sql"),
     "utf8",
   );
   const varredura = BASELINE.indexOf("-- ---- VARREDURA anon:");

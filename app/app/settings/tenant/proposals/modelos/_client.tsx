@@ -119,7 +119,7 @@ export function ModelosDeProposta() {
       {salvo && !faixaFechada ? (
         <p role="status" className="flex items-center justify-between gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
           <span>{t("Modelo «{nome}» salvo.").replace("{nome}", salvo)}</span>
-          <button type="button" aria-label={t("Fechar")} onClick={() => setFaixaFechada(true)} className="rounded px-2 py-0.5 hover:bg-green-100">
+          <button type="button" aria-label={t("Fechar")} onClick={() => setFaixaFechada(true)} className="rounded-md px-2 py-0.5 hover:bg-green-100">
             ×
           </button>
         </p>

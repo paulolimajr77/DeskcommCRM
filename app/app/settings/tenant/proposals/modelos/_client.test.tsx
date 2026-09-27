@@ -7,10 +7,17 @@ import { ModelosDeProposta } from "./_client";
 const get = vi.hoisted(() => vi.fn());
 const post = vi.hoisted(() => vi.fn());
 const excluir = vi.hoisted(() => vi.fn());
+// `useSearchParams` é CONTROLÁVEL de propósito: a tela lê `?salvo=` da URL e o
+// mock fixo (`new URLSearchParams()`) só prova a ausência da faixa. É a
+// query string que o editor devolve depois de salvar, e ela precisa ter um caso.
+const consulta = vi.hoisted(() => ({ params: "" }));
 vi.mock("@/lib/api/client", () => ({ apiClient: { get, post, delete: excluir } }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (chave: string) => chave }));
 vi.mock("@/components/feedback/ApiErrorToast", () => ({ showApiError: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(consulta.params),
+}));
 
 const MODELOS = [
   { slug: "site_institucional", nome: "Site institucional", origem: "plataforma", secoes: 3, version: 1 },
@@ -22,6 +29,7 @@ describe("ModelosDeProposta", () => {
     get.mockReset();
     post.mockReset();
     excluir.mockReset();
+    consulta.params = "";
     get.mockResolvedValue({ data: MODELOS });
     post.mockResolvedValue({ data: { slug: "ecommerce" } });
   });
@@ -93,5 +101,42 @@ describe("ModelosDeProposta", () => {
     await waitFor(() => expect(screen.getByText("Locação")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Não usar" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Usar" })).toBeNull();
+  });
+
+  it("importar com resposta que não é JSON avisa que a leitura demorou demais", async () => {
+    // O proxy corta a resposta por tempo e devolve HTML/texto, não JSON: o
+    // `res.json()` rejeita. Sem a guarda o `importar` estourava na tela e o
+    // botão ficava preso em "ocupado" — o arquivo era aceito e nada acontecia.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.reject(new Error("Unexpected token")) }),
+    );
+    try {
+      render(<ModelosDeProposta />);
+      await screen.findByText("Site institucional");
+      const campo = screen.getByLabelText("Arquivo da proposta");
+      fireEvent.change(campo, {
+        target: { files: [new File(["x"], "proposta.pdf", { type: "application/pdf" })] },
+      });
+      const aviso = await screen.findByRole("alert");
+      expect(aviso).toHaveTextContent(
+        "A leitura demorou demais e foi interrompida. Tente de novo; se repetir, envie um arquivo menor.",
+      );
+      // O botão tem que voltar a ficar clicável: preso em "ocupado", a segunda
+      // tentativa da pessoa não existe.
+      await waitFor(() => expect(campo).toBeEnabled());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("com ?salvo= na URL mostra a faixa do modelo salvo, e Fechar a esconde", async () => {
+    consulta.params = "salvo=Portal";
+    render(<ModelosDeProposta />);
+    const faixa = await screen.findByRole("status");
+    expect(faixa).toHaveTextContent("Modelo «Portal» salvo.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    await waitFor(() => expect(screen.queryByText("Modelo «Portal» salvo.")).toBeNull());
   });
 });

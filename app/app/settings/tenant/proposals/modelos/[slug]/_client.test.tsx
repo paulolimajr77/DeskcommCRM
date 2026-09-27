@@ -92,4 +92,61 @@ describe("EditorDeModelo", () => {
       ),
     );
   });
+
+  it("salvar com sucesso volta para a lista com ?salvo=", async () => {
+    // O nome vem na query string de propósito: é a lista que mostra "Modelo «X»
+    // salvo." (ver `modelos/_client.test.tsx`). O nome é codificado — sem isso
+    // um modelo chamado "Site & Landing" chega truncado no `&`.
+    render(<EditorDeModelo slug="ecommerce" />);
+    await screen.findByDisplayValue("Resumo");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar modelo" }));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith(
+        "/app/settings/tenant/proposals/modelos?salvo=E-commerce%20nosso",
+      ),
+    );
+  });
+
+  it("modelo que só tem {{investment.total_formatted}} avisa que quase não pede nada", async () => {
+    // O que o sistema CALCULA não é pergunta ao cliente. Sem esta distinção, o
+    // quadro "Este modelo vai pedir ao cliente:" contaria o total investido e a
+    // tela prometeria à pessoa que a IA vai perguntar o valor — que ela nunca
+    // pergunta, porque ele vem das colunas da proposta.
+    get.mockResolvedValue({
+      data: {
+        ...MODELO_EMPRESA,
+        sections: [
+          { id: "investimento", title: "Investimento", body: "Total: {{investment.total_formatted}}.", required: true, conditional: false },
+        ],
+        sectionOrder: ["investimento"],
+      },
+    });
+    render(<EditorDeModelo slug="ecommerce" />);
+    const aviso = await screen.findByText(/quase não pede nada/);
+    expect(aviso).toHaveTextContent(
+      "Este modelo quase não pede nada ao cliente: a IA não saberá o que perguntar.",
+    );
+    expect(screen.queryByText("Este modelo vai pedir ao cliente:")).toBeNull();
+  });
+
+  it("{{scope.pages_list}} entra no quadro de perguntas com o rótulo legível", async () => {
+    // `{{scope.pages_list}}` é o que FAZ a proposta de um site mudar de um
+    // cliente para o outro. O quadro é onde a pessoa descobre o que a IA vai
+    // perguntar, então o caminho tem de aparecer com nome humano — e não só o
+    // identificador, que ninguém lê.
+    get.mockResolvedValue({
+      data: {
+        ...MODELO_EMPRESA,
+        sections: [
+          { id: "escopo", title: "Escopo", body: "Páginas: {{scope.pages_list}}.", required: true, conditional: false },
+          { id: "entrega", title: "Entrega", body: "Prazo de {{schedule.estimated_days}} dias úteis.", required: true, conditional: false },
+        ],
+        sectionOrder: ["escopo", "entrega"],
+      },
+    });
+    render(<EditorDeModelo slug="ecommerce" />);
+    const quadro = (await screen.findByText("Este modelo vai pedir ao cliente:")).parentElement as HTMLElement;
+    expect(quadro).toHaveTextContent("{{scope.pages_list}}");
+    expect(quadro).toHaveTextContent("Lista de páginas");
+  });
 });

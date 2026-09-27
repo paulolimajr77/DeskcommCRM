@@ -47,4 +47,22 @@ describe("gerarModeloDoTexto", () => {
     const mensagem = runModelCall.mock.calls[0]![2].messages[0]!.content as string;
     expect(mensagem.length).toBeLessThan(31000);
   });
+
+  it("o sistema diz que LISTAS viram variável e que seção opcional é condicional", async () => {
+    // O prompt de sistema é o contrato inteiro da importação: é ele que troca a
+    // lista de páginas de UMA proposta pelo campo que muda a cada cliente. Sem
+    // essa instrução o modelo importado sai com o texto da empresa inteiro
+    // queimado — a tela até avisa "quase não pede nada", mas a proposta gerada
+    // erra o cliente seguinte. E `conditional=true` é o que faz a seção que só
+    // alguns clientes levam sumir em vez de prometer algo que não foi contratado.
+    respondeCom({ nome: "X", secoes: [{ id: "a", title: "A", body: "b", required: true, conditional: false }] });
+    await gerarModeloDoTexto(entrada);
+    const sistema = runModelCall.mock.calls[0]![2].system as string;
+
+    for (const caminho of ["scope.pages_list", "scope.features_list", "scope.integrations_list"]) {
+      expect(sistema).toContain(`{{${caminho}}}`);
+    }
+    expect(sistema).toContain("conditional=true");
+    expect(sistema).toContain("required=false");
+  });
 });

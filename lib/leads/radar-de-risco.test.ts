@@ -11,6 +11,18 @@ interface LinhaDeProposta {
   valid_until: string | null;
   versao: number;
   created_at: string;
+  titulo?: string | null;
+  contact_id?: string | null;
+}
+
+interface AvisoAberto {
+  ref_id: string;
+}
+
+interface LinhaDeContato {
+  id: string;
+  name: string | null;
+  display_name: string | null;
 }
 
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
@@ -22,8 +34,14 @@ const ORG_ID = "22222222-2222-4222-8222-222222222222";
  * deriva dos `lead_id` das propostas (todo mundo "aberto"), para não quebrar
  * os testes que não têm opinião sobre isso.
  */
-function montarAdmin(propostas: LinhaDeProposta[], leadsAbertos?: string[]) {
+function montarAdmin(
+  propostas: LinhaDeProposta[],
+  leadsAbertos?: string[],
+  extras?: { avisos?: AvisoAberto[]; contatos?: LinhaDeContato[] },
+) {
   const idsAbertos = leadsAbertos ?? [...new Set(propostas.map((p) => p.lead_id).filter((id): id is string => id !== null))];
+  const avisosAbertos = extras?.avisos ?? [];
+  const contatos = extras?.contatos ?? [];
   const chamadas: Array<{ tabela: string; filtros: Array<[string, unknown]> }> = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin: any = {
@@ -44,10 +62,19 @@ function montarAdmin(propostas: LinhaDeProposta[], leadsAbertos?: string[]) {
         order: () => cadeia,
         limit: () => cadeia,
         is: () => cadeia,
-        in: () => cadeia,
+        in: (campo: string, valores: unknown) => {
+          filtros.push([`in:${campo}`, valores]);
+          return cadeia;
+        },
         gt: () => cadeia,
         then: (resolve: (r: { data: unknown[]; error: null }) => void) => {
           if (tabela === "crm_proposals") return resolve({ data: [...propostas], error: null });
+          if (tabela === "agent_inbox_items") return resolve({ data: [...avisosAbertos], error: null });
+          if (tabela === "contacts") {
+            const pedido = filtros.find(([campo]) => campo === "in:id")?.[1] as string[] | undefined;
+            const linhas = pedido ? contatos.filter((c) => pedido.includes(c.id)) : [...contatos];
+            return resolve({ data: linhas, error: null });
+          }
           if (tabela === "crm_leads") {
             return resolve({
               data: idsAbertos.map((id) => ({
@@ -130,6 +157,80 @@ describe("carregaRadarDeRisco — propostas vencidas sem retomada (N3)", () => {
     expect(dePropostas.length).toBeGreaterThan(0);
     for (const c of dePropostas) {
       expect(c.filtros).toContainEqual(["organization_id", ORG_ID]);
+    }
+  });
+});
+
+describe("carregaRadarDeRisco — propostas esperando revisão (C6)", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  const RASCUNHO = {
+    id: "prop-1",
+    lead_id: "lead-1",
+    status: "rascunho",
+    numero: null,
+    ano: null,
+    valid_until: "2026-10-16",
+    versao: 1,
+    created_at: "2026-09-26T00:00:00Z",
+    titulo: "Site catálogo",
+    contact_id: "c-1",
+  };
+
+  it("rascunho com aviso aberto entra, com título, contato e created_at", async () => {
+    const { admin } = montarAdmin([RASCUNHO], undefined, {
+      avisos: [{ ref_id: "prop-1" }],
+      contatos: [{ id: "c-1", name: "Maria", display_name: null }],
+    });
+    const radar = await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    expect(radar.propostas_esperando_revisao).toEqual([
+      {
+        proposal_id: "prop-1",
+        lead_id: "lead-1",
+        titulo: "Site catálogo",
+        contact_name: "Maria",
+        created_at: "2026-09-26T00:00:00Z",
+      },
+    ]);
+  });
+
+  it("rascunho SEM aviso aberto não entra", async () => {
+    const { admin } = montarAdmin([RASCUNHO], undefined, { avisos: [] });
+    const radar = await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    expect(radar.propostas_esperando_revisao).toEqual([]);
+  });
+
+  it("só rascunho entra: enviada com aviso aberto não está esperando revisão", async () => {
+    const { admin } = montarAdmin(
+      [{ ...RASCUNHO, status: "enviada" }],
+      undefined,
+      { avisos: [{ ref_id: "prop-1" }] },
+    );
+    const radar = await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    expect(radar.propostas_esperando_revisao).toEqual([]);
+  });
+
+  it("órfã sem lead_id com aviso aberto: fora da lista — sem negócio, sem linha no radar", async () => {
+    const { admin } = montarAdmin(
+      [{ ...RASCUNHO, lead_id: null }],
+      [],
+      { avisos: [{ ref_id: "prop-1" }] },
+    );
+    const radar = await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    expect(radar.propostas_esperando_revisao).toEqual([]);
+  });
+
+  it("aviso de outra organização nunca entra: a leitura filtra organization_id, kind e status", async () => {
+    const { admin, chamadas } = montarAdmin([RASCUNHO], undefined, {
+      avisos: [{ ref_id: "prop-1" }],
+    });
+    await carregaRadarDeRisco(admin, { organizationId: ORG_ID });
+    const deAvisos = chamadas.filter((c) => c.tabela === "agent_inbox_items");
+    expect(deAvisos.length).toBeGreaterThan(0);
+    for (const c of deAvisos) {
+      expect(c.filtros).toContainEqual(["organization_id", ORG_ID]);
+      expect(c.filtros).toContainEqual(["kind", "proposta_pronta_para_revisao"]);
+      expect(c.filtros).toContainEqual(["status", "open"]);
     }
   });
 });

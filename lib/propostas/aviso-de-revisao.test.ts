@@ -110,7 +110,17 @@ describe("resolverAvisoDeRevisaoSeProntaOuEncerrada", () => {
   it("resolve quando modelo, preço E documento estão prontos", async () => {
     const db = montarSupabaseMock({ proposta: PRONTA });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
-    expect(db.updates).toEqual([{ table: "agent_inbox_items", patch: { status: "resolved" } }]);
+    expect(db.updates).toEqual([
+      { table: "agent_inbox_items", patch: { status: "resolved", resolved_at: expect.any(String) } },
+    ]);
+  });
+
+  it("resolver grava resolved_at como ISO válido (C6)", async () => {
+    const db = montarSupabaseMock({ proposta: PRONTA });
+    await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1");
+    const patch = db.updates[0]?.patch as { resolved_at: string };
+    expect(typeof patch.resolved_at).toBe("string");
+    expect(Number.isNaN(Date.parse(patch.resolved_at))).toBe(false);
   });
 
   it("NÃO resolve com campo do documento vazio, mesmo com modelo e preço ok", async () => {
@@ -135,5 +145,9 @@ describe("resolverAvisoDeRevisaoSeProntaOuEncerrada", () => {
     const db = montarSupabaseMock({ proposta: null });
     await resolverAvisoDeRevisaoSeProntaOuEncerrada(db as never, "org-1", "prop-1", { forcar: true });
     expect(db.updates).toHaveLength(1);
+    expect(db.updates[0]).toEqual({
+      table: "agent_inbox_items",
+      patch: { status: "resolved", resolved_at: expect.any(String) },
+    });
   });
 });

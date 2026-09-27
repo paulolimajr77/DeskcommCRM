@@ -12914,6 +12914,13 @@ export const DICIONARIO: Traducoes = {
   },
   "Erro ao carregar a previsão.": { es: "Error al cargar la previsión." },
   "Falha ao calcular a previsão do funil.": { es: "No se pudo calcular la previsión del embudo." },
+  // ─── C6: Aviso de proposta que se vê ───
+  "A IA preparou uma proposta. Confira antes de enviar.": { es: "La IA preparó una propuesta. Revísala antes de enviar." },
+  "Dispensar": { es: "Descartar" },
+  "proposta esperando revisão": { es: "propuesta esperando revisión" },
+  "propostas esperando revisão": { es: "propuestas esperando revisión" },
+  "Rascunhos que a IA terminou e ninguém revisou. Confira antes de enviar.": { es: "Borradores que la IA terminó y nadie revisó. Revísalos antes de enviar." },
+  "Proposta sem título": { es: "Propuesta sin título" },
 };
 
 /**

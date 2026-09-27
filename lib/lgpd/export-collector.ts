@@ -176,6 +176,29 @@ export interface SaleRow {
 }
 
 /**
+ * Proposta comercial (migration 0436 em diante). O par com a redação: a
+ * migration 0454 liga `destinatario_nome`, `briefing_json` e
+ * `resumo_comercial` à cascata de anonimização, e este bloco é a outra
+ * metade — o que se apaga a pedido do titular é o que se entrega a pedido
+ * dele (tests/unit/lgpd-exporta-o-que-redige.test.ts).
+ */
+export interface ProposalRow {
+  id: string;
+  numero: number | null;
+  ano: number | null;
+  titulo: string;
+  status: string;
+  total_cents: number;
+  moeda: string;
+  valid_until: string | null;
+  sent_at: string | null;
+  decided_at: string | null;
+  destinatario_nome: string | null;
+  resumo_comercial: string | null;
+  created_at: string;
+}
+
+/**
  * Tarefa combinada SOBRE a pessoa (migration 0210).
  *
  * ⚠️ ESTE BLOCO NASCEU COM A OUTRA METADE, e não depois dela. A migration liga o
@@ -476,6 +499,7 @@ export interface ExportPayload {
   checkpoints: CheckpointRow[];
   appointments: AppointmentRow[];
   sales: SaleRow[];
+  proposals: ProposalRow[];
   tasks: TaskRow[];
   webhook_captures: CaptureRow[];
   audit_log_extract: AuditRow[];
@@ -1011,6 +1035,32 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     }
   }
 
+  // Propostas comerciais — contact_id direto em crm_proposals (migration 0436
+  // em diante). A 0454 acrescentou destinatario_nome/briefing_json/
+  // resumo_comercial à cascata de redação; este bloco é a outra metade —
+  // sem ele, o titular pediria acesso e receberia um relatório que não
+  // menciona nenhuma proposta que recebeu.
+  let proposals: ProposalRow[] = [];
+  if (contactId) {
+    const { data, error } = await admin
+      .from("crm_proposals")
+      .select(
+        "id, numero, ano, titulo, status, total_cents, moeda, valid_until, sent_at, decided_at, destinatario_nome, resumo_comercial, created_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("contact_id", contactId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      logger.warn("[lgpd-export-worker] proposals load failed", {
+        request_id: requestId,
+        error: error.message,
+      });
+    } else if (data) {
+      proposals = data;
+    }
+  }
+
   // Tarefas — contact_id direto em crm_tasks (migration 0210).
   //
   // O texto que a equipe escreveu sobre o titular ("ligar para Fulano confirmar
@@ -1525,6 +1575,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     checkpoints,
     appointments,
     sales,
+    proposals,
     tasks,
     webhook_captures,
     audit_log_extract,
@@ -1572,6 +1623,7 @@ function emptyPayload(
     checkpoints: [],
     appointments: [],
     sales: [],
+    proposals: [],
     tasks: [],
     webhook_captures: [],
     audit_log_extract: [],

@@ -129,7 +129,7 @@ export async function resolverAvisoDeRevisaoSeProntaOuEncerrada(
 
     const { error } = await supabase
       .from("agent_inbox_items")
-      .update({ status: "resolved" })
+      .update({ status: "resolved", resolved_at: new Date().toISOString() })
       .eq("organization_id", organizationId)
       .eq("kind", "proposta_pronta_para_revisao")
       .eq("ref_id", propostaId)

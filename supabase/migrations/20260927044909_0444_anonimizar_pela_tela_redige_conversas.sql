@@ -1,4 +1,6 @@
--- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0418) ----
+-- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0444) ----
+-- (renumerada de 0391 -> 0418 -> 0444 ao atualizar a branch com a main: 0391
+-- e depois 0418 já estavam tomados por migrations diferentes do Rafael)
 --
 -- Há dois caminhos que anonimizam um contato, e só um redigia a conversa:
 --

@@ -1,4 +1,6 @@
--- 0347 — o agente PROPÕE um campo de funil, e a Central avisa.
+-- 0451 (renumerada de 0347 -> 0392 -> 0451 ao longo de vários merges com a
+-- main: cada número foi tomado depois por uma migration diferente do
+-- Rafael) — o agente PROPÕE um campo de funil, e a Central avisa.
 --
 -- ─── O que muda ─────────────────────────────────────────────────────────────
 --

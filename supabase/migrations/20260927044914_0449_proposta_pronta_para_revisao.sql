@@ -1,4 +1,6 @@
--- 0423 — a Central avisa quando uma proposta rascunhada pela IA precisa de
+-- 0449 (renumerada de 0423 -> 0449 ao atualizar a branch com a main: 0423
+-- colidia com 0423_hardening_fn_espelha_nome do Rafael) — a Central avisa
+-- quando uma proposta rascunhada pela IA precisa de
 -- revisão humana: falta confirmar o modelo sugerido (plano N1) ou falta
 -- preço de catálogo (§4 da spec de modelos, item [4]-[5] — "abre o aviso
 -- interno... acompanha a proposta até ter valor"). Nasce ao rascunhar
@@ -17,10 +19,10 @@ alter table public.agent_inbox_items
     'budget_warning','conhecimento_nao_indexado','voice_call_missed','case_stale',
     'aviso_de_caso_nao_entregue','followup_sem_agente','canal_mudo_sem_numero',
     'proposal_expired_notice','proposal_acceptance_rate_drop','proposal_promised_not_created',
-    -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
+    -- (migration 0442, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
-    -- (migration 0392 na vps/pljr-combinada) turno que bateu no teto de
+    -- (migration 0393 na vps/pljr-combinada) turno que bateu no teto de
     -- passos, e uma das duas contagens do laço de retorno da organização.
     -- Esta era a ÚLTIMA reconstrução da cadeia a tocar a constraint — perder
     -- estes dois valores aqui apaga o vocabulário do funil em silêncio.

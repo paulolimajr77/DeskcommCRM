@@ -1,4 +1,6 @@
--- 0419 — o `update.sh` do clone parou de duplicar a demanda que já existia.
+-- 0445 (renumerada de 0392 -> 0419 -> 0445 ao atualizar a branch com a main:
+-- 0392 e depois 0419 já estavam tomados por migrations diferentes do Rafael)
+-- — o `update.sh` do clone parou de duplicar a demanda que já existia.
 --
 -- ## O defeito, medido
 --

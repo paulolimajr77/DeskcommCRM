@@ -1,4 +1,6 @@
--- 0402 — Onda C3 da spec de Propostas (2026-09-23): D5 (raiz: preço vindo do
+-- 0443 (renumerada de 0402 -> 0443 ao atualizar a branch com a main: 0402
+-- colidia com 0402_google_captura_e_qualificacao do Rafael) — Onda C3 da
+-- spec de Propostas (2026-09-23): D5 (raiz: preço vindo do
 -- catálogo no servidor) + §5.1/5.2 (pricing_status, item sem preço) + §5.3
 -- (um rascunho aberto por negócio, com dedupe do que já existe).
 
@@ -52,7 +54,7 @@ update public.crm_proposals p
 -- rascunho mais recente por (organization_id, lead_id); os demais viram
 -- 'cancelada' — NUNCA apagados, o histórico continua na timeline/auditoria.
 -- `lead_id` nulo (proposta órfã, D10) nunca colide aqui: a trigger
--- `fn_cancelar_propostas_rascunho_do_lead` (migration 0401) já vira
+-- `fn_cancelar_propostas_rascunho_do_lead` (migration 0442) já vira
 -- 'cancelada' TODO rascunho antes do lead ser apagado, então nenhuma linha
 -- com status='rascunho' e lead_id nulo pode existir.
 with ranking as (

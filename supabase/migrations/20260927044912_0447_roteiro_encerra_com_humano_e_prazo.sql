@@ -1,4 +1,6 @@
--- ---- o roteiro de atendimento encerra quando um humano assume, no opt-out e no prazo (migration 0421, #1130) ----
+-- ---- o roteiro de atendimento encerra quando um humano assume, no opt-out e no prazo (migration 0447, #1130) ----
+-- (renumerada de 0397 -> 0421 -> 0447 ao atualizar a branch com a main: 0397
+-- e depois 0421 já estavam tomados por migrations diferentes do Rafael)
 --
 -- PR 2 do port dos fluxos de atendimento (de @vgamkt). Achados 9 e 5 da prova
 -- prática: o roteiro continuava 'coletando' depois de um humano assumir a

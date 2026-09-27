@@ -1,4 +1,6 @@
--- 0397 - restaura o preenchimento de campos do funil pelo agente.
+-- 0453 (renumerada de 0397 -> 0453 ao atualizar a branch com a main: 0397
+-- colidia com 0397_roteiro_encerra_com_humano_e_prazo do Rafael) - restaura
+-- o preenchimento de campos do funil pelo agente.
 --
 -- A 0395 derrubou (ordem do dono, revertida): as colunas
 -- `lead_fields_enabled`/`lead_fields_propose_new`, o kind

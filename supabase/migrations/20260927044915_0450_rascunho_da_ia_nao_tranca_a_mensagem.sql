@@ -1,4 +1,6 @@
--- 0248 — o rascunho da IA para de trancar a mensagem
+-- 0450 (renumerada 0248 -> 0344 -> 0376 -> 0386 -> 0391 -> 0450 ao longo de
+-- vários merges com a main — cada número foi tomado depois por uma migration
+-- diferente do Rafael) — o rascunho da IA para de trancar a mensagem
 --
 -- O DEFEITO, medido numa instalação real (2026-09-14)
 -- ------------------------------------------------------------------------

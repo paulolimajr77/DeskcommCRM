@@ -1,5 +1,7 @@
--- 20260925220000_0422_ia_sugere_modelo_da_proposta.sql
--- 0422 — a IA sugere um modelo de proposta, uma pessoa confirma (decisão do
+-- 20260927044913_0448_ia_sugere_modelo_da_proposta.sql
+-- (renumerada de 0422 -> 0448 ao atualizar a branch com a main: 0422 colidia
+-- com 0422_skill_pointers_legados do Rafael)
+-- 0448 — a IA sugere um modelo de proposta, uma pessoa confirma (decisão do
 -- dono, 25/09/2026). `template_slug_sugerido` é ESTADO PROVISÓRIO: nunca
 -- entra na constraint `crm_proposals_template_slug_versao_juntos_check`,
 -- porque essa constraint é sobre o modelo CONFIRMADO (`template_slug` +

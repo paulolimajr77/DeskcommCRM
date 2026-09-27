@@ -10104,12 +10104,12 @@ alter table public.agent_inbox_items
     -- lista, não em bloco novo (#159, bloco único por constraint).
     'voice_call_missed',
     'case_stale',
-    -- (migration 0392 na vps/pljr-combinada) O turno bateu no teto de passos
+    -- (migration 0393 na vps/pljr-combinada) O turno bateu no teto de passos
     -- e parou no meio. Antes disto era um `return` mudo: o cliente via a
     -- conversa terminar sem resposta e ninguém no sistema sabia que o teto
     -- tinha sido a causa.
     'passos_esgotados',
-    -- (migration 0392 na vps/pljr-combinada) Uma das duas contagens do laço
+    -- (migration 0393 na vps/pljr-combinada) Uma das duas contagens do laço
     -- de retorno caiu de forma sustentada nesta organização: perguntas de
     -- campo feitas x campos gravados, ou pedidos de agendamento x
     -- compromissos criados.
@@ -10138,13 +10138,13 @@ alter table public.agent_inbox_items
     -- mesma constraint em N blocos quebra o `update.sh` de todo clone com
     -- vocabulário posterior (lição do #159).
     'canal_mudo_sem_numero',
-    -- (migration 0412) a proposta comercial: vencimento sem decisão, queda da taxa
+    -- (migration 0436) a proposta comercial: vencimento sem decisão, queda da taxa
     -- de aceite e promessa de proposta que não virou proposta.
     'proposal_expired_notice', 'proposal_acceptance_rate_drop', 'proposal_promised_not_created',
-    -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
+    -- (migration 0442, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
-    -- (migration 0423) a IA rascunhou uma proposta e falta confirmar o modelo
+    -- (migration 0449) a IA rascunhou uma proposta e falta confirmar o modelo
     -- sugerido (plano N1) ou falta preço de catálogo — a Central acompanha
     -- até as duas pendências sumirem, ou até a proposta ser enviada/descartada.
     'proposta_pronta_para_revisao',
@@ -10495,7 +10495,7 @@ select d.organization_id, d.id, c.conversation_id
       where dc.demanda_id = d.id and dc.conversation_id = c.conversation_id
    );
 
--- AUTO-CURA (migration 0392): apaga a duplicata que a versão anterior deste
+-- AUTO-CURA (migration 0445): apaga a duplicata que a versão anterior deste
 -- apêndice criou. O guard de R2 abaixo era idempotente só CONTRA SI MESMO —
 -- procurava outra 'derivada' com o mesmo `aberta_em` — e não enxergava a
 -- demanda 'inbound' que o trigger da 0138 cria na entrada. Em quem já rodava,
@@ -10571,7 +10571,7 @@ select
    and not exists (
    select 1 from public.demanda_conversas dc where dc.conversation_id = cv.id
  )
-   -- O guard que faltava (migration 0392): derivar o PASSADO só vale para a
+   -- O guard que faltava (migration 0445): derivar o PASSADO só vale para a
    -- conversa que não tem demanda NENHUMA. Sem esta linha, toda conversa que o
    -- trigger da 0138 já cobriu ganha uma segunda demanda no `update.sh` seguinte.
    and not exists (
@@ -37993,7 +37993,7 @@ comment on column public.channel_sessions.datafy_token_encrypted is
 
 -- ---- fim canal de WhatsApp Datafy (migration 0387) ----
 
--- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0391) ----
+-- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0444) ----
 --
 -- Há dois caminhos que anonimizam um contato, e só um redigia a conversa:
 --
@@ -38150,7 +38150,7 @@ update public.lead_checkpoints l set
         or l.next_action is not null
         or l.declaracao is not null);
 
--- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0412) ----
+-- ---- a proposta comercial: rascunho, envio, versão, aceite (migration 0436) ----
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.
@@ -38428,7 +38428,7 @@ create trigger trg_crm_proposals_org_consistente
   on public.crm_proposals
   for each row execute function public.fn_verificar_org_da_proposta();
 
--- ---- C2: contador de propostas, estado enviando e sobrevivencia ao negocio (migration 0401) ----
+-- ---- C2: contador de propostas, estado enviando e sobrevivencia ao negocio (migration 0442) ----
 -- D9 — auditoria de produção (org 59914589, 19/09/2026): `fn_proposta_aloca_numero`
 -- calculava `max(numero)+1` sobre linhas que EXISTEM; apagar a linha liberava
 -- o número. O contador abaixo nunca deriva de linha nenhuma — só cresce.
@@ -38527,7 +38527,7 @@ create trigger trg_crm_leads_cancelar_propostas_rascunho
 
 notify pgrst, 'reload schema';
 
--- ---- C3: precificação e disciplina do rascunho (migration 0402) ----
+-- ---- C3: precificação e disciplina do rascunho (migration 0443) ----
 -- 0402 — Onda C3 da spec de Propostas (2026-09-23): D5 (raiz: preço vindo do
 -- catálogo no servidor) + §5.1/5.2 (pricing_status, item sem preço) + §5.3
 -- (um rascunho aberto por negócio, com dedupe do que já existe).
@@ -38582,7 +38582,7 @@ update public.crm_proposals p
 -- rascunho mais recente por (organization_id, lead_id); os demais viram
 -- 'cancelada' — NUNCA apagados, o histórico continua na timeline/auditoria.
 -- `lead_id` nulo (proposta órfã, D10) nunca colide aqui: a trigger
--- `fn_cancelar_propostas_rascunho_do_lead` (migration 0401) já vira
+-- `fn_cancelar_propostas_rascunho_do_lead` (migration 0442) já vira
 -- 'cancelada' TODO rascunho antes do lead ser apagado, então nenhuma linha
 -- com status='rascunho' e lead_id nulo pode existir.
 with ranking as (
@@ -38606,7 +38606,7 @@ create unique index if not exists crm_proposals_rascunho_unico_por_negocio_uidx
 
 notify pgrst, 'reload schema';
 
--- ---- C4: revisão por versão e auditoria (migration 0413) ----
+-- ---- C4: revisão por versão e auditoria (migration 0437) ----
 -- Onda C4 da spec de Propostas (2026-09-23): D4 (revisar cria v2 em
 -- rascunho pela tela — a v1 e a v2 convivem, a v1 ainda `enviada`, até a v2
 -- ser enviada). A unicidade de numeração vigente é (organization_id, ano,
@@ -38642,7 +38642,7 @@ create unique index if not exists crm_proposals_numero_ano_versao_org_uidx
 
 notify pgrst, 'reload schema';
 
--- ---- E1: followup automatico ao enviar (migration 0414) ----
+-- ---- E1: followup automatico ao enviar (migration 0438) ----
 -- Onda E1 da spec de Propostas (2026-09-24): N2 (a proposta ENVIADA agenda um
 -- retorno automático via lib/followup/retorno-crm.ts). `retorno_id` guarda QUAL
 -- retorno foi agendado, para cancelá-lo se o cliente decidir (aceita/recusada)
@@ -38655,7 +38655,7 @@ comment on column public.crm_proposals.retorno_id is
 
 notify pgrst, 'reload schema';
 
--- ---- M0: tabela de modelos de proposta (migration 0415) ----
+-- ---- M0: tabela de modelos de proposta (migration 0439) ----
 -- proposal_templates guarda só CÓPIAS por organização (spec-mãe §6.1: a base
 -- da plataforma mora no código, MODELOS_BASE, nunca no banco com
 -- organization_id nulo). SEM CHECK fechado de slug: os 8 modelos-piloto da
@@ -38665,7 +38665,7 @@ notify pgrst, 'reload schema';
 -- slug por organização. `base_slug`/`base_version` guardam de qual modelo da
 -- base a cópia veio (spec-mãe §6.1, achado Important da revisão final — sem
 -- isto a "atualização sugerida" da decisão 15 não tem como comparar). RLS em
--- duas policies, molde de crm_proposals (migration 0401): SELECT aberto a
+-- duas policies, molde de crm_proposals (migration 0442): SELECT aberto a
 -- todo membro da organização (+ bypass de suporte da plataforma), WRITE com
 -- piso `fn_role_at_least(organization_id, 'agent')` — sem esse piso (achado
 -- Important da revisão final), qualquer viewer conseguia escrever/apagar
@@ -38714,7 +38714,7 @@ create policy proposal_templates_select on public.proposal_templates
 
 -- proposal_templates_write nasce no bloco "modelos de proposta da empresa
 -- (migration 0433)", mais abaixo, já com o piso de 'manager' — o drop dela
--- ali cobre o clone que só tem esta versão (0415).
+-- ali cobre o clone que só tem esta versão (0439).
 
 revoke all on public.proposal_templates from anon;
 grant select, insert, update, delete on public.proposal_templates to authenticated;
@@ -38741,7 +38741,7 @@ alter table public.crm_proposals add constraint crm_proposals_template_slug_vers
 
 notify pgrst, 'reload schema';
 
--- ---- M1: briefing e motivo de revisão (migration 0416) ----
+-- ---- M1: briefing e motivo de revisão (migration 0440) ----
 alter table public.crm_proposals add column if not exists briefing_json jsonb;
 alter table public.crm_proposals add column if not exists prazo_dias_uteis int;
 alter table public.crm_proposals add column if not exists pagamento text;
@@ -38750,7 +38750,7 @@ alter table public.crm_proposals add column if not exists version_reason text;
 
 notify pgrst, 'reload schema';
 
--- ---- M3: edição manual por seção do documento (migration 0417) ----
+-- ---- M3: edição manual por seção do documento (migration 0441) ----
 alter table public.crm_proposals add column if not exists secoes_editadas jsonb;
 
 -- ---- fluxos de atendimento: a base, desligada por padrão (migration 0394, de @vgamkt, #1130) ----
@@ -38891,10 +38891,10 @@ create trigger trg_superficie_do_fluxo_imutavel
   for each row
   execute function public.fn_superficie_do_fluxo_imutavel();
 
--- ---- o roteiro de atendimento encerra quando um humano assume, no opt-out e no prazo (migration 0397, #1130) ----
+-- ---- o roteiro de atendimento encerra quando um humano assume, no opt-out e no prazo (migration 0447, #1130) ----
 -- Gatilho na virada false→true de `force_human`/`is_blocked` (um lugar para todos
 -- os escritores) e `fn_encerrar_roteiros_vencidos` (prazo em settings.expira_em_horas,
--- padrão 72 h), chamada pelo relógio do follow-up. Racional na migration 0397.
+-- padrão 72 h), chamada pelo relógio do follow-up. Racional na migration 0447.
 -- ⚠️ ANTES da VARREDURA anon, porque cria função. Idempotente.
 create or replace function public.fn_contato_encerra_roteiro_com_humano_ou_opt_out()
 returns trigger
@@ -39002,8 +39002,8 @@ revoke execute on function public.fn_encerrar_roteiros_vencidos(int) from anon;
 revoke execute on function public.fn_encerrar_roteiros_vencidos(int) from authenticated;
 grant execute on function public.fn_encerrar_roteiros_vencidos(int) to service_role;
 
--- ---- a conversa fica com quem atendeu, ajuste por empresa (migration 0396) ----
--- 0396 — "A conversa fica com quem atendeu": ajuste por empresa, DESLIGADO por
+-- ---- a conversa fica com quem atendeu, ajuste por empresa (migration 0446) ----
+-- 0446 — "A conversa fica com quem atendeu": ajuste por empresa, DESLIGADO por
 -- padrão (ideia de @gustavorodcruz96, #1527).
 --
 -- Ligado (organizations.settings.routing.conversation_stays_with_attendant =
@@ -40044,7 +40044,7 @@ update public.channel_sessions s
 
 -- ---- fim canal de WhatsApp Datafy (migration 0387) ----
 
--- 0397 (vps/pljr-combinada) - restaura o preenchimento de campos do funil
+-- 0453 (vps/pljr-combinada) - restaura o preenchimento de campos do funil
 -- pelo agente (feature sem relação com a proposta comercial nem com a
 -- prospecção nativa abaixo — as três só compartilham este trecho do arquivo
 -- por coincidência de posição no merge de 25/09/2026). FUNÇÕES (têm de
@@ -42049,7 +42049,7 @@ do $f$ begin perform public.fn_conferir_modulos_instalados(); end $f$;
 -- Derivado de supabase/migrations/20260922153110_0395_remove_preenchimento_de_campos_do_funil.sql
 -- (o porquê inteiro está no cabeçalho de lá).
 
--- 0397 - restaura o preenchimento de campos do funil pelo agente
+-- 0453 - restaura o preenchimento de campos do funil pelo agente
 -- (espelho idempotente da migration; o kind vive no bloco ÚNICO, editado in-place).
 alter table public.ai_agent_versions
   add column if not exists lead_fields_enabled boolean not null default false;

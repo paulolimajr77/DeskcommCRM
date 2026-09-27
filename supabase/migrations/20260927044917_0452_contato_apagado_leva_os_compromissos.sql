@@ -1,4 +1,6 @@
--- 0247 — apagar um contato leva os compromissos dele junto
+-- 0452 (renumerada 0247 -> 0343 -> 0375 -> 0385 -> 0396 -> 0452 ao longo de
+-- vários merges com a main — cada número foi tomado depois por uma migration
+-- diferente do Rafael) — apagar um contato leva os compromissos dele junto
 --
 -- O DEFEITO, medido numa instalação real
 -- ------------------------------------------------------------------------

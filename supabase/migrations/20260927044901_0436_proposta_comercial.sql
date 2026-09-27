@@ -1,6 +1,6 @@
--- 20260919232001_0412_proposta_comercial.sql
--- (renumerada de 0394 -> 0412 ao atualizar a branch com a main: 0394 já
--- estava tomado por 20260923210000_0394_fluxos_de_atendimento_base.sql)
+-- 20260927044901_0436_proposta_comercial.sql
+-- (renumerada de 0394 -> 0412 -> 0436 ao atualizar a branch com a main: 0394
+-- e depois 0412 já estavam tomados por migrations diferentes do Rafael)
 --
 -- A organização emite para um contato, com itens, valor e prazo, cujo desfecho volta para o funil. Ver
 -- docs/superpowers/specs/2026-09-16-proposta-comercial-design.md.

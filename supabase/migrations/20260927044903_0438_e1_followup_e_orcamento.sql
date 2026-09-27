@@ -1,5 +1,5 @@
--- 0414 (renumerada de 0404 -> 0414 ao atualizar a branch com a main: 0404 já
--- estava tomado por 20260924180000_0404_comando_da_conversa_sem_reavaliar_rls.sql)
+-- 0438 (renumerada de 0404 -> 0414 -> 0438 ao atualizar a branch com a main:
+-- 0404 e depois 0414 já estavam tomados por migrations diferentes)
 -- — Onda E1 (N2): a proposta ENVIADA agenda um retorno automático
 -- (lib/followup/retorno-crm.ts). Precisamos guardar QUAL retorno, para
 -- cancelá-lo se o cliente decidir (aceita/recusada) antes da data marcada —

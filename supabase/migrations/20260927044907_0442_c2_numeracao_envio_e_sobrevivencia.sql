@@ -1,4 +1,6 @@
--- 0401 — Onda C2 da spec de Propostas (2026-09-23): D9 (contador que não
+-- 0442 (renumerada de 0401 -> 0442 ao atualizar a branch com a main: 0401
+-- colidia com 0401_conversoes_processamento_e_reenvio do Rafael) — Onda C2
+-- da spec de Propostas (2026-09-23): D9 (contador que não
 -- depende das linhas existentes), D3 (estado intermediário `enviando`) e D10
 -- (a proposta sobrevive ao negócio). Uma migration só porque as três mexem na
 -- mesma tabela e a tripla da casa fica mais fácil de auditar junta.
@@ -93,7 +95,7 @@ alter table public.agent_inbox_items
     -- (migration 0401, D3) proposta presa em 'enviando' há mais de 5min — o
     -- mesmo padrão do 'message_send_stuck', cron próprio (proposta-travada).
     'proposta_travada',
-    -- (migration 0392 na vps/pljr-combinada) turno que bateu no teto de
+    -- (migration 0393 na vps/pljr-combinada) turno que bateu no teto de
     -- passos, e uma das duas contagens do laço de retorno da organização.
     -- Esta é a ÚLTIMA reconstrução da cadeia a tocar a constraint — perder
     -- estes dois valores aqui apaga o vocabulário do funil em silêncio.

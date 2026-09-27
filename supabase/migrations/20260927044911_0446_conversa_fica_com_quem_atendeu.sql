@@ -1,4 +1,6 @@
--- 0420 — "A conversa fica com quem atendeu": ajuste por empresa, DESLIGADO por
+-- 0446 (renumerada de 0396 -> 0420 -> 0446 ao atualizar a branch com a main:
+-- 0396 e depois 0420 já estavam tomados por migrations diferentes do Rafael)
+-- — "A conversa fica com quem atendeu": ajuste por empresa, DESLIGADO por
 -- padrão (ideia de @gustavorodcruz96, #1527).
 --
 -- Ligado (organizations.settings.routing.conversation_stays_with_attendant =

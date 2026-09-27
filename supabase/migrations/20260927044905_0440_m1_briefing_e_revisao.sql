@@ -1,4 +1,6 @@
--- 20260925140000_0416_m1_briefing_e_revisao.sql
+-- 20260927044905_0440_m1_briefing_e_revisao.sql
+-- (renumerada de 0416 -> 0440 ao atualizar a branch com a main: 0416 colidia
+-- com 0416_autoria_em_nome_de_na_mensagem do Rafael)
 -- M1 (onda de modelos, §5.2 da spec de 21/09) — rascunho confiável.
 -- Cinco colunas novas em crm_proposals, todas nullable e sem CHECK fechado
 -- (nenhuma tem vocabulário fechado na spec):

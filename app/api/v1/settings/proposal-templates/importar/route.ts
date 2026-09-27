@@ -19,6 +19,7 @@ import { validarModelo } from "@/lib/propostas/modelos/validar-modelo";
 import { sePropostasDesligadas } from "@/lib/propostas/porta";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 const TAMANHO_MAXIMO = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest): Promise<Response> {

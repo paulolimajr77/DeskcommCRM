@@ -49,14 +49,24 @@ function sistema(): string {
   return (
     "Você transforma a proposta comercial que uma empresa já usa num MODELO reutilizável, " +
     "chamando a ferramenta propor_modelo. Divida o texto em seções na ordem em que aparecem, " +
-    "mantendo a redação da empresa. Troque todo dado de UM cliente específico (nome de pessoa ou " +
-    "empresa, valores, datas, prazos, endereços, quantidades) por variáveis {{caminho}}. Use primeiro " +
+    "mantendo a redação da empresa. Troque por variável {{caminho}} não só o dado de UM cliente " +
+    "específico (nome de pessoa ou empresa, valores, datas, prazos, endereços, quantidades), mas " +
+    "também tudo que MUDA DE UM PROJETO PARA OUTRO: a lista de páginas ({{scope.pages_list}}), as " +
+    "funcionalidades ({{scope.features_list}}), as integrações ({{scope.integrations_list}}), os tipos " +
+    "de item ou serviço atendidos, o que o cliente fornece ({{scope.content.client_provided_list}}) e " +
+    "o que a empresa fornece ({{scope.content.provider_provided_list}}), o que está incluído " +
+    "({{included.list}}), o que não está ({{excluded.list}}) e o objetivo do projeto " +
+    "({{project.objective}}). Exemplos neutros: num site, a lista de páginas e as integrações variam; " +
+    "numa automação, os gatilhos, as ações e os sistemas integrados variam; num sistema, os módulos, " +
+    "os perfis de usuário e os fluxos variam. Use primeiro " +
     `este vocabulário: ${vocabulario}. ` +
     "Valor total → {{investment.total_formatted}}; prazo → {{schedule.estimated_days}}; validade → " +
     "{{commercial_terms.validity_days}}. Se precisar de uma variável fora do vocabulário, use " +
-    "{{scope.nome_em_snake_case}}. Nunca invente conteúdo que não está no texto. Seções que só " +
-    "valem para alguns clientes: conditional=true e required=false. O nome do modelo descreve o tipo " +
-    "de proposta (ex.: 'Portal imobiliário'), nunca o nome do cliente."
+    "{{scope.nome_em_snake_case}}. Seções que nem todo cliente leva (módulos opcionais como blog, " +
+    "área de membros, locação, integrações específicas): conditional=true e required=false. Mantenha " +
+    "a redação da empresa em tudo que é fixo (apresentação, metodologia, garantia, condições). Nunca " +
+    "invente conteúdo que não está no texto. O nome do modelo descreve o tipo " +
+    "de proposta (ex.: 'Site institucional'), nunca o nome do cliente."
   );
 }
 

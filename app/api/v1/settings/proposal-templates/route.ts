@@ -132,7 +132,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       section_order: base.sectionOrder,
       is_active: true,
     };
-  } else {
+  } else if (parsed.data.acao === "novo") {
     const nome = parsed.data.nome.trim();
     const sections = parsed.data.sections ?? [SECAO_INICIAL];
     const sectionOrder = parsed.data.section_order ?? sections.map((s) => s.id);
@@ -169,6 +169,10 @@ export async function POST(req: NextRequest): Promise<Response> {
       section_order: sectionOrder,
       is_active: true,
     };
+  } else {
+    // Inalcançável pelo schema — ocultar/mostrar já retornou acima. O else
+    // existe para o TS estreitar o union no ramo "novo".
+    return fail("validation_failed", t("Campos inválidos."), 422, { requestId });
   }
 
   const { error } = await admin.from("proposal_templates").insert({ ...linha, organization_id: orgId });

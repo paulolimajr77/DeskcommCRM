@@ -33,14 +33,18 @@ interface ModeloDisponivel {
  * atual do documento, marcado " (desligado)" quando estiver oculto. Sem
  * isto, o `<select>` controlado exibiria outra opção sem aviso.
  */
-function opcoesVisiveis(modelos: ModeloDisponivel[] | null, slugAtual: string | null): Array<[string, string]> {
+function opcoesVisiveis(
+  modelos: ModeloDisponivel[] | null,
+  slugAtual: string | null,
+  t: (chave: string) => string,
+): Array<[string, string]> {
   if (!modelos) return Object.entries(ROTULO_DO_MODELO);
   const visiveis: Array<[string, string]> = modelos
     .filter((m) => !m.oculto)
     .map((m) => [m.slug, m.nome]);
   const atual = slugAtual ? modelos.find((m) => m.slug === slugAtual) : undefined;
   if (atual?.oculto && !visiveis.some(([s]) => s === atual.slug)) {
-    visiveis.push([atual.slug, `${atual.nome} (desligado)`]);
+    visiveis.push([atual.slug, `${atual.nome} ${t("(desligado)")}`]);
   }
   return visiveis;
 }
@@ -191,7 +195,7 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
     return () => controller.abort();
   }, []);
 
-  const opcoesDeModelo = opcoesVisiveis(modelosDisponiveis, doc?.modeloSlug ?? doc?.modeloSlugSugerido ?? null);
+  const opcoesDeModelo = opcoesVisiveis(modelosDisponiveis, doc?.modeloSlug ?? doc?.modeloSlugSugerido ?? null, t);
 
   const [sugestoes, setSugestoes] = useState<Record<string, string>>({});
   const [preenchendo, setPreenchendo] = useState(false);
@@ -234,26 +238,28 @@ export function DocumentoCanvas({ propostaId, podeRevisar = false, emRascunho = 
     return () => controller.abort();
   }, [propostaId, versao, recarga]);
 
-  async function executar(acao: () => Promise<unknown>) {
+  async function executar(acao: () => Promise<unknown>): Promise<boolean> {
     setOcupado(true);
     try {
       await acao();
       setRecarga((n) => n + 1);
+      return true;
     } catch (error) {
       showApiError(error);
+      return false;
     } finally {
       setOcupado(false);
     }
   }
 
   const confirmarModelo = async (slug: string, descartar = false) => {
-    await executar(() =>
+    const ok = await executar(() =>
       apiClient.patch(
         `/api/v1/proposals/${propostaId}/modelo`,
         descartar ? { template_slug: slug, descartar_reescritas: true } : { template_slug: slug },
       ),
     );
-    onModeloConfirmado?.(slug);
+    if (ok) onModeloConfirmado?.(slug);
   };
 
   if (!doc) return null;

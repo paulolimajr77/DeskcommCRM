@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { showApiError } from "@/components/feedback/ApiErrorToast";
@@ -30,8 +30,11 @@ export const CHAVE_DO_MODELO_IMPORTADO = "modelo-importado";
 export function ModelosDeProposta() {
   const t = useT();
   const router = useRouter();
+  const salvo = useSearchParams().get("salvo");
+  const [faixaFechada, setFaixaFechada] = useState(false);
   const [modelos, setModelos] = useState<ModeloListado[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [andamento, setAndamento] = useState<string | null>(null);
   const [nomeNovo, setNomeNovo] = useState("");
   const [recarga, setRecarga] = useState(0);
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -61,11 +64,26 @@ export function ModelosDeProposta() {
   async function importar(file: File) {
     setOcupado(true);
     setMensagem(null);
+    setAndamento(t("Lendo o arquivo…"));
+    const avisoDeIa = setTimeout(
+      () => setAndamento(t("A IA está montando as seções (pode levar até um minuto)…")),
+      3000,
+    );
     try {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/v1/settings/proposal-templates/importar", { method: "POST", body: form, credentials: "same-origin" });
-      const corpo = (await res.json()) as { data?: { disponivel: boolean; motivo?: string; modelo?: unknown }; error?: { message: string } };
+      // O proxy pode cortar a resposta por tempo e devolver corpo que não é
+      // JSON: sem esta guarda o `res.json()` lançava e a tela ficava em
+      // silêncio, com o botão preso em "ocupado".
+      const corpo = (await res.json().catch(() => null)) as {
+        data?: { disponivel: boolean; motivo?: string; modelo?: unknown };
+        error?: { message: string };
+      } | null;
+      if (!corpo) {
+        setMensagem(t("A leitura demorou demais e foi interrompida. Tente de novo; se repetir, envie um arquivo menor."));
+        return;
+      }
       if (!res.ok) {
         setMensagem(corpo.error?.message ?? t("Não consegui ler este arquivo."));
         return;
@@ -86,6 +104,8 @@ export function ModelosDeProposta() {
       }
       router.push("/app/settings/tenant/proposals/modelos/novo");
     } finally {
+      clearTimeout(avisoDeIa);
+      setAndamento(null);
       setOcupado(false);
     }
   }
@@ -96,10 +116,19 @@ export function ModelosDeProposta() {
     <div className="mx-auto w-full max-w-3xl space-y-6 p-6">
       <h1 className="text-xl font-semibold">{t("Modelos de proposta")}</h1>
 
+      {salvo && !faixaFechada ? (
+        <p role="status" className="flex items-center justify-between gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <span>{t("Modelo «{nome}» salvo.").replace("{nome}", salvo)}</span>
+          <button type="button" aria-label={t("Fechar")} onClick={() => setFaixaFechada(true)} className="rounded px-2 py-0.5 hover:bg-green-100">
+            ×
+          </button>
+        </p>
+      ) : null}
+
       <section className="space-y-2 rounded-lg border p-4">
         <h2 className="font-medium">{t("Criar a partir da proposta que a empresa já usa")}</h2>
         <p className="text-sm text-muted-foreground">
-          {t("Envie um PDF, .md ou .txt de até 5 MB. A IA divide em seções e troca os dados do cliente por campos; você revisa antes de salvar.")}
+          {t("Envie um PDF, .md ou .txt de até 5 MB. A IA divide em seções, troca por campos o que muda de um cliente e de um projeto para outro, e você revisa antes de salvar.")}
         </p>
         <input
           ref={arquivo}
@@ -113,6 +142,7 @@ export function ModelosDeProposta() {
             e.target.value = "";
           }}
         />
+        {ocupado && andamento ? <p role="status" className="text-sm text-muted-foreground">{andamento}</p> : null}
         {mensagem ? <p role="alert" className="text-sm text-red-700">{mensagem}</p> : null}
       </section>
 

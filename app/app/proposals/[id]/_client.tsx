@@ -254,6 +254,7 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
       if (res.ok) {
         const url = URL.createObjectURL(await res.blob());
         window.open(url, "_blank", "noopener");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
         return;
       }
       // O corpo da recusa é o mesmo envelope de erro das outras rotas; quando

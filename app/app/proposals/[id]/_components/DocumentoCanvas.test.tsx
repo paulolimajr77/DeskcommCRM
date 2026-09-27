@@ -89,6 +89,29 @@ describe("DocumentoCanvas", () => {
     );
   });
 
+  it("PATCH de modelo bem-sucedido chama onModeloConfirmado com o slug", async () => {
+    responderDocumento(docBase({ modeloSlugSugerido: "site_institucional" }));
+    patch.mockResolvedValue({ data: { template_slug: "site_institucional" } });
+    const onModeloConfirmado = vi.fn();
+    render(<DocumentoCanvas propostaId="p1" onModeloConfirmado={onModeloConfirmado} />);
+    fireEvent.click(await screen.findByRole("button", { name: /usar este modelo/i }));
+    await waitFor(() => expect(onModeloConfirmado).toHaveBeenCalledWith("site_institucional"));
+  });
+
+  it("PATCH de modelo que falha NÃO chama onModeloConfirmado", async () => {
+    responderDocumento(docBase({ modeloSlugSugerido: "site_institucional" }));
+    patch.mockRejectedValue(new Error("falha de rede"));
+    const onModeloConfirmado = vi.fn();
+    render(<DocumentoCanvas propostaId="p1" onModeloConfirmado={onModeloConfirmado} />);
+    fireEvent.click(await screen.findByRole("button", { name: /usar este modelo/i }));
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith("/api/v1/proposals/p1/modelo", { template_slug: "site_institucional" }),
+    );
+    // Dá tempo do catch de `executar` assentar antes de afirmar a ausência.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onModeloConfirmado).not.toHaveBeenCalled();
+  });
+
   it("sem sugestão e sem modelo, mostra um seletor manual com os modelos da organização", async () => {
     responderDocumento(docBase());
     render(<DocumentoCanvas propostaId="p1" />);

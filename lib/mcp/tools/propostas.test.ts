@@ -242,7 +242,7 @@ function montarMundoDeFerramenta(opts?: MundoOpts) {
               },
             ];
             const linhas = base.filter((m) =>
-              Object.entries(filtros).every(([col, val]) => (m as Record<string, unknown>)[col] === val),
+              Object.entries(filtros).every(([col, val]) => m[col as keyof MensagemMock] === val),
             );
             return Promise.resolve({ data: linhas, error: null }).then(resolve);
           },

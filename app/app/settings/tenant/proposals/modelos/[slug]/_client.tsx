@@ -17,6 +17,17 @@ interface Modelo { nome: string; descricao: string | null; sections: Secao[]; se
 
 const VARIAVEL = /\{\{([a-zA-Z0-9_.]+)\}\}/g;
 
+/** Variável que o sistema preenche sozinho — nunca é pergunta ao cliente. */
+function ehCalculadaPeloSistema(caminho: string): boolean {
+  return (
+    caminho.startsWith("investment.") ||
+    caminho.startsWith("commercial_terms.") ||
+    caminho.startsWith("approval.") ||
+    caminho === "client.name" ||
+    caminho === "client.company_or_name"
+  );
+}
+
 function idLivre(secoes: Secao[]): string {
   let n = secoes.length + 1;
   while (secoes.some((s) => s.id === `secao_${n}`)) n++;
@@ -60,6 +71,16 @@ export function EditorDeModelo({ slug }: { slug: string }) {
     return [...achadas];
   }, [modelo]);
 
+  /**
+   * C4 — o que o sistema calcula sozinho não é pergunta ao cliente: sai do
+   * quadro "Este modelo vai pedir ao cliente:". O resto (briefing, prazo,
+   * itens, contato) é o que a IA vai precisar perguntar.
+   */
+  const pedidasAoCliente = useMemo(
+    () => variaveisUsadas.filter((v) => !ehCalculadaPeloSistema(v)),
+    [variaveisUsadas],
+  );
+
   if (!modelo) return <div className="p-6">{t("Carregando…")}</div>;
   const somenteLeitura = modelo.origem === "plataforma";
 
@@ -87,12 +108,12 @@ export function EditorDeModelo({ slug }: { slug: string }) {
     };
     try {
       if (importado) {
-        const res = await apiClient.post<ApiSuccess<{ slug: string }>>("/api/v1/settings/proposal-templates", { acao: "novo", ...corpo });
+        await apiClient.post<ApiSuccess<{ slug: string }>>("/api/v1/settings/proposal-templates", { acao: "novo", ...corpo });
         try { window.sessionStorage.removeItem(CHAVE_DO_MODELO_IMPORTADO); } catch { /* ignore */ }
-        router.replace(`/app/settings/tenant/proposals/modelos/${res.data.slug}`);
+        router.push(`/app/settings/tenant/proposals/modelos?salvo=${encodeURIComponent(modelo.nome)}`);
       } else {
         await apiClient.patch(`/api/v1/settings/proposal-templates/${slug}`, corpo);
-        router.push("/app/settings/tenant/proposals/modelos");
+        router.push(`/app/settings/tenant/proposals/modelos?salvo=${encodeURIComponent(modelo.nome)}`);
       }
     } catch (e) {
       const detalhes = (e as { details?: { erros?: Array<{ campo: string; mensagem: string }> } }).details;
@@ -126,6 +147,21 @@ export function EditorDeModelo({ slug }: { slug: string }) {
             {erros.map((e, i) => <li key={i}>{t(e.mensagem)}</li>)}
           </ul>
         ) : null}
+
+        {pedidasAoCliente.length > 1 ? (
+          <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+            <p className="font-medium">{t("Este modelo vai pedir ao cliente:")}</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {pedidasAoCliente.map((v) => (
+                <li key={v}><code className="text-xs">{`{{${v}}}`}</code> — {t(rotuloDaVariavel(v))}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            {t("Este modelo quase não pede nada ao cliente: a IA não saberá o que perguntar. Troque por {{campo}} o que muda de um projeto para outro.")}
+          </p>
+        )}
 
         {modelo.sections.map((s, i) => (
           <div key={`${s.id}-${i}`} className="space-y-2 rounded-lg border p-3">

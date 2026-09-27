@@ -2442,6 +2442,16 @@ export const DICIONARIO: Traducoes = {
   "Envie um PDF, .md ou .txt de até 5 MB. A IA divide em seções e troca os dados do cliente por campos; você revisa antes de salvar.": {
     es: "Envía un PDF, .md o .txt de hasta 5 MB. La IA lo divide en secciones y cambia los datos del cliente por campos; tú revisas antes de guardar.",
   },
+  "Envie um PDF, .md ou .txt de até 5 MB. A IA divide em seções, troca por campos o que muda de um cliente e de um projeto para outro, e você revisa antes de salvar.": {
+    es: "Envía un PDF, .md o .txt de hasta 5 MB. La IA lo divide en secciones, cambia por campos lo que varía de un cliente y de un proyecto a otro, y tú revisas antes de guardar.",
+  },
+  "Lendo o arquivo…": { es: "Leyendo el archivo…" },
+  "A IA está montando as seções (pode levar até um minuto)…": {
+    es: "La IA está armando las secciones (puede tardar hasta un minuto)…",
+  },
+  "A leitura demorou demais e foi interrompida. Tente de novo; se repetir, envie um arquivo menor.": {
+    es: "La lectura tardó demasiado y se interrumpió. Inténtalo de nuevo; si se repite, envía un archivo más pequeño.",
+  },
   "Arquivo da proposta": { es: "Archivo de la propuesta" },
   "A IA não está disponível agora.": { es: "La IA no está disponible ahora." },
   "A IA não conseguiu montar um modelo com este arquivo.": { es: "La IA no pudo armar un modelo con este archivo." },
@@ -2461,6 +2471,17 @@ export const DICIONARIO: Traducoes = {
   "Voltar ao modelo da plataforma": { es: "Volver al modelo de la plataforma" },
   "Da plataforma": { es: "De la plataforma" },
   "Da empresa": { es: "De la empresa" },
+  "Desligado — não aparece para a IA nem no seletor": {
+    es: "Desactivado — no aparece para la IA ni en el selector",
+  },
+  "Não usar": { es: "No usar" },
+  "(desligado)": { es: "(desactivado)" },
+  "Modelo «{nome}» salvo.": { es: "Modelo «{nome}» guardado." },
+  "Fechar": { es: "Cerrar" },
+  "Este modelo vai pedir ao cliente:": { es: "Este modelo le va a pedir al cliente:" },
+  "Este modelo quase não pede nada ao cliente: a IA não saberá o que perguntar. Troque por {{campo}} o que muda de um projeto para outro.": {
+    es: "Este modelo casi no le pide nada al cliente: la IA no sabrá qué preguntar. Cambia por {{campo}} lo que varía de un proyecto a otro.",
+  },
   "O modelo importado não está mais disponível. Envie o arquivo de novo.": {
     es: "El modelo importado ya no está disponible. Envía el archivo de nuevo.",
   },

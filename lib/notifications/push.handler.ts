@@ -4,19 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { montarPayloadDeInbound, truncar } from "./push_payload";
 import { enviarPushAoUsuario, enviarPushDaOrg } from "./web_push";
 import { vapidPronto } from "./vapid";
+import { pushDoAvisoDaCentral } from "./push-dos-avisos";
 import type { PushPayload } from "./push_payload";
 import { rotuloDoContato, SEM_NOME } from "@/lib/contacts/rotulo-do-contato";
-import { ROLE_RANK, type Role } from "@/lib/auth/types";
 
 export const WEB_PUSH_INBOUND_KEY = "web-push-inbound.v1";
-
-/**
- * Espelho de EVENTO_PROPOSTA_PRONTA_PARA_REVISAO (lib/propostas/aviso-de-revisao.ts).
- * Não é importado de lá de propósito: aquele módulo arrasta o catálogo de
- * modelos, e o dreno carrega handlers por import dinâmico sob `tsx` — import
- * de topo pesado já parou o dreno por dez dias (#648). O teste prende os dois.
- */
-const EVENTO_PROPOSTA_PRONTA_PARA_REVISAO = "proposal.ready_for_review";
 
 async function handleInbound(row: EventRow): Promise<HandlerResult> {
   const conversationId =
@@ -76,6 +68,18 @@ async function handleInbound(row: EventRow): Promise<HandlerResult> {
   return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "ok", detail: `sent:${sent}` };
 }
 
+/** Os avisos da Central que pedem gente — ver `./push-dos-avisos.ts`. */
+async function handleAvisoQuePedeGente(row: EventRow): Promise<HandlerResult> {
+  const id = typeof row.payload.item_id === "string" ? row.payload.item_id : row.entity_id;
+  if (!id) return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "sem_alvo" };
+  const payload = await pushDoAvisoDaCentral(createAdminClient(), row.organization_id, id);
+  if (payload === null) {
+    return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "aviso_fora_do_celular" };
+  }
+  const { sent } = await enviarPushDaOrg(row.organization_id, payload);
+  return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "ok", detail: `sent:${sent}` };
+}
+
 async function leadBits(organizationId: string, leadId: string): Promise<{
   title: string;
   ownerUserId: string | null;
@@ -116,70 +120,23 @@ async function enviarParaUsuario(
   return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "ok", detail: `sent:${sent}` };
 }
 
-/**
- * Quem pode ENVIAR a proposta (a rota exige manager): o dono do negócio, se
- * ele for gestor; senão todos os gestores ativos da organização.
- */
-async function destinatariosDaRevisao(organizationId: string, donoDoNegocio: string | null): Promise<string[]> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("user_organizations")
-    .select("user_id, role")
-    .eq("organization_id", organizationId)
-    .is("revoked_at", null);
-  const gestores = ((data ?? []) as Array<{ user_id: string; role: string }>)
-    .filter((m) => Object.hasOwn(ROLE_RANK, m.role) && ROLE_RANK[m.role as Role] >= ROLE_RANK.manager)
-    .map((m) => m.user_id);
-  if (donoDoNegocio && gestores.includes(donoDoNegocio)) return [donoDoNegocio];
-  return gestores;
-}
-
-async function handlePropostaParaRevisao(row: EventRow): Promise<HandlerResult> {
-  const propostaId =
-    (typeof row.payload.proposal_id === "string" ? row.payload.proposal_id : null) ??
-    (typeof row.entity_id === "string" ? row.entity_id : null);
-  if (!propostaId) return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "sem_proposta" };
-
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("crm_proposals")
-    .select("titulo, lead_id, status")
-    .eq("id", propostaId)
-    .eq("organization_id", row.organization_id)
-    .maybeSingle();
-  const proposta = data as { titulo: string | null; lead_id: string | null; status: string } | null;
-  if (!proposta || proposta.status !== "rascunho") {
-    return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "proposta_fora_de_rascunho" };
-  }
-
-  const dono = proposta.lead_id ? (await leadBits(row.organization_id, proposta.lead_id)).ownerUserId : null;
-  const destinatarios = await destinatariosDaRevisao(row.organization_id, dono);
-  if (destinatarios.length === 0) {
-    return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "sem_destinatario" };
-  }
-
-  const payload: PushPayload = {
-    title: "Proposta pronta para revisão",
-    body: truncar(proposta.titulo?.trim() || "Rascunho criado pela IA"),
-    tag: `proposal-review:${propostaId}`,
-    href: `/app/proposals/${propostaId}`,
-  };
-  let enviados = 0;
-  for (const userId of destinatarios) {
-    enviados += (await enviarPushAoUsuario(row.organization_id, userId, payload)).sent;
-  }
-  return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "ok", detail: `sent:${enviados}` };
-}
-
 export const webPushInboundHandler: EventHandler = {
   key: WEB_PUSH_INBOUND_KEY,
-  events: ["message.received", "lead.assigned", "lead.won", "lead.lost", "user.mentioned", EVENTO_PROPOSTA_PRONTA_PARA_REVISAO],
+  events: [
+    "message.received",
+    "lead.assigned",
+    "lead.won",
+    "lead.lost",
+    "user.mentioned",
+    // Os avisos que pedem gente (migration 0442) — ver `./push-dos-avisos.ts`.
+    "central.aviso_criado",
+  ],
   async handle(row): Promise<HandlerResult> {
     if (!vapidPronto()) {
       return { consumer_key: WEB_PUSH_INBOUND_KEY, status: "skipped", detail: "vapid_ausente" };
     }
     if (row.event_type === "message.received") return handleInbound(row);
-    if (row.event_type === EVENTO_PROPOSTA_PRONTA_PARA_REVISAO) return handlePropostaParaRevisao(row);
+    if (row.event_type === "central.aviso_criado") return handleAvisoQuePedeGente(row);
 
     if (row.event_type === "user.mentioned") {
       const toUserId = typeof row.payload.to_user_id === "string" ? row.payload.to_user_id : null;

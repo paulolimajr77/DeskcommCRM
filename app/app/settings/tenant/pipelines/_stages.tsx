@@ -518,6 +518,20 @@ export function StagesSection({
                 />
               </div>
 
+              {/* Numa venda com pagamento na entrega o momento que pede ação é o
+                  pedido confirmado, não o ganho — e quem sabe qual etapa é essa é
+                  a organização. Ver a migration 0440. */}
+              <label className="flex items-center gap-2 text-xs text-text-muted">
+                <Switch
+                  checked={etapa.avisar_na_central === true}
+                  onCheckedChange={(v) => aplicar(etapa.id, { avisar_na_central: v })}
+                  disabled={ocupado}
+                  aria-label={`${t("Avisar a equipe na Central quando um negócio entrar em")} «${etapa.name}»`}
+                  data-testid={`avisar-${etapa.id}`}
+                />
+                {t("Avisar a equipe na Central quando um negócio entrar aqui")}
+              </label>
+
               {passo && (
                 <p className="text-xs text-text-muted" data-testid={`passo-de-${etapa.id}`}>
                   {t("O assistente usa esta etapa para")} «{t(ROTULO_DO_PASSO[passo])}».{" "}

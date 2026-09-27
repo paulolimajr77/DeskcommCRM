@@ -119,6 +119,8 @@ sin eso un contenedor de compose común no puede entrar en ella."
   ["apaga a configuração digitada"]="borra la configuración ingresada"
   ["derruba o que subiu"]="derriba lo que se levantó"
   ["começa de novo"]="empieza de nuevo"
+  ["apaga o marcador desta instalação"]="borra el marcador de esta instalación"
+  ["⚠ Não consegui gravar o marcador desta instalação (arquivo .deskcomm-instalado). O CRM está no ar; numa VPS ARM a atualização pode pedir a VPS x86_64 até o marcador existir."]="⚠ No pude escribir el marcador de esta instalación (archivo .deskcomm-instalado). El CRM está en línea; en una VPS ARM la actualización puede pedir la VPS x86_64 hasta que el marcador exista."
   ["Se o schema chegou a ser aplicado e você quer o banco limpo de novo,"]="Si el esquema llegó a aplicarse y quieres la base de datos limpia de nuevo,"
   ["abra o Supabase > SQL Editor e rode (ATENÇÃO: apaga todos os dados):"]="abre Supabase > SQL Editor y ejecuta (ATENCIÓN: borra todos los datos):"
 

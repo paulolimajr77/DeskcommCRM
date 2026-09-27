@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/auth/AuthProvider";
 import { destinosDaInterface } from "@/lib/navigation/interface";
 
 import { useAgentInbox } from "@/hooks/ai/useAgentInbox";
+import { useSonsDaCentral } from "@/hooks/notifications/useSonsDaCentral";
 import { useT } from "@/hooks/i18n/useT";
 import { Bell } from "@/lib/ui/icons";
 
@@ -26,6 +27,11 @@ export function AlertsBell() {
 function VisibleAlertsBell() {
   const t = useT();
   const { data } = useAgentInbox("open");
+  // O som da organização para a etapa que avisa e o pedido de pessoa.
+  useSonsDaCentral(data?.items);
+  // ⚠️ O SINO CONTA SÓ O QUE NINGUÉM OLHOU (`unseen_count`), e não os avisos
+  // abertos: um aviso que alguém já abriu não pode continuar aceso como se ainda
+  // pedisse atenção — é o que fazia o número do sino não cair nunca.
   const count = data?.unseen_count ?? 0;
 
   return (

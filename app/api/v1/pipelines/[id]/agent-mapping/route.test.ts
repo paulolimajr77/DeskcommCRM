@@ -256,15 +256,19 @@ describe("GET /api/v1/pipelines/[id]/agent-mapping", () => {
     // estado honesto de uma etapa anterior à coluna. Fica no `toEqual` exato de
     // propósito: é o que impede a projeção de crescer sem ninguém decidir.
     //
-    // A fixture NÃO traz `afirma_fato` — o `false` aqui é a NORMALIZAÇÃO do
-    // `corpo()` em ação: prova que um clone com baseline antigo recebe booleano,
-    // e não `undefined`.
+    // A fixture NÃO traz nenhuma das duas chaves de caixa (`afirma_fato`,
+    // `avisar_na_central`) — os `false` aqui são a NORMALIZAÇÃO do `corpo()` em
+    // ação: prova que um clone com baseline antigo recebe booleano, e não
+    // `undefined`.
     expect(body.data.etapas[0]).toEqual({
       id: "e1",
       name: "Novo",
       is_won: false,
       is_lost: false,
       afirma_fato: false,
+      // Migration 0440: a tela de etapas lê daqui a chave «avisar na Central».
+      // Ausente na fixture = etapa anterior à coluna = desligada.
+      avisar_na_central: false,
       last_change_actor_kind: null,
       last_change_at: null,
     });

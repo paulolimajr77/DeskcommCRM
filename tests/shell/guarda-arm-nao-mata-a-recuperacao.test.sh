@@ -159,6 +159,14 @@ INTERNAL_SECRET=segredo
 NUVEMSHOP_OAUTH_ENCRYPTION_KEY=chave
 ENV
     chmod 600 "$proj/.env"
+    # O marcador que o install.sh grava com a stack no ar (#1778). Esta fixture
+    # representa uma instalação que JÁ PASSOU pelo instalador, então ela tem o
+    # marcador — e, mesmo sem ele, teria o contêiner do projeto, que é o outro
+    # sinal de instalação real. Sem esta linha o `docker ps -a -q` do dublê (que
+    # devolve vazio) faria esta prova medir uma instalação NOVA, que não é o caso
+    # que ela existe para provar.
+    printf 'instalado_em=2026-09-27T00:00:00Z\nversao=0.9.0\n' > "$proj/.deskcomm-instalado"
+    chmod 600 "$proj/.deskcomm-instalado"
   fi
   # O overlay do #1143 precisa EXISTIR no projeto: o `construir_aqui_e_subir`
   # passa `-f $COMPOSE_BUILD` para o compose, e um `-f` de arquivo inexistente
@@ -312,7 +320,7 @@ R5="$WORK/caso5"; mkdir -p "$R5"; montar_instalacao "$R5" 0
 (
   cd "$R5/deskcommcrm" || exit 1
   git checkout --quiet v0.9.0
-  sed -i.bak 's/instalacao_do_kit_ja_existe && existe=1/: guarda velha/' hostgator-setup-kit/_common.sh
+  sed -i.bak 's/instalacao_real_do_kit_aqui && existe=1/: guarda velha/' hostgator-setup-kit/_common.sh
   rm -f hostgator-setup-kit/_common.sh.bak
   git commit --quiet -am "kit com a guarda velha"
   git tag v0.8.0

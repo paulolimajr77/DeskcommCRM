@@ -90,6 +90,7 @@ const bodySchema = z.object({
  * a regra do mapeamento carregar um campo que ela nunca lê.
  */
 type EtapaComAutoria = EtapaDoMapa & {
+  avisar_na_central?: boolean | null;
   last_change_actor_kind: string | null;
   last_change_at: string | null;
   /**
@@ -121,7 +122,7 @@ async function lerFunil(
     // consulta só para ela seria um round-trip por render numa tela de
     // configuração — e um caminho a mais para a lista e a autoria divergirem.
     .select(
-      "id, name, is_won, is_lost, win_probability, agent_stage_hint, last_change_actor_kind, last_change_at, afirma_fato",
+      "id, name, is_won, is_lost, win_probability, agent_stage_hint, afirma_fato, avisar_na_central, last_change_actor_kind, last_change_at",
     )
     .eq("organization_id", orgId)
     .eq("pipeline_id", pipelineId)
@@ -158,6 +159,10 @@ function corpo(etapas: EtapaComAutoria[]) {
       // um clone com o baseline antigo devolve a linha SEM a chave — e
       // `undefined` no JSON some, deixando a tela com a caixa indefinida.
       afirma_fato: e.afirma_fato === true,
+      // Mesma normalização para a chave da Central (0440): etapa anterior à
+      // coluna num clone com baseline antigo é a mesma coisa que desligada — e
+      // a tela precisa do booleano, nunca do campo ausente.
+      avisar_na_central: e.avisar_na_central === true,
       last_change_actor_kind: e.last_change_actor_kind ?? null,
       last_change_at: e.last_change_at ?? null,
     })),

@@ -13,9 +13,14 @@ const KIND_PROPOSTA_PRONTA = "proposta_pronta_para_revisao";
 /**
  * C6 — aviso de proposta que se vê. Quando nasce um
  * `proposta_pronta_para_revisao` com o CRM aberto, um cartão fixo aparece no
- * canto inferior direito, com som curto e notificação do sistema (se
- * permitida). A primeira carga só REGISTRA os ids — sem ela, todo aviso
- * antigo gritaria a cada F5. Mesmo gate de permissão do `AlertsBell`.
+ * canto inferior direito. A primeira carga só REGISTRA os ids — sem ela, todo
+ * aviso antigo gritaria a cada F5. Mesmo gate de permissão do `AlertsBell`.
+ *
+ * ⚠️ O CARTÃO É A NOTIFICAÇÃO; o som e o celular são o PLUS, e moram no sino.
+ * O som da organização toca por `useSonsDaCentral` (a regra de quais avisos
+ * pedem gente é uma só, em `lib/notifications/sons-da-org.ts`) e o push chega
+ * pelo `pushDoAvisoDaCentral`. Um sinal próprio aqui tocaria duas vezes para o
+ * mesmo aviso, com um som que a organização não escolheu.
  */
 export function AvisoDePropostaEmDestaque() {
   const { user, activeOrg } = useAuth();
@@ -28,47 +33,6 @@ export function AvisoDePropostaEmDestaque() {
   )
     return null;
   return <AvisoVisivel />;
-}
-
-function tocarSinalCurto(): void {
-  try {
-    const Ctor =
-      typeof window === "undefined"
-        ? null
-        : (window as unknown as {
-            AudioContext?: typeof AudioContext;
-            webkitAudioContext?: typeof AudioContext;
-          }).AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ??
-          null;
-    if (!Ctor) return;
-    const ctx = new Ctor();
-    const oscilador = ctx.createOscillator();
-    const ganho = ctx.createGain();
-    oscilador.connect(ganho);
-    ganho.connect(ctx.destination);
-    oscilador.start();
-    oscilador.stop(ctx.currentTime + 0.2);
-    window.setTimeout(() => {
-      try {
-        void ctx.close().catch(() => undefined);
-      } catch {
-        /* sem áudio, sem quebra */
-      }
-    }, 300);
-  } catch {
-    /* sem áudio, sem quebra */
-  }
-}
-
-function notificarSistema(titulo: string, corpo: string): void {
-  try {
-    if (typeof Notification === "undefined") return;
-    if (Notification.permission !== "granted") return;
-    new Notification(titulo, { body: corpo });
-  } catch {
-    /* sem notificação, sem quebra */
-  }
 }
 
 function AvisoVisivel() {
@@ -90,8 +54,6 @@ function AvisoVisivel() {
     for (const i of itens) registrados.add(i.id);
     if (!novo || dispensados.has(novo.id)) return;
     setAtual((anterior) => (anterior?.id === novo.id ? anterior : novo));
-    tocarSinalCurto();
-    notificarSistema(novo.title, corpo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, dispensados]);
 

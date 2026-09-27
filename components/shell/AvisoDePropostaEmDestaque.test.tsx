@@ -8,9 +8,10 @@
  * registrar ids.
  *
  * O `o-sino-conta-o-que-ninguem-olhou.test.tsx` mede a outra metade do mesmo
- * arquivo de avisos, pelo lado do sino (a contagem de não vistos). Aqui é o
- * lado da TELA: o que acontece quando o polling traz um item que nasceu depois
- * que a pessoa abriu o CRM.
+ * arquivo de avisos, pelo lado do sino (a contagem de não vistos, e o som que
+ * sai por lá). Aqui é o lado da TELA: o que acontece quando o polling traz um
+ * item que nasceu depois que a pessoa abriu o CRM. O cartão não tem som nem
+ * `Notification` próprios — o caso final prende isso.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -149,15 +150,10 @@ describe("aviso de proposta em destaque", () => {
     expect(cartao()).toBeNull();
   });
 
-  it("CONTROLE — com Notification presente, o aviso novo notifica o sistema", async () => {
-    // O caso de baixo (os dois ausentes) passaria por vacuidade num componente
-    // que nunca chamasse nenhum dos dois. Aqui a notificação EXISTE e é
-    // chamada — o que prova que o efeito de "aviso novo" roda de verdade.
-    //
-    // O som não entra: `oscilador.start()` não tem efeito observável, e o
-    // componente lê `window.AudioContext` (o objeto do jsdom), não o global do
-    // teste — um stub que não chega lá daria um controle verde sobre vazio. O
-    // que o som tem de não quebrar é medido no caso seguinte, pelo CARTÃO.
+  it("o cartão NÃO toca som próprio nem notifica o sistema — quem faz isso é o sino", async () => {
+    // O som da organização e o push do celular vivem no `AlertsBell`
+    // (`useSonsDaCentral`) e no `pushDoAvisoDaCentral`. Um sinal aqui tocaria
+    // duas vezes para o mesmo aviso, com um som que a organização não escolheu.
     const notified: string[] = [];
     vi.stubGlobal(
       "Notification",
@@ -168,33 +164,40 @@ describe("aviso de proposta em destaque", () => {
         }
       },
     );
+    let contextoCriado = 0;
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        createOscillator() {
+          contextoCriado += 1;
+          return { connect: () => undefined, start: () => undefined, stop: () => undefined };
+        }
+        createGain() {
+          return { connect: () => undefined };
+        }
+        get currentTime() {
+          return 0;
+        }
+        get destination() {
+          return undefined;
+        }
+        close() {
+          return Promise.resolve();
+        }
+      },
+    );
 
     caixa.data = abertos([ANTIGO]);
     const { rerender } = render(<AvisoDePropostaEmDestaque />);
     caixa.data = abertos([ANTIGO, NOVO]);
     rerender(<AvisoDePropostaEmDestaque />);
-    await screen.findByTestId("aviso-proposta-destaque");
 
-    expect(notified).toEqual(["Proposta da Ana — Condomínio Alvorada"]);
-  });
-
-  it("sem window.Notification e sem AudioContext nada quebra", async () => {
-    // jsdom não implementa nenhum dos dois — e é também o caso de navegador
-    // antigo e de instalação com permissão negada. O aviso tem que aparecer
-    // igual, porque o CARTÃO é a notificação; som e notificação de sistema são
-    // o PLUS. Aqui os dois são explicitamente AUSENTES, e o que se prova é o
-    // cartão — o caminho que o controle acima mostra ser alcançado.
-    vi.stubGlobal("Notification", undefined);
-    vi.stubGlobal("AudioContext", undefined);
-    vi.stubGlobal("webkitAudioContext", undefined);
-
-    caixa.data = abertos([ANTIGO]);
-    const { rerender } = render(<AvisoDePropostaEmDestaque />);
-    caixa.data = abertos([ANTIGO, NOVO]);
-    rerender(<AvisoDePropostaEmDestaque />);
-
+    // O CARTÃO aparece (é a notificação)…
     expect(await screen.findByTestId("aviso-proposta-destaque")).toHaveTextContent(
       "Proposta da Ana — Condomínio Alvorada",
     );
+    // …e nada mais dispara por conta própria.
+    expect(notified).toEqual([]);
+    expect(contextoCriado).toBe(0);
   });
 });

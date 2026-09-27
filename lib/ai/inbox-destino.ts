@@ -127,7 +127,9 @@ export const POLITICAS_DE_AVISO = {
     refs: ["proposal"],
     orientacao: "A IA rascunhou esta proposta — confirme o modelo sugerido (ou escolha outro) e confira se todos os itens têm preço antes de enviar.",
   },
-  other: { refs: ["lead", "channel_session", "appointment", "ai_agent", "ai_provider_credential"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
+  // `agent_case`: o caso que a IA abriu, na Central no instante da abertura
+  // (`lib/escalacao/caso-na-central.handler.ts`).
+  other: { refs: ["lead", "channel_session", "appointment", "ai_agent", "ai_provider_credential", "agent_case"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },
 } satisfies Record<InboxKind, Politica>;
 
 /**

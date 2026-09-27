@@ -17,8 +17,14 @@ type Detalhe = {
   google_sync?: SyncDetail;
   id: string;
   title: string;
-  notes: string | null;
   description: string | null;
+  /**
+   * A anotação INTERNA do compromisso — o resumo que o assistente grava ao
+   * marcar. Distinta de `description`, que é a observação publicável e sobe
+   * para o calendário do cliente; esta fica no CRM, e é o que quem vai atender
+   * precisa ler. A coluna era gravada e não aparecia em tela nenhuma.
+   */
+  notes: string | null;
   location_kind: string | null;
   location_details: string | null;
   starts_at: string;
@@ -169,13 +175,17 @@ export function DetalheDoCompromisso({
                 {a.description}
               </p>
             ) : null}
-            {a.notes && !a.description?.trim() ? (
-              /* Legado: antes do campo description, a observação morava em notes.
-                 Mostra só quando description está vazio para não duplicar a tela
-                 (e o testid) quando os dois estiverem preenchidos. */
-              <div data-testid="compromisso-observacao" className="rounded-md border bg-surface p-3">
-                <p className="text-xs font-medium text-text-muted">{t("Observação")}</p>
-                <p className="mt-1 whitespace-pre-line text-sm">{a.notes}</p>
+            {/*
+              A anotação INTERNA — o resumo que o assistente grava ao marcar, e o
+              que quem vai atender precisa ler. É distinta da observação acima:
+              aquela sobe para o calendário do cliente, esta fica no CRM. Com
+              rótulo, e não o texto solto, porque as duas são texto livre no mesmo
+              painel e sem rótulo ninguém sabe qual delas é interna.
+            */}
+            {a.notes?.trim() ? (
+              <div data-testid="compromisso-anotacao">
+                <p className="text-sm text-text-muted">{t("Anotação")}</p>
+                <p className="whitespace-pre-wrap">{a.notes}</p>
               </div>
             ) : null}
             <p>

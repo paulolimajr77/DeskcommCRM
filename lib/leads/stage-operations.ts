@@ -51,7 +51,7 @@ export interface DepsDeEtapa {
 
 /** As colunas que a tela e as regras usam. `position` entra: a reordenação calcula em cima dela. */
 const COLUNAS =
-  "id, name, slug, position, is_won, is_lost, is_archived, agent_stage_hint, last_change_actor_kind, last_change_at, afirma_fato";
+  "id, name, slug, position, is_won, is_lost, is_archived, win_probability, agent_stage_hint, last_change_actor_kind, last_change_at, afirma_fato";
 
 /** A etapa como sai para quem lê — inclui a autoria da última mudança de configuração. */
 export interface EtapaVisivel {
@@ -63,6 +63,14 @@ export interface EtapaVisivel {
   is_lost: boolean;
   /** A etapa afirma um fato consumado (migration 0274). */
   afirma_fato: boolean;
+  /**
+   * Probabilidade de GANHO desta etapa, 0–100 (migration 0426). `null` = etapa
+   * sem calibração, e a previsão a reporta à parte em vez de somar zero.
+   *
+   * `is_won` e `is_lost` valem 100 e 0 NA REGRA (`lib/leads/previsao.ts`),
+   * não aqui: gravar seria um segundo lugar para a mesma verdade divergir.
+   */
+  win_probability: number | null;
   /** `user` | `ai` | `system` — `null` nas etapas anteriores a esta coluna. */
   last_change_actor_kind: string | null;
   last_change_at: string | null;
@@ -141,6 +149,7 @@ export function corpo(etapas: EtapaLida[]): { etapas: EtapaVisivel[] } {
         // linha SEM a chave, e `undefined` some no JSON. A tela precisa receber
         // booleano — nunca sumir o campo com a caixa desmarcada.
         afirma_fato: e.afirma_fato === true,
+        win_probability: e.win_probability ?? null,
         last_change_actor_kind: e.last_change_actor_kind ?? null,
         last_change_at: e.last_change_at ?? null,
       })),
@@ -308,6 +317,13 @@ export interface PedidoDeEdicao {
    */
   afirma_fato?: boolean;
   /**
+   * Probabilidade de ganho da etapa, 0–100 (migration 0426). `null` limpa a
+   * calibração — e a previsão volta a reportar a etapa no balde "sem
+   * probabilidade". Ganho e perda NÃO aceitam número: valem 100 e 0 na regra,
+   * nunca gravado.
+   */
+  win_probability?: number | null;
+  /**
    * O vizinho da ESQUERDA (`null` = primeira coluna), não um número de posição:
    * quem arrasta a coluna sabe onde ela caiu, não qual fração de `position` isso
    * vira. Mandar o número duplicaria a conta que `posicaoEntre` já faz — e as
@@ -356,6 +372,19 @@ export async function atualizarEtapa(
     }
   }
 
+  if (pedido.win_probability !== undefined && pedido.win_probability !== null) {
+    const p = pedido.win_probability;
+    if (!Number.isInteger(p) || p < 0 || p > 100) {
+      throw new ApiError(
+        422,
+        "unprocessable_entity",
+        undefined,
+        deps.requestId,
+        "A probabilidade de ganho de uma etapa vai de 0 a 100.",
+      );
+    }
+  }
+
   const temMarcacao = pedido.is_won !== undefined || pedido.is_lost !== undefined;
   if (temMarcacao) {
     const veredito = validarMarcacao(etapas, stageId, pedido);
@@ -364,14 +393,22 @@ export async function atualizarEtapa(
     }
   }
 
-  // `afirma_fato` entra no patch do alvo e NÃO passa por `validarMarcacao` nem
-  // por `updatesDeMarcacao`. Aqueles dois cuidam de `is_won`/`is_lost`, que
-  // disputam índices únicos PARCIAIS por funil. `afirma_fato` não disputa nada:
-  // quantas etapas afirmarem fato, todas podem. Meter o campo naquela máquina
+  // `afirma_fato` e `win_probability` entram no patch do alvo e NÃO passam por
+  // `validarMarcacao` nem por `updatesDeMarcacao`. Aqueles dois cuidam de
+  // `is_won`/`is_lost`, que disputam índices únicos PARCIAIS por funil.
+  // Nenhum dos dois disputa nada: quantas etapas afirmarem fato ou tiverem
+  // probabilidade calibrada, todas podem. Meter os campos naquela máquina
   // inventaria uma exclusividade que ninguém pediu.
-  const patchDoAlvo: PatchDeMarcacao & { name?: string; position?: number; afirma_fato?: boolean } = {};
+  const patchDoAlvo: PatchDeMarcacao & {
+    name?: string;
+    position?: number;
+    afirma_fato?: boolean;
+    win_probability?: number | null;
+  } = {};
   if (pedido.name !== undefined) patchDoAlvo.name = pedido.name.trim();
   if (pedido.afirma_fato !== undefined) patchDoAlvo.afirma_fato = pedido.afirma_fato;
+  // `undefined` não viaja; `null` limpa a calibração de propósito.
+  if (pedido.win_probability !== undefined) patchDoAlvo.win_probability = pedido.win_probability;
 
   if (pedido.depois_de !== undefined) {
     // Só as ativas compõem a régua: arquivada não ocupa lugar no quadro.
@@ -516,6 +553,24 @@ export async function arquivarEtapa(
     );
   }
 
+  // ── POR QUE A RÉGUA DE CAMPOS OBRIGATÓRIOS (#1536) NÃO ENTRA AQUI ───────────
+  //
+  // Este UPDATE move N negócios de uma vez e é a ÚNICA porta de saída de uma
+  // etapa que está sendo arquivada (`validarArquivamento` recusa arquivar com
+  // negócio e sem destino). Aplicar `validaCamposExigidos` aqui seria decidir
+  // por N fichas diferentes, e a recusa não teria saída nenhuma: a tela de
+  // arquivamento não coleta campo de ficha, então o dono ficaria SEM COMO tirar
+  // a coluna do quadro — nem saberia qual dos cards travou a operação. Bloquear
+  // uma ação de CONFIGURAÇÃO por dado de ficha é decisão de produto nova, não
+  // conserto do buraco do #1536, e por isso fica registrado aqui em vez de
+  // imposto em silêncio (o CR do mantenedor aceita as duas saídas).
+  //
+  // O buraco em si fecha pelas portas de ENTRADA em etapa: arrasto, lote,
+  // botão ganhar/perder, MCP, agente, handoff e agendamento passam todos pela
+  // mesma régua, então o PRÓXIMO movimento destes cards — para uma etapa que
+  // exige — é coberto. A comparação "mesma etapa passa" também não vira buraco
+  // aqui: o destino deste UPDATE é SEMPRE outra etapa.
+  //
   // ⚠️ OS NEGÓCIOS ANDAM PRIMEIRO. Arquivar antes de mover deixaria os cards
   // apontando para uma coluna fora do quadro se a segunda escrita falhasse —
   // sumiço silencioso, o pior desfecho possível aqui.

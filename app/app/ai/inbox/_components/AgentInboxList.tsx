@@ -107,6 +107,12 @@ export function AgentInboxList({ canResolve }: { canResolve: boolean }) {
           </p>
         </div>
       ) : (
+        <>
+        {tab === "open" ? (
+          <p className="-mb-2 text-xs text-muted-foreground">
+            {t("Os mais graves primeiro; entre iguais, os mais recentes.")}
+          </p>
+        ) : null}
         <ul className="divide-y divide-border rounded-lg border border-border">
           {data.items.map((item) => (
             <InboxRow
@@ -118,6 +124,7 @@ export function AgentInboxList({ canResolve }: { canResolve: boolean }) {
             />
           ))}
         </ul>
+        </>
       )}
     </div>
   );

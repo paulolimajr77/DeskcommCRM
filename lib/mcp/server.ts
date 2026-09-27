@@ -46,6 +46,7 @@ export function createMcpServer(
   requestId: string,
   modulosLigados: readonly ModuloOpcional[] = [],
   capacidadesLigadas: readonly CapacidadeDaOrganizacao[] = [],
+  idempotencyKey?: string,
 ): McpServer {
   const server = new McpServer({
     name: SERVER_NAME,
@@ -78,6 +79,7 @@ export function createMcpServer(
         const args = higiene.limpos;
         const argsAudit = tool.redigirParaAuditoria ? tool.redigirParaAuditoria(args) : args;
         const ctx: McpContext = {
+          ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
           organizationId: auth.organizationId,
           role: auth.role,
           actor: auth.actor,

@@ -117,6 +117,7 @@ CRONS="
 0 8 * * *|60|api/v1/cron/proposal-expiry
 30 8 * * *|60|api/v1/cron/proposal-promised-not-created
 0 6 * * 0|60|api/v1/cron/proposal-acceptance-rate
+20 5 * * *|120|api/v1/cron/media-retention
 # AS RECORRÊNCIAS. Uma vez ao dia é o bastante: o que ela gera é uma conta a
 # pagar, e a diferença entre nascer às 5h ou às 17h não muda nada para quem paga.
 # Barato: uma consulta por instalação, e quem não tem molde nenhum sai na hora.

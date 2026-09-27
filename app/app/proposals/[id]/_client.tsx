@@ -98,9 +98,8 @@ function linhasParaGravar(itens: ProposalItem[]): ProposalItem[] {
 /** O caminho do campo que a rota recusou (`itens.2.descricao`), legível. */
 function campoRecusado(caminho: string): string {
   const item = /^itens\.(\d+)\.(\w+)$/.exec(caminho);
-  const indice = item?.[1];
-  if (indice === undefined) return caminho;
-  return `item ${Number(indice) + 1} · ${item[2] ?? ""}`;
+  if (!item || item[1] === undefined) return caminho;
+  return `item ${Number(item[1]) + 1} · ${item[2] ?? ""}`;
 }
 
 /**
@@ -355,6 +354,10 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
    * gravação falhar: enviar o rascunho velho é pior do que não enviar.
    */
   async function enviar() {
+    // A mesma pergunta do render, respondida NO CLIQUE: o que está na tela é
+    // diferente do que está gravado? Ler o `ref` aqui (evento) é permitido —
+    // era a leitura durante o render que o `react-hooks` reprovava.
+    const sujo = ultimaGravacao.current !== null && ultimaGravacao.current !== assinaturaDoRascunho(proposta);
     if (sujo) {
       const salvou = await salvar();
       if (!salvou) return;
@@ -417,10 +420,6 @@ export function ProposalEditorClient({ id, podeEditar, podeRevisar = false }: { 
   }
 
   const editavel = podeEditar && proposta.status === "rascunho";
-  // "Enviar" só reenvia o que está GRAVADO. Sem esta pergunta, a pessoa
-  // digita o preço, clica em Enviar e recebe "Item sem preço" — porque o que
-  // foi enviado foi a versão antiga, não a que está na tela.
-  const sujo = ultimaGravacao.current !== null && ultimaGravacao.current !== assinaturaDoRascunho(proposta);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 p-6">

@@ -298,7 +298,7 @@ describe("ProposalEditorClient — o que realmente sai no PATCH", () => {
 
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
     fireEvent.click(await screen.findByRole("button", { name: /item à mão/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Salvar", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar$/ }));
 
     await waitFor(() => expect(patch).toHaveBeenCalled());
     const gravado = patch.mock.calls[0]![1] as { itens: Array<{ descricao: string }> };
@@ -316,7 +316,7 @@ describe("ProposalEditorClient — o que realmente sai no PATCH", () => {
     const patch = vi.mocked(apiClient.patch);
 
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Salvar", exact: true }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Salvar$/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Preencha a descrição do item 2.");
     expect(patch).not.toHaveBeenCalled();
@@ -335,7 +335,7 @@ describe("ProposalEditorClient — o que realmente sai no PATCH", () => {
     );
 
     render(<ProposalEditorClient id="p1" podeEditar={true} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Salvar", exact: true }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Salvar$/ }));
 
     const alerta = await screen.findByRole("alert");
     expect(alerta).toHaveTextContent("O servidor recusou estes campos: item 1 · descricao.");

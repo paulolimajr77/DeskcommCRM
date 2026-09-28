@@ -254,8 +254,17 @@ export async function POST(_req: NextRequest, ctx: Ctx): Promise<Response> {
 
     mensagem = await sendMessageHandler(
       admin,
-      { organization_id: authz.org.orgId, actor: { type: "user", id: authz.user.id }, requestId, idioma: authz.user.idioma },
-      { conversation_id: conversa.id, type: "document", media_url: signedUrl, media_mime: "application/pdf" },
+      {
+        organization_id: authz.org.orgId,
+        actor: { type: "user", id: authz.user.id },
+        requestId,
+        idioma: authz.user.idioma,
+        // A URL assinada vai pelo ctx, nunca por `media_url`: o handler só
+        // manda ao canal um arquivo que o próprio servidor assinou (ver
+        // `arquivoDoServidor` em lib/api/handlers/types.ts).
+        arquivoDoServidor: { url: signedUrl },
+      },
+      { conversation_id: conversa.id, type: "document", media_mime: "application/pdf" },
     );
 
     // O clique no anexo depois (GET /api/v1/messages/[id]/media) só reaproveita

@@ -85,6 +85,18 @@ export interface HandlerCtx {
   serviceOrigin?: ServiceOrigin;
   /** Chave HTTP validada na borda para replay de uma criação. */
   idempotencyKey?: string;
+  /**
+   * Arquivo que o PRÓPRIO SERVIDOR gerou e assinou — hoje, o PDF da proposta
+   * comercial, no bucket `propostas`.
+   *
+   * Vive no CTX, e não no input, pelo mesmo motivo do `onBehalfOf`: o
+   * `media_url` do input chega livre pelo `POST /api/v1/messages` e pela
+   * ferramenta MCP `send_message` (`lib/schemas/messaging.ts`). Se o handler
+   * mandasse ao canal qualquer `media_url`, o canal baixaria o endereço que
+   * viesse — inclusive da rede interna da VPS — e o entregaria ao cliente
+   * como documento. Nenhuma rota preenche este campo a partir do corpo.
+   */
+  arquivoDoServidor?: { url: string };
   /** Identidade estável do job interno; não usar claim, que muda em cada reclaim. */
   sourceJobId?: string;
   organization_id: string;

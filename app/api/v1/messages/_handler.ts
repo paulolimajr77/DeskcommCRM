@@ -954,14 +954,17 @@ export async function sendMessageHandler(
           // cópia guardada no envio, que poderia divergir da linha.
           replyToExternalId: citada?.external_id ?? null,
         }));
-      } else if (input.media_url) {
-        // Spec `2026-09-16-proposta-comercial-design.md` já previa isto
-        // ("Enviar | sendFile com media_url") e nunca chegou a ser ligado: um
-        // envio só com `media_url` (sem `media_storage_path` — que é só para
-        // arquivo já dentro da PRÓPRIA conversa, ver `isMediaPathOwnedBy`
-        // acima) caía no `else` de texto puro, com corpo vazio — nenhum
-        // arquivo saía. URL externa não tem "dono" para checar: quem chama
-        // este handler já é código de servidor confiável (proposta, MCP).
+      } else if (ctx.arquivoDoServidor) {
+        // Arquivo que o PRÓPRIO servidor gerou e assinou (o PDF da proposta
+        // comercial), fora da conversa — por isso não passa por
+        // `media_storage_path`, que é só para arquivo anexado DENTRO dela (ver
+        // `isMediaPathOwnedBy` acima).
+        //
+        // O endereço vem do CTX, nunca de `input.media_url`: esse campo chega
+        // livre pelo `POST /api/v1/messages` e pela ferramenta MCP
+        // `send_message`, e o canal baixaria o que viesse — inclusive um
+        // endereço da rede interna da VPS — para entregar como documento.
+        // `input.media_url` sozinho segue caindo no ramo de texto, como antes.
         await checkBoundary();
         ({ externalId } = await adapter.send({
           beforeSend: checkBoundary,
@@ -971,7 +974,7 @@ export async function sendMessageHandler(
           providerConversationId: c.provider_conversation_id,
           kind: input.type,
           media: {
-            url: input.media_url,
+            url: ctx.arquivoDoServidor.url,
             mime: input.media_mime ?? "application/octet-stream",
             caption: input.body ?? null,
           },
@@ -1138,7 +1141,7 @@ export async function sendMessageHandler(
     last_message_at: now,
     last_message_preview: previewFrom({
       body: input.body,
-      media_url: input.media_url,
+      media_url: input.media_url ?? ctx.arquivoDoServidor?.url,
       media_storage_path: input.media_storage_path,
       type: input.type,
     }),

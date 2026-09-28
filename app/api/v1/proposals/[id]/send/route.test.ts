@@ -512,6 +512,19 @@ describe("POST /api/v1/proposals/[id]/send", () => {
     expect(mundo.atualizacoesDeMensagem).toContainEqual({ id: "msg-123", patch: { media_storage_path: "/pdf" } });
   });
 
+  // Achado da triagem do PR #1832: a URL assinada vai pelo ctx, nunca por
+  // `media_url` — o handler só manda ao canal arquivo que o servidor assinou.
+  it("passa a URL assinada do PDF pelo ctx (arquivoDoServidor), nunca por media_url", async () => {
+    const mundo = montarMundoDeEnvio({ papel: "manager" });
+    const res = await mundo.POST();
+    expect(res.status).toBe(200);
+    const [, ctxDoEnvio, entrada] = mocks.sendMessageHandler.mock.calls[0] as [
+      unknown, { arquivoDoServidor?: { url: string } }, Record<string, unknown>,
+    ];
+    expect(ctxDoEnvio.arquivoDoServidor).toEqual({ url: "https://url" });
+    expect(entrada).not.toHaveProperty("media_url");
+  });
+
   it("WhatsApp confirma (sent): vira enviada, ganha sent_at e muda o valor do negocio", async () => {
     const mundo = montarMundoDeEnvio({ papel: "manager" });
     const res = await mundo.POST();

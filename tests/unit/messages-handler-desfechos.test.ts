@@ -310,21 +310,19 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
   });
 
   // Achado ao investigar "proposta manda PDF e o cliente não recebe nada
-  // anexado": `input.media_url` — o caminho que a proposta usa para despachar o
-  // PDF já assinado no bucket — nunca foi ligado ao dispatcher. Antes deste
-  // teste, um envio com `media_url` (sem `media_storage_path`) caía no branch de
-  // texto puro e ia para `/api/sendText` com corpo vazio — sem nenhum arquivo.
-  // Testa exatamente esse input, contra o texto puro logo abaixo, para os dois
-  // nunca convergirem de novo por acidente.
-  it('4b. com media_url (sem media_storage_path): sent + external_id, pelo endpoint de arquivo', async () => {
+  // anexado": o PDF já assinado no bucket nunca chegava ao dispatcher, e o envio
+  // caía no branch de texto puro, com corpo vazio — sem nenhum arquivo. O
+  // endereço entra pelo CTX (`arquivoDoServidor`), nunca por `input.media_url`
+  // — ver o 4c logo abaixo, que é o motivo.
+  it('4b. com arquivoDoServidor no ctx: sent + external_id, pelo endpoint de arquivo', async () => {
     wahaConfigured(true);
     const fetchMock = vi.fn(async (..._args: unknown[]) => Response.json({ id: { _serialized: 'FILE1' } }));
     vi.stubGlobal('fetch', fetchMock);
 
     const msg = await sendMessageHandler(
       makeSupabase(conversationRow()),
-      ctx,
-      textInput({ type: 'document', body: undefined, media_url: 'https://storage.example/propostas/a.pdf', media_mime: 'application/pdf' }),
+      { ...ctx, arquivoDoServidor: { url: 'https://storage.example/propostas/a.pdf' } },
+      textInput({ type: 'document', body: undefined, media_mime: 'application/pdf' }),
     );
 
     expect(msg.status).toBe('sent');
@@ -335,6 +333,30 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
     expect(sendFile, 'sendFile não foi chamado').toBeTruthy();
     const body = JSON.parse(String((sendFile![1] as RequestInit).body)) as { file?: { url?: string } };
     expect(body.file?.url).toBe('https://storage.example/propostas/a.pdf');
+  });
+
+  // Achado da triagem do PR #1832: `media_url` chega livre pelo
+  // `POST /api/v1/messages` e pela ferramenta MCP `send_message`. Se ele
+  // bastasse para abrir o ramo de arquivo, o canal baixaria qualquer endereço —
+  // inclusive da rede interna da VPS — e o entregaria ao cliente como documento.
+  // O endereço do input nunca pode chegar ao canal.
+  it('4c. media_url só no input (sem arquivoDoServidor): o endereço NÃO chega ao canal', async () => {
+    wahaConfigured(true);
+    const fetchMock = vi.fn(async (..._args: unknown[]) => Response.json({ key: { id: 'TEXT1' }, id: { _serialized: 'TEXT1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const interno = 'http://169.254.169.254/latest/meta-data/';
+
+    await sendMessageHandler(
+      makeSupabase(conversationRow()),
+      ctx,
+      textInput({ type: 'document', body: 'oi', media_url: interno, media_mime: 'application/pdf' }),
+    );
+
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === `${WAHA_BASE}/api/sendFile`)).toBe(false);
+    const algumCorpoLevaOEndereco = fetchMock.mock.calls.some(([url, init]) =>
+      String(url).includes(interno) || String((init as RequestInit | undefined)?.body ?? '').includes(interno),
+    );
+    expect(algumCorpoLevaOEndereco, 'o media_url do input chegou ao canal').toBe(false);
   });
 
   it('5. texto puro: sent + external_id + ack 0, pelo endpoint de texto', async () => {

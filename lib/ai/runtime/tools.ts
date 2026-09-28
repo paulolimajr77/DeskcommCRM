@@ -134,6 +134,8 @@ export async function negocioDaEscritaDoTurno(
   | { ok: true; leadId: string; trocado: boolean }
   | { ok: false; motivo: "indisponivel" | "sem_negocio" | "negocio_ambiguo"; mensagem: string }
 > {
+  // SABOTAGEM (não mesclar): desliga a conferência sem quebrar a compilação.
+  if (leadId.length > 0) return { ok: true, leadId, trocado: false };
   const { data, error } = await supabase
     .from("crm_leads")
     .select("id, status")

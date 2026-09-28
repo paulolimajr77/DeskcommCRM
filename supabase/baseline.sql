@@ -40722,9 +40722,15 @@ begin
       return old;
     end if;
   elsif old.status = 'rascunho' then
-    -- Editar o rascunho, sem tocar no que só o envio grava.
-    if new.status = 'rascunho' and new.numero is null and new.ano is null
-       and new.pdf_path is null and new.message_id is null and new.sent_at is null then
+    -- Editar o rascunho, sem MUDAR o que só o envio grava. "Sem mudar", e não
+    -- "vazio": a versão 2 criada por `POST .../revise` nasce rascunho HERDANDO
+    -- o número e o ano da v1, e exigir número nulo recusava o salvar dela.
+    if new.status = 'rascunho'
+       and new.numero is not distinct from old.numero
+       and new.ano is not distinct from old.ano
+       and new.pdf_path is not distinct from old.pdf_path
+       and new.message_id is not distinct from old.message_id
+       and new.sent_at is not distinct from old.sent_at then
       return new;
     end if;
     -- Cancelar: só gestor, e só o status muda (`DELETE /api/v1/proposals/[id]`).

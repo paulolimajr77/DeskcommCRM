@@ -84,6 +84,25 @@ describe("atendente: o que as rotas dão passa", () => {
     expect(tenta(GOV_AGENT_A, `update public.crm_proposals set total_cents = 20000 where id = '${id}'`)).toBe(1);
   });
 
+  // Achado na prova em tela da v1.43.11: a versão 2 criada por
+  // `POST .../revise` nasce rascunho HERDANDO número e ano da v1, e a primeira
+  // versão da guarda exigia número nulo para editar — o "Salvar" da v2 dava 500.
+  it("edita a versão 2 de uma revisão (rascunho que herdou o número)", () => {
+    const id = lastLine(
+      sql(`
+        with p as (
+          insert into public.crm_proposals
+              (organization_id, contact_id, titulo, status, total_cents, numero, ano, versao)
+            values ('${GOV_ORG}', '${GOV_CONTACT_1}', '${TITULO}', 'rascunho', 10000, 47809, 2026, 2)
+            returning id
+        )
+        select id from p;
+      `),
+    );
+    expect(tenta(GOV_AGENT_A, `update public.crm_proposals set total_cents = 20000 where id = '${id}'`)).toBe(1);
+    expect(tenta(GOV_AGENT_A, `update public.crm_proposals set numero = 1 where id = '${id}'`)).toBe("recusado");
+  });
+
   it("registra a decisão do cliente numa enviada (POST .../decide)", () => {
     const id = criaComoServidor("enviada", 47801);
     expect(

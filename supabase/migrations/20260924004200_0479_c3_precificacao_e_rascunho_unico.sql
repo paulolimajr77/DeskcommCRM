@@ -1,5 +1,5 @@
--- 0443 (renumerada de 0402 -> 0443 ao atualizar a branch com a main: 0402
--- colidia com 0402_google_captura_e_qualificacao do Rafael) — Onda C3 da
+-- 0479 (renumerada de 0402 -> 0443 -> 0479 ao atualizar a branch com a main: 0402
+-- colidia com 0402_google_captura_e_qualificacao do Rafael, e 0443 com 0443_icone_da_aba) — Onda C3 da
 -- spec de Propostas (2026-09-23): D5 (raiz: preço vindo do
 -- catálogo no servidor) + §5.1/5.2 (pricing_status, item sem preço) + §5.3
 -- (um rascunho aberto por negócio, com dedupe do que já existe).

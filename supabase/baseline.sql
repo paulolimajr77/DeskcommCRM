@@ -38023,7 +38023,7 @@ comment on column public.channel_sessions.datafy_token_encrypted is
 
 -- ---- fim canal de WhatsApp Datafy (migration 0387) ----
 
--- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0444) ----
+-- ---- anonimizar pela tela também redige conversas, mensagens e resumos (migration 0480) ----
 --
 -- Há dois caminhos que anonimizam um contato, e só um redigia a conversa:
 --
@@ -38551,7 +38551,7 @@ create trigger trg_crm_leads_cancelar_propostas_rascunho
 
 notify pgrst, 'reload schema';
 
--- ---- C3: precificação e disciplina do rascunho (migration 0443) ----
+-- ---- C3: precificação e disciplina do rascunho (migration 0479) ----
 -- 0402 — Onda C3 da spec de Propostas (2026-09-23): D5 (raiz: preço vindo do
 -- catálogo no servidor) + §5.1/5.2 (pricing_status, item sem preço) + §5.3
 -- (um rascunho aberto por negócio, com dedupe do que já existe).

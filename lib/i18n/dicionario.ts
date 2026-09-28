@@ -4762,6 +4762,9 @@ export const DICIONARIO: Traducoes = {
   "Se preencher, enviaremos uma assinatura para o outro sistema conferir que fomos nós.": {
     es: "Si lo completas, enviaremos una firma para que el otro sistema confirme que fuimos nosotros.",
   },
+  "Como o outro sistema confere a assinatura e reconhece reenvios: guia de integração em docs/integracao/webhooks-de-saida.md, na documentação do projeto.": {
+    es: "Cómo el otro sistema verifica la firma y reconoce los reenvíos: guía de integración en docs/integracao/webhooks-de-saida.md, en la documentación del proyecto.",
+  },
   "Incluir o responsável no corpo": { es: "Incluir al responsable en el cuerpo" },
   "Padrão: o aviso não diz quem atende. Ligue só se o outro sistema precisar do nome da equipe.": {
     es: "Por defecto, el aviso no dice quién atiende. Actívalo solo si el otro sistema necesita el nombre del equipo.",
@@ -8457,6 +8460,9 @@ export const DICIONARIO: Traducoes = {
   "faturado": { es: "facturado" },
   "O faturado soma comandas; o que entrou soma lançamentos pagos. Os dois não precisam bater.": {
     es: "Lo facturado suma órdenes de servicio y lo que entró suma movimientos pagados. Las dos cifras no tienen por qué coincidir.",
+  },
+  "Moedas diferentes não se somam: cada uma tem o seu bloco.": {
+    es: "Las monedas distintas no se suman: cada una tiene su propio bloque.",
   },
   "Por forma de pagamento": { es: "Por forma de pago" },
   "Nenhuma comanda no período.": { es: "Ninguna orden de servicio en el período." },

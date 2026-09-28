@@ -309,7 +309,7 @@ server; segredo em query string; `throw` cru na borda da API.
   **pnpm 9.15.9** (`packageManager`). Não use npm/yarn.
 - **TypeScript estrito** via `tsconfig.typecheck.json`; `strict`, `noUncheckedIndexedAccess`,
   `isolatedModules`, alias `@/*` → raiz. `pnpm typecheck` é a régua.
-- **ESLint flat config** (`eslint.config.mjs`, ESLint 9): `next/core-web-vitals`,
+- **ESLint flat config** (`eslint.config.mjs`, ESLint 10): `next/core-web-vitals`,
   `react-hooks`, `typescript-eslint`. `next lint` foi removido no Next 16 — o script chama o CLI.
 - **Prettier** com `prettier-plugin-tailwindcss`; classes Tailwind em ordem canônica.
 - **Tailwind 4** — configuração em CSS (`app/globals.css`), não em `tailwind.config.js`.

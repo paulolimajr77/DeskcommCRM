@@ -1,0 +1,6 @@
+interface:
+  display_name: "Montar a prospecção ativa"
+  short_description: "Triagem, pacote do nicho e configuração tela a tela: busca de empresas, funil, agente, roteador e campanha"
+  default_prompt: "Use a skill deskcomm-prospeccao e me ajude a configurar a prospecção ativa do DeskcommCRM para o meu nicho."
+policy:
+  allow_implicit_invocation: true

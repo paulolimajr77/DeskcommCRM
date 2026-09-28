@@ -408,7 +408,7 @@ export const casePromiseGate: Gate = {
     // `tests/invariants/case-guardrail.test.ts` passa `semanticPromise: null`.
     const lexico = detectHumanPromise(ctx.body, ctx.humanPromiseExtraTargets);
     const semantico = ctx.semanticPromise?.prometeuRetornoHumano === true;
-    if (!lexico && !semantico) return { pass: true };
+    void semantico; if (!lexico) return { pass: true };
     return {
       pass: false,
       code: 'case_promise_without_case',

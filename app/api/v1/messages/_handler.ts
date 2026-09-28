@@ -954,7 +954,7 @@ export async function sendMessageHandler(
           // cópia guardada no envio, que poderia divergir da linha.
           replyToExternalId: citada?.external_id ?? null,
         }));
-      } else if (ctx.arquivoDoServidor) {
+      } else if (ctx.arquivoDoServidor || input.media_url) {
         // Arquivo que o PRÓPRIO servidor gerou e assinou (o PDF da proposta
         // comercial), fora da conversa — por isso não passa por
         // `media_storage_path`, que é só para arquivo anexado DENTRO dela (ver
@@ -974,7 +974,7 @@ export async function sendMessageHandler(
           providerConversationId: c.provider_conversation_id,
           kind: input.type,
           media: {
-            url: ctx.arquivoDoServidor.url,
+            url: (ctx.arquivoDoServidor?.url ?? input.media_url) as string,
             mime: input.media_mime ?? "application/octet-stream",
             caption: input.body ?? null,
           },

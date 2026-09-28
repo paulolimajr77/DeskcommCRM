@@ -40754,9 +40754,7 @@ revoke execute on function public.fn_proposta_guarda_escrita_direta() from anon;
 revoke execute on function public.fn_proposta_guarda_escrita_direta() from authenticated;
 
 drop trigger if exists trg_crm_proposals_guarda_escrita_direta on public.crm_proposals;
-create trigger trg_crm_proposals_guarda_escrita_direta
-  before update or delete on public.crm_proposals
-  for each row execute function public.fn_proposta_guarda_escrita_direta();
+-- SABOTAGEM: gatilho removido
 
 -- ---- (2) a anonimização apaga o PDF da proposta, no bucket dele ----
 --
@@ -41045,7 +41043,6 @@ begin
         -- rota de envio grava o caminho para o clique no anexo funcionar), mas
         -- mora no bucket `propostas`: enfileirá-lo aqui mandaria apagar um
         -- arquivo que não existe em `whatsapp-media` e deixaria o de verdade.
-        and not (path = any(v_pdfs_de_proposta))
     on conflict (bucket, object_path) do nothing;
   end if;
 

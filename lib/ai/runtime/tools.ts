@@ -242,7 +242,7 @@ function wrapMcpTool(
         // HTTP e as automações seguem com o `lead_id` de quem chamou. Antes do
         // escopo, para o escopo julgar o negócio que de fato vai ser escrito.
         if (
-          input.contatoDoTurno &&
+          false && input.contatoDoTurno &&
           def.category === "write" &&
           typeof argsRecord.lead_id === "string"
         ) {

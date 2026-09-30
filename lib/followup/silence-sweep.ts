@@ -113,6 +113,14 @@ export interface SilencePointer {
   active_version_id: string;
   threshold_minutes: number;
   segments: string[];
+  /**
+   * O que o fluxo diz sobre handoff humano (`followup_flow_pointers.handoff_policy`).
+   * Ausente = `allow` (o comportamento de antes). `pause`/`cancel` valem também na
+   * INSCRIÇÃO: um contato que já está com a IA silenciada não nasce como cartão
+   * vivo — a política só reagia ao evento de handoff, e quem entrava depois dele a
+   * contornava sem ninguém ter escolhido isso.
+   */
+  handoff_policy?: "pause" | "cancel" | "allow";
 }
 
 /** DB surface o sweep precisa — narrow por consumidor (mesma doutrina de `AdminClient`/`ReactivityAdminClient`/`FollowupGateDb`). */
@@ -126,6 +134,22 @@ export interface SilenceSweepDb {
    * caminho não entra no fluxo de silêncio. Ver `retorno-segura-o-fluxo.ts`.
    */
   loadContatosComRetornoVivo(orgId: string): Promise<Set<string>>;
+  /**
+   * Dentre `contactIds`, quem só tem negócio ENCERRADO (perdido ou ganho) e
+   * nenhum aberto. Quem não tem negócio nenhum NÃO entra aqui: o fluxo segue
+   * valendo para contato sem funil. Quem já saiu do processo de venda — pediu
+   * para parar, foi dado como perdido — não recebe lembrete de "retomada": o
+   * gatilho medido só olha o silêncio, e um contato perdido é silencioso para
+   * sempre. Opcional para os dublês de teste que não exercitam este corte.
+   */
+  loadContatosComNegocioEncerrado?(orgId: string, contactIds: string[]): Promise<Set<string>>;
+  /**
+   * Dentre `contactIds`, quem está com a IA silenciada agora (handoff humano
+   * ativo: `conversations.bot_silenced_until` no futuro ou `infinity`). Só é
+   * consultado quando o fluxo NÃO é `handoff_policy: allow`. Opcional pelo mesmo
+   * motivo do método acima.
+   */
+  loadContatosEmHandoff?(orgId: string, contactIds: string[]): Promise<Set<string>>;
   /** Nó `trigger` do grafo pinado + se o fluxo pede agente; `null` se version/nó não existir. */
   loadTriggerNode(orgId: string, versionId: string): Promise<NoDeGatilho | null>;
   /**
@@ -165,6 +189,10 @@ export interface SilenceSweepSummary {
   skipped_cooldown: number;
   /** Silenciosos que ficaram de fora porque já têm um retorno agendado. */
   skipped_pending_return: number;
+  /** Silenciosos que ficaram de fora porque o negócio deles já foi encerrado (perdido/ganho). */
+  skipped_closed_deal: number;
+  /** Silenciosos que ficaram de fora porque estão em handoff e o fluxo manda pausar/cancelar. */
+  skipped_handoff: number;
   /**
    * Pointers que FALHARAM nesta varredura (logados e pulados). Um pointer ruim
    * — de uma empresa só — não pode calar a varredura de todas as outras: antes,
@@ -188,6 +216,8 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
     skipped_existing: 0,
     skipped_cooldown: 0,
     skipped_pending_return: 0,
+    skipped_closed_deal: 0,
+    skipped_handoff: 0,
     pointers_failed: 0,
   };
 
@@ -239,10 +269,32 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
       );
       const nextEvalAt = clock().toISOString();
       const comRetorno = await db.loadContatosComRetornoVivo(pointer.organization_id);
+      // Quem já saiu do processo de venda não recebe lembrete de retomada. Lê-se
+      // ANTES do laço (uma consulta por pointer, não por contato), e uma falha
+      // aqui sobe até o `catch` do pointer: melhor pular a varredura deste
+      // pointer neste tick do que inscrever quem acabou de pedir para parar.
+      const negocioEncerrado = db.loadContatosComNegocioEncerrado
+        ? await db.loadContatosComNegocioEncerrado(pointer.organization_id, contactIds)
+        : new Set<string>();
+      // A política de handoff do fluxo também vale na entrada (ver `SilencePointer`).
+      const emHandoff =
+        pointer.handoff_policy !== undefined &&
+        pointer.handoff_policy !== "allow" &&
+        db.loadContatosEmHandoff
+          ? await db.loadContatosEmHandoff(pointer.organization_id, contactIds)
+          : new Set<string>();
 
       for (const contactId of contactIds) {
         if (comRetorno.has(contactId)) {
           summary.skipped_pending_return++;
+          continue;
+        }
+        if (negocioEncerrado.has(contactId)) {
+          summary.skipped_closed_deal++;
+          continue;
+        }
+        if (emHandoff.has(contactId)) {
+          summary.skipped_handoff++;
           continue;
         }
         if (emCooldown.has(contactId)) {
@@ -290,7 +342,7 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
     async loadActiveSilencePointers() {
       const { data, error } = await admin
         .from("followup_flow_pointers")
-        .select("id, organization_id, active_version_id, trigger_config, surface")
+        .select("id, organization_id, active_version_id, trigger_config, surface, handoff_policy")
         .eq("status", "active")
         .not("active_version_id", "is", null);
       if (error) throw new Error(error.message);
@@ -302,6 +354,7 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
         active_version_id: string | null;
         trigger_config: unknown;
         surface?: string | null;
+        handoff_policy?: string | null;
       }>) {
         // Roteiro de atendimento (0394) é do turno, nunca do relógio: o banco
         // já o prende em gatilho manual, e este corte é a segunda porta.
@@ -314,6 +367,12 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
           active_version_id: row.active_version_id,
           threshold_minutes: parsed.data.params.threshold_minutes,
           segments: parsed.data.params.segments ?? [],
+          handoff_policy:
+            row.handoff_policy === "pause" ||
+            row.handoff_policy === "cancel" ||
+            row.handoff_policy === "allow"
+              ? row.handoff_policy
+              : undefined,
         });
       }
       return pointers;
@@ -414,6 +473,44 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
 
     loadContatosComRetornoVivo(orgId) {
       return contatosComRetornoVivo(admin, orgId);
+    },
+
+    async loadContatosComNegocioEncerrado(orgId, contactIds) {
+      if (contactIds.length === 0) return new Set();
+      const { data, error } = await admin
+        .from("crm_leads")
+        .select("contact_id, status")
+        .eq("organization_id", orgId)
+        .in("contact_id", contactIds);
+      if (error) throw new Error(error.message);
+      const comNegocioVivo = new Set<string>();
+      const comNegocioEncerrado = new Set<string>();
+      for (const row of (data ?? []) as Array<{ contact_id: string; status: string }>) {
+        // `won`/`lost` são os desfechos (trigger `fn_crm_lead_close_on_stage`); qualquer
+        // outro valor conta como negócio vivo — errar para o lado de NÃO cortar.
+        if (row.status === "won" || row.status === "lost") comNegocioEncerrado.add(row.contact_id);
+        else comNegocioVivo.add(row.contact_id);
+      }
+      return new Set([...comNegocioEncerrado].filter((id) => !comNegocioVivo.has(id)));
+    },
+
+    async loadContatosEmHandoff(orgId, contactIds) {
+      if (contactIds.length === 0) return new Set();
+      const { data, error } = await admin
+        .from("conversations")
+        .select("contact_id, bot_silenced_until")
+        .eq("organization_id", orgId)
+        .in("contact_id", contactIds)
+        .not("bot_silenced_until", "is", null);
+      if (error) throw new Error(error.message);
+      const agora = Date.now();
+      const emHandoff = new Set<string>();
+      for (const row of (data ?? []) as Array<{ contact_id: string; bot_silenced_until: string }>) {
+        // O handoff grava `infinity` (o PostgREST devolve a string); `Date.parse` dele é NaN.
+        const ate = row.bot_silenced_until;
+        if (ate === "infinity" || Date.parse(ate) > agora) emHandoff.add(row.contact_id);
+      }
+      return emHandoff;
     },
 
     async loadTriggerNode(orgId, versionId) {

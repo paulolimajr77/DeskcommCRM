@@ -289,14 +289,6 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
           summary.skipped_pending_return++;
           continue;
         }
-        if (negocioEncerrado.has(contactId)) {
-          summary.skipped_closed_deal++;
-          continue;
-        }
-        if (emHandoff.has(contactId)) {
-          summary.skipped_handoff++;
-          continue;
-        }
         if (emCooldown.has(contactId)) {
           summary.skipped_cooldown++;
           continue;

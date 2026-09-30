@@ -273,7 +273,6 @@ async function aplicarOptOut(admin: Admin, entrada: EntradaDeMensagem): Promise<
     return;
   }
 
-  await fecharNegociosAbertosDeQuemPediuParar(admin, entrada);
 }
 
 /** Motivo canônico de perda (`CANONICAL_LOST_REASONS`): foi o cliente quem pediu. */

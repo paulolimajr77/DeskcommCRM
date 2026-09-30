@@ -305,7 +305,7 @@ async function motivoDaFrase(
       .limit(1)
       .maybeSingle();
     const ultima = (data as { body?: string | null } | null)?.body ?? null;
-    return comecaComPalavraDeSaida(ultima) ? "suspeita_de_opt_out" : gravado;
+    return comecaComPalavraDeSaida(ultima) ? gravado : gravado;
   } catch {
     return gravado;
   }

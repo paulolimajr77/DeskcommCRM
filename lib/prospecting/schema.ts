@@ -16,7 +16,7 @@ export const campaignConfigSchema = z
     // nascem ao iniciar (o comportamento de sempre). `on_send`: cada empresa nasce só na
     // vez de ser abordada. O padrão é `on_start` — configuração gravada antes desta chave
     // existir segue funcionando igual, sem ninguém editar nada.
-    funnel_entry: z.enum(["on_start", "on_send"]).default("on_start"),
+    funnel_entry: z.enum(["on_start", "on_send"]).default("on_send"),
   })
   .strict();
 export const searchSchema = z

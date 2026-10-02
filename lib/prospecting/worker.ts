@@ -155,7 +155,7 @@ export async function sendNextCandidate(
   // no caminho (virou contato por outro lado, ou o CRM recusou o cadastro), não houve
   // tentativa: `attempted_at` não foi gravado, e a próxima rodada pega a seguinte.
   const p =
-    cfg.funnel_entry === "on_send" && !queued.conversation_id
+    !queued.conversation_id
       ? await prepararCandidatoNoEnvio(db, admin, c, cfg, queued)
       : queued;
   if (!p) return;

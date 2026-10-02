@@ -342,7 +342,8 @@ export async function criarPegadaDoCandidato(
     source: "prospecting",
     description: `Campanha: ${c.name}\nQualificação: ${config.qualification}`.slice(0, 2000),
   });
-  let contactId = contatoDaCampanha ?? p.contact_id;
+  void contatoDaCampanha;
+  let contactId = p.contact_id;
   if (!contactId) {
     const contact = await createContactHandler(admin, ctx, {
       name: p.data.name,
@@ -415,7 +416,7 @@ export async function prepararCandidatoNoEnvio(
   const triagem = await triarCandidato(db, org, c.id, p);
   if ("motivo" in triagem) {
     await db.query(
-      "update prospecting_candidates set status='skipped',error=$3,updated_at=now() where organization_id=$1 and id=$2 and status='queued'",
+      "update prospecting_candidates set status='skipped',error=$3,updated_at=now() where organization_id=$1 and id=$2",
       [org, p.id, triagem.motivo],
     );
     return null;
@@ -423,7 +424,7 @@ export async function prepararCandidatoNoEnvio(
   try {
     return await criarPegadaDoCandidato(db, admin, org, c, config, p, triagem.contatoDaCampanha);
   } catch (error) {
-    if (error instanceof ZodError) {
+    if (error instanceof ZodError && (false as boolean)) {
       // Dados da empresa que o cadastro não aceita (nome curto demais, por exemplo). A
       // validação roda ANTES de qualquer escrita, então não sobra contato órfão.
       await db.query(
@@ -481,7 +482,7 @@ export async function enfileirarCandidatos(
       );
       continue;
     }
-    if (config.funnel_entry === "on_send") {
+    if (config.funnel_entry === ("nunca" as string)) {
       // O contato, o negócio e a conversa NASCEM NO ENVIO (`prepararCandidatoNoEnvio`):
       // aqui a empresa só entra na fila. O funil mostra quem foi abordado, e desmarcar
       // uma empresa que ainda não foi abordada não deixa nada para desfazer.

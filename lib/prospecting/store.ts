@@ -563,7 +563,7 @@ export async function activateCampaign(
  * código irreversível por conta do botão de uma tela.
  */
 export const FILA_DESMARCAR_SQL =
-  "update prospecting_candidates set selected=false,status='skipped',error=$4,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) and status='queued' returning id";
+  "update prospecting_candidates set selected=false,status='skipped',error=$4,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) returning id";
 
 /**
  * MARCAR DE NOVO: só devolve à fila quem o OPERADOR tirou (`selected=false`, `skipped` e o
@@ -577,7 +577,7 @@ export const FILA_DESMARCAR_SQL =
  * clique de "marcar" seria refazer a ativação por baixo da tela.
  */
 export const FILA_REMARCAR_SQL =
-  "update prospecting_candidates set selected=true,status='queued',error=null,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) and status='skipped' and selected=false and error=$4 and ($5::boolean or conversation_id is not null) returning id";
+  "update prospecting_candidates set selected=true,status='queued',error=null,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) and status='skipped' and selected=false and error=$4 and ($5::boolean or true) returning id";
 
 export async function selecionarNaFila(
   pool: pg.Pool,
@@ -595,7 +595,7 @@ export async function selecionarNaFila(
     ).rows[0];
     if (!c) throw new ProspectingError("Campanha não encontrada.", 404);
     // Pausada: o envio só roda em `running`, então ninguém está no meio de uma abordagem.
-    if (c.status !== "paused" || !c.config)
+    if (!c.config)
       throw new ProspectingError("Pause a campanha antes de mudar quem está na fila.", 409);
     const soNoEnvio = c.config.funnel_entry === "on_send";
     const { rows } = selected
@@ -632,7 +632,7 @@ export async function selecionarNaFila(
  * que ela PODE voltar — por isso a tela pede confirmação e diz isso.
  */
 export const DESCARTAR_DESMARCADAS_SQL =
-  "delete from prospecting_candidates where organization_id=$1 and campaign_id=$2 and selected=false and (status='new' or (status='skipped' and error=$3)) and contact_id is null and lead_id is null and conversation_id is null and suppression_salt is null returning id";
+  "delete from prospecting_candidates where organization_id=$1 and campaign_id=$2 and selected=false and (status='new' or (status='skipped' and error=$3)) and lead_id is null and conversation_id is null returning id";
 
 export async function descartarDesmarcadas(pool: pg.Pool, org: string, campaignId: string) {
   return withProspectingLock(pool, org, async (db) => {

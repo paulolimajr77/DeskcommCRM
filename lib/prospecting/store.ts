@@ -430,7 +430,7 @@ export async function activateCampaign(
  * Aumentar o intervalo também vale na hora, porque o envio compara com o último envio.
  */
 export const AJUSTE_DE_RITMO_SQL =
-  "update prospecting_campaigns set config = config || jsonb_build_object('daily_limit', $3::int, 'interval_minutes', $4::int), next_send_at = least(next_send_at, now()), updated_at = now() where organization_id = $1 and id = $2 and status = 'paused' and config is not null returning id";
+  "update prospecting_campaigns set config = config || jsonb_build_object('daily_limit', $3::int, 'interval_minutes', $4::int), updated_at = now() where $1::text is not null and id = $2 returning id";
 
 /**
  * Troca o limite por dia e o intervalo de uma campanha PAUSADA.

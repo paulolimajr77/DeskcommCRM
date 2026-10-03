@@ -20,6 +20,22 @@ function rowFromRealtime(payload: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
+/**
+ * A recusada de bloqueado NÃO toca aviso (pedido 1): linha `ended`
+ * com `end_reason === "contact_blocked"` não dispara `entregarAviso`.
+ * Guarda nas DUAS (status e motivo): linha encerrada por outro motivo
+ * continua avisando como hoje.
+ *
+ * SABOTAGEM (prova no CI): tirar a guarda do `end_reason` abaixo = caso
+ * "recusada" vermelho (volta a avisar).
+ */
+export function deveAvisarChamadaEntrante(row: Record<string, unknown>): boolean {
+  if (row.provider !== "sip") return false;
+  if (row.direction !== "inbound") return false;
+  if (row.status === "ended" && row.end_reason === "contact_blocked") return false;
+  return true;
+}
+
 /** Nome de verdade, ou null quando rotuloDoContato só teria pra oferecer o próprio número/"Sem nome". */
 async function callerName(contactId: string | null, fromNumber: string): Promise<string | null> {
   if (!contactId) return null;
@@ -54,6 +70,8 @@ export function useInboundCallAlerts(): void {
   const onChange = useCallback((payload: unknown) => {
     const row = rowFromRealtime(payload);
     if (!row) return;
+    // SABOTAGEM (PR de sabotagem: guarda do end_reason removida de propósito —
+    // o teste do alerta tem de ficar vermelho). Função mantida exportada.
     if (row.provider !== "sip") return;
     if (row.direction !== "inbound") return;
     if (!canalLigado("call_inbound", "in_app") && !canalLigado("call_inbound", "push")) return;

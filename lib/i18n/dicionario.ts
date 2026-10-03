@@ -1071,6 +1071,10 @@ export const DICIONARIO: Traducoes = {
   "Revisar recuperação": { es: "Revisar recuperación" },
 
   "Abrir conversa": { es: "Abrir conversación" },
+  "sem telefone": { es: "sin teléfono" },
+  "Sem telefone no contato: cadastre um telefone para abrir a conversa.": {
+    es: "Sin teléfono en el contacto: agrega un teléfono para abrir la conversación.",
+  },
   "Abrir negócio": { es: "Abrir negocio" },
   "Abrir acompanhamento": { es: "Abrir seguimiento" },
   "Revisar conexão": { es: "Revisar conexión" },
@@ -3962,8 +3966,29 @@ export const DICIONARIO: Traducoes = {
   "Transforma o áudio que o cliente mandou em texto que o agente lê.": {
     es: "Transforma el audio que envió el cliente en texto que el agente lee.",
   },
-  "Usa o padrão de transcrição da OpenAI, que é o formato que os serviços do mercado implementam. Aceita apontar para outro serviço compatível — inclusive um rodando na sua própria máquina — mas exige uma chave desse serviço, separada da chave do modelo de conversa.": {
-    es: "Usa el estándar de transcripción de OpenAI, el formato que implementan los servicios del mercado. Permite apuntar a otro servicio compatible, incluso uno que corra en tu propio equipo, pero requiere una clave de ese servicio, distinta de la clave del modelo de conversación.",
+  "Este ponto não tem modelo escolhido no painel: quem ouve o áudio é a escada de transcrição, e ela decide a cada nota de voz. Primeiro o serviço desta instalação (TRANSCRIPTION_API_KEY); na falta dele, a chave OpenAI com o modelo de transcrição de sempre (whisper-1, ou o que TRANSCRIPTION_MODEL trouxer); e quando não há chave OpenAI nenhuma, o modelo de conversa da organização — desde que ele declare a capacidade de áudio, que é como uma organização só com Gemini transcreve. Sem nenhum dos três, o áudio não vira texto, e o motivo aparece aqui. Por isso fixar um provedor aqui apagaria os degraus seguintes.": {
+    es: "Este punto no tiene un modelo elegido en el panel: quien escucha el audio es la escalera de transcripción, y decide en cada nota de voz. Primero el servicio de esta instalación (TRANSCRIPTION_API_KEY); si no, la clave de OpenAI con el modelo de transcripción de siempre (whisper-1, o lo que traiga TRANSCRIPTION_MODEL); y cuando no hay ninguna clave de OpenAI, el modelo de conversación de la organización — siempre que declare la capacidad de audio, que es como una organización solo con Gemini transcribe. Sin ninguno de los tres, el audio no se convierte en texto, y el motivo aparece aquí. Por eso fijar un proveedor aquí borraría los escalones siguientes.",
+  },
+  "o serviço de transcrição configurado nesta instalação (TRANSCRIPTION_API_KEY) é o que ouve os áudios": {
+    es: "el servicio de transcripción configurado en esta instalación (TRANSCRIPTION_API_KEY) es el que escucha los audios",
+  },
+  "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre": {
+    es: "la clave de OpenAI de esta organización o instalación usa el estándar de transcripción de siempre",
+  },
+  "o modelo de conversa da organização declara a capacidade audio e transcreve com a própria chave": {
+    es: "el modelo de conversación de la organización declara la capacidad audio y transcribe con su propia clave",
+  },
+  "não consegui resolver o modelo de conversa desta organização e não há chave OpenAI para transcrever": {
+    es: "no pude resolver el modelo de conversación de esta organización y no hay clave de OpenAI para transcribir",
+  },
+  "o modelo de conversa da organização não declara a capacidade audio, e não há chave OpenAI para o serviço de transcrição": {
+    es: "el modelo de conversación de la organización no declara la capacidad audio, y no hay clave de OpenAI para el servicio de transcripción",
+  },
+  "não há chave OpenAI nem modelo de conversa com capacidade audio nesta organização": {
+    es: "no hay clave de OpenAI ni modelo de conversación con capacidad audio en esta organización",
+  },
+  "a escada de transcrição não foi resolvida nesta chamada — não há o que anunciar": {
+    es: "la escalera de transcripción no se resolvió en esta llamada — no hay nada que anunciar",
   },
   "O cliente manda áudio e o agente responde como se não tivesse recebido nada.": {
     es: "El cliente manda audio y el agente responde como si no hubiera recibido nada.",
@@ -13575,8 +13600,15 @@ export const DICIONARIO: Traducoes = {
     es: "Guardar crea una versión nueva (la anterior queda en el historial). El cuerpo solo entra en la conversación cuando una de las palabras clave aparece en el mensaje del cliente.",
   },
   "Não foi possível carregar a skill.": { es: "No se pudo cargar la skill." },
-  "Esta skill veio de um pacote com arquivos. Para mudar o texto, edite o pacote e envie o .zip de novo.": {
-    es: "Esta skill vino de un paquete con archivos. Para cambiar el texto, edita el paquete y vuelve a enviar el .zip.",
+  "Skill de pacote: descrição, palavras-chave e corpo são editáveis. Ao salvar, a versão nova herda os arquivos do pacote — nada se perde.": {
+    es: "Skill de paquete: la descripción, las palabras clave y el cuerpo se pueden editar. Al guardar, la versión nueva hereda los archivos del paquete: nada se pierde.",
+  },
+  "Arquivos do pacote (somente leitura)": { es: "Archivos del paquete (solo lectura)" },
+  "Para adicionar, trocar ou remover um arquivo, monte o pacote de novo e envie o .zip — esta tela só grava texto.": {
+    es: "Para agregar, cambiar o eliminar un archivo, arma el paquete de nuevo y sube el .zip: esta pantalla solo guarda texto.",
+  },
+  "Não foi possível copiar os arquivos do pacote para a versão nova. Nada mudou — tente de novo.": {
+    es: "No fue posible copiar los archivos del paquete a la versión nueva. No cambió nada: inténtalo de nuevo.",
   },
   "Descrição (aparece no índice do agente)": { es: "Descripción (aparece en el índice del agente)" },
   "Palavras-chave de ativação (separe por vírgula)": { es: "Palabras clave de activación (separadas por coma)" },

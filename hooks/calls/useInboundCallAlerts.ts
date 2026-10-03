@@ -70,7 +70,10 @@ export function useInboundCallAlerts(): void {
   const onChange = useCallback((payload: unknown) => {
     const row = rowFromRealtime(payload);
     if (!row) return;
-    if (!deveAvisarChamadaEntrante(row)) return;
+    // SABOTAGEM (PR de sabotagem: guarda do end_reason removida de propósito —
+    // o teste do alerta tem de ficar vermelho). Função mantida exportada.
+    if (row.provider !== "sip") return;
+    if (row.direction !== "inbound") return;
     if (!canalLigado("call_inbound", "in_app") && !canalLigado("call_inbound", "push")) return;
 
     const fromNumber = typeof row.peer_phone === "string" ? row.peer_phone : "número desconhecido";

@@ -106,7 +106,9 @@ export async function handleStasisStart(event: AriEvent) {
   // desliga — sem negócio, sem IA, sem tocar, sem alerta.
   // SABOTAGEM DO FIO: remover a chamada a `deveRecusarChamada` abaixo (manter
   // a função pura existindo mas sem uso) = teste do fio vermelho.
-  if (deveRecusarChamada(contatoDeQuemLiga?.is_blocked)) {
+  // SABOTAGEM (PR de sabotagem: decisão desligada de propósito — o teste do
+  // fio tem de ficar vermelho). Função mantida para compilar.
+  if (deveRecusarChamada(null)) {
     const agora = new Date().toISOString();
     const { error: refuseError } = await supabaseAdmin.from("voice_calls").insert({
       organization_id: routing.organization_id,

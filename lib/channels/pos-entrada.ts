@@ -54,6 +54,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { ehPedidoDeOptOut } from "@/lib/opt-out/deteccao";
 import { ehContatoDoNumeroInterno } from "@/lib/escalacao/numero-interno-de-aviso";
 import { acelerarPipelineDeEventos } from "@/lib/dev/kick-local-pipeline";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { origemDoNegocioPeloCanal } from "@/lib/channels/origem-do-negocio";
 import { autorizarContatoParaIA } from "@/lib/ai/elegibilidade/autorizacao";
 import { casarCampanha, lerCampanhas } from "@/lib/ai/elegibilidade/campanha";
@@ -382,7 +383,6 @@ async function abrirDemanda(admin: Admin, entrada: EntradaDeMensagem): Promise<v
       contactId: entrada.contactId,
       conversationId: entrada.conversationId,
       nomeDoContato: entrada.nomeDoContato,
-      origem: origemDoNegocioPeloCanal(entrada.canal),
     });
 
     // Os DOIS desfechos viram log. Sem a linha do "não criou", o silêncio de

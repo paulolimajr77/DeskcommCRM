@@ -354,7 +354,6 @@ async function efeitosDaEntrada(
     origem: "zernio_webhook",
     // A rede é o canal que os dois ramos acima já gravaram em
     // `conversations.channel`; sem ela o negócio nasce como WhatsApp.
-    canal: input.socialMessage?.platform,
   });
 }
 

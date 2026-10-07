@@ -532,7 +532,7 @@ export const crmQueryExternalData: McpToolDefinition<typeof consultarInputShape>
     return {
       conexao: { id: acesso.conexao.id, label: acesso.conexao.label },
       schema,
-      tabela,
+      tabela: input.tabela,
       colunas: resultado.colunas,
       linhas,
       linhas_devolvidas: linhas.length,

@@ -29,7 +29,7 @@ export default async function HomePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/app");
+  if (!user || user) redirect("/app");
 
   const marca = branding();
   const idioma = await idiomaDoVisitante(null);

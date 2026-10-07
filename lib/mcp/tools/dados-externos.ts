@@ -444,6 +444,7 @@ export const crmQueryExternalData: McpToolDefinition<typeof consultarInputShape>
       // prefere `public` quando o mesmo nome existir em mais de um agrupamento
       const escolhida = candidatas.find((c) => c.schema === "public") ?? candidatas[0]!;
       schema = escolhida.schema;
+      tabela = input.tabela;
       try {
         permitidas = await colunasDaTabela(acesso.pool, schema, tabela);
       } catch {

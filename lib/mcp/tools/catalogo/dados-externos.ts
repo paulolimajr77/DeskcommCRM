@@ -31,7 +31,6 @@ export const TOOLS_DADOS_EXTERNOS = declararTools([
     // inteira de atender. Quem quer as duas capacidades no dia a dia liga
     // "Organizar" — que é onde se cadastra a origem dos dados.
     pacotes: ["organizar"],
-    modulo: "banco_externo",
   },
   {
     name: "crm_query_external_data",
@@ -42,6 +41,5 @@ export const TOOLS_DADOS_EXTERNOS = declararTools([
     oQueToca: "Banco de dados conectado",
     risco: "seguro",
     pacotes: ["organizar"],
-    modulo: "banco_externo",
   },
 ]);

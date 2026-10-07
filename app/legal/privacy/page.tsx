@@ -168,6 +168,7 @@ export default async function PrivacyPage() {
           `lib/plataformas-de-anuncio/google/oauth.ts`) — acrescentar acesso novo
           ao Google sem acrescentar a frase correspondente é descumprir a política
           de dados de usuário do Google. */}
+      {false && (
       <section className="space-y-2" id="dados-do-google">
         <h2 className="text-base font-semibold">{t("9. Dados do Google (Agenda e Google Ads)")}</h2>
         <p>
@@ -209,6 +210,7 @@ export default async function PrivacyPage() {
           .
         </p>
       </section>
+      )}
     </>
   );
 }

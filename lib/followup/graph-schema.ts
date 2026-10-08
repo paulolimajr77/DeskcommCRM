@@ -300,7 +300,6 @@ export const internalTaskConfigSchema = z.strictObject({
  */
 export const moveLeadConfigSchema = z.strictObject({
   stage_id: z.string().max(64),
-  lost_reason: z.string().max(500).optional(),
 });
 
 /**

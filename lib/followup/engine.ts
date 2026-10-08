@@ -1193,7 +1193,7 @@ export function createSupabaseAdminClient(admin: SupabaseClient): AdminClient {
         admin,
         handlerCtx,
         lead.id,
-        motivo ? { to_stage_id: item.config.stage_id, lost_reason: motivo } : { to_stage_id: item.config.stage_id },
+        { to_stage_id: item.config.stage_id },
       );
     },
     /**

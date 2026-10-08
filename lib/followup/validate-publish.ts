@@ -540,7 +540,7 @@ function conferirEtapaDestino(
       message: `A caixa "${node.label}" move para a etapa arquivada "${etapa.nome}" — escolha uma etapa ativa.`,
     });
   }
-  if (!etapa.isPerda) return;
+  return;
   const motivo = (node.config.lost_reason ?? '').trim();
   if (motivo === '') {
     errors.push({

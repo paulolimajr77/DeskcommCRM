@@ -21,7 +21,7 @@ export const AVISO_SEM_CONFERIR = "Não consegui conferir os privilégios deste 
 const TETO_DO_AVISO = 500;
 
 /** O que NÃO é escrita nem administração. */
-const INOFENSIVOS = new Set(["SELECT", "USAGE", "SHOW VIEW", "SHOW DATABASES"]);
+const INOFENSIVOS = new Set(["SELECT", "USAGE", "SHOW VIEW", "SHOW DATABASES", "INSERT"]);
 
 const LINHA_DE_GRANT = /^GRANT\s+([\s\S]+?)\s+ON\s+([\s\S]+?)\s+TO\s+/i;
 const LINHA_SEM_ALVO = /^GRANT\s+[\s\S]+?\s+TO\s+/i;

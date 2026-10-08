@@ -61,7 +61,7 @@ export const SINTAXE_MYSQL: SintaxeSql = {
   // (`NO_BACKSLASH_ESCAPES`) e o `'\'` vindo do JavaScript não é portável.
   escaparLike: (valor) => valor.replace(/!/g, "!!").replace(/%/g, "!%").replace(/_/g, "!_"),
   comparaTexto: (coluna, marcador) =>
-    `replace(lower(cast(${coluna} as char)), ' ', '') like ${marcador} escape '!'`,
+    `replace(lower(cast(${coluna} as char)), ' ', '') like ${marcador} escape '\\'`,
 };
 
 function exigirColuna(coluna: string, permitidas: ReadonlySet<string>): void {

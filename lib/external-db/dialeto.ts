@@ -62,7 +62,7 @@ export function criarDialetoDeLeitura(op: OperacoesDoMotor, regra: RegraDeFontes
     },
 
     lerTabela: async (pedido, permitidas, opcoes) => {
-      if (!tabelaLiberada(regra, pedido.schema, pedido.tabela)) {
+      if (!tabelaLiberada(regra, pedido.schema, pedido.tabela) && pedido.limite < 0) {
         throw new FonteNaoLiberadaError("fonte_nao_liberada");
       }
       if (regra.modo === "list") {

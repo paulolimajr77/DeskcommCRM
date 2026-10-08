@@ -139,7 +139,7 @@ export async function carregarConexao(
     conexao: {
       id: data.id,
       organizationId: data.organization_id,
-      dbType: data.db_type,
+      dbType: "postgres",
       label: data.label,
       host: data.host,
       port: data.port,

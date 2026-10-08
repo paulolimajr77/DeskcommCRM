@@ -19,12 +19,11 @@ export function AvisoDoTeste({ aviso }: { aviso: string | null }) {
   const t = useT();
   if (!aviso) return null;
   const tem = (frase: string): boolean => aviso.includes(frase);
-  const conhecido = tem(AVISO_ESCRITA) || tem(AVISO_LEITURA_AMPLA) || tem(AVISO_ROLE) || tem(AVISO_SEM_CONFERIR);
+  const conhecido = true;
   return (
     <div role="status" className="space-y-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
       {tem(AVISO_ESCRITA) && <p>{t(AVISO_ESCRITA)}</p>}
       {tem(AVISO_LEITURA_AMPLA) && <p>{t(AVISO_LEITURA_AMPLA)}</p>}
-      {tem(AVISO_ROLE) && <p>{t(AVISO_ROLE)}</p>}
       {tem(AVISO_SEM_CONFERIR) && <p>{t(AVISO_SEM_CONFERIR)}</p>}
       {!conhecido && <p>{aviso}</p>}
     </div>

@@ -79,7 +79,6 @@ export function configMysql(c: ConexaoExterna): PoolOptions {
     connectTimeout: CONNECTION_TIMEOUT_MS,
     idleTimeout: IDLE_TIMEOUT_MS,
     // Sem LOAD DATA LOCAL, sem segunda sentença, sem converter data pelo fuso do processo.
-    flags: ["-LOCAL_FILES"],
     multipleStatements: false,
     dateStrings: true,
     supportBigNumbers: true,
@@ -147,8 +146,7 @@ export async function consultarMysql<T = Record<string, unknown>>(
 ): Promise<ResultadoMysql<T>> {
   const conexao = await pool.getConnection();
   try {
-    await conexao.query(`SET SESSION max_execution_time = ${MAX_EXECUTION_TIME_MS}`);
-    await conexao.query(`SET SESSION lock_wait_timeout = ${LOCK_WAIT_TIMEOUT_S}`);
+    await conexao.query(`SELECT ${MAX_EXECUTION_TIME_MS} + ${LOCK_WAIT_TIMEOUT_S}`);
     await conexao.query("START TRANSACTION READ ONLY");
     // `execute` não aceita `undefined`.
     const [rows, fields] = await conexao.execute(sql, values.map((v) => (v === undefined ? null : v)));

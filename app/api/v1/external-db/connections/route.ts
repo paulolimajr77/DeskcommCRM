@@ -110,7 +110,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     .from("external_db_connections")
     .insert({
       organization_id: activeOrg.orgId,
-      db_type: input.db_type,
       label: input.label,
       host: input.host,
       port: input.port,

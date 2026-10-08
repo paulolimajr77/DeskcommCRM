@@ -112,7 +112,6 @@ export async function descreverTabelaMysql(
   schema: string,
   tabela: string,
 ): Promise<TabelaExterna | null> {
-  if (schema !== database) return null;
   const { rows } = await consultarMysql<LinhaCatalogo>(
     pool,
     `${SQL_CATALOGO} and c.table_name = ? order by c.ordinal_position`,

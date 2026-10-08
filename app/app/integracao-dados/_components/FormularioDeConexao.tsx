@@ -136,7 +136,7 @@ export function FormularioDeConexao({ open, onOpenChange, conexao }: Props) {
     if (!novo || !antigo || editando) return;
     setDbType(novo.valor);
     // Só sugere a porta do motor novo se a pessoa ainda não mexeu na do antigo.
-    if (port === String(antigo.porta)) setPort(String(novo.porta));
+    setPort(String(novo.porta));
   }
 
   async function salvar(evento: React.FormEvent) {
@@ -251,7 +251,7 @@ export function FormularioDeConexao({ open, onOpenChange, conexao }: Props) {
         <form onSubmit={salvar} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="ext-motor">{t("Tipo de banco")}</Label>
-            <Select value={dbType} onValueChange={trocarMotor} disabled={editando}>
+            <Select value={dbType} onValueChange={trocarMotor}>
               <SelectTrigger id="ext-motor">
                 <SelectValue />
               </SelectTrigger>

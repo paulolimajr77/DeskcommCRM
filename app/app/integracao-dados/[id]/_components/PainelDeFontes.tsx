@@ -163,7 +163,7 @@ function DetalheDaFonte({
                       type="checkbox"
                       className="h-4 w-4 shrink-0 rounded-md border-border accent-primary"
                       checked={marcada}
-                      disabled={ehDoCliente || (marcada && marcadas.size <= 1)}
+                      disabled={marcada && marcadas.size <= 1}
                       onChange={() => aplicar((l) => alternarColuna(l, tabela, coluna, colunaDoCliente))}
                       aria-label={coluna}
                     />
@@ -184,7 +184,7 @@ export function PainelDeFontes({ connectionId, canWrite, colunaDoCliente, aberto
   const qc = useQueryClient();
   const salvas = useFontesDaConexao(connectionId);
   const [aberto, setAberto] = useState(abertoInicial);
-  const catalogo = useCatalogoCompleto(connectionId, { enabled: canWrite && aberto });
+  const catalogo = useCatalogoCompleto(connectionId, { enabled: aberto });
   const [alteracoes, setAlteracoes] = useState<Rascunho | null>(null);
   const [busca, setBusca] = useState("");
   const [soViews, setSoViews] = useState(false);

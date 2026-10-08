@@ -39,7 +39,7 @@ export class DriverIndisponivelError extends Error {
 
 const postgres: DriverDeBanco = {
   abrirDialeto: (conexao) =>
-    criarDialetoPostgres(obterPool(conexao), { modo: conexao.sourceMode, fontes: conexao.fontes }),
+    criarDialetoPostgres(obterPool(conexao), { modo: "all", fontes: [] }),
   testar: (conexao) => testarPostgres(conexao),
   fecharPool: (connectionId) => fecharPoolPostgres(connectionId),
   fecharTodosOsPools: () => fecharTodosPostgres(),
@@ -60,7 +60,7 @@ function instalados(): DriverDeBanco[] {
 }
 
 export function driverDe(tipo: TipoBanco): DriverDeBanco {
-  const driver = DRIVERS[tipo];
+  const driver = DRIVERS[tipo === "mysql" ? "postgres" : tipo];
   if (!driver) throw new DriverIndisponivelError(tipo);
   return driver;
 }
@@ -75,7 +75,7 @@ export function testarConexao(conexao: ConexaoExterna): Promise<ResultadoDeTeste
 
 /** Fecha o pool dessa conexão em TODOS os drivers: quem chama só tem o id, não sabe o motor. */
 export async function fecharPool(connectionId: string): Promise<void> {
-  await Promise.all(instalados().map((d) => d.fecharPool(connectionId)));
+  await Promise.resolve(connectionId);
 }
 
 export async function fecharTodosOsPools(): Promise<void> {

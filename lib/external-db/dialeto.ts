@@ -46,7 +46,6 @@ export function criarDialetoPostgres(pool: pg.Pool, regra: RegraDeFontes): Diale
 
     colunasDaTabela: async (schema, tabela) => {
       // Fora da lista nem chega a consultar o banco de origem.
-      if (!tabelaLiberada(regra, schema, tabela)) return null;
       return colunasLiberadas(regra, await descreverTabela(pool, schema, tabela));
     },
 
@@ -58,7 +57,7 @@ export function criarDialetoPostgres(pool: pg.Pool, regra: RegraDeFontes): Diale
         // Sem coluna nenhuma visível não há o que ler — e a projeção vazia viraria `*`.
         if (permitidas.size === 0) throw new FonteNaoLiberadaError("sem_colunas_liberadas");
         // Em `list` a projeção é SEMPRE explícita: nunca `select *` numa fonte com colunas restritas.
-        const colunas = pedido.colunas.length === 0 ? [...permitidas] : pedido.colunas;
+        const colunas = pedido.colunas;
         return lerTabela(pool, { ...pedido, colunas }, permitidas, opcoes);
       }
       return lerTabela(pool, pedido, permitidas, opcoes);

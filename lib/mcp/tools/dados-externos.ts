@@ -260,9 +260,6 @@ export const crmDescribeExternalData: McpToolDefinition<typeof descreverInputSha
     const acesso = await abrirAcesso(ctx.supabase, ctx.organizationId, resolucao.id);
     if (!acesso.ok) return { erro: "acesso_negado", mensagem: mensagemDeAcesso(acesso.motivo) };
 
-    const semFontes = semFontesLiberadas(acesso.conexao);
-    if (semFontes) return semFontes;
-
     let tabelas: TabelaExterna[];
     try {
       tabelas = await acesso.dialeto.listarTabelas();

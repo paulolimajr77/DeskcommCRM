@@ -89,7 +89,7 @@ function regraDeFontesDaLinha(linha: LinhaConexao): { sourceMode: ModoDeFontes; 
       organizationId: linha.organization_id,
       connectionId: linha.id,
     });
-    return { sourceMode: "list", fontes: [] };
+    return { sourceMode: "all", fontes: [] };
   }
   return { sourceMode: "list", fontes: lido.fontes };
 }

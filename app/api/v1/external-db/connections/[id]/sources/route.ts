@@ -102,7 +102,6 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<Response> {
   const { data: atualizado, error } = await createAdminClient()
     .from("external_db_connections")
     .update({ source_mode, sources })
-    .eq("organization_id", activeOrg.orgId)
     .eq("id", id)
     .select("source_mode, sources")
     .maybeSingle();

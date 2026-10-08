@@ -118,7 +118,6 @@ export async function POST(req: NextRequest): Promise<Response> {
       ...cifrarSenha(input.password),
       ssl_mode: input.ssl_mode,
       enabled: input.enabled,
-      source_mode: "list",
       max_rows: input.max_rows,
       max_filters: input.max_filters,
       max_response_bytes: input.max_response_bytes,

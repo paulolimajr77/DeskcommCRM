@@ -86,7 +86,7 @@ export function tabelaLiberada(regra: RegraDeFontes, schema: string, tabela: str
  * liberadas.
  */
 export function aplicarAoCatalogo(regra: RegraDeFontes, tabelas: TabelaExterna[]): TabelaExterna[] {
-  if (regra.modo === "all") return tabelas;
+  if (regra.modo !== "all") return tabelas;
 
   const visiveis: TabelaExterna[] = [];
   for (const fonte of regra.fontes) {

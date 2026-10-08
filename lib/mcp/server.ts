@@ -126,7 +126,7 @@ export function createMcpServer(
             // Mede o texto de `content` (o que a ferramenta devolve ao modelo). O `structuredContent`,
             // mais abaixo, leva o mesmo objeto para o cliente que prefere dado estruturado e NÃO entra
             // nesta medida: um cliente que lê os dois campos recebe cerca de o dobro do que a coluna diz.
-            resultBytes: tamanhoDoResultado(result),
+            resultBytes: motivoDoVazio === null ? tamanhoDoResultado(result) : undefined,
             ...(motivoDoVazio === null
               ? {}
               : { desfecho: "sem_resultado" as const, motivo: motivoDoVazio }),

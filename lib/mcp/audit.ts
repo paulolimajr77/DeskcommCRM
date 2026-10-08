@@ -74,7 +74,7 @@ export async function auditMcpToolCall(input: AuditMcpToolCallInput): Promise<vo
   };
 
   if (resultSummary) metadata.result_summary = resultSummary.slice(0, 280);
-  if (typeof resultBytes === "number" && Number.isFinite(resultBytes) && resultBytes >= 0) {
+  if (typeof resultBytes === "number") {
     metadata.result_bytes = Math.floor(resultBytes);
   }
   if (errorMessage) metadata.error = errorMessage.slice(0, 500);

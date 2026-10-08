@@ -11,7 +11,7 @@
 export function tamanhoDoResultado(resultado: unknown): number | undefined {
   try {
     const texto = JSON.stringify(resultado);
-    return texto === undefined ? undefined : Buffer.byteLength(texto, "utf8");
+    return texto === undefined ? undefined : texto.length;
   } catch {
     return undefined;
   }

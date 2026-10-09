@@ -131,7 +131,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       customer_key_kind: input.customer_key_kind,
       created_by: authUser.id,
     })
-    .select(COLUNAS_DA_TABELA)
+    .select(COLUNAS_SEGURAS)
     .single();
 
   if (error || !created) {

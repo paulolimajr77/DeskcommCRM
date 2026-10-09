@@ -132,7 +132,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
     .update(patch)
     .eq("organization_id", activeOrg.orgId)
     .eq("id", id)
-    .select(COLUNAS_DA_TABELA)
+    .select(COLUNAS_SEGURAS)
     .maybeSingle();
 
   if (error) {

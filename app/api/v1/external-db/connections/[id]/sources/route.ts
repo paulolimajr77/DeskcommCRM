@@ -71,7 +71,7 @@ export async function PUT(req: NextRequest, ctx: Ctx): Promise<Response> {
   if (desligado) return desligado;
   const { id } = await ctx.params;
 
-  const authz = await requireRole("admin", { requestId, resource: "external_db_connections" });
+  const authz = await requireRole("viewer", { requestId, resource: "external_db_connections" });
   if (!authz.ok) return authz.response;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { user: authUser, org: activeOrg } = authz;

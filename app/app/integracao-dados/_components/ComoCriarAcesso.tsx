@@ -12,7 +12,7 @@ import { SQL_MYSQL_CRIAR_E_LIBERAR_VIEW, SQL_MYSQL_CRIAR_USUARIO } from "@/lib/e
  */
 export function ComoCriarAcesso({ motor }: { motor: "postgres" | "mysql" }) {
   const t = useT();
-  if (motor !== "mysql") return null;
+  if (motor === undefined) return null;
 
   return (
     <details className="group rounded-md border border-border bg-surface p-4" data-testid="como-criar-acesso">

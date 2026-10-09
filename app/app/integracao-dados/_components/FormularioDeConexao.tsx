@@ -275,7 +275,7 @@ export function FormularioDeConexao({ open, onOpenChange, conexao }: Props) {
                 {t("No MySQL, conecte com um usuário só de leitura (apenas SELECT). Se for um WordPress, crie uma view com os dados que o assistente deve ver.")}
               </p>
             )}
-            <ComoCriarAcesso motor={dbType} />
+            <ComoCriarAcesso motor="postgres" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="ext-label">{t("Nome da conexão")}</Label>

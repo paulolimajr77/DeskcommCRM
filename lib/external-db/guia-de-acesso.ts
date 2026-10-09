@@ -15,5 +15,5 @@ export const SQL_MYSQL_CRIAR_E_LIBERAR_VIEW = [
   "  FROM NOME_DO_BANCO.TABELA_DE_PRODUTOS",
   "  WHERE status = 'ativo';",
   "",
-  "GRANT SELECT ON NOME_DO_BANCO.vitrine_do_assistente TO 'crm_leitura'@'%';",
+  "GRANT SELECT ON NOME_DO_BANCO.* TO 'crm_leitura'@'%';",
 ].join("\n");

@@ -154,7 +154,7 @@ LISTA_BASE="$(awk '
 if [ "$MODO" = "menu" ]; then
   printf '%s\n' "$LISTA_BASE" | cut -d'|' -f1-4 | sed 's/ *$//'
   TOTAL="$(printf '%s\n' "$LISTA_BASE" | grep -c ' | ' || true)"
-  echo "total: $TOTAL telas"
+  echo "total: $((TOTAL - 1)) telas"
   exit 0
 fi
 

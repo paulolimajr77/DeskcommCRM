@@ -147,7 +147,7 @@ Divergências resolvidas a favor da leitura direta: DoD 4/5/7 existem (`CLAUDE.m
 
 ## 11. Pendências da F1 (dono: Paulo, 2026-10-14)
 
-Não feito, com dono: prova pela tela, e2e executado, `test:unit` inteiro, `database.types.ts` regenerado, docs do §9 (mapa, current-state, journey-map, threat-model, spec-12), prova em par, `checar:colisao-de-migration` pós-commit, realtime (não usado de propósito — sem produtor), e **paridade do número do resumo com a tela (ABERTA — resolvida pela decisão D do §12: a fatia F1b faz o modelo ler as mesmas rotas das telas)**.
+Não feito, com dono: prova pela tela, e2e executado, `test:unit` inteiro, `database.types.ts` regenerado, docs do §9 (mapa, current-state, journey-map, threat-model, spec-12), prova em par, `checar:colisao-de-migration` pós-commit, realtime (não usado de propósito — sem produtor), e **paridade do número do resumo com a tela (MEDIDA, 14/10/2026: o resumo da F1 conta "conversas em atendimento" por uma lista própria de status e "negócios abertos em N funis"; o Inbox mostra `fila/automatico/mine/all/closed/archived` (`conversations/counts/route.ts:157-201`) e não há tela com os outros dois números. Resolvida pela fatia F1b: o modelo e o piso passam a ler as mesmas rotas das telas — ver o plano, seção F1b)**.
 
 ## 12. Decisões finais (2026-10-14 — o Paulo delegou ao Claude: "deixo você decidir")
 

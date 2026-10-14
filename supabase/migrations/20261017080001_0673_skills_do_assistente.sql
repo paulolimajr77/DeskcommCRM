@@ -1,6 +1,6 @@
 -- manifest: **Skills do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Semeia 4 skills de plataforma (`organization_id null`): assistente-operacao, assistente-metricas, assistente-prompt, assistente-cliente-novo — conteúdo operacional condensado das guias `.agents/skills/`, corpo com no máximo 200 linhas cada. Lidas pelo chat via loadSkills + matchSkills. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- skills do assistente interno: seed de plataforma (migration 0656) ----
+-- ---- skills do assistente interno: seed de plataforma (migration 0673) ----
 do $seed$
 declare
   v_id uuid;

@@ -51967,10 +51967,10 @@ begin
   return new;
 end;
 $fn$;
--- ---- chat do assistente interno: config_threads/messages (migration 0655) ----
+-- ---- chat do assistente interno: config_threads/messages (migration 0672) ----
 -- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- chat do assistente interno: config_threads/messages (migration 0655) ----
+-- ---- chat do assistente interno: config_threads/messages (migration 0672) ----
 create table if not exists public.config_threads (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations(id) on delete cascade,
@@ -52092,10 +52092,10 @@ $$;
 revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
 grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
 
--- ---- skills do assistente interno: seed de plataforma (migration 0656) ----
+-- ---- skills do assistente interno: seed de plataforma (migration 0673) ----
 -- manifest: **Skills do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Semeia 4 skills de plataforma (`organization_id null`): assistente-operacao, assistente-metricas, assistente-prompt, assistente-cliente-novo — conteúdo operacional condensado das guias `.agents/skills/`, corpo com no máximo 200 linhas cada. Lidas pelo chat via loadSkills + matchSkills. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- skills do assistente interno: seed de plataforma (migration 0656) ----
+-- ---- skills do assistente interno: seed de plataforma (migration 0673) ----
 do $seed$
 declare
   v_id uuid;

@@ -1,6 +1,6 @@
 -- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- chat do assistente interno: config_threads/messages (migration 0655) ----
+-- ---- chat do assistente interno: config_threads/messages (migration 0672) ----
 create table if not exists public.config_threads (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations(id) on delete cascade,

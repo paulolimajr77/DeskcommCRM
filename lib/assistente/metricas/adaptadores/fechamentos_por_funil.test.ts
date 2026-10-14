@@ -113,7 +113,7 @@ describe("fechamentos_por_funil — adaptador", () => {
     for (let i = 0; i < 45; i += 1) {
       muitosFunis.push({ id: `funil-${i}`, name: `Funil ${i}`, position: i, is_archived: false });
     }
-    const banco = criarBancoFalso({ crm_pipelines: muitosFunis, crm_leads: [lead({})] });
+    const banco = criarBancoFalso({ crm_pipelines: muitosFunis, crm_leads: [lead({ pipeline_id: "funil-0" })] });
     const r = await metricaFechamentosPorFunil.executar(ctxDe("agent", banco.client), {});
     const dados = dadosDe(r);
     expect(dados.funis_nao_lidos).toBe(5);

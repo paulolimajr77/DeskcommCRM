@@ -54,7 +54,7 @@ test("pergunta de guia devolve trecho do guia, não silêncio", async ({ page })
   await login(page, creds.users.agent!.email);
   await gotoAssistente(page);
 
-  await page.getByTestId("assistente-pergunta").fill("como ler o funil?");
+  await page.getByTestId("assistente-pergunta").fill("qual a taxa de ganho do funil?");
   await page.getByTestId("assistente-perguntar").click();
-  await expect(page.getByTestId("assistente-mensagens")).toContainText(/stage_changed/);
+  await expect(page.getByTestId("assistente-mensagens")).toContainText(/Leitura correta de números/);
 });

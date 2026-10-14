@@ -51,14 +51,20 @@ const schemaWin = z.object({
   }),
 });
 
-const schemaStages = z.array(z.object({
-  id: z.string().uuid(),
-  name: z.string().max(120),
-  position: z.number(),
-  is_won: z.boolean(),
-  is_lost: z.boolean(),
-  expected_duration_hours: z.number().nullable(),
-}));
+// A rota devolve `name`, que é chave PROIBIDA na saída (CHAVES_PROIBIDAS): a projeção a troca por
+// `nome` — texto da equipe (nome da etapa) — antes da varredura, senão a métrica nunca respondia.
+const schemaStages = z.array(
+  z
+    .object({
+      id: z.string().uuid(),
+      name: z.string().max(120),
+      position: z.number(),
+      is_won: z.boolean(),
+      is_lost: z.boolean(),
+      expected_duration_hours: z.number().nullable(),
+    })
+    .transform(({ name, ...resto }) => ({ ...resto, nome: name })),
+);
 
 const REGUA =
   "Fonte /api/v1/pipelines/[id]/stages/win-rates + /stages, papel manager. " +
@@ -139,7 +145,7 @@ export const metricaTaxaDeGanhoPorEtapa: DefinicaoDeMetrica<ParametrosDeTaxaDeGa
     const taxas = win.taxas
       .map((t) => {
         const st = mapStage.get(t.etapa_id);
-        return st ? { nome: st.name, posicao: st.position, total: t.total, ganhos: t.ganhos, percentual: t.percentual, sugestao: t.sugestao } : null;
+        return st ? { nome: st.nome, posicao: st.position, total: t.total, ganhos: t.ganhos, percentual: t.percentual, sugestao: t.sugestao } : null;
       })
       .filter((x) => x !== null)
       .sort((a, b) => a!.posicao - b!.posicao);
@@ -149,7 +155,7 @@ export const metricaTaxaDeGanhoPorEtapa: DefinicaoDeMetrica<ParametrosDeTaxaDeGa
       etapas: win.tempo_na_etapa.etapas
         .map((e) => {
           const st = mapStage.get(e.etapa_id);
-          return st ? { nome: st.name, posicao: st.position, quantidade: e.quantidade, horas_media: e.horas_media, horas_mediana: e.horas_mediana, com_carimbo: e.com_carimbo, sem_carimbo: e.sem_carimbo } : null;
+          return st ? { nome: st.nome, posicao: st.position, quantidade: e.quantidade, horas_media: e.horas_media, horas_mediana: e.horas_mediana, com_carimbo: e.com_carimbo, sem_carimbo: e.sem_carimbo } : null;
         })
         .filter((x) => x !== null),
     };

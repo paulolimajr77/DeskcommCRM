@@ -840,6 +840,15 @@ export const AUDIT_ACTIONS = [
    */
   "ai.case_chat_asked",
   /**
+   * A equipe perguntou ao assistente interno (migration 0655). Uma linha por
+   * PERGUNTA, respondida ou não.
+   *
+   * ⚠️ SEM O TEXTO. Nem a pergunta, nem a resposta: `api_audit_log` é
+   * append-only, sem UPDATE nem DELETE para papel nenhum — o que entra ali não
+   * sai pela cascata de LGPD.
+   */
+  "ai.assistente_asked",
+  /**
    * O aviso de caso no WhatsApp da equipe (migration 0292).
    *
    * Três códigos e não um: "saiu", "não saiu em definitivo" e "alguém mudou a

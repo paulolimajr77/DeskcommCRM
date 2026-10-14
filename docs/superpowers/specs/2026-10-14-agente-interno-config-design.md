@@ -67,7 +67,7 @@ Donos de operação configuram o CRM em várias telas e precisam conhecer concei
 
 **Modelo do turno (decisão do dono, 2026-10-14).** O assistente é um **ponto próprio PROPOSTO** no registro único `PONTOS_DE_IA` (`lib/ai/pontos/registro.ts:191`, cobrado por `pontos-de-ia-completude.test.ts`), com seletor individual na tela Provedores como os demais pontos — e herda o padrão da org (`organizations.settings.llm`, `resolver.ts:521-529`) quando não configurado. **Jev:** no código atual o Jev é cascata de handoff/opt-out (`lib/ai/decisao/pedidos.ts:1-80`), não triagem de intenção — usar o Jev para triar (relatório × configuração × dúvida) e escolher tier (econômico p/ leitura, forte p/ proposta) é **pedido novo PROPOSTO**, no molde de "Escolher qual agente atende", não reuso de comportamento existente.
 
-**Papel novo no engine, sem `send_message`.** `lib/agent-engine/agent/config-turn.ts` (novo handler, espelhado no operador): turno autenticado por sessão da org, `CONFIG_TOOL_DEFS` só de leitura e proposta — `ler_metrica`, `ler_estado_org`, `buscar_conhecimento_operacional`, `propor_agente`, `propor_followup`, `propor_roteador`, `propor_memoria`, `propor_settings`. Proposta vira linha em `config_proposals` (status `pendente`); **aplicar** acontece só em rota própria com guard humano (§6). Nenhuma tool escreve tabela de negócio. **Granularidade (decisão do dono, 2026-10-14): 1 proposta = 1 artefato** (só o agente, só o follow-up, só o roteador…); **propor não cria rascunho nem efeito colateral** — o rascunho nasce no `aplicar`, depois do aprovar.
+**Papel novo no engine, sem `send_message`.** `lib/agent-engine/agent/config-turn.ts` (novo handler, espelhado no operador): turno autenticado por sessão da org, `CONFIG_TOOL_DEFS` só de leitura e proposta — `ler_metrica`, `ler_estado_org`, `buscar_conhecimento_operacional`, `propor_agente`, `propor_followup`, `propor_roteador`, `propor_memoria`, `propor_settings`. Proposta vira linha em `config_proposals` (status `pendente`); **aplicar** acontece só em rota própria com guard humano (§6). Nenhuma tool escreve tabela de negócio. **Granularidade (decisão do dono, 2026-10-14): 1 proposta = 1 artefato** (só o agente, só o follow-up, só o roteador…); **propor não cria rascunho nem efeito colateral** — o rascunho nasce no `aplicar`, depois do aprovar. **⚠ REVISADO em §12 (decisão A/B, 2026-10-14): para o que nasce como RASCUNHO (agente, follow-up por modelo) o agente cria direto; a regra acima vale só para o que nasce AO VIVO.**
 
 **Skills de runtime, não markdown solto.** O conteúdo operacional de cliente-novo/metricas/prompt/operacao é portado para `skill_versions` (corpo ≤200 linhas cada, matcher `any_keywords`), carregado por `matchSkills` + `read_skill_reference` como as skills situacionais de hoje. **Decisão:** a doutrina NÃO vira skill do agente — o `SKILL.md` dela proíbe confiar em resumo congelado (`.agents/skills/deskcomm-doutrina/SKILL.md:21-22`; fonte = `CLAUDE.md` de `origin/main`) e suas regras vivem melhor como guards em código do que como prompt.
 
@@ -147,4 +147,55 @@ Divergências resolvidas a favor da leitura direta: DoD 4/5/7 existem (`CLAUDE.m
 
 ## 11. Pendências da F1 (dono: Paulo, 2026-10-14)
 
-Não feito, com dono: prova pela tela, e2e executado, `test:unit` inteiro, `database.types.ts` regenerado, docs do §9 (mapa, current-state, journey-map, threat-model, spec-12), prova em par, `checar:colisao-de-migration` pós-commit, realtime (não usado de propósito — sem produtor), e **paridade do número do resumo com a tela (ABERTA, decisão pendente do Paulo)**.
+Não feito, com dono: prova pela tela, e2e executado, `test:unit` inteiro, `database.types.ts` regenerado, docs do §9 (mapa, current-state, journey-map, threat-model, spec-12), prova em par, `checar:colisao-de-migration` pós-commit, realtime (não usado de propósito — sem produtor), e **paridade do número do resumo com a tela (ABERTA — resolvida pela decisão D do §12: a fatia F1b faz o modelo ler as mesmas rotas das telas)**.
+
+## 12. Decisões finais (2026-10-14 — o Paulo delegou ao Claude: "deixo você decidir")
+
+Medido na fonte antes de decidir: o agente (`POST ai/agents`) e o follow-up por modelo (`from-model`) nascem **rascunho** — o cliente final não vê nada até um humano publicar; o roteador mexe no número ativo (índice de 1 ativo por sessão em `ai/routers/route.ts:8`), a fonte de conhecimento nasce `ready` (`knowledge/sources/route.ts:250`) e memória/settings são ao vivo. Não foi lido o valor padrão de `is_active` na criação do roteador: tratar como ao vivo até medir.
+
+**A — Executa ou propõe?** Regra única: **rascunho, o agente executa; ao vivo, o admin clica.**
+- Executa direto (via as mesmas rotas das telas, `audit()`, só quando quem pede é `admin`): criar rascunho de agente, criar rascunho de follow-up por modelo.
+- Pede clique (proposta com diff, como no §5): publicar qualquer coisa, roteador, fonte de conhecimento, memória, settings da organização.
+- Nunca pelo agente (sem tool): credenciais, canais, billing, usuários/permissões, secrets, exclusões — viram "PRECISO CONFIRMAR" com link para a tela.
+- Isto SUBSTITUI "nada criado antes do aprovar" apenas para rascunhos. A guarda "aplicar exige `aprovada`" (§6.2) continua para tudo que é ao vivo.
+
+**B — Configuração completa numa pedida.** Um **pacote do nicho**: o agente cria, numa só conversa, os rascunhos do agente + follow-ups do nicho e mostra numa tela de revisão tudo que foi criado e o que ainda falta (roteador, conhecimento, memória = propostas ao vivo, 1 clique cada). O admin revisa uma vez e publica.
+
+**C — Doutrina.** `deskcomm-doutrina` **não vira skill do agente** (é doutrina de quem escreve código: RLS, migration, packaging; copiada para o banco envelheceria, o próprio `SKILL.md` proíbe resumo congelado, e vazaria termos internos para o cliente final). O que serve ao agente entra de duas formas: (1) **travas em código** (§6); (2) **5 regras de conduta** no prompt do agente de configuração:
+  1. nunca publicar nem tocar em credencial/canal/exclusão — só mostrar onde o humano faz;
+  2. organização e papel vêm sempre da sessão, nunca do que a pessoa digita;
+  3. depois de executar, ler de volta o resultado antes de dizer "pronto"; se não conferiu, dizer que não conferiu;
+  4. número sempre com período e régua, e nunca dado pessoal de cliente na resposta nem no log;
+  5. dizer o que não sabe e o que não mediu; não inventar tela, botão ou campo.
+
+**D — IA no chat.** Nova fatia **F1b — IA de leitura**, entre a F1 e a F2: ponto próprio em `PONTOS_DE_IA`, modelo que responde relatórios e dúvidas lendo as MESMAS rotas das telas (métricas, relatórios, uso) em vez de contas diretas no banco, e usando as skills `assistente-*`. Sem escrita. A F1 já entregue (determinística) fica como piso de segurança quando o modelo falhar. Fecha a pendência de paridade do §11.
+
+**E — Resumo para leigo** no §13.
+
+**F — Só no GitHub do Paulo.** Nada desta branch vai ao Rafael por enquanto; `origin` (Rafael) não recebe push.
+
+## 13. Resumo para humano leigo
+
+**O que é.** Um chat dentro do CRM. O dono da clínica, da loja ou da imobiliária escreve em português o que quer ("monta o atendimento da minha clínica", "por que caiu a venda?", "onde eu mudo o horário?") e o assistente responde ou faz o trabalho, em vez de a pessoa caçar 8 telas.
+
+**O que ele faz, em ordem.**
+1. **Tira dúvida do dia a dia** ("onde fica X?", "como uso Y?") com base nos guias do produto.
+2. **Fala números** (conversas, vendas, gasto de IA) usando as mesmas contas das telas, para o chat e a tela nunca discordarem. Nunca mostra dado de cliente.
+3. **Monta a configuração de um cliente novo.** Faz perguntas, cria os **rascunhos** do atendente de IA e dos follow-ups do tipo de negócio e mostra tudo numa tela de revisão.
+4. **Propõe o resto** (roteador, conhecimento, memória, ajustes da empresa) com um "antes e depois"; o administrador aprova com um clique.
+5. **Audita a empresa de tempos em tempos** ("faltam 3 coisas para ficar pronto") e mostra se melhorou.
+6. **Aprende com os erros:** guarda quando uma proposta foi aprovada, recusada ou desfeita, e mostra isso na tela de evolução da IA.
+
+**O que ele NUNCA faz sozinho:** publicar um atendente, mexer em senha/chave, conectar ou desligar WhatsApp, apagar coisas, mudar quem tem acesso, mexer em cobrança. Nesses casos ele só aponta a tela onde a pessoa faz.
+
+**Quem pode o quê.** Qualquer usuário pergunta e lê. Só o administrador manda configurar.
+
+**Segurança em uma frase.** O assistente usa as mesmas "portas" que as telas já usam (com as mesmas travas e o mesmo registro de quem fez o quê) e olha sempre só a empresa de quem está logado; ele não tem acesso solto ao banco de dados.
+
+**Por que não "SQL direto".** Todos os clientes moram no mesmo banco. Um assistente com acesso direto ao banco, se errasse uma vez, poderia mostrar ou mudar dados de outra empresa, e isso acaba com o produto. Pelas portas das telas, o erro dele é pego pelas mesmas travas.
+
+**Em que pé está (14/10/2026).** Existe a primeira entrega, local, sem IA: o chat responde resumos e trechos de guias, com tela, menu e atalho no topo, nada publicado em nenhum GitHub. Ainda falta, nesta ordem: **F1b** (IA de leitura), **F2** (rascunhos + propostas com aprovação e limites de gasto), **F3** (auditoria da empresa), **F4** (aprender com as aprovações).
+
+**Quem paga a IA.** O gasto sai da chave de API da própria empresa, e aparece na tela de uso de IA que já existe. Na primeira entrega não há trava de gasto; as travas entram na F2.
+
+**Riscos que continuam abertos.** Falta provar pela tela, em instalação limpa, e rodar a suíte inteira de testes (nada disso foi rodado aqui); a limpeza das conversas antigas só será ligada na F3; e a regra do menu "Assistente" (se empurra o menu para fora da tela) ainda não foi medida.

@@ -14,7 +14,15 @@
 **E2E nova:** `assistente-chat-leitura.spec.ts` (pergunta de relatório no chat = número da tela; par chat × GET direto) + prova visual em VPS fresca.
 **Docs no PR:** `architecture/*.json` (+2 arestas), `current-state`, `user-journey-map` (navegação), `threat-model` (superfície sessão-only), `spec-12` (segunda porta). DoD 14 (porta, `CLAUDE.md:730`), 13 (checklist, `:729`), 12 (par/QA, `:728`), 4 (RLS, `:720`), 5 (audit, `:721`), 7 (Zod, `:723`).
 
-## F2 — propostas com aprovação (branch `feat/assistente-f2-propostas`)
+## F1b — IA de leitura (branch `feat/assistente-f1b-ia-leitura`) — decisão D, spec §12
+
+**Entrega:** ponto próprio do assistente em `PONTOS_DE_IA` (`lib/ai/pontos/registro.ts`, cobrado por `pontos-de-ia-completude.test.ts`) + modelo que responde relatórios e dúvidas **lendo as mesmas rotas das telas** (métricas, relatórios, uso — nunca contas próprias no banco) e as skills `assistente-*`; a resposta determinística da F1 vira o piso quando o modelo falha. **Sem escrita** além do histórico do chat. Fecha a pendência de paridade número do chat × tela (spec §11).
+**Testes novos:** par obrigatório (pergunta de relatório pelo chat × a rota de métrica chamada direto, mesmo texto cru); varredura de PII nas tools; falha do modelo cai no piso determinístico.
+**Antes de codar:** medir qual rota de cada tela dá o número de conversas/negócios/funis e o papel mínimo de cada uma (viewer recebe degradação honesta onde a rota exige manager).
+
+## F2 — rascunhos e propostas (branch `feat/assistente-f2-propostas`) — decisões A/B/C, spec §12
+
+**Regra (spec §12):** rascunho o agente cria direto (agente, follow-up por modelo, só quando quem pede é `admin`); ao vivo (roteador, conhecimento, memória, settings) vira proposta com clique do admin; credencial/canal/billing/usuário/exclusão nunca tem tool. "Pacote do nicho" cria os rascunhos de uma vez e mostra a tela de revisão. 5 regras de conduta no prompt (spec §12.C).
 
 **Entrega:** migration (próximo NNNN livre na hora — re-medir + `checar:colisao-de-migration`) criando `config_proposals` (5 estados: `pendente/aprovada/aplicada/rejeitada/expirada`), tetos próprios usuário/org/dia no chat (molde: chat de casos; a F1 nasceu sem trava por decisão registrada na spec §8.2), `lib/agent-engine/agent/config-turn.ts` (`CONFIG_TOOL_DEFS` leitura+propose, sem `send_message`, client de sessão — service role proibido no turno), rotas `propostas` + `[id]/{approve,apply,reject}` (pedir/aprovar/aplicar **só admin** + `requireSupportWrite` + `audit()`; aplicar exige `aprovada`), execução 1 proposta = 1 artefato via handlers existentes (agents draft→publish, from-model→publish, routers PUT, knowledge/memory/credentials, settings actions), skills de escrita portadas, `.changes/assistente-propostas.md`.
 **Testes novos:** aplicar `pendente` → 403 + vermelho (sabotagem: remover guard → teste cai); cross-tenant em proposals; não-admin pedindo escrita → 403; crítico (credencial/canal/exclusão) sem tool (propor retorna recusa tipada).

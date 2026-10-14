@@ -106,7 +106,7 @@ export function AssistenteClient() {
         ))}
       </aside>
       <section className="flex flex-col gap-3">
-        <div className="flex min-h-48 flex-1 flex-col gap-2 overflow-y-auto rounded-md border p-3">
+        <div data-testid="assistente-mensagens" className="flex min-h-48 flex-1 flex-col gap-2 overflow-y-auto rounded-md border p-3">
           {mensagens.map((m) => (
             <p key={m.id} className={m.author_kind === "human" ? "self-end text-right" : "self-start"}>
               <span className="inline-block max-w-full rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
@@ -128,6 +128,7 @@ export function AssistenteClient() {
             type="button"
             disabled={enviando}
             onClick={() => void perguntar(PERGUNTA_RAPIDA)}
+            data-testid="assistente-resumo"
             className="rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
             {t("Resumo da operação")}
@@ -145,11 +146,13 @@ export function AssistenteClient() {
             onChange={(e) => setPergunta(e.target.value)}
             placeholder={t("Escreva sua pergunta...")}
             aria-label={t("Pergunta")}
+            data-testid="assistente-pergunta"
             className="flex-1 rounded-md border px-3 py-2 text-sm"
           />
           <button
             type="submit"
             disabled={enviando || pergunta.trim().length < 3}
+            data-testid="assistente-perguntar"
             className="rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
             {t("Perguntar")}

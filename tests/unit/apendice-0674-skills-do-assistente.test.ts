@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0673 — mesma cerca da 0611.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0674 — mesma cerca da 0611.
  */
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -7,9 +7,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261017080001_0673_skills_do_assistente.sql";
+const MIGRATION = "supabase/migrations/20261017080001_0674_skills_do_assistente.sql";
 
-describe("o apêndice do baseline espelha a migration 0673", () => {
+describe("o apêndice do baseline espelha a migration 0674", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {
     expect(existsSync(join(RAIZ, MIGRATION))).toBe(true);
     const migration = readFileSync(join(RAIZ, MIGRATION), "utf8");

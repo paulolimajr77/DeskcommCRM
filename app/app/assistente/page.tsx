@@ -12,7 +12,7 @@ export default async function AssistentePage() {
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
 
-  if (!(user.is_platform_admin && !user.support) && ROLE_RANK[activeOrg.role] < ROLE_RANK.agent) {
+  if (!(user.is_platform_admin && !user.support) && ROLE_RANK[activeOrg.role] < ROLE_RANK.viewer) {
     redirect("/403");
   }
   const idioma = user.idioma;

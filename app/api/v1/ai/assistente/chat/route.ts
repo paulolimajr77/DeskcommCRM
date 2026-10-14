@@ -53,7 +53,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   const supportDenied = await requireSupportWrite();
   if (supportDenied) return supportDenied;
 
-  const authz = await requireRole("agent", { requestId, resource: "assistente" });
+  const authz = await requireRole("viewer", { requestId, resource: "assistente" });
   if (!authz.ok) return authz.response;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const orgId = authz.org.orgId;

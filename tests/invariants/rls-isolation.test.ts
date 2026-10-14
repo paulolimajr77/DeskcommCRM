@@ -583,7 +583,7 @@ beforeAll(() => {
         -- respondeu: sem contact_id de propósito (config + agregados, nunca
         -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
         -- a operação dele, não dado de cliente. Leitura é o único comando que
-        -- a tabela concede a authenticated (papel agent ou acima); a
+        -- a tabela concede a authenticated (papel viewer ou acima); a
         -- escrita é do servidor. Select-then-insert, como as irmãs acima: o
         -- controle positivo precisa da thread semeada nesta passada do loop.
         select id into v_thread from public.config_threads
@@ -771,7 +771,7 @@ export const TABLES = [
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
   // migration 0655 — o histórico do chat do assistente interno (F1). Leitura
-  // org-scoped com gate de papel `agent` (o usuário semeado aqui é `agent`,
+  // org-scoped com gate de papel `viewer` (o usuário semeado aqui é `agent`,
   // então é controle positivo legítimo); a ESCRITA é do servidor e não é
   // medida aqui — quem mede a escrita são as rotas, em teste de rota.
   "config_threads",

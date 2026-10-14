@@ -51914,7 +51914,7 @@ revoke all on function public.fn_meet_delivery_settle(uuid,uuid,text,timestamptz
 grant execute on function public.fn_meet_delivery_settle(uuid,uuid,text,timestamptz,text,timestamptz) to service_role;
 
 -- ---- chat do assistente interno: config_threads/messages (migration 0655) ----
--- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `agent`; escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
+-- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
 
 -- ---- chat do assistente interno: config_threads/messages (migration 0655) ----
 create table if not exists public.config_threads (
@@ -51973,14 +51973,14 @@ grant  all    on public.config_messages to service_role;
 -- ── RLS: organização + papel ───────────────────────────────────────────────
 -- Policy POR COMANDO (`for select`), nunca `for all`: não existe caminho de
 -- escrita pelo PostgREST, porque o `revoke` acima o fechou. Leitura exige
--- papel `agent` ou acima (o chat de leitura é `requireRole("agent")`).
+-- papel `viewer` ou acima (o chat de leitura e de dúvidas vale para qualquer papel).
 drop policy if exists tenant_isolation_config_threads_select on public.config_threads;
 create policy tenant_isolation_config_threads_select
   on public.config_threads
   for select to authenticated
   using (
     organization_id in (select public.fn_user_org_ids())
-    and public.fn_role_at_least(organization_id, 'agent')
+    and public.fn_role_at_least(organization_id, 'viewer')
   );
 drop policy if exists tenant_isolation_config_messages_select on public.config_messages;
 create policy tenant_isolation_config_messages_select
@@ -51988,7 +51988,7 @@ create policy tenant_isolation_config_messages_select
   for select to authenticated
   using (
     organization_id in (select public.fn_user_org_ids())
-    and public.fn_role_at_least(organization_id, 'agent')
+    and public.fn_role_at_least(organization_id, 'viewer')
   );
 
 -- ── Retenção: a tabela nasce com dono de piso ──────────────────────────────

@@ -20,7 +20,7 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const requestId = randomUUID();
-  const authz = await requireRole("agent", { requestId, resource: "assistente" });
+  const authz = await requireRole("viewer", { requestId, resource: "assistente" });
   if (!authz.ok) return authz.response;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
 

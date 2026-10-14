@@ -1095,15 +1095,16 @@ export const NAV_CATALOG = [
     // com a ressalva medida: o menu lateral está no limite contado e
     // `tests/e2e/navegacao.spec.ts` pode acusar dobra em 900px. Se acusar,
     // o fallback é `sidebar: false` (a porta segue no grupo + TopBar + ⌘K).
-    // `minRole: "agent"` pela regra 1 do cabeçalho: a página redireciona
-    // abaixo de agent, então a navegação não mostra link que morre em /403.
+    // `minRole: "viewer"` pela regra 1 do cabeçalho: dúvida e leitura valem
+    // para qualquer papel (decisão do dono, 2026-10-14); a página redireciona
+    // abaixo de viewer, então a navegação não mostra link que morre em /403.
     // Sem `section`: o grupo não tem hub.
     href: "/app/assistente",
     label: "Conversar",
     description: "Pergunte sobre a operação e monte configurações com aprovação.",
     icon: "Robot",
     group: "assistente",
-    minRole: "agent",
+    minRole: "viewer",
     sidebar: true,
   },
 ] as const satisfies readonly NavMetadata[];

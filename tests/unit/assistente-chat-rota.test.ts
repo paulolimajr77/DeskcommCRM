@@ -123,10 +123,12 @@ describe("POST — guardas", () => {
     expect(requireRole).not.toHaveBeenCalled();
   });
 
-  it("403 para viewer (chat exige agent)", async () => {
+  it("viewer PODE perguntar (dúvida e leitura valem para qualquer papel)", async () => {
     session("viewer");
     poolFalso();
-    expect((await POST(pedido(CORPO_OK))).status).toBe(403);
+    const r = await POST(pedido({ turn_id: TURN_ID, pergunta: "como ler o funil?" }));
+    expect(r.status).toBe(200);
+    expect(vi.mocked(requireRole).mock.calls[0]?.[0]).toBe("viewer");
   });
 
   it("Zod é .strict(): campo desconhecido reprova com 422", async () => {

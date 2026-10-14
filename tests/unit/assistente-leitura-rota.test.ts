@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
+import { fail } from "@/lib/api/wrappers";
 import type { AuthUser } from "@/lib/auth/types";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
@@ -32,11 +33,18 @@ const user: AuthUser = {
   organizations: [{ organization_id: ORG_ID, organization_name: "Org", role: "agent" }],
 };
 
-vi.mocked(requireRole).mockResolvedValue({
-  ok: true,
-  user,
-  org: { orgId: ORG_ID, name: "Org", role: "agent" },
-} as never);
+vi.mocked(requireRole).mockImplementation(async (min: string) => {
+  // Trava o papel mínimo: se a rota subir para "agent", este mock devolve 403
+  // e os casos abaixo ficam vermelhos.
+  if (min !== "viewer") {
+    return { ok: false, response: fail("forbidden_role", "Papel mínimo do chat: viewer.", 403, {}) };
+  }
+  return {
+    ok: true,
+    user,
+    org: { orgId: ORG_ID, name: "Org", role: "agent" },
+  } as never;
+});
 
 function sessaoCom(linhas: Record<string, unknown[]>) {
   function cadeia(rows: unknown[]) {

@@ -33,7 +33,7 @@ const payloadCompleto = () => ({
   conversao: {
     etapas: [
       {
-        pipeline_id: "11111111-2222-3333-4444-555555555555",
+        pipeline_id: "11111111-2222-4333-8444-555555555555",
         funil: "Vendas",
         etapa: { id: "aaaaaaaa-0000-4000-8000-000000000001", nome: "Novo", posicao: 1.5 },
         proxima: { id: "aaaaaaaa-0000-4000-8000-000000000002", nome: "Proposta", posicao: 2 },
@@ -56,7 +56,7 @@ const payloadCompleto = () => ({
     amostra: 4,
     ignorados: 0,
     exclui: "Só ganhos com fechamento na janela: abertos e perdidos ficam de fora.",
-    por_funil: [{ pipeline_id: "11111111-2222-3333-4444-555555555555", funil: "Vendas", mediana: 3, p25: 1, p75: 6, amostra: 4 }],
+    por_funil: [{ pipeline_id: "11111111-2222-4333-8444-555555555555", funil: "Vendas", mediana: 3, p25: 1, p75: 6, amostra: 4 }],
   },
   origem: {
     linhas: [
@@ -88,7 +88,7 @@ describe("funil_conversao — adapter", () => {
     const s = JSON.stringify(d);
     expect(s).not.toContain("aaaaaaaa-0000-4000-8000-000000000001");
     expect(s).not.toContain("aaaaaaaa-0000-4000-8000-000000000002");
-    expect(s).toContain("11111111-2222-3333-4444-555555555555");
+    expect(s).toContain("11111111-2222-4333-8444-555555555555");
     expect(s).toContain("Vendas");
     expect(s).toContain("pipeline_id");
   });
@@ -202,7 +202,7 @@ describe("funil_conversao — adapter", () => {
     sobreporHandlerDeFunilConversao(handlerDe(200, { data: { ...payloadCompleto(), conversao: "x" } }));
     const r = await metricaFunilConversao.executar(CTX_AGENT, {});
     expect(r).toMatchObject({ ok: false, motivo: "indisponivel" });
-    if (!r.ok) {
+    if (!r.ok && r.motivo === "indisponivel") {
       expect(r.detalhe).not.toContain("conversao");
     }
   });

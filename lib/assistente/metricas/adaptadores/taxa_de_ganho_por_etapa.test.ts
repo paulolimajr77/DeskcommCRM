@@ -22,8 +22,8 @@ const CTX_MANAGER: ContextoDeConsulta = {
   bancoDosModulos: {} as ContextoDeConsulta["bancoDosModulos"],
 };
 
-const stageId = "11111111-2222-3333-4444-555555555555";
-const pipelineId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const stageId = "11111111-2222-4333-8444-555555555555";
+const pipelineId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 function handlerDe(status: number, corpo: unknown): HandlerDeRota {
   return async () => new Response(JSON.stringify(corpo), { status, headers: { "content-type": "application/json" } });
@@ -61,12 +61,12 @@ describe("taxa_de_ganho_por_etapa — adapter", () => {
   it("etapa_id fora do mapa → a linha some", async () => {
     const payload = {
       ...payloadTaxas(),
-      taxas: [{ etapa_id: "99999999-9999-9999-9999-999999999999", total: 8, ganhos: 3, percentual: 38, sugestao: 38 }],
+      taxas: [{ etapa_id: "99999999-9999-4999-8999-999999999999", total: 8, ganhos: 3, percentual: 38, sugestao: 38 }],
       tempo_na_etapa: {
         ...payloadTaxas().tempo_na_etapa,
         etapas: [
           ...payloadTaxas().tempo_na_etapa.etapas,
-          { etapa_id: "99999999-9999-9999-9999-999999999999", quantidade: 4, horas_media: 30.5, horas_mediana: 26, com_carimbo: 4, sem_carimbo: 0 },
+          { etapa_id: "99999999-9999-4999-8999-999999999999", quantidade: 4, horas_media: 30.5, horas_mediana: 26, com_carimbo: 4, sem_carimbo: 0 },
         ],
       },
     };
@@ -76,7 +76,7 @@ describe("taxa_de_ganho_por_etapa — adapter", () => {
     const d = dadosDe<{ taxas: { nome: string }[]; tempo_na_etapa: { etapas: { nome: string }[] } }>(r);
     expect(d.taxas.length).toBe(0);
     expect(d.tempo_na_etapa.etapas.length).toBe(0);
-    expect(JSON.stringify(d)).not.toContain("99999999-9999-9999-9999-999999999999");
+    expect(JSON.stringify(d)).not.toContain("99999999-9999-4999-8999-999999999999");
   });
 
   it("truncado: true (ambos) → avisos exatos", async () => {

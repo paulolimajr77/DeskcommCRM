@@ -1091,10 +1091,11 @@ export const NAV_CATALOG = [
   },
   {
     // Assistente interno de configuração e rotina (spec 2026-10-14, F1).
-    // `sidebar: true` por decisão do dono (uso diário) + atalho no TopBar —
-    // com a ressalva medida: o menu lateral está no limite contado e
-    // `tests/e2e/navegacao.spec.ts` pode acusar dobra em 900px. Se acusar,
-    // o fallback é `sidebar: false` (a porta segue no grupo + TopBar + ⌘K).
+    // `sidebar: false` — o FALLBACK que esta decisão já previa: o dono queria o
+    // item no menu lateral (uso diário), mas o menu está no limite contado
+    // (15 itens, folga 0 a 1280x900; `tests/unit/interface-por-empresa.test.ts`)
+    // e o CI do fork acusou 16 com este item. A porta segue no atalho do
+    // TopBar (`components/shell/AssistenteLink.tsx`), no grupo e no ⌘K.
     // `minRole: "viewer"` pela regra 1 do cabeçalho: dúvida e leitura valem
     // para qualquer papel (decisão do dono, 2026-10-14); a página redireciona
     // abaixo de viewer, então a navegação não mostra link que morre em /403.
@@ -1105,7 +1106,7 @@ export const NAV_CATALOG = [
     icon: "Robot",
     group: "assistente",
     minRole: "viewer",
-    sidebar: true,
+    sidebar: false,
   },
 ] as const satisfies readonly NavMetadata[];
 

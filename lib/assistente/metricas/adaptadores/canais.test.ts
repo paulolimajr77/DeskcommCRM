@@ -29,7 +29,7 @@ const payloadSujo = () => ({
   owner_user_id: null,
   channels: [
     {
-      channel_session_id: "11111111-1111-1111-1111-111111111111",
+      channel_session_id: "11111111-1111-4111-8111-111111111111",
       channel_name: "+5511999999999", // ← número de telefone, dado de contato
       channel: "whatsapp",
       is_archived: false,
@@ -79,7 +79,7 @@ describe("canais — o nome do canal (número no WhatsApp) NÃO sai", () => {
 
 describe("canais — amostra zero e 422", () => {
   it("sem conversas: dados=null + aviso exato", async () => {
-    sobreporHandlerDeCanais(handlerDe(200, { data: { window: {}, channels: [] } }));
+    sobreporHandlerDeCanais(handlerDe(200, { data: { window: { from: "x", to: "y" }, channels: [] } }));
     const resultado = await metricaCanais.executar(CTX_AGENT, {});
     expect(resultado.ok).toBe(true);
     if (resultado.ok) {

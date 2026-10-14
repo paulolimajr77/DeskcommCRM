@@ -69,7 +69,7 @@ describe("desempenho_atendentes — corte de PII", () => {
       }
       const dados = resultado.dados as { attendants: { index: number }[]; funnel: unknown[] };
       expect(dados.attendants[0]).toMatchObject({ index: 1, won: 8, lost: 2, conversations_handled: 20, avg_first_response_seconds: 36 });
-      expect(Object.keys(dados.attendants[0]).sort()).toEqual(["avg_first_response_seconds", "conversations_handled", "index", "lost", "won"]);
+      expect(Object.keys(dados.attendants[0] ?? {}).sort()).toEqual(["avg_first_response_seconds", "conversations_handled", "index", "lost", "won"]);
     }
   });
 

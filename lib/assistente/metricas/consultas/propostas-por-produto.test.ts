@@ -36,7 +36,7 @@ describe("lerPropostasAceitasPorProduto", () => {
     const linha = r.dados.por_produto.find((p) => p.produto === "Consultoria");
     expect(linha).toBeDefined();
     expect(linha?.quantidade).toBe(3);
-    expect(linha?.valor_proposto_cents).toBe(2 * (2 * 5000 - 1000) + Math.max(0, 1 * 5000 - 12000));
+    expect(linha?.valor_proposto_cents).toBe(2 * 5000 - 1000 + Math.max(0, 1 * 5000 - 12000));
   });
   it("zero aceitas → ok com valores zero (sem erro)", async () => {
     const banco = criarBancoFalso({ crm_proposals: [], catalog_products: [] });

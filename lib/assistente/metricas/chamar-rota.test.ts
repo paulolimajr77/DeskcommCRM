@@ -16,7 +16,7 @@ function respostaJson(status: number, corpo: unknown): Response {
 
 describe("chamarRotaPorDentro", () => {
   it("leva a query na URL e NUNCA cookie", async () => {
-    let capturado: Request | null = null;
+    let capturado = null as Request | null;
     const handler: HandlerDeRota = async (req) => {
       capturado = req;
       return respostaJson(200, { data: {} });

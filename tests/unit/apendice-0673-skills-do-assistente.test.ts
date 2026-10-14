@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261017080001_0656_skills_do_assistente.sql";
+const MIGRATION = "supabase/migrations/20261017080001_0673_skills_do_assistente.sql";
 
 describe("o apêndice do baseline espelha a migration 0673", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {

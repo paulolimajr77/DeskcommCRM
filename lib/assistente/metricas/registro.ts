@@ -24,7 +24,7 @@ import { metricaTaxaDeGanhoPorEtapa } from "./adaptadores/taxa_de_ganho_por_etap
 import { metricaFechamentosPorFunil } from "./adaptadores/fechamentos_por_funil";
 import { metricaLeadsPorOrigem } from "./adaptadores/leads_por_origem";
 import { metricaPropostasAceitasPorProduto } from "./adaptadores/propostas_aceitas_por_produto";
-import { estadoDoModulo } from "./modulos";
+import { estadoDoModulo, moduloLigado } from "./modulos";
 import type { ContextoDeConsulta, DefinicaoDeMetrica, Papel, ResultadoDeMetrica } from "./tipos";
 
 /** O catálogo — os ids são únicos e neutros (sem tela, sem provedor). */

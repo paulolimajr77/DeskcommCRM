@@ -67,13 +67,12 @@ describe("atrito — sem PII na resposta", () => {
       expect(texto).not.toContain("user_id");
       expect(texto).not.toContain("attendant_user_id");
       const dados = resultado.dados as { pares: { eficiencia: { valor: number } }[] };
-      expect(dados.pares[0].eficiencia.valor).toBe(30);
+      expect(dados.pares[0]?.eficiencia.valor).toBe(30);
     }
   });
 
   it("componente com valor string vira indisponivel", async () => {
-    const payload = payloadValido();
-    payload.componentes = { cliente: { pedidos_de_humano: "x" }, empresa: {} };
+    const payload = { ...payloadValido(), componentes: { cliente: { pedidos_de_humano: "x" }, empresa: {} } };
     sobreporHandlerDeAtrito(handlerDe(200, { data: payload }));
     const resultado = await metricaAtrito.executar(CTX_AGENT, {});
     expect(resultado).toMatchObject({ ok: false, motivo: "indisponivel" });

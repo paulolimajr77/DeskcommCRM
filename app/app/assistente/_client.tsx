@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useT } from "@/hooks/i18n/useT";
+import { randomId } from "@/lib/random-id";
 
 interface Thread {
   id: string;
@@ -57,7 +58,7 @@ export function AssistenteClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...(threadId === null ? {} : { thread_id: threadId }),
-          turn_id: crypto.randomUUID(),
+          turn_id: randomId(),
           pergunta: p,
         }),
       });

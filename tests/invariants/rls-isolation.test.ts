@@ -120,6 +120,7 @@ beforeAll(() => {
       v_empresa uuid;
       v_pessoa uuid;
       v_lote uuid;
+      v_thread uuid;
     begin
       foreach v_org in array array['${ORG_A}'::uuid, '${ORG_B}'::uuid] loop
         select id into v_sess from public.channel_sessions where organization_id = v_org limit 1;
@@ -576,6 +577,28 @@ beforeAll(() => {
           values
             (v_org, v_sess, timestamptz '2030-01-01 03:00:00+00', timestamptz '2030-01-01 05:00:00+00');
         end if;
+
+        -- migration 0655 — o histórico do chat do assistente interno. Guarda o
+        -- que a pessoa perguntou sobre a operação e o que o assistente
+        -- respondeu: sem contact_id de propósito (config + agregados, nunca
+        -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
+        -- a operação dele, não dado de cliente. Leitura é o único comando que
+        -- a tabela concede a authenticated (papel agent ou acima); a
+        -- escrita é do servidor. Select-then-insert, como as irmãs acima: o
+        -- controle positivo precisa da thread semeada nesta passada do loop.
+        select id into v_thread from public.config_threads
+          where organization_id = v_org limit 1;
+        if v_thread is null then
+          insert into public.config_threads (organization_id, kind)
+            values (v_org, 'leitura') returning id into v_thread;
+        end if;
+        if not exists (select 1 from public.config_messages where organization_id = v_org) then
+          insert into public.config_messages
+            (thread_id, organization_id, turn_id, author_kind, body)
+          values
+            (v_thread, v_org, gen_random_uuid(), 'human',
+             'RLS invariant config question');
+        end if;
       end loop;
     end
     $seed$;
@@ -747,6 +770,12 @@ export const TABLES = [
   // RPC. Vazar a linha entrega ao vizinho quando o outro vai mexer nas
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
+  // migration 0655 — o histórico do chat do assistente interno (F1). Leitura
+  // org-scoped com gate de papel `agent` (o usuário semeado aqui é `agent`,
+  // então é controle positivo legítimo); a ESCRITA é do servidor e não é
+  // medida aqui — quem mede a escrita são as rotas, em teste de rota.
+  "config_threads",
+  "config_messages",
   // ⚠️ `cobranca_assinaturas` (migration 0583) NÃO entra nesta lista, pelo mesmo
   // motivo de `webhook_lead_captures`: a leitura é só do `admin` e o usuário
   // semeado aqui é `agent`, então o controle positivo falharia por ACERTO. A

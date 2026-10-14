@@ -30,7 +30,7 @@ export interface ContextoDeConsulta {
   /** Fuso da organização; inválido cai para UTC dentro das métricas. */
   fuso: string;
   agoraIso: string;
-  /** O client que `modulosLigados` pede (o mesmo do layout autenticado). */
+  /** O client autenticado da sessão (RLS vale). Serve para `modulosLigados` e para as métricas que leem o banco direto (fechamentos, propostas, origens). NUNCA o client admin. */
   bancoDosModulos: SupabaseClient;
 }
 

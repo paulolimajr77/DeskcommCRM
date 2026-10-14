@@ -84,3 +84,15 @@ export {
   sobreporHandlersDeTaxaDeGanho,
   type ParametrosDeTaxaDeGanhoPorEtapa,
 } from "./adaptadores/taxa_de_ganho_por_etapa";
+export {
+  metricaFechamentosPorFunil,
+  type ParametrosDeFechamentosPorFunil,
+} from "./adaptadores/fechamentos_por_funil";
+export {
+  metricaLeadsPorOrigem,
+  type ParametrosDeLeadsPorOrigem,
+} from "./adaptadores/leads_por_origem";
+export {
+  metricaPropostasAceitasPorProduto,
+  type ParametrosDePropostasAceitasPorProduto,
+} from "./adaptadores/propostas_aceitas_por_produto";

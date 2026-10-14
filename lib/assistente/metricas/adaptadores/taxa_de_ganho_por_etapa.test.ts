@@ -75,7 +75,9 @@ describe("taxa_de_ganho_por_etapa — adapter", () => {
     expect(r.ok).toBe(true);
     const d = dadosDe<{ taxas: { nome: string }[]; tempo_na_etapa: { etapas: { nome: string }[] } }>(r);
     expect(d.taxas.length).toBe(0);
-    expect(d.tempo_na_etapa.etapas.length).toBe(0);
+    // a etapa conhecida (Novo) fica; só a desconhecida some
+    expect(d.tempo_na_etapa.etapas.length).toBe(1);
+    expect(d.tempo_na_etapa.etapas[0]?.nome).toBe("Novo");
     expect(JSON.stringify(d)).not.toContain("99999999-9999-4999-8999-999999999999");
   });
 

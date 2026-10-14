@@ -46,7 +46,7 @@ const metricaDeGerente: DefinicaoDeMetrica<unknown> = {
 const catalogoDeTeste: DefinicaoDeMetrica<unknown>[] = [...METRICAS, metricaDeGerente];
 
 describe("registro — higiene do catálogo", () => {
-  it("os 7 ids, únicos e em snake_case", () => {
+  it("os 12 ids, únicos e em snake_case", () => {
     const ids = METRICAS.map((def) => def.id);
     expect([...ids].sort()).toEqual(
       [
@@ -55,8 +55,13 @@ describe("registro — higiene do catálogo", () => {
         "canais",
         "conversas_por_visao",
         "desempenho_atendentes",
+        "etiquetas",
+        "evolucao_da_ia",
         "faturamento",
+        "funil_conversao",
         "perdas",
+        "taxa_de_ganho_por_etapa",
+        "uso_de_ia",
       ].sort(),
     );
     expect(new Set(ids).size).toBe(ids.length);
@@ -72,6 +77,11 @@ describe("registro — higiene do catálogo", () => {
       canais: "agent",
       perdas: "manager",
       atividades: "viewer",
+      etiquetas: "viewer",
+      uso_de_ia: "manager",
+      evolucao_da_ia: "manager",
+      funil_conversao: "agent",
+      taxa_de_ganho_por_etapa: "manager",
     };
     for (const def of METRICAS) {
       expect(def.papelMinimo).toBe(esperado[def.id]);

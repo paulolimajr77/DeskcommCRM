@@ -59,3 +59,28 @@ export {
   sobreporHandlerDeAtividades,
   type Parametros as ParametrosDeAtividades,
 } from "./adaptadores/atividades";
+export {
+  metricaEtiquetas,
+  sobreporHandlerDeEtiquetas,
+  type ParametrosDeEtiquetas,
+} from "./adaptadores/etiquetas";
+export {
+  metricaUsoDeIa,
+  sobreporHandlerDeUsoDeIa,
+  type ParametrosDeUsoDeIa,
+} from "./adaptadores/uso_de_ia";
+export {
+  metricaEvolucaoDaIa,
+  sobreporHandlerDeEvolucaoDaIa,
+  type ParametrosDeEvolucaoDaIa,
+} from "./adaptadores/evolucao_da_ia";
+export {
+  metricaFunilConversao,
+  sobreporHandlerDeFunilConversao,
+  type ParametrosDeFunilConversao,
+} from "./adaptadores/funil_conversao";
+export {
+  metricaTaxaDeGanhoPorEtapa,
+  sobreporHandlersDeTaxaDeGanho,
+  type ParametrosDeTaxaDeGanhoPorEtapa,
+} from "./adaptadores/taxa_de_ganho_por_etapa";

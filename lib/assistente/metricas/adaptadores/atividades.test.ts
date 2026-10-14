@@ -80,7 +80,7 @@ describe("atividades — days/tz, periodo null e piso viewer", () => {
   it("dias=91 é parametro_invalido (recusado pelo esquema, rota NÃO chamada)", async () => {
     const handler = vi.fn(handlerDe(200, { data: payloadSujo() }));
     sobreporHandlerDeAtividades(handler);
-    const resultado = await metricaAtividades.executar(CTX_VIEWER, { dias: 91 });
+    const resultado = await consultarMetrica(CTX_VIEWER, "atividades", { dias: 91 });
     expect(resultado).toMatchObject({ ok: false, motivo: "parametro_invalido" });
     expect(handler).not.toHaveBeenCalled();
   });

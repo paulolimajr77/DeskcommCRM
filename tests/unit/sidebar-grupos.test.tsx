@@ -69,7 +69,8 @@ describe("Sidebar agrupado", () => {
       .filter(Boolean);
     // Organização não tem título aqui: seu hub (Configurações) vive no rodapé
     // fixo, fora da área que rola — medido, ele caía fora da dobra até em 1080px.
-    expect(titulos).toEqual(["Atendimento", "CRM", "Agente de IA", "Canais", "Análise"]);
+    // "Assistente" (spec 2026-10-14, F1) é o sexto grupo, por último.
+    expect(titulos).toEqual(["Atendimento", "CRM", "Agente de IA", "Canais", "Análise", "Assistente"]);
   });
 
   it("leva às Etapas do funil pelo CRM, e não por Configurações", () => {

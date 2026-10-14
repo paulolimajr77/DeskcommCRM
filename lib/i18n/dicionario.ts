@@ -15454,6 +15454,28 @@ export const DICIONARIO: Traducoes = {
   "Nenhum negócio com este campo de data neste período.": {
     es: "Ningún negocio con este campo de fecha en este período.",
   },
+  // Assistente interno (spec 2026-10-14, F1): "Assistente" já existe em 14441.
+  "Conversar": { es: "Conversar" },
+  "Pergunte sobre a operação e monte configurações com aprovação.": {
+    es: "Pregunta sobre la operación y crea configuraciones con aprobación.",
+  },
+  "Pergunte sobre a operação e os guias. Na F1 ele responde resumos e trechos — a conversa com IA chega na F2.": {
+    es: "Pregunta sobre la operación y las guías. En la F1 responde resúmenes y fragmentos — la conversación con IA llega en la F2.",
+  },
+  "Nova conversa": { es: "Nueva conversación" },
+  "Pergunte sobre a operação ou os guias.": { es: "Pregunta sobre la operación o las guías." },
+  "Resumo da operação": { es: "Resumen de la operación" },
+  "Escreva sua pergunta...": { es: "Escribe tu pregunta..." },
+  "Não foi possível perguntar agora.": { es: "No fue posible preguntar ahora." },
+  "Ainda estou aprendendo a responder isso. Na F1 eu respondo resumos da operação e trechos dos guias — a conversa com IA chega na F2.": {
+    es: "Todavía estoy aprendiendo a responder eso. En la F1 respondo resúmenes de la operación y fragmentos de las guías — la conversación con IA llega en la F2.",
+  },
+  "Resumo da operação: ": { es: "Resumen de la operación: " },
+  "{conversas} conversas em atendimento, {leads} negócios abertos em {funis} funis.": {
+    es: "{conversas} conversaciones en atención, {leads} negocios abiertos en {funis} embudos.",
+  },
+  "Não foi possível listar.": { es: "No fue posible listar." },
+  "Não foi possível ler.": { es: "No fue posible leer." },
 };
 
 /**

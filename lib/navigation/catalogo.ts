@@ -17,7 +17,7 @@ import type { CapacidadeDaOrganizacao } from "@/lib/organizacao/capacidades";
  * Doutrina: docs/doctrine/sistema-vivo.md — "por qual porta se chega até mim?"
  */
 
-export type NavGroupId = "atendimento" | "crm" | "ia" | "canais" | "analise" | "organizacao";
+export type NavGroupId = "atendimento" | "crm" | "ia" | "canais" | "analise" | "organizacao" | "assistente";
 
 export interface NavGroup {
   id: NavGroupId;
@@ -97,6 +97,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Organização",
     hub: { href: "/app/settings", label: "Configurações" },
   },
+  { id: "assistente", label: "Assistente" },
 ];
 
 /**
@@ -1087,6 +1088,23 @@ export const NAV_CATALOG = [
     // Módulo opcional da instalação, desligado por padrão (doc 37): a porta só
     // existe onde quem administra o servidor o ligou, em `/admin/sistema`.
     modulo: "banco_externo",
+  },
+  {
+    // Assistente interno de configuração e rotina (spec 2026-10-14, F1).
+    // `sidebar: true` por decisão do dono (uso diário) + atalho no TopBar —
+    // com a ressalva medida: o menu lateral está no limite contado e
+    // `tests/e2e/navegacao.spec.ts` pode acusar dobra em 900px. Se acusar,
+    // o fallback é `sidebar: false` (a porta segue no grupo + TopBar + ⌘K).
+    // `minRole: "agent"` pela regra 1 do cabeçalho: a página redireciona
+    // abaixo de agent, então a navegação não mostra link que morre em /403.
+    // Sem `section`: o grupo não tem hub.
+    href: "/app/assistente",
+    label: "Conversar",
+    description: "Pergunte sobre a operação e monte configurações com aprovação.",
+    icon: "Robot",
+    group: "assistente",
+    minRole: "agent",
+    sidebar: true,
   },
 ] as const satisfies readonly NavMetadata[];
 

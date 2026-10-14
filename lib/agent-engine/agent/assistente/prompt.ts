@@ -26,14 +26,10 @@ export interface EntradaDoSystemDoAssistente {
 }
 
 /**
- * O `system` completo do turno do assistente.
- *
- * Bloco fixo: prefixo estável do cache do provedor. Nada da pergunta entra
- * aqui — o `system` que muda a cada pergunta quebra o cache e o custo dobra
- * sem ninguém ver por quê (mesma lição de `conversa-do-caso/contexto.ts`).
- * Por isso a data entra sem a hora: duas perguntas no mesmo dia geram o mesmo
- * `system` e o cache segue valendo; com hora e minuto, cada minuto seria um
- * prefixo novo.
+ * A linha "Hoje: …" do `system` — a data de hoje no fuso da organização, SEM
+ * a hora (o que mantém o `system` estável no cache do provedor). Fuso
+ * desconhecido NÃO derruba o prompt: o `Intl` lança `RangeError` e o fallback
+ * é UTC, declarado no texto para o modelo não datar errado.
  */
 export function diaDeHojeNoFuso(
   agoraIso: string,
@@ -62,6 +58,16 @@ export function diaDeHojeNoFuso(
   return { data, dia, fusoEfetivo };
 }
 
+/**
+ * O `system` completo do turno do assistente.
+ *
+ * Bloco fixo: prefixo estável do cache do provedor. Nada da pergunta entra
+ * aqui — o `system` que muda a cada pergunta quebra o cache e o custo dobra
+ * sem ninguém ver por quê (mesma lição de `conversa-do-caso/contexto.ts`).
+ * Por isso a data entra sem a hora: duas perguntas no mesmo dia geram o mesmo
+ * `system` e o cache segue valendo; com hora e minuto, cada minuto seria um
+ * prefixo novo.
+ */
 export function montarSystemDoAssistente(input: EntradaDoSystemDoAssistente): string {
   const idioma = input.idioma === "es" ? "espanhol" : "português";
   const hoje = diaDeHojeNoFuso(input.agoraIso, input.fuso, input.idioma);

@@ -8,7 +8,6 @@ import { NextRequest } from "next/server";
 
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
-import { fail } from "@/lib/api/wrappers";
 import type { AuthUser } from "@/lib/auth/types";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));

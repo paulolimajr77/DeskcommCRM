@@ -208,6 +208,16 @@ describe("metricaFaturamento — o que pode e o que NUNCA sai", () => {
     expect(resultado).toEqual({ ok: false, metrica: "faturamento", motivo: "sem_permissao", papel_minimo: "viewer" });
   });
 
+  it("item de comanda com total_cents negativo (desconto maior que preço) ainda é ok: dinheiro não tem trava de sinal", async () => {
+    modulosLigadosMock.mockResolvedValue(["financeiro"] as ModuloOpcional[]);
+    const payload = payloadReal(false);
+    payload.por_servico = [{ nome: "Desconto Gigante", quantidade: 1, total_cents: -50_000 }];
+    payload.por_moeda.BRL!.por_servico = [{ nome: "Desconto Gigante", quantidade: 1, total_cents: -50_000 }];
+    sobreporHandlerDoFinanceiro(handlerDe(200, { data: payload }));
+    const resultado = await metricaFaturamento.executar(CTX, {} as ParametrosDeFaturamento);
+    expect(resultado.ok).toBe(true);
+  });
+
   it("papel viewer PASSA — a rota do relatório é viewer", async () => {
     modulosLigadosMock.mockResolvedValue(["financeiro"] as ModuloOpcional[]);
     sobreporHandlerDoFinanceiro(handlerDe(200, { data: payloadReal(false) }));

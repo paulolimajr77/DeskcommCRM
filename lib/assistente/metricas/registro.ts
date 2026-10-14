@@ -11,11 +11,24 @@ import type { ZodError } from "zod";
 
 import { metricaConversas } from "./adaptadores/conversas";
 import { metricaFaturamento } from "./adaptadores/faturamento";
+import { metricaDesempenhoAtendentes } from "./adaptadores/desempenho_atendentes";
+import { metricaAtrito } from "./adaptadores/atrito";
+import { metricaCanais } from "./adaptadores/canais";
+import { metricaPerdas } from "./adaptadores/perdas";
+import { metricaAtividades } from "./adaptadores/atividades";
 import { estadoDoModulo } from "./modulos";
 import type { ContextoDeConsulta, DefinicaoDeMetrica, Papel, ResultadoDeMetrica } from "./tipos";
 
 /** O catálogo — os ids são únicos e neutros (sem tela, sem provedor). */
-export const METRICAS: readonly DefinicaoDeMetrica<unknown>[] = [metricaConversas, metricaFaturamento];
+export const METRICAS: readonly DefinicaoDeMetrica<unknown>[] = [
+  metricaConversas,
+  metricaFaturamento,
+  metricaDesempenhoAtendentes,
+  metricaAtrito,
+  metricaCanais,
+  metricaPerdas,
+  metricaAtividades,
+];
 
 const mapaDasMetricas = new Map(METRICAS.map((def) => [def.id, def]));
 

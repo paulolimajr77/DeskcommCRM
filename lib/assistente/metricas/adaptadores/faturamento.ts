@@ -40,30 +40,33 @@ export type ParametrosDeFaturamento = z.infer<typeof parametrosDeFaturamento>;
 const itemAgrupado = z.object({
   nome: z.string(),
   quantidade: z.number().int().min(0),
-  total_cents: z.number().int().min(0),
+  // .min(0) NÃO vai aqui: total_cents é bigint sem trava de sinal no banco
+  // (um item com desconto maior que o preço fica negativo) — e um valor
+  // negativo é dado real, não formato quebrado. Apenas .int() garante.
+  total_cents: z.number().int(),
 });
 
 const blocoPorMoeda = z.object({
-  entradas_cents: z.number().int().min(0),
-  saidas_cents: z.number().int().min(0),
+  entradas_cents: z.number().int(),
+  saidas_cents: z.number().int(),
   saldo_cents: z.number().int(),
   comandas_finalizadas: z.number().int().min(0),
   comandas_estornadas: z.number().int().min(0),
-  faturado_cents: z.number().int().min(0),
-  ticket_medio_cents: z.number().int().min(0),
+  faturado_cents: z.number().int(),
+  ticket_medio_cents: z.number().int(),
   por_forma: z.array(itemAgrupado),
   por_servico: z.array(itemAgrupado),
 });
 
 /** `por_profissional` e `por_cliente` NÃO estão declarados — nem no topo, nem por moeda. */
 const esquemaDoRelatorio = z.object({
-  entradas_cents: z.number().int().min(0),
-  saidas_cents: z.number().int().min(0),
+  entradas_cents: z.number().int(),
+  saidas_cents: z.number().int(),
   saldo_cents: z.number().int(),
   comandas_finalizadas: z.number().int().min(0),
   comandas_estornadas: z.number().int().min(0),
-  faturado_cents: z.number().int().min(0),
-  ticket_medio_cents: z.number().int().min(0),
+  faturado_cents: z.number().int(),
+  ticket_medio_cents: z.number().int(),
   por_forma: z.array(itemAgrupado),
   por_servico: z.array(itemAgrupado),
   por_moeda: z.record(z.string(), blocoPorMoeda),

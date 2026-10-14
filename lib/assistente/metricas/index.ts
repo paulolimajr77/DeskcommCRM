@@ -34,3 +34,28 @@ export {
   type BlocoDeMoeda,
   type DadosDoFaturamento,
 } from "./adaptadores/faturamento";
+export {
+  metricaDesempenhoAtendentes,
+  sobreporHandlerDeDesempenho,
+  type Parametros as ParametrosDeDesempenho,
+} from "./adaptadores/desempenho_atendentes";
+export {
+  metricaAtrito,
+  sobreporHandlerDeAtrito,
+  type Parametros as ParametrosDeAtrito,
+} from "./adaptadores/atrito";
+export {
+  metricaCanais,
+  sobreporHandlerDeCanais,
+  type Parametros as ParametrosDeCanais,
+} from "./adaptadores/canais";
+export {
+  metricaPerdas,
+  sobreporHandlerDePerdas,
+  type Parametros as ParametrosDePerdas,
+} from "./adaptadores/perdas";
+export {
+  metricaAtividades,
+  sobreporHandlerDeAtividades,
+  type Parametros as ParametrosDeAtividades,
+} from "./adaptadores/atividades";

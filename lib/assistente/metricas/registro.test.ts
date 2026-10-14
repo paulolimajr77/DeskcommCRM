@@ -46,10 +46,36 @@ const metricaDeGerente: DefinicaoDeMetrica<unknown> = {
 const catalogoDeTeste: DefinicaoDeMetrica<unknown>[] = [...METRICAS, metricaDeGerente];
 
 describe("registro — higiene do catálogo", () => {
-  it("ids únicos e em snake_case", () => {
+  it("os 7 ids, únicos e em snake_case", () => {
     const ids = METRICAS.map((def) => def.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "conversas_por_visao",
+        "faturamento",
+        "desempenho_atendentes",
+        "atrito",
+        "canais",
+        "perdas",
+        "atividades",
+      ]),
+    );
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id).toMatch(/^[a-z][a-z0-9_]*$/);
+  });
+
+  it("papelMinimo de cada uma é EXATAMENTE o da rota medida", () => {
+    const esperado: Record<string, "viewer" | "agent" | "manager"> = {
+      conversas_por_visao: "viewer",
+      faturamento: "viewer",
+      desempenho_atendentes: "agent",
+      atrito: "agent",
+      canais: "agent",
+      perdas: "manager",
+      atividades: "viewer",
+    };
+    for (const def of METRICAS) {
+      expect(def.papelMinimo).toBe(esperado[def.id]);
+    }
   });
 
   it("toda métrica tem descrição, régua, dimensões e papel válido", () => {
@@ -128,6 +154,18 @@ describe("listarMetricas — o modelo vê tudo e sabe o que pode usar", () => {
     const linha = lista.find((item) => item.id === "metrica_de_gerente");
     expect(linha?.disponivel_para_voce).toBe(true);
     expect(linha?.papel_minimo).toBe("manager");
+  });
+
+  it("viewer vê as viewer, mas não as de agent/manager — e vê tudo na lista", async () => {
+    const lista = await listarMetricas(ctxDe("viewer"), catalogoDeTeste);
+    const porId = new Map(lista.map((linha) => [linha.id, linha]));
+    expect(porId.get("conversas_por_visao")?.disponivel_para_voce).toBe(true);
+    expect(porId.get("faturamento")?.disponivel_para_voce).toBe(true);
+    expect(porId.get("atividades")?.disponivel_para_voce).toBe(true);
+    expect(porId.get("desempenho_atendentes")?.disponivel_para_voce).toBe(false);
+    expect(porId.get("atrito")?.disponivel_para_voce).toBe(false);
+    expect(porId.get("canais")?.disponivel_para_voce).toBe(false);
+    expect(porId.get("perdas")?.disponivel_para_voce).toBe(false);
   });
 
   it("toda linha carrega os campos que o modelo precisa", async () => {

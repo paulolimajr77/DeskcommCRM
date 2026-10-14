@@ -53,17 +53,33 @@ function session(effectiveRole: Role = "agent") {
 }
 
 /** Pool falso respondendo por FORMA de consulta, registrando escritas. */
-function poolFalso(over: { inserirLanca?: { code: string }; threads?: unknown[] } = {}) {
+function poolFalso(
+  over: {
+    inserirLanca?: { code: string };
+    threads?: unknown[];
+    /** Turno pela metade: o insert do human colide, o do ai passa. */
+    humanJaGravado?: boolean;
+    /** Corrida: o insert do ai colide (a outra tentativa gravou primeiro). */
+    aiJaGravado?: boolean;
+    mensagensDoTurno?: Array<{ author_kind: string; body: string }>;
+  } = {},
+) {
   const escritas: Array<{ sql: string; params: unknown[] }> = [];
+  const parGravado = over.mensagensDoTurno ?? [
+    { author_kind: "human", body: "oi" },
+    { author_kind: "ai", body: "olá" },
+  ];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     if (/insert into public\.config_(threads|messages)/.test(sql)) {
       if (over.inserirLanca) throw over.inserirLanca;
+      if (over.humanJaGravado && /'human'/.test(sql)) throw { code: "23505" };
+      if (over.aiJaGravado && /'ai'/.test(sql)) throw { code: "23505" };
       escritas.push({ sql, params });
       return { rows: [{ id: `nova-${escritas.length}` }] };
     }
     if (/from public\.config_threads/.test(sql)) return { rows: over.threads ?? [{ id: THREAD_ID }] };
     if (/from public\.config_messages/.test(sql)) {
-      return { rows: [{ author_kind: "human", body: "oi" }, { author_kind: "ai", body: "olá" }] };
+      return { rows: parGravado };
     }
     if (/count\(\*\)/.test(sql)) return { rows: [{ n: "7" }] };
     return { rows: [] };
@@ -136,6 +152,42 @@ describe("POST — idempotência pelo turn_id", () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ data: { replay: true } });
     expect(escritas).toEqual([]);
+  });
+
+  it("turno pela metade: reenvio gera a resposta que faltou", async () => {
+    // O human gravou, o ai não. O reenvio com o mesmo turn_id RETOMA em vez
+    // de devolver mudo: 1 insert (só o ai), resposta preenchida, 1 audit.
+    const { escritas } = poolFalso({
+      humanJaGravado: true,
+      mensagensDoTurno: [{ author_kind: "human", body: "como ler o funil?" }],
+    });
+    const r = await POST(pedido({ turn_id: TURN_ID, pergunta: "como ler o funil?" }));
+    expect(r.status).toBe(200);
+    const corpo = (await r.json()) as { data: Record<string, unknown> };
+    expect(corpo.data).toMatchObject({ fonte: "guia", replay: false });
+    expect(String(corpo.data.resposta)).toContain("stage_changed");
+    expect(escritas.filter((q) => /insert into public\.config_messages/.test(q.sql))).toHaveLength(1);
+    expect(audit).toHaveBeenCalledTimes(1);
+  });
+
+  it("o texto gravado manda: pedido novo não sobrescreve a pergunta do turno", async () => {
+    const { escritas } = poolFalso({
+      humanJaGravado: true,
+      mensagensDoTurno: [{ author_kind: "human", body: "como ler o funil?" }],
+    });
+    const r = await POST(pedido({ turn_id: TURN_ID, pergunta: "outra pergunta qualquer" }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ data: { fonte: "guia", replay: false } });
+    expect(escritas.filter((q) => /insert into public\.config_messages/.test(q.sql))).toHaveLength(1);
+  });
+
+  it("dois ao mesmo tempo: ai colidindo devolve replay, sem audit e sem 500", async () => {
+    const { escritas } = poolFalso({ aiJaGravado: true });
+    const r = await POST(pedido({ turn_id: TURN_ID, pergunta: "como ler o funil?" }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ data: { replay: true } });
+    expect(escritas.filter((q) => /insert into public\.config_messages/.test(q.sql))).toHaveLength(1);
+    expect(audit).not.toHaveBeenCalled();
   });
 });
 

@@ -7,7 +7,10 @@
  * Escrita SÓ em `config_threads`/`config_messages`, pelo pool de serviço com
  * `organization_id` da sessão em todo statement. Idempotência por `turn_id`
  * (unique parcial), sem `comIdempotencia` — a resposta ficaria copiada em
- * `idempotency_keys`, fora da cascata de LGPD e sem expurgo.
+ * `idempotency_keys`, fora da cascata de LGPD e sem expurgo. Se o turno ficou
+ * pela metade (human gravou, ai não), o reenvio com o mesmo `turn_id` RETOMA
+ * gerando a resposta a partir do texto gravado; se o `ai` já existe, devolve
+ * `replay: true`.
  */
 import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
@@ -70,6 +73,9 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
   const { thread_id, turn_id, pergunta } = parsed.data;
   const pool = getRequestPool();
+  // Texto que manda na geração. No reenvio de turno pela metade, passa a ser
+  // o body JÁ GRAVADO (ver o catch do insert do human abaixo).
+  let perguntaEfetiva = pergunta;
 
   let threadId: string;
   if (thread_id !== undefined) {
@@ -98,20 +104,30 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   } catch (e: unknown) {
     if (typeof e === "object" && e !== null && (e as { code?: string }).code === "23505") {
-      const { rows } = await pool.query<{ author_kind: string; body: string }>(
+      const { rows } = await pool.query<{ author_kind: string; body: string | null }>(
         `select author_kind, body from public.config_messages
          where organization_id = $1 and thread_id = $2 and turn_id = $3
          order by created_at`,
         [orgId, threadId, turn_id],
       );
-      return ok({ thread_id: threadId, turn_id, mensagens: rows, replay: true }, { requestId });
+      if (rows.some((r) => r.author_kind === "ai")) {
+        return ok({ thread_id: threadId, turn_id, mensagens: rows, replay: true }, { requestId });
+      }
+      // Turno pela metade: o human gravou, o ai não. Retoma gerando a
+      // resposta a partir do texto JÁ GRAVADO (com o mesmo turn_id, o gravado
+      // manda) e sem inserir o human de novo.
+      const gravada = rows.find((r) => r.author_kind === "human")?.body;
+      if (typeof gravada === "string" && gravada.trim() !== "") {
+        perguntaEfetiva = gravada;
+      }
+    } else {
+      throw e;
     }
-    throw e;
   }
 
   let resposta: string;
   let fonte: "metrica" | "guia" | "inicial";
-  if (ehResumo(pergunta)) {
+  if (ehResumo(perguntaEfetiva)) {
     const conversas = await pool.query<{ n: string }>(
       `select count(*)::text as n from public.conversations
        where organization_id = $1 and status in ('open','pending','claimed','ai_handling')`,
@@ -133,7 +149,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     fonte = "metrica";
   } else {
     const skills = (await loadSkills(pool, orgId)).filter((s) => s.name.startsWith("assistente-"));
-    const { matched } = matchSkills(skills, pergunta);
+    const { matched } = matchSkills(skills, perguntaEfetiva);
     if (matched.length > 0) {
       const guia = matched[0]!;
       resposta = `${guia.description}\n\n${guia.body.slice(0, 1200)}`;
@@ -146,11 +162,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
-  await pool.query(
-    `insert into public.config_messages (thread_id, organization_id, turn_id, author_kind, body)
-     values ($1, $2, $3, 'ai', $4)`,
-    [threadId, orgId, turn_id, resposta],
-  );
+  try {
+    await pool.query(
+      `insert into public.config_messages (thread_id, organization_id, turn_id, author_kind, body)
+       values ($1, $2, $3, 'ai', $4)`,
+      [threadId, orgId, turn_id, resposta],
+    );
+  } catch (e: unknown) {
+    // Duas tentativas ao mesmo tempo: a outra gravou o ai primeiro. Devolve
+    // o turno existente, sem audit e sem 500.
+    if (typeof e === "object" && e !== null && (e as { code?: string }).code === "23505") {
+      const { rows } = await pool.query<{ author_kind: string; body: string }>(
+        `select author_kind, body from public.config_messages
+         where organization_id = $1 and thread_id = $2 and turn_id = $3
+         order by created_at`,
+        [orgId, threadId, turn_id],
+      );
+      return ok({ thread_id: threadId, turn_id, mensagens: rows, replay: true }, { requestId });
+    }
+    throw e;
+  }
   await pool.query("update public.config_threads set last_message_at = now() where id = $1 and organization_id = $2", [
     threadId,
     orgId,

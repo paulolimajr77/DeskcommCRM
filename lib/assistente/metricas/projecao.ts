@@ -44,6 +44,13 @@ export const CHAVES_PROIBIDAS: ReadonlySet<string> = new Set([
   "reason",
   "notes",
   "motivo_livre",
+  "owner_user_id",
+  "stage_id",
+  "userId",
+  "agentId",
+  "channel_name",
+  "lost_reason",
+  "motivo",
 ]);
 
 /**

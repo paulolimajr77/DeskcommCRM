@@ -23,7 +23,7 @@ import { logger } from "@/lib/logger";
 import { chamarRotaPorDentro, traduzirResposta } from "../chamar-rota";
 import { chavesProibidasEm, projetar } from "../projecao";
 import { PeriodoSolicitado, resolverPeriodo } from "../periodo";
-import type { ContextoDeConsulta, DefinicaoDeMetrica, ResultadoDeMetrica } from "../tipos";
+import type { DefinicaoDeMetrica } from "../tipos";
 
 const ID = "canais";
 const parametros = z.strictObject({ periodo: PeriodoSolicitado.optional() });
@@ -40,7 +40,7 @@ const linhaCanal = z.object({
 
 const esquema = z.object({
   window: z.object({ from: z.string(), to: z.string() }).optional(),
-  owner_user_id: z.unknown().nullable(),
+  // `owner_user_id` foi removido: sempre null, e cair na varredura de proibidos.
   channels: z.array(linhaCanal),
 });
 
@@ -89,6 +89,13 @@ export const metricaCanais: DefinicaoDeMetrica<Parametros> = {
       logger.warn("assistente.metricas.chave_proibida_no_resultado", { metrica: ID, chaves: proibidas });
       return { ok: false, metrica: ID, motivo: "indisponivel", detalhe: "a resposta trouxe campos que não podem sair" };
     }
-    return { ok: true, metrica: ID, periodo, regua: REGUA, dados: projetado.dados, avisos: [] };
+
+    const avisos: string[] = [];
+    let dados: unknown = projetado.dados;
+    if (projetado.dados.channels.length === 0) {
+      dados = null;
+      avisos.push("Sem conversas por canal no período.");
+    }
+    return { ok: true, metrica: ID, periodo, regua: REGUA, dados, avisos };
   },
 };

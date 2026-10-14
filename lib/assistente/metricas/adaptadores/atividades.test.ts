@@ -50,11 +50,11 @@ function payloadSujo() {
 
 afterEach(() => sobreporHandlerDeAtividades(null));
 
-describe("atividades — days/tz e piso viewer", () => {
-  it("semana_passada (padrão) vira days=7; tz vem do fuso da org", async () => {
+describe("atividades — days/tz, periodo null e piso viewer", () => {
+  it("sem parâmetro manda days=7; tz vem do fuso da org", async () => {
     const captura: { url?: string } = {};
     sobreporHandlerDeAtividades(
-      handlerDe(200, { data: { window: {}, total: 0, resumo: {}, tipos: [], dias: [], truncado: false, items_truncated: false, vocabulario: {} } }, captura),
+      handlerDe(200, { data: { total: 0, resumo: { pessoas: 0, agentes: 0, automatico: 0 }, tipos: [], dias: [], truncado: false, vocabulario: {} } }, captura),
     );
     await metricaAtividades.executar(CTX_VIEWER, {});
     const url = new URL(captura.url ?? "");
@@ -62,13 +62,27 @@ describe("atividades — days/tz e piso viewer", () => {
     expect(url.searchParams.get("tz")).toBe("America/Sao_Paulo");
   });
 
-  it("ultimos_dias 5 manda days=5; atinge o teto de 90 dias", async () => {
+  it("dias=3 manda days=3 e devolve periodo null com janela", async () => {
     const captura: { url?: string } = {};
     sobreporHandlerDeAtividades(
-      handlerDe(200, { data: { window: {}, total: 0, resumo: {}, tipos: [], dias: [], truncado: false, items_truncated: false, vocabulario: {} } }, captura),
+      handlerDe(200, { data: { total: 1, resumo: { pessoas: 1, agentes: 0, automatico: 0 }, tipos: [], dias: [], truncado: false, vocabulario: {} } }, captura),
     );
-    await metricaAtividades.executar(CTX_VIEWER, { periodo: { tipo: "ultimos_dias", dias: 5 } });
-    expect(new URL(captura.url ?? "").searchParams.get("days")).toBe("5");
+    const resultado = await metricaAtividades.executar(CTX_VIEWER, { dias: 3 });
+    expect(new URL(captura.url ?? "").searchParams.get("days")).toBe("3");
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.periodo).toBeNull();
+      expect(resultado.dados).toMatchObject({ janela: { dias: 3, ate: "agora", fuso: "America/Sao_Paulo" } });
+      expect(resultado.avisos[0]).toContain("Janela dos últimos 3 dias");
+    }
+  });
+
+  it("dias=91 é parametro_invalido (recusado pelo esquema, rota NÃO chamada)", async () => {
+    const handler = vi.fn(handlerDe(200, { data: payloadSujo() }));
+    sobreporHandlerDeAtividades(handler);
+    const resultado = await metricaAtividades.executar(CTX_VIEWER, { dias: 91 });
+    expect(resultado).toMatchObject({ ok: false, motivo: "parametro_invalido" });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("viewer PASSA (a rota é viewer)", async () => {
@@ -86,9 +100,19 @@ describe("atividades — days/tz e piso viewer", () => {
       for (const proibido of ["Maria da Silva", "Cliente ABC", "Projeto X", "precificação", "userId", "agentId", "contatoNome", "negocioTitulo"]) {
         expect(texto).not.toContain(proibido);
       }
-      const dados = resultado.dados as { total: number; resumo: unknown; tipos: unknown[]; dias: unknown[] };
+      const dados = resultado.dados as { total: number; resumo: unknown; tipos: unknown[]; dias: unknown[]; janela: unknown };
       expect(dados.total).toBe(50);
-      expect(Object.keys(dados).sort()).toEqual(["dias", "resumo", "tipos", "total", "truncado", "vocabulario"]);
+      expect(Object.keys(dados).sort()).toEqual(["dias", "janela", "resumo", "tipos", "total", "truncado", "vocabulario"]);
+    }
+  });
+
+  it("amostra zero (total=0): dados=null + aviso exato", async () => {
+    sobreporHandlerDeAtividades(handlerDe(200, { data: { total: 0, resumo: { pessoas: 0, agentes: 0, automatico: 0 }, tipos: [], dias: [], truncado: false, vocabulario: {} } }));
+    const resultado = await metricaAtividades.executar(CTX_VIEWER, {});
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.dados).toBeNull();
+      expect(resultado.avisos).toContain("Sem atividades no período.");
     }
   });
 });

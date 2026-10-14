@@ -76,3 +76,21 @@ describe("canais — o nome do canal (número no WhatsApp) NÃO sai", () => {
     }
   });
 });
+
+describe("canais — amostra zero e 422", () => {
+  it("sem conversas: dados=null + aviso exato", async () => {
+    sobreporHandlerDeCanais(handlerDe(200, { data: { window: {}, channels: [] } }));
+    const resultado = await metricaCanais.executar(CTX_AGENT, {});
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.dados).toBeNull();
+      expect(resultado.avisos).toContain("Sem conversas por canal no período.");
+    }
+  });
+
+  it("422 da rota vira parametro_invalido", async () => {
+    sobreporHandlerDeCanais(handlerDe(422, { error: { code: "validation_failed" } }));
+    const resultado = await metricaCanais.executar(CTX_AGENT, {});
+    expect(resultado).toMatchObject({ ok: false, motivo: "parametro_invalido", detalhe: "validation_failed" });
+  });
+});

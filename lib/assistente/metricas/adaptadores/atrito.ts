@@ -21,7 +21,7 @@ import { logger } from "@/lib/logger";
 import { chamarRotaPorDentro, traduzirResposta } from "../chamar-rota";
 import { chavesProibidasEm, projetar } from "../projecao";
 import { PeriodoSolicitado, resolverPeriodo } from "../periodo";
-import type { ContextoDeConsulta, DefinicaoDeMetrica, ResultadoDeMetrica } from "../tipos";
+import type { DefinicaoDeMetrica } from "../tipos";
 
 const ID = "atrito";
 const parametros = z.strictObject({ periodo: PeriodoSolicitado.optional() });
@@ -58,8 +58,8 @@ const esquema = z.object({
     }),
   ),
   componentes: z.object({
-    cliente: z.record(z.string(), z.unknown()),
-    empresa: z.record(z.string(), z.unknown()),
+    cliente: z.record(z.string(), z.number().nullable()),
+    empresa: z.record(z.string(), z.number().nullable()),
   }),
 });
 
@@ -109,6 +109,12 @@ export const metricaAtrito: DefinicaoDeMetrica<Parametros> = {
       logger.warn("assistente.metricas.chave_proibida_no_resultado", { metrica: ID, chaves: proibidas });
       return { ok: false, metrica: ID, motivo: "indisponivel", detalhe: "a resposta trouxe campos que não podem sair" };
     }
-    return { ok: true, metrica: ID, periodo, regua: REGUA, dados: projetado.dados, avisos: [] };
+    const avisos: string[] = [];
+    let dados: unknown = projetado.dados;
+    if (projetado.dados.escopo.demandas === 0) {
+      dados = null;
+      avisos.push("Sem demandas no período; o índice não se aplica.");
+    }
+    return { ok: true, metrica: ID, periodo, regua: REGUA, dados, avisos };
   },
 };

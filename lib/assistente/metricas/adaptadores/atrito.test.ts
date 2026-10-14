@@ -70,4 +70,24 @@ describe("atrito — sem PII na resposta", () => {
       expect(dados.pares[0].eficiencia.valor).toBe(30);
     }
   });
+
+  it("componente com valor string vira indisponivel", async () => {
+    const payload = payloadValido();
+    payload.componentes = { cliente: { pedidos_de_humano: "x" }, empresa: {} };
+    sobreporHandlerDeAtrito(handlerDe(200, { data: payload }));
+    const resultado = await metricaAtrito.executar(CTX_AGENT, {});
+    expect(resultado).toMatchObject({ ok: false, motivo: "indisponivel" });
+  });
+
+  it("amostra zero (demandas=0): dados=null + aviso exato", async () => {
+    const payload = payloadValido();
+    payload.escopo.demandas = 0;
+    sobreporHandlerDeAtrito(handlerDe(200, { data: payload }));
+    const resultado = await metricaAtrito.executar(CTX_AGENT, {});
+    expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.dados).toBeNull();
+      expect(resultado.avisos).toContain("Sem demandas no período; o índice não se aplica.");
+    }
+  });
 });

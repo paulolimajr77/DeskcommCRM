@@ -55,4 +55,16 @@ describe("chavesProibidasEm — o cinto por cima do suspensório", () => {
     a.volta = b;
     expect(chavesProibidasEm(a)).toEqual(["contact_name"]);
   });
+
+  it("cada chave da T3a-REPARO é detectada", () => {
+    const chaves = ["owner_user_id", "stage_id", "userId", "agentId", "channel_name", "lost_reason", "motivo"];
+    for (const c of chaves) {
+      expect(chavesProibidasEm({ [c]: "x" })).toEqual([c]);
+    }
+  });
+
+  it("por_servico[].nome NÃO é detectado (dinheiro legítimo)", () => {
+    const valor = { por_servico: [{ nome: "Pix", total_cents: 100 }] };
+    expect(chavesProibidasEm(valor)).toEqual([]);
+  });
 });

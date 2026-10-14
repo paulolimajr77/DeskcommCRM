@@ -48,16 +48,16 @@ const catalogoDeTeste: DefinicaoDeMetrica<unknown>[] = [...METRICAS, metricaDeGe
 describe("registro — higiene do catálogo", () => {
   it("os 7 ids, únicos e em snake_case", () => {
     const ids = METRICAS.map((def) => def.id);
-    expect(ids).toEqual(
-      expect.arrayContaining([
-        "conversas_por_visao",
-        "faturamento",
-        "desempenho_atendentes",
+    expect([...ids].sort()).toEqual(
+      [
+        "atividades",
         "atrito",
         "canais",
+        "conversas_por_visao",
+        "desempenho_atendentes",
+        "faturamento",
         "perdas",
-        "atividades",
-      ]),
+      ].sort(),
     );
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id).toMatch(/^[a-z][a-z0-9_]*$/);

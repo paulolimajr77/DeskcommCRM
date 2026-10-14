@@ -2,20 +2,21 @@
  * Métrica `atividades` — "o que aconteceu na operação"
  * (GET /api/v1/reports/activities).
  *
- * ROTA: piso `viewer`. Confirma o código (`requireRole("viewer", …)`). A RLS
- * faz o agente ver só as próprias; viewer/manager/admin veem a org.
- * PERÍODO: a rota NÃO pega `from`/`to` — ela pega `days` (1–90, default 7) e
- * `tz`, e monta a janela [agora − days, agora) INTERNAMENTE (`janelaDoPeriodo`
- * em `lib/reports/atividades.ts`). É um "últimos N dias até AGORA", portanto
- * sempre parcial; o `days` vem do solicitado do modelo (`ultimos_dias.dias`,
- * ou 7 para as semanas). `tz` vem do fuso da organização.
+ * ROTA: piso `viewer`. Confirma o código (`requireRole("viewer")`). A RLS faz o
+ * agente ver só as próprias; viewer/manager/admin veem a org.
+ * PERÍODO: a rota NÃO aceita `from`/`to` — ela pega `days` (1–90, default 7) e
+ * `tz`, e monta a janela [agora − days, agora) INTERNAMENTE
+ * (`janelaDoPeriodo` em `lib/reports/atividades.ts`). É "últimos N dias até
+ * AGORA", portanto sempre parcial. O modelo passa `dias`; `tz` vem do fuso da
+ * organização. NÃO devolvemos `periodo` resolvido — a janela que a rota mede
+ * não bate com semana/mês fechados; em `dados.janela` fica explícito.
  *
  * O QUE ENTRA / NUNCA SAI: a rota devolve `atores` (cada um com `userId`,
  * `agentId`, `nome`) e `atividades` (cada uma com `contatoNome`,
  * `negocioTitulo`, `motivo`, `contatoId`). Ambas carregam identificação de
  * pessoa e texto livre — NÃO passam do esquema. Sobram `total`, `resumo`
- * (pessoas/agentes/automático — contagens), `tipos` (rótulos de atividade,
- * sem PII), `dias` (dia/contagem) e `vocabulario` (palavras do nicho).
+ * (contagens por origem), `tipos` (rótulos de atividade, sem PII), `dias`
+ * (dia/contagem), `vocabulario` (palavras do nicho) e `truncado`.
  */
 import type { NextRequest } from "next/server";
 import { z } from "zod";
@@ -23,11 +24,10 @@ import { z } from "zod";
 import { logger } from "@/lib/logger";
 import { chamarRotaPorDentro, traduzirResposta } from "../chamar-rota";
 import { chavesProibidasEm, projetar } from "../projecao";
-import { PeriodoSolicitado, resolverPeriodo, diasInclusive } from "../periodo";
-import type { ContextoDeConsulta, DefinicaoDeMetrica, ResultadoDeMetrica } from "../tipos";
+import type { DefinicaoDeMetrica, ResultadoDeMetrica } from "../tipos";
 
 const ID = "atividades";
-const parametros = z.strictObject({ periodo: PeriodoSolicitado.optional() });
+const parametros = z.strictObject({ dias: z.number().int().min(1).max(90).optional() });
 export type Parametros = z.infer<typeof parametros>;
 
 const resumo = z.object({ pessoas: z.number().int().min(0), agentes: z.number().int().min(0), automatico: z.number().int().min(0) });
@@ -45,21 +45,11 @@ const esquema = z.object({
 });
 
 const REGUA =
-  "Últimos N dias até AGORA (fim inclusivo = instante atual, sempre parcial), no " +
+  "Últimos N dias até AGORA (sempre parcial — o dia de hoje está incompleto), no " +
   "fuso da organização. 'o que aconteceu' por origem da ação (pessoas × máquinas), " +
   "tipo de atividade (rótulo do negócio, sem texto de contato) e dia — e o total. " +
-  "Quem é atendente vê só as próprias (RLS). Detalhe por pessoa ou negócio não sai " +
-  "aqui: é para a tela de CRM.";
-
-/** Converte o período solicitado no `days` que a rota entende (máx. 90). */
-function diasParaORota(solicitado: PeriodoSolicitado, ctx: ContextoDeConsulta): number {
-  const periodo = resolverPeriodo(solicitado, ctx.agoraIso, ctx.fuso, ctx.idioma);
-  // `ultimos_dias` já é uma contagem de dias — repassa. O resto vira a contagem
-  // inclusiva entre as datas resolvidas (semana/mês/intervalo).
-  const dias =
-    solicitado.tipo === "ultimos_dias" ? solicitado.dias : diasInclusive(periodo.de, periodo.ateInclusivo);
-  return Math.max(1, Math.min(90, dias));
-}
+  "Não é semana fechada. Quem é atendente vê só as próprias (RLS). Detalhe por " +
+  "pessoa ou negócio não sai aqui: é para a tela de CRM.";
 
 type Handler = (req: NextRequest) => Promise<Response>;
 let sobreposicao: Handler | null = null;
@@ -74,19 +64,17 @@ async function handlerAtual(): Promise<Handler> {
 
 export const metricaAtividades: DefinicaoDeMetrica<Parametros> = {
   id: ID,
-  descricao: "O que a equipe e a automação fizeram no período: volume por origem da ação, tipo e dia.",
+  descricao: "O que a equipe e a automação fizeram: volume por origem da ação, tipo de atividade e por dia.",
   papelMinimo: "viewer",
   modulo: null,
   parametros,
   dimensoes: ["origem", "tipo_de_atividade", "dia"],
   regua: REGUA,
   executar: async (ctx, params) => {
-    const solicitado = params.periodo ?? { tipo: "semana_passada" as const };
-    const periodo = resolverPeriodo(solicitado, ctx.agoraIso, ctx.fuso, ctx.idioma);
-    const days = diasParaORota(solicitado, ctx);
+    const dias = params.dias ?? 7;
 
     const resposta = await chamarRotaPorDentro(await handlerAtual(), "/api/v1/reports/activities", {
-      days: String(days),
+      days: String(dias),
       tz: ctx.fuso,
     });
     const veredito = traduzirResposta(resposta, "viewer");
@@ -103,9 +91,18 @@ export const metricaAtividades: DefinicaoDeMetrica<Parametros> = {
     }
 
     const avisos: string[] = [];
-    const corpo = projetado.dados as { truncado?: boolean };
-    if (corpo.truncado) avisos.push("A lista de atividades foi paginada e pode estar incompleta.");
+    const total = projetado.dados.total;
+    avisos.push(`Janela dos últimos ${dias} dias terminando agora (dia de hoje incompleto); não é semana fechada.`);
+    let dados: unknown = {
+      ...projetado.dados,
+      janela: { dias, ate: "agora", fuso: ctx.fuso },
+    };
+    if (projetado.dados.truncado) avisos.push("A lista de atividades foi paginada e pode estar incompleta.");
+    if (total === 0) {
+      dados = null;
+      avisos.push("Sem atividades no período.");
+    }
 
-    return { ok: true, metrica: ID, periodo, regua: REGUA, dados: projetado.dados, avisos };
+    return { ok: true, metrica: ID, periodo: null, regua: REGUA, dados, avisos };
   },
 };

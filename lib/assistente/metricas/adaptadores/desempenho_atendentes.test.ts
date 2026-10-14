@@ -73,13 +73,19 @@ describe("desempenho_atendentes — corte de PII", () => {
     }
   });
 
-  it("amostra zero (sem atendentes) vira null com aviso, nunca crash", async () => {
-    sobreporHandlerDeDesempenho(handlerDe(200, { data: { window: {}, owner_user_id: null, funnel: [], attendants: [] } }));
+  it("amostra zero (sem atendentes): dados=null + aviso exato", async () => {
+    sobreporHandlerDeDesempenho(handlerDe(200, { data: { window: {}, funnel: [], attendants: [] } }));
     const resultado = await metricaDesempenhoAtendentes.executar(CTX_AGENT, {});
     expect(resultado.ok).toBe(true);
     if (resultado.ok) {
-      const dados = resultado.dados as { attendants: unknown[] };
-      expect(dados.attendants).toEqual([]);
+      expect(resultado.dados).toBeNull();
+      expect(resultado.avisos).toContain("Sem atendimento no período.");
     }
+  });
+
+  it("formato quebrado ({ attendants: x }) vira indisponivel sem lancar", async () => {
+    sobreporHandlerDeDesempenho(handlerDe(200, { data: { attendants: "x" } }));
+    const resultado = await metricaDesempenhoAtendentes.executar(CTX_AGENT, {});
+    expect(resultado).toMatchObject({ ok: false, motivo: "indisponivel" });
   });
 });

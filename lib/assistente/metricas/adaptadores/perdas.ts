@@ -8,7 +8,7 @@
  * `ateInstanteExclusivo`.
  *
  * CORTES DE PII: a agregação (`lib/metrics/perdas.ts`) tem `porMotivo` — e
- * `rotuloMotivo` é o `lost_reason` em TEXTO LIVRE. A ordem ordem corta texto
+ * `rotuloMotivo` é o `lost_reason` em TEXTO LIVRE. A ordem corta texto
  * livre de perda: `porMotivo` NÃO sai (a frase do cliente não vira
  * informação ao modelo). Sobram `porCategoria` (motivo categorizado pela
  * configuração do funil), `porEtapa`, `porMoeda` (contagens + valor por
@@ -22,7 +22,7 @@ import { logger } from "@/lib/logger";
 import { chamarRotaPorDentro, traduzirResposta } from "../chamar-rota";
 import { chavesProibidasEm, projetar } from "../projecao";
 import { PeriodoSolicitado, resolverPeriodo } from "../periodo";
-import type { ContextoDeConsulta, DefinicaoDeMetrica, ResultadoDeMetrica } from "../tipos";
+import type { DefinicaoDeMetrica } from "../tipos";
 
 const ID = "perdas";
 const parametros = z.strictObject({ periodo: PeriodoSolicitado.optional() });
@@ -32,7 +32,6 @@ const contagemPorChave = z.object({ chave: z.string(), quantidade: z.number().in
 const totalPorMoeda = z.object({ moeda: z.string(), quantidade: z.number().int().min(0), valor_cents: z.number().int() });
 
 const esquema = z.object({
-  porMotivo: z.never().optional(),
   porCategoria: z.array(contagemPorChave),
   porEtapa: z.array(contagemPorChave),
   porMoeda: z.array(totalPorMoeda),
@@ -88,13 +87,14 @@ export const metricaPerdas: DefinicaoDeMetrica<Parametros> = {
 
     const avisos: string[] = [];
     let dados: unknown = projetado.dados;
-    const corpo = veredito.dados as { porMotivo?: unknown; truncado?: boolean };
+    const corpo = veredito.dados as { truncado?: boolean };
     if (corpo.truncado) {
       avisos.push("O relatório foi paginado e pode estar incompleto.");
     }
-    // `porMotivo` foi removido pela projeção — confirma que sumiu de verdade.
-    if (corpo.porMotivo !== undefined && !("porMotivo" in (dados as Record<string, unknown>))) {
-      avisos.push("Motivo livre de perda foi omitido (não sai para o modelo).");
+    // Amostra zero -> dados null com aviso, nunca {} fingindo medição.
+    if ((projetado.dados as { total: number }).total === 0) {
+      dados = null;
+      avisos.push("Sem perdas registradas no período.");
     }
 
     return { ok: true, metrica: ID, periodo, regua: REGUA, dados, avisos };

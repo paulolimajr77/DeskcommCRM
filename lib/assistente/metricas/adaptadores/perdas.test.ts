@@ -74,9 +74,13 @@ describe("perdas — fim exclusivo, piso manager e corte de texto livre", () => 
     }
   });
 
-  it("amostra zero vira null + aviso, nunca 0 fingindo medição", async () => {
+  it("amostra zero: dados=null + aviso exato", async () => {
     sobreporHandlerDePerdas(handlerDe(200, { data: { porMotivo: [], porCategoria: [], porEtapa: [], porMoeda: [], total: 0 } }));
     const resultado = await metricaPerdas.executar(CTX_MANAGER, {});
     expect(resultado.ok).toBe(true);
+    if (resultado.ok) {
+      expect(resultado.dados).toBeNull();
+      expect(resultado.avisos).toContain("Sem perdas registradas no período.");
+    }
   });
 });

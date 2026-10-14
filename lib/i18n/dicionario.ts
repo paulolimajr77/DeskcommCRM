@@ -13103,6 +13103,17 @@ export const DICIONARIO: Traducoes = {
   "Quem vai decidir o caso pergunta e não recebe resposta — decide sem o contexto, ou larga o caso na fila.":
     { es: "Quien va a decidir el caso pregunta y no recibe respuesta: decide sin contexto o deja el caso en la fila." },
 
+  // ── Conversar com o assistente da empresa (F1b, ponto `assistente_chat`) ──
+  // Três textos do registro, no mesmo molde do `case_chat` acima: o teste
+  // `i18n-provedores-e-pontos.test.ts:32` cobra espanhol de rótulo, descrição e
+  // sintoma de todo ponto — sem entrada aqui, a tela em espanhol mostra
+  // português sem nenhum gate reclamar.
+  "Conversar com o assistente da empresa": { es: "Conversar con el asistente de la empresa" },
+  "Responde a perguntas de gestores e equipe sobre a operação — números, telas e guias — consultando só dados agregados pelas métricas oficiais. Nunca fala com o cliente e nunca altera nada.":
+    { es: "Responde las preguntas de gestores y equipo sobre la operación — números, pantallas y guías — consultando solo datos agregados de las métricas oficiales. Nunca habla con el cliente ni modifica nada." },
+  "Quem pergunta ao assistente não recebe a análise com inteligência: o chat volta às respostas prontas dos guias e a pessoa precisa consultar as telas por conta própria.":
+    { es: "Quien pregunta al asistente no recibe el análisis con inteligencia: el chat vuelve a las respuestas listas de las guías y la persona necesita consultar las pantallas por su cuenta." },
+
   // As de baixo são mensagens de ERRO DE ROTA, e `PASTAS_IGNORADAS` do gate de
   // espanhol inclui `api`: elas ficam FORA da catraca e entram aqui por
   // disciplina. Escrito para que a próxima pessoa saiba que a ausência de um

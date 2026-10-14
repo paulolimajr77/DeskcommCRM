@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { createFakeRegistry } from '../edge/llm/providers';
 import { MARCA_DA_CONSULTA_INTERNA } from './conversa-do-caso/contexto';
+import { MARCA_DO_ASSISTENTE } from './assistente/prompt';
 export function previewFixtureRegistry() {
   return createFakeRegistry(async (options) => {
     const text = JSON.stringify(options.prompt);
@@ -52,28 +53,49 @@ export function previewFixtureRegistry() {
       // `JSON.stringify` cego poria a resposta do chat entre aspas na tela.
       content.push({ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) });
     } else {
-      const has = (name: string) =>
-        options.tools?.some((t) => t.type === 'function' && t.name === name);
-      const name =
-        has('search_knowledge') && !saw('search_knowledge')
-          ? 'search_knowledge'
-          : !saw('send_message')
-            ? 'send_message'
-            : null;
-      if (name)
-        content.push({
-          type: 'tool-call',
-          toolCallId: randomUUID(),
-          toolName: name,
-          input: JSON.stringify(
-            name === 'search_knowledge'
-              ? { query: 'informações de atendimento' }
-              : {
-                  body: 'Olá! Posso ajudar com as informações do atendimento. O que você gostaria de saber?',
-                },
-          ),
-        });
-      else content.push({ type: 'text', text: 'Sugestão registrada.' });
+      // O CHAT DO ASSISTENTE vem ANTES da escolha search_knowledge/send_message:
+      // sem este ramo, o e2e do assistente emitiria `send_message`, que não
+      // existe naquele turno — e o teste provaria um caminho que o produto não
+      // tem. A marca é IMPORTADA do módulo do prompt, nunca um literal
+      // duplicado (ver o comentário do ramo sem tools acima).
+      if (text.includes(MARCA_DO_ASSISTENTE)) {
+        if (
+          options.tools?.some((t) => t.type === 'function' && t.name === 'listar_metricas') &&
+          !saw('listar_metricas')
+        ) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: 'listar_metricas',
+            input: '{}',
+          });
+        } else {
+          content.push({ type: 'text', text: 'Resposta de teste do assistente.' });
+        }
+      } else {
+        const has = (name: string) =>
+          options.tools?.some((t) => t.type === 'function' && t.name === name);
+        const name =
+          has('search_knowledge') && !saw('search_knowledge')
+            ? 'search_knowledge'
+            : !saw('send_message')
+              ? 'send_message'
+              : null;
+        if (name)
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: name,
+            input: JSON.stringify(
+              name === 'search_knowledge'
+                ? { query: 'informações de atendimento' }
+                : {
+                    body: 'Olá! Posso ajudar com as informações do atendimento. O que você gostaria de saber?',
+                  },
+            ),
+          });
+        else content.push({ type: 'text', text: 'Sugestão registrada.' });
+      }
     }
     return {
       content,

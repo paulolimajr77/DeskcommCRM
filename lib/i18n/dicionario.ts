@@ -15696,7 +15696,6 @@ export const DICIONARIO: Traducoes = {
   "Pergunte sobre a operação e os guias. Na F1 ele responde resumos e trechos — a conversa com IA chega na F2.": {
     es: "Pregunta sobre la operación y las guías. En la F1 responde resúmenes y fragmentos — la conversación con IA llega en la F2.",
   },
-  "Nova conversa": { es: "Nueva conversación" },
   "Pergunte sobre a operação ou os guias.": { es: "Pregunta sobre la operación o las guías." },
   "Resumo da operação": { es: "Resumen de la operación" },
   "Escreva sua pergunta...": { es: "Escribe tu pregunta..." },

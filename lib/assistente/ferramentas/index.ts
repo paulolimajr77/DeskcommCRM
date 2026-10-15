@@ -1,10 +1,15 @@
 /**
- * As 5 ferramentas de LEITURA do assistente interno — o que o modelo pode
- * chamar no turno do chat. Nada escreve e nada navega sozinho:
+ * As ferramentas do assistente interno — o que o modelo pode
+ * chamar no turno do chat. Nada escreve fora do histórico e nada navega sozinho:
  *
  *   listar_metricas, consultar_metrica — o catálogo de métricas (T1–T5)
  *   listar_telas, abrir_tela           — a navegação do catálogo, por papel
  *   ler_guia                           — os guias `assistente-*`
+ *   ler_configuracao_de_ia, listar_agentes, listar_funis, listar_materiais
+ *                                      — a configuração da organização (T11),
+ *                                        SÓ para `manager`/`admin`
+ *   criar_rascunho_de_agente           — cria agente como rascunho (T12),
+ *                                        SÓ para `admin`
  *
  * Quem monta é a rota do chat (T7): ela entrega o `ContextoDeConsulta` com a
  * organização e o papel DA SESSÃO (nunca do corpo) e um coletor novo por
@@ -15,7 +20,12 @@
 import type { ToolSet } from "ai";
 
 import { criarConsultarMetrica } from "./consultar-metrica";
+import { criarRascunhoDeAgente } from "./criar-rascunho-de-agente";
 import { criarLerGuia } from "./ler-guia";
+import { criarLerConfiguracaoDeIa } from "./ler-configuracao-de-ia";
+import { criarListarAgentes } from "./listar-agentes";
+import { criarListarFunis } from "./listar-funis";
+import { criarListarMateriais } from "./listar-materiais";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarAbrirTela, criarListarTelas } from "./telas";
 import type { EntradaDasFerramentas } from "./tipos";
@@ -32,11 +42,30 @@ export {
 export const MAXIMO_DE_PASSOS_DO_ASSISTENTE = 6;
 
 export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): ToolSet {
-  return {
+  const leitura = {
     listar_metricas: criarListarMetricas(entrada),
     consultar_metrica: criarConsultarMetrica(entrada),
     listar_telas: criarListarTelas(entrada),
     abrir_tela: criarAbrirTela(entrada),
     ler_guia: criarLerGuia(entrada),
   };
+  // As 4 de configuração SÓ para quem gerencia — o papel vem DA SESSÃO.
+  // Leitura defensiva: se o papel lançar, monta só a leitura (o erro aparece
+  // no execute, como antes, em vez de quebrar a montagem).
+  let papel: EntradaDasFerramentas["ctx"]["papel"] | null = null;
+  try {
+    papel = entrada.ctx.papel;
+  } catch {
+    papel = null;
+  }
+  if (papel !== "manager" && papel !== "admin") return leitura;
+  const configuracao = {
+    ler_configuracao_de_ia: criarLerConfiguracaoDeIa(entrada),
+    listar_agentes: criarListarAgentes(entrada),
+    listar_funis: criarListarFunis(entrada),
+    listar_materiais: criarListarMateriais(entrada),
+  };
+  // Escrita SÓ para admin — a trava real continua na rota (defesa em profundidade).
+  if (papel !== "admin") return { ...leitura, ...configuracao };
+  return { ...leitura, ...configuracao, criar_rascunho_de_agente: criarRascunhoDeAgente(entrada) };
 }

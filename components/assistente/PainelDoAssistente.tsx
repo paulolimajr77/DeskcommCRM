@@ -45,7 +45,9 @@ export function PainelDoAssistente() {
   return (
     <aside
       id={ID_DO_PAINEL_DO_ASSISTENTE}
-      role={ehCelular ? "dialog" : "complementary"}
+      // Fechado, sem papel nenhum: um `dialog` escondido no DOM duplica o diálogo de
+      // qualquer outra tela para quem o procura por `[role=dialog]` (e2e da agenda, celular).
+      role={aberto ? (ehCelular ? "dialog" : "complementary") : undefined}
       aria-label={t("Assistente")}
       data-testid="assistente-painel"
       hidden={!aberto}

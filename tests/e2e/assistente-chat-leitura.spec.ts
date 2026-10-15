@@ -49,23 +49,23 @@ async function abrirAssistente(page: Page): Promise<void> {
   expect(page.url()).toBe(urlAntes);
 }
 
-test("o atalho no topo abre o assistente e o resumo devolve números", async ({ page }) => {
+// As respostas daqui vêm do DUBLÊ do modelo (`INTERNAL_AGENT_RUN_STUB`): provam o caminho
+// painel → rota → modelo → tela. Os NÚMEROS (par chat × leitura direta) entram na T9.
+test("o atalho no topo abre o assistente e o resumo recebe a resposta", async ({ page }) => {
   await login(page, creds.users.agent!.email);
   await abrirAssistente(page);
 
   await page.getByTestId("assistente-resumo").click();
-  const mensagens = page.getByTestId("assistente-mensagens");
-  await expect(mensagens).toContainText(/conversas em atendimento/);
-  await expect(mensagens).toContainText(/negócios abertos/);
+  await expect(page.getByTestId("assistente-mensagens")).toContainText("Resposta de teste do assistente.");
 });
 
-test("pergunta de guia devolve trecho do guia, não silêncio", async ({ page }) => {
+test("uma pergunta digitada recebe resposta, não silêncio", async ({ page }) => {
   await login(page, creds.users.agent!.email);
   await abrirAssistente(page);
 
   await page.getByTestId("assistente-pergunta").fill("qual a taxa de ganho do funil?");
   await page.getByTestId("assistente-perguntar").click();
-  await expect(page.getByTestId("assistente-mensagens")).toContainText(/Leitura correta de números/);
+  await expect(page.getByTestId("assistente-mensagens")).toContainText("Resposta de teste do assistente.");
 });
 
 test("o painel sobrevive à troca de página: continua aberto, com o texto digitado", async ({ page }) => {

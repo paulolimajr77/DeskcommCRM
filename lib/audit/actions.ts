@@ -846,7 +846,7 @@ export const AUDIT_ACTIONS = [
    */
   "ai.case_chat_asked",
   /**
-   * A equipe perguntou ao assistente interno (migration 0673). Uma linha por
+   * A equipe perguntou ao assistente interno (migration 0674). Uma linha por
    * PERGUNTA, respondida ou não.
    *
    * ⚠️ SEM O TEXTO. Nem a pergunta, nem a resposta: `api_audit_log` é

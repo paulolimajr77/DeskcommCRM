@@ -579,7 +579,7 @@ beforeAll(() => {
             (v_org, v_sess, timestamptz '2030-01-01 03:00:00+00', timestamptz '2030-01-01 05:00:00+00');
         end if;
 
-        -- migration 0673 — o histórico do chat do assistente interno. Guarda o
+        -- migration 0674 — o histórico do chat do assistente interno. Guarda o
         -- que a pessoa perguntou sobre a operação e o que o assistente
         -- respondeu: sem contact_id de propósito (config + agregados, nunca
         -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
@@ -793,7 +793,7 @@ export const TABLES = [
   // RPC. Vazar a linha entrega ao vizinho quando o outro vai mexer nas
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
-  // migration 0673 — o histórico do chat do assistente interno (F1). Leitura
+  // migration 0674 — o histórico do chat do assistente interno (F1). Leitura
   // org-scoped com gate de papel `viewer` (o usuário semeado aqui é `agent`,
   // então é controle positivo legítimo); a ESCRITA é do servidor e não é
   // medida aqui — quem mede a escrita são as rotas, em teste de rota.

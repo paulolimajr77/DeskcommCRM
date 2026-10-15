@@ -141,6 +141,10 @@ acessibilidade).
 | [`runbooks/custo-e-cota-do-supabase.md`](runbooks/custo-e-cota-do-supabase.md) | **“Meu Supabase estourou a cota”** — como medir a origem do consumo, os dois intervalos da fila e as duas tabelas que só crescem |
 | [`runbooks/waha-hostgator.md`](runbooks/waha-hostgator.md) | Runbook do WAHA em produção |
 | [`runbooks/cloudpanel.md`](runbooks/cloudpanel.md) | **VPS que já tem CloudPanel/Nginx nas portas 80/443** — o modo proxy externo do kit, o endereço fixo para o Nginx do host e o 403 do webhook global |
+| [`saas/README.md`](saas/README.md) | **Revender como SaaS** — a jornada do dono da instalação, do servidor ao primeiro cliente pagando; modelo, painel do dono, primeiro cliente, custo por cliente |
+| [`saas/cobranca.md`](saas/cobranca.md) | **Cobrar os clientes** — Stripe × Asaas, planos, teste e publicação, régua de atraso, troca de plano, nota fiscal, caminho manual |
+| [`saas/contrato-e-lgpd.md`](saas/contrato-e-lgpd.md) | **Contrato e LGPD com o cliente final** — controlador × operador, cláusulas para o advogado revisar, transferência internacional pela IA |
+| [`saas/aulas/README.md`](saas/aulas/README.md) | **Roteiros de aula** do caminho SaaS — cinco aulas que apontam para os guias acima |
 | [`saas/coolify.md`](saas/coolify.md) | **VPS com Coolify** — CRM e banco (Supabase self-hosted) na mesma VPS, atrás do proxy do Coolify; painel fechado e acessado por túnel; consumo medido |
 | [`runbooks/ai-credentials-rotation.md`](runbooks/ai-credentials-rotation.md) | Rotação de credenciais de IA |
 | [`runbooks/css-personalizado.md`](runbooks/css-personalizado.md) | **CSS personalizado que trancou a tela** — `?sem_css=1` e o `delete` em `platform_config` |

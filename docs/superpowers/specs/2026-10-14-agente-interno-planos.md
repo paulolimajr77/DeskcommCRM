@@ -61,7 +61,7 @@ Medição feita em 14/10/2026 contra a branch da F1 (`origin/main @ 0c05ca348` +
 - **Auditoria:** `ai.assistente_asked` com `{ turn_id, fonte: "modelo" | "piso", metricas: [ids], call_id }`, nunca o texto.
 - **Tela do chat:** estado "pensando…", mensagens específicas (limite, sem permissão, IA não configurada, módulo não instalado), botão "Resumo da operação" faz uma pergunta que usa a métrica `conversas`.
 
-### Tarefas da F1b — onde estamos (14/10/2026, 19h30)
+### Tarefas da F1b — onde estamos (15/10/2026)
 
 A F1b é entregue em tarefas numeradas (T1 a T9); a numeração é de trabalho e mora aqui, para não depender de nenhum rascunho. Cada uma é implementada pelo opencode e julgada pelo Claude; o veredito de teste é o CI do fork (PR interno #63).
 
@@ -72,13 +72,13 @@ A F1b é entregue em tarefas numeradas (T1 a T9); a numeração é de trabalho e
 | T3a | Métricas de gestão: `desempenho_atendentes`, `atrito`, `canais`, `perdas`, `atividades` | feito, reparado | `0c70e56bc`, `75c421b00` |
 | T3b | Métricas de IA e funil: `etiquetas`, `uso_de_ia`, `evolucao_da_ia`, `funil_conversao`, `taxa_de_ganho_por_etapa` | feito | `c74a5d9ac` |
 | T4 | `fechamentos_por_funil`, `leads_por_origem`, `propostas_aceitas_por_produto` | feito | `ad9ae8e05` |
-| T5 | Anúncios: `anuncios_meta` (resposta guardada por minutos) e `conversoes_enviadas` | **pendente** | — |
-| T6 | Limites do administrador no cartão Orçamento (colunas em `ai_budgets`, `PATCH ai/budget`, mensagens 429); número da migration a medir no dia do PR | **pendente** | — |
-| T7 | Ferramentas do modelo (`listar_metricas`, `consultar_metrica`, `listar_telas`, `abrir_tela`, `ler_guia`) e a rota `POST ai/assistente/chat` | **pendente** | — |
-| T8 | **Painel lateral** no `AppShell`: ícone de IA no cabeçalho ao lado da central de avisos e item na busca ⌘K abrem o mesmo painel, em qualquer página; **sem página em tela cheia** (a página provisória da F1 sai) | **pendente** | — |
-| T9 | e2e com o dublê, fragmento `.changes/`, docs (`spec-12`, `threat-model`, `business-rules`, mapa vivo, `current-state`, jornadas) e a skill de operação (tela "Conversar" fora do mapa) | **pendente** | — |
+| T5 | Anúncios: `anuncios_meta` (resposta guardada por minutos) e `conversoes_enviadas` | feito | `38a98909a` |
+| T6 | Limites do administrador no cartão Orçamento (colunas em `ai_budgets`, `PATCH ai/budget`, mensagens 429); número da migration a medir no dia do PR | feito | `f97a66830` |
+| T7 | Ferramentas do modelo (`listar_metricas`, `consultar_metrica`, `listar_telas`, `abrir_tela`, `ler_guia`) e a rota `POST ai/assistente/chat` | feito | `040a224a5`, `1f5166898` |
+| T8 | **Painel lateral** no `AppShell`: ícone de IA no cabeçalho ao lado da central de avisos e item na busca ⌘K abrem o mesmo painel, em qualquer página; **sem página em tela cheia** (a página provisória da F1 sai) | feito | `482105b5e` |
+| T9 | e2e com o dublê, fragmento `.changes/`, docs (`spec-12`, `threat-model`, `business-rules`, mapa vivo, `current-state`, jornadas) e a skill de operação (tela "Conversar" fora do mapa) | feito | `5a95a9fc8`, `842e03b23`, `e05548776` |
 
-Além das tarefas: avaliação com modelo real (15 a 20 perguntas, chave como segredo do fork) antes de qualquer PR ao Rafael.
+O que ainda NÃO foi feito (não está provado): a avaliação com modelo real (15 a 20 perguntas, chave como segredo do fork), a prova pela tela numa instalação fresca, e o e2e verde do CI. Nada acima afirma que esses três estão provados.
 
 ### Testes novos
 - **Por métrica:** campos permitidos com a resposta REAL da rota/consulta (nenhum e-mail, telefone, nome de contato, título de negócio, motivo livre ou prévia de mensagem passa); 403 → `sem_permissao`; módulo ausente → "não usa", nunca zero.

@@ -63,6 +63,43 @@ export function previewFixtureRegistry() {
       // a métrica lê a mesma rota por dentro. O dublê só finge o raciocínio do
       // modelo (qual ferramenta chamar); dado, papel e RLS continuam reais.
       // NUNCA lança: extração defensiva com fallback para o texto fixo.
+      const extrairTextoUltimaMensagemDoUsuario = (prompt: unknown): string => {
+        try {
+          if (!Array.isArray(prompt)) return "";
+          for (let i = prompt.length - 1; i >= 0; i--) {
+            const msg = prompt[i] as { role?: unknown; content?: unknown } | null | undefined;
+            if (msg == null || typeof msg !== "object") continue;
+            if (msg.role !== "user") continue;
+            const conteudo = msg.content;
+            if (typeof conteudo === "string") return conteudo;
+            if (Array.isArray(conteudo)) {
+              return conteudo
+                .map((parte) => {
+                  if (typeof parte === "string") return parte;
+                  if (
+                    parte != null &&
+                    typeof parte === "object" &&
+                    typeof (parte as { text?: unknown }).text === "string"
+                  )
+                    return (parte as { text: string }).text;
+                  return "";
+                })
+                .join(" ");
+            }
+            if (
+              conteudo != null &&
+              typeof conteudo === "object" &&
+              typeof (conteudo as { text?: unknown }).text === "string"
+            )
+              return (conteudo as { text: string }).text;
+            if (conteudo == null) return "";
+            return String(conteudo);
+          }
+          return "";
+        } catch {
+          return "";
+        }
+      };
       const extrairFila = (resultados: unknown[]): number | null => {
         for (const item of resultados) {
           try {
@@ -77,7 +114,8 @@ export function previewFixtureRegistry() {
       if (text.includes(MARCA_DO_ASSISTENTE)) {
         const temConsulta = options.tools?.some((t) => t.type === 'function' && t.name === 'consultar_metrica');
         const consultou = saw('consultar_metrica');
-        if (/fila/i.test(text) && temConsulta === true && !consultou) {
+        const textoDaUltimaMensagemDoUsuario = extrairTextoUltimaMensagemDoUsuario(options.prompt);
+        if (/fila/i.test(textoDaUltimaMensagemDoUsuario) && temConsulta === true && !consultou) {
           content.push({
             type: 'tool-call',
             toolCallId: randomUUID(),

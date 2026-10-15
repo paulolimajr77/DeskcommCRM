@@ -101,6 +101,40 @@ describe("previewFixtureRegistry — o ramo do assistente", () => {
     expect(r.content).toEqual([{ type: "text", text: expect.stringContaining("7") }]);
   });
 
+  it("pergunta SEM fila com resultado de listar_metricas que cita fila: não chama consultar_metrica", async () => {
+    const r = await fabrica()("chave", "modelo").doGenerate(
+      opcoes(
+        [
+          { role: "system", content: SYSTEM_DO_ASSISTENTE },
+          { role: "user", content: "qual a taxa de ganho do funil?" },
+          {
+            role: "tool",
+            content: [
+              {
+                toolName: "listar_metricas",
+                output: {
+                  ok: true,
+                  metricas: [
+                    {
+                      id: "conversas_por_visao",
+                      descricao:
+                        "Contagem de conversas por visão do inbox (fila, automático, minhas, todas) — foto do momento atual.",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+        [
+          { type: "function", name: "listar_metricas" },
+          { type: "function", name: "consultar_metrica" },
+        ],
+      ),
+    );
+    expect(r.content).toEqual([{ type: "text", text: "Resposta de teste do assistente." }]);
+  });
+
   it("prompt SEM a marca segue o comportamento antigo", async () => {
     // A guarda contra regressão do ramo vizinho: o assistente não pode mudar o
     // que o dublê devolve para os outros turnos.

@@ -30,8 +30,20 @@ export interface ContextoDeConsulta {
   /** Fuso da organização; inválido cai para UTC dentro das métricas. */
   fuso: string;
   agoraIso: string;
-  /** O client autenticado da sessão (RLS vale). Serve para `modulosLigados` e para as métricas que leem o banco direto (fechamentos, propostas, origens). NUNCA o client admin. */
+  /** O client autenticado da sessão (RLS vale). Serve às métricas que leem o banco direto (fechamentos, propostas, origens). NUNCA o client admin. */
   bancoDosModulos: SupabaseClient;
+  /**
+   * O client de SERVIÇO, usado SÓ para saber quais módulos a INSTALAÇÃO ligou
+   * (`modulosLigados`). Os interruptores moram em `platform_config` e
+   * `modulos_instalados`, que não têm policy para `authenticated`: lidos pela
+   * sessão, a leitura é negada e `modulosLigados` falha fechada — toda
+   * instalação pareceria sem nenhum módulo (propostas "ausente", telas de
+   * módulo escondidas). São flags da instalação, não dado de nenhum cliente.
+   * Quem monta (a rota do chat) preenche; teste pode omitir e cair em
+   * `bancoDosModulos`. Nenhuma métrica lê tabela de organização por aqui:
+   * `tests/unit/assistente-banco-da-instalacao-so-para-modulos.test.ts` prende.
+   */
+  bancoDaInstalacao?: SupabaseClient;
 }
 
 /**

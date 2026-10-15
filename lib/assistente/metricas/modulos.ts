@@ -17,7 +17,10 @@ export async function estadoDoModulo(
   nome: ModuloOpcional,
 ): Promise<EstadoDoModulo> {
   try {
-    const ligados = await modulosLigados(ctx.bancoDosModulos);
+    // Os interruptores da instalação não têm policy para a sessão (ver
+    // `ContextoDeConsulta.bancoDaInstalacao`): lê pelo cliente de serviço quando
+    // a rota o entregou.
+    const ligados = await modulosLigados(ctx.bancoDaInstalacao ?? ctx.bancoDosModulos);
     return { ok: true, ligado: ligados.includes(nome) };
   } catch (erro) {
     const detalhe = erro instanceof Error ? erro.message : String(erro);

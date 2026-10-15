@@ -15515,6 +15515,19 @@ export const DICIONARIO: Traducoes = {
   },
   "Não foi possível listar.": { es: "No fue posible listar." },
   "Não foi possível ler.": { es: "No fue posible leer." },
+  // Assistente interno (F1b, T7): o piso fixo e os três avisos de por que a IA não respondeu.
+  "Ainda não consegui responder isso. Posso mostrar um resumo da operação ou trechos dos guias.": {
+    es: "Todavía no pude responder eso. Puedo mostrar un resumen de la operación o fragmentos de las guías.",
+  },
+  "Conecte uma chave de IA em IA › Provedores para o assistente responder com inteligência.": {
+    es: "Conecta una clave de IA en IA › Proveedores para que el asistente responda con inteligencia.",
+  },
+  "O limite de gasto com IA foi atingido; por enquanto respondo só com resumos e guias.": {
+    es: "Se alcanzó el límite de gasto con IA; por ahora respondo solo con resúmenes y guías.",
+  },
+  "Não consegui usar a IA agora; respondi só com resumos e guias.": {
+    es: "No pude usar la IA ahora; respondí solo con resúmenes y guías.",
+  },
   // #2728 — o editor de campos do funil monta a condição de exibição.
   "Mostrar só quando:": { es: "Mostrar solo cuando:" },
   "Sempre mostrar": { es: "Mostrar siempre" },

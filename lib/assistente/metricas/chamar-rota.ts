@@ -10,8 +10,13 @@
  * contexto herdado é o da pessoa que perguntou: a organização nunca vem do
  * modelo e nunca viaja na URL.
  *
- * NUNCA LANÇA: qualquer exceção do handler vira `{ falhou }` — logado sem o
- * corpo da resposta, que pode carregar dado de cliente.
+ * Também ESCREVE: com `opcoes.metodo` POST/PATCH, o pedido leva o corpo em
+ * JSON. A permissão continua sendo a do handler (`requireRole`,
+ * `requireSupportWrite`, `audit()`, RLS) — esta função não autoriza nada.
+ *
+ * NUNCA LANÇA: qualquer exceção do handler vira `{ falhou }` — logado só com
+ * `caminho` e `detalhe`, nunca com o corpo do pedido ou da resposta, que pode
+ * carregar dado de cliente.
  */
 import { NextRequest } from "next/server";
 
@@ -23,15 +28,28 @@ export type HandlerDeRota = (req: NextRequest) => Promise<Response>;
 
 export type RespostaDaRota = { status: number; corpo: unknown } | { falhou: string };
 
+export type OpcoesDeChamadaInterna = {
+  metodo?: "GET" | "POST" | "PATCH";
+  corpo?: unknown;
+};
+
 export async function chamarRotaPorDentro(
   handler: HandlerDeRota,
   caminho: string,
   query: Record<string, string>,
+  opcoes?: OpcoesDeChamadaInterna,
 ): Promise<RespostaDaRota> {
   try {
     const url = new URL(caminho, "http://interno.invalid");
     for (const [chave, valor] of Object.entries(query)) url.searchParams.set(chave, valor);
-    const requisicao = new NextRequest(url, { method: "GET" });
+    const metodo = opcoes?.metodo ?? "GET";
+    const ehEscrita = metodo === "POST" || metodo === "PATCH";
+    const requisicao = new NextRequest(url, {
+      method: metodo,
+      ...(ehEscrita && opcoes?.corpo !== undefined
+        ? { headers: { "content-type": "application/json" }, body: JSON.stringify(opcoes.corpo) }
+        : {}),
+    });
     const resposta = await handler(requisicao);
     let corpo: unknown = null;
     try {

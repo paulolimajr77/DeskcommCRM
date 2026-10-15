@@ -3688,6 +3688,25 @@ export const DICIONARIO: Traducoes = {
   },
   "Orçamento de IA": { es: "Presupuesto de IA" },
   "Orçamento mensal de IA": { es: "Presupuesto mensual de IA" },
+  "Perguntas ao assistente": { es: "Preguntas al asistente" },
+  "Cada pergunta ao assistente usa a chave de IA da organização. O limite em dinheiro, acima, continua valendo por cima destes.": {
+    es: "Cada pregunta al asistente usa la clave de IA de la organización. El límite en dinero, arriba, sigue siendo válido por encima de estos.",
+  },
+  "Por pessoa, por dia": { es: "Por persona, por día" },
+  "Por organização, por dia": { es: "Por organización, por día" },
+  "vazio": { es: "vacío" },
+  "Sem limite": { es: "Sin límite" },
+  "Deixe vazio para sem limite": { es: "Déjalo vacío para sin límite" },
+  "Inteiro entre 1 e 10.000": { es: "Número entero entre 1 y 10.000" },
+  "Inteiro entre 1 e 100.000": { es: "Número entero entre 1 y 100.000" },
+  "perguntas por pessoa por dia": { es: "preguntas por persona por día" },
+  "por organização por dia": { es: "por organización por día" },
+  "Você chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
+    es: "Has alcanzado el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
+  },
+  "A organização chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
+    es: "La organización alcanzó el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
+  },
   "Para avisar ou parar no limite, ele precisa ser de pelo menos": {
     es: "Para avisar o detenerse en el límite, tiene que ser de al menos",
   },

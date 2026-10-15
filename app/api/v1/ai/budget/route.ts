@@ -77,13 +77,17 @@ const patchSchema = z
     enforcement_mode: z.enum(["off", "avisar", "bloquear"]).optional(),
     /** Renuncia à carência ao armar. Sozinho não é mutação — ver o refine. */
     confirmar_imediato: z.boolean().optional(),
+    assistant_questions_per_user_day: z.number().int().min(1).max(10000).optional(),
+    assistant_questions_per_org_day: z.number().int().min(1).max(100000).nullable().optional(),
   })
   .refine(
     (v) =>
       v.monthly_limit_cents !== undefined ||
       v.alarm_threshold_pct !== undefined ||
-      v.enforcement_mode !== undefined,
-    { message: "Informe ao menos um campo: teto, limiar ou modo." },
+      v.enforcement_mode !== undefined ||
+      v.assistant_questions_per_user_day !== undefined ||
+      v.assistant_questions_per_org_day !== undefined,
+    { message: "Informe ao menos um campo: teto, limiar, modo ou limites de perguntas." },
   );
 
 export async function GET(_req: NextRequest): Promise<Response> {
@@ -125,7 +129,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
 
   const { data: existing, error: readErr } = await admin
     .from("ai_budgets")
-    .select("monthly_limit_cents, alarm_threshold_pct, enforcement_mode, enforcement_effective_at")
+    .select("monthly_limit_cents, alarm_threshold_pct, enforcement_mode, enforcement_effective_at, assistant_questions_per_user_day, assistant_questions_per_org_day")
     .eq("organization_id", activeOrg.orgId)
     .maybeSingle();
   if (readErr) {
@@ -143,10 +147,14 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   // recriaria, na porta de escrita, exatamente a confusão que a 0159 desfez.
   const tetoAntes = Number(existing?.monthly_limit_cents ?? 0);
   const limiarAntes = Number(existing?.alarm_threshold_pct ?? 80);
+  const perguntasPessoaAntes = Number(existing?.assistant_questions_per_user_day ?? 60);
+  const perguntasOrgAntes = existing?.assistant_questions_per_org_day === null || existing?.assistant_questions_per_org_day === undefined ? null : Number(existing.assistant_questions_per_org_day);
 
   const modoDepois = parsed.data.enforcement_mode ?? modoAntes;
   const tetoDepois = parsed.data.monthly_limit_cents ?? tetoAntes;
   const limiarDepois = parsed.data.alarm_threshold_pct ?? limiarAntes;
+  const perguntasPessoaDepois = parsed.data.assistant_questions_per_user_day ?? perguntasPessoaAntes;
+  const perguntasOrgDepois = parsed.data.assistant_questions_per_org_day !== undefined ? parsed.data.assistant_questions_per_org_day : perguntasOrgAntes;
 
   const armando = modoDepois === "bloquear" && modoAntes !== "bloquear";
 
@@ -200,6 +208,12 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   }
   if (parsed.data.enforcement_mode !== undefined) {
     patch.enforcement_mode = parsed.data.enforcement_mode;
+  }
+  if (parsed.data.assistant_questions_per_user_day !== undefined) {
+    patch.assistant_questions_per_user_day = parsed.data.assistant_questions_per_user_day;
+  }
+  if (parsed.data.assistant_questions_per_org_day !== undefined) {
+    patch.assistant_questions_per_org_day = parsed.data.assistant_questions_per_org_day;
   }
   // `enforcement_effective_at` só é escrito na TRANSIÇÃO para `bloquear`. Rearmar
   // devolve a carência inteira (afrouxa, direção certa); mexer no teto de quem já
@@ -271,6 +285,8 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       enforcement_mode: { antes: modoAntes, depois: modoDepois },
       monthly_limit_cents: { antes: tetoAntes, depois: tetoDepois },
       alarm_threshold_pct: { antes: limiarAntes, depois: limiarDepois },
+      assistant_questions_per_user_day: { antes: perguntasPessoaAntes, depois: perguntasPessoaDepois },
+      assistant_questions_per_org_day: { antes: perguntasOrgAntes, depois: perguntasOrgDepois },
       ...(armando
         ? {
             enforcement_effective_at: efetivoEm,

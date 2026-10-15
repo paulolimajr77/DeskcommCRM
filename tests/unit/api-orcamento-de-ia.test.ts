@@ -658,6 +658,181 @@ describe("desarmar devolve a carência inteira — a coluna NÃO fica pré-gasta
   });
 });
 
+describe("limites de perguntas do assistente", () => {
+  it("aceita só assistant_questions_per_user_day: 30 e grava só ele", async () => {
+    sessao("admin");
+    const { cliente, escritas } = fazerAdmin({
+      linha: {
+        monthly_limit_cents: 5000,
+        alarm_threshold_pct: 80,
+        enforcement_mode: "off",
+        enforcement_effective_at: null,
+        assistant_questions_per_user_day: 60,
+        assistant_questions_per_org_day: null,
+      },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_user_day: 30 });
+    expect(res.status).toBe(200);
+
+    const escrita = escritas.find((e) => e.tabela === "ai_budgets");
+    expect(escrita?.payload.assistant_questions_per_user_day).toBe(30);
+    expect(Object.prototype.hasOwnProperty.call(escrita?.payload ?? {}, "assistant_questions_per_org_day")).toBe(false);
+  });
+
+  for (const valor of [0, 10001, 1.5, "60"]) {
+    it(`assistant_questions_per_user_day: ${valor} => 422 e NADA gravado`, async () => {
+      sessao("admin");
+      const { cliente, escritas } = fazerAdmin({ linha: null });
+      vi.mocked(createAdminClient).mockReturnValue(
+        cliente as unknown as ReturnType<typeof createAdminClient>,
+      );
+
+      const res = await patch({ assistant_questions_per_user_day: valor as unknown });
+
+      expect(res.status).toBe(422);
+      expect((await corpo(res)).error?.code).toBe("validation_failed");
+      expect(escritas).toEqual([]);
+    });
+  }
+
+  it("assistant_questions_per_org_day: null => aceito e grava null", async () => {
+    sessao("admin");
+    const { cliente, escritas } = fazerAdmin({
+      linha: {
+        monthly_limit_cents: 5000,
+        alarm_threshold_pct: 80,
+        enforcement_mode: "off",
+        enforcement_effective_at: null,
+        assistant_questions_per_user_day: 60,
+        assistant_questions_per_org_day: 200,
+      },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_org_day: null });
+    expect(res.status).toBe(200);
+
+    const escrita = escritas.find((e) => e.tabela === "ai_budgets");
+    expect(escrita?.payload.assistant_questions_per_org_day).toBeNull();
+  });
+
+  for (const valor of [0, 100001]) {
+    it(`assistant_questions_per_org_day: ${valor} => 422`, async () => {
+      sessao("admin");
+      const { cliente, escritas } = fazerAdmin({ linha: null });
+      vi.mocked(createAdminClient).mockReturnValue(
+        cliente as unknown as ReturnType<typeof createAdminClient>,
+      );
+
+      const res = await patch({ assistant_questions_per_org_day: valor as unknown });
+
+      expect(res.status).toBe(422);
+      expect(escritas).toEqual([]);
+    });
+  }
+
+  it("payload com SÓ as colunas de perguntas não cai no refine — é mutação válida", async () => {
+    sessao("admin");
+    const { cliente, escritas } = fazerAdmin({
+      linha: {
+        monthly_limit_cents: 5000,
+        alarm_threshold_pct: 80,
+        enforcement_mode: "off",
+        enforcement_effective_at: null,
+        assistant_questions_per_user_day: 60,
+        assistant_questions_per_org_day: null,
+      },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_user_day: 100 });
+    expect(res.status).toBe(200);
+  });
+
+  it("manager no PATCH => 403", async () => {
+    sessao("manager");
+    const { cliente } = fazerAdmin({ linha: null });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_user_day: 100 });
+    expect(res.status).toBe(403);
+  });
+
+  it("org sem linha: insere com o valor e monthly_limit_cents explícito 0", async () => {
+    sessao("admin");
+    const { cliente, escritas } = fazerAdmin({ linha: null });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_user_day: 100, assistant_questions_per_org_day: 500 });
+    expect(res.status).toBe(200);
+
+    const escrita = escritas.find((e) => e.tabela === "ai_budgets");
+    expect(escrita?.op).toBe("insert");
+    expect(escrita?.payload.monthly_limit_cents).toBe(0);
+    expect(escrita?.payload.assistant_questions_per_user_day).toBe(100);
+    expect(escrita?.payload.assistant_questions_per_org_day).toBe(500);
+  });
+
+  it("auditoria traz { antes, depois } dos dois campos", async () => {
+    sessao("admin");
+    const { cliente } = fazerAdmin({
+      linha: {
+        monthly_limit_cents: 5000,
+        alarm_threshold_pct: 80,
+        enforcement_mode: "off",
+        enforcement_effective_at: null,
+        assistant_questions_per_user_day: 60,
+        assistant_questions_per_org_day: null,
+      },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    await patch({ assistant_questions_per_user_day: 100, assistant_questions_per_org_day: 300 });
+
+    const entrada = vi.mocked(audit).mock.calls[0]![0];
+    expect(entrada.metadata?.assistant_questions_per_user_day).toEqual({ antes: 60, depois: 100 });
+    expect(entrada.metadata?.assistant_questions_per_org_day).toEqual({ antes: null, depois: 300 });
+  });
+
+  it("mudar só limites de perguntas NÃO altera enforcement_effective_at nem modo", async () => {
+    sessao("admin");
+    const { cliente, escritas } = fazerAdmin({
+      linha: {
+        monthly_limit_cents: 5000,
+        alarm_threshold_pct: 80,
+        enforcement_mode: "bloquear",
+        enforcement_effective_at: "2026-08-01T00:00:00.000Z",
+        assistant_questions_per_user_day: 60,
+        assistant_questions_per_org_day: null,
+      },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(
+      cliente as unknown as ReturnType<typeof createAdminClient>,
+    );
+
+    const res = await patch({ assistant_questions_per_user_day: 150 });
+    expect(res.status).toBe(200);
+
+    const escrita = escritas.find((e) => e.tabela === "ai_budgets");
+    expect(Object.prototype.hasOwnProperty.call(escrita?.payload ?? {}, "enforcement_effective_at")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(escrita?.payload ?? {}, "enforcement_mode")).toBe(false);
+  });
+});
+
 // Este teste isola o handler; autoridade de suporte é exercitada na suíte própria.
 vi.mock("@/lib/impersonate/support", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/impersonate/support")>(),

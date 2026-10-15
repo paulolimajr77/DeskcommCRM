@@ -34,6 +34,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     .from("config_threads")
     .select("id,kind,last_message_at,created_at")
     .eq("organization_id", authz.org.orgId)
+    .eq("created_by", authz.user.id)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(parsed.data.limite);
   if (error !== null) {

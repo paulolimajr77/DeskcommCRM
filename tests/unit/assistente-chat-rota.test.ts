@@ -200,7 +200,10 @@ function poolFalso(
 
     if (/from public\.config_threads/.test(sql)) {
       return {
-        rows: threads.has(params[0] as string) && params[1] === ORG_ID ? [{ id: params[0] }] : [],
+        rows:
+          threads.has(params[0] as string) && params[1] === ORG_ID && (params[2] === undefined || params[2] === USER_ID)
+            ? [{ id: params[0] }]
+            : [],
       };
     }
 
@@ -350,6 +353,22 @@ describe("POST — guardas", () => {
   it("pergunta curta demais reprova com 422", async () => {
     poolFalso();
     expect((await POST(pedido({ turn_id: TURN_ID, pergunta: "e?" }))).status).toBe(422);
+  });
+
+  it("a conversa só vale para o DONO: a consulta leva o usuário da sessão, nunca o do corpo", async () => {
+    const { pool } = poolFalso();
+    const r = await POST(pedido({ ...CORPO_OK, created_by: "11111111-2222-4333-8444-5555555555aa" }));
+    // `.strict()`: campo a mais no corpo reprova antes de qualquer consulta.
+    expect(r.status).toBe(422);
+    expect(pool.query).not.toHaveBeenCalled();
+
+    const ok = poolFalso();
+    await POST(pedido(CORPO_OK));
+    const busca = ok.pool.query.mock.calls.find(
+      ([sql]) => /from public\.config_threads where id = \$1/.test(String(sql)),
+    );
+    expect(String(busca?.[0])).toMatch(/created_by = \$3/);
+    expect(busca?.[1]).toEqual([THREAD_ID, ORG_ID, USER_ID]);
   });
 
   it("thread de outra org devolve 404, sem gravar nada e sem chamar o modelo", async () => {

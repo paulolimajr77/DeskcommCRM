@@ -42,15 +42,24 @@ export function AssistentePainelProvider({ children }: { children: ReactNode }) 
   const [aberto, setAberto] = useState(false);
   // Quem tinha o foco quando o painel abriu: ao fechar, o foco volta para lá.
   const anterior = useRef<HTMLElement | null>(null);
+  // Espelho de `aberto` para `abrir` ler sem depender dele: abrir de novo, com o painel
+  // já aberto (⌘K), não pode trocar a origem do foco pelo campo da paleta que vai sumir.
+  const abertoAgora = useRef(false);
 
   const abrir = useCallback(() => {
-    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+    if (
+      !abertoAgora.current &&
+      typeof document !== "undefined" &&
+      document.activeElement instanceof HTMLElement
+    ) {
       anterior.current = document.activeElement;
     }
+    abertoAgora.current = true;
     setAberto(true);
   }, []);
 
   const fechar = useCallback(() => {
+    abertoAgora.current = false;
     setAberto(false);
     if (typeof document === "undefined") return;
     // Depois deste ciclo: o painel ainda está visível nele, e foco em elemento

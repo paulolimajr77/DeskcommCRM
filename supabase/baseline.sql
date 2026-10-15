@@ -51968,7 +51968,7 @@ begin
 end;
 $fn$;
 -- ---- chat do assistente interno: config_threads/messages (migration 0673) ----
--- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
+-- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel) + DONO da conversa (created_by = auth.uid(): a resposta carrega números de métricas com papel mínimo); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
 
 -- ---- chat do assistente interno: config_threads/messages (migration 0673) ----
 create table if not exists public.config_threads (
@@ -52024,10 +52024,14 @@ revoke all    on public.config_messages from anon, authenticated;
 grant  select on public.config_messages to authenticated;
 grant  all    on public.config_messages to service_role;
 
--- ── RLS: organização + papel ───────────────────────────────────────────────
+-- ── RLS: organização + papel + DONO ────────────────────────────────────────
 -- Policy POR COMANDO (`for select`), nunca `for all`: não existe caminho de
 -- escrita pelo PostgREST, porque o `revoke` acima o fechou. Leitura exige
--- papel `viewer` ou acima (o chat de leitura e de dúvidas vale para qualquer papel).
+-- papel `viewer` ou acima (o chat de leitura e de dúvidas vale para qualquer papel)
+-- E ser o DONO da conversa (`created_by = auth.uid()`): a resposta do assistente
+-- carrega números de métricas que têm papel mínimo (financeiro, conversões, desempenho),
+-- e a trava de papel só vale na hora da consulta. Sem o dono, um `viewer` leria, pela
+-- tela ou direto pelo PostgREST, o que um gerente perguntou e o assistente respondeu.
 drop policy if exists tenant_isolation_config_threads_select on public.config_threads;
 create policy tenant_isolation_config_threads_select
   on public.config_threads
@@ -52035,6 +52039,7 @@ create policy tenant_isolation_config_threads_select
   using (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'viewer')
+    and created_by = auth.uid()
   );
 drop policy if exists tenant_isolation_config_messages_select on public.config_messages;
 create policy tenant_isolation_config_messages_select
@@ -52043,6 +52048,12 @@ create policy tenant_isolation_config_messages_select
   using (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'viewer')
+    and exists (
+      select 1 from public.config_threads t
+      where t.id = config_messages.thread_id
+        and t.organization_id = config_messages.organization_id
+        and t.created_by = auth.uid()
+    )
   );
 
 -- ── Retenção: a tabela nasce com dono de piso ──────────────────────────────

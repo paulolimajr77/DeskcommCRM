@@ -63,6 +63,8 @@ function guardarConversa(id: string | null): void {
  * vira botão (nem `//outro-site`, nem `https://…`, nem `javascript:`).
  */
 function ehDestinoInterno(href: string): boolean {
+  // Subir de pasta (`..`), barra invertida e caracteres de controle saem do prefixo `/app/` depois que o navegador normaliza o caminho.
+  if (href.includes("..") || href.includes(String.fromCharCode(92)) || /[\x00-\x1f]/.test(href)) return false;
   return href.startsWith("/app/");
 }
 
@@ -141,6 +143,8 @@ export function ChatDoAssistente({
         // A conversa guardada não é desta organização (ou foi apagada): esquece.
         guardarConversa(null);
         setThreadId(null);
+        setMensagens([]);
+        setErro(null);
         return;
       }
       if (!r.ok) return;
@@ -169,24 +173,20 @@ export function ChatDoAssistente({
     if (guardada !== null) void abrirThread(guardada);
   }, [aberto, carregarThreads, abrirThread]);
 
-  // Foco no campo de pergunta a cada abertura. Aberto pela paleta ⌘K, o foco
-  // ainda pode estar preso na paleta que está fechando: uma segunda tentativa,
-  // só se ninguém tiver o foco (`body`), cobre isso sem roubá-lo de quem já
-  // clicou em outro lugar.
+  // Foco no campo de pergunta a cada abertura. Aberto pela paleta ⌘K, quem leva o foco
+  // para cá no fim é o `onCloseAutoFocus` da paleta (evento do Radix, sem relógio).
   useEffect(() => {
     if (!aberto) return;
     campo.current?.focus();
-    const retentativa = window.setTimeout(() => {
-      if (document.activeElement === document.body) campo.current?.focus();
-    }, 350);
-    return () => window.clearTimeout(retentativa);
   }, [aberto]);
 
-  // Mensagem nova (ou "pensando…"): rola até o fim.
+  // Mensagem nova (ou "pensando…"), ou painel reaberto: rola até o fim. Escondido
+  // (`display: none`) a lista não tem altura e o navegador pode zerar a rolagem.
   useEffect(() => {
+    if (!aberto) return;
     const el = lista.current;
     if (el !== null) el.scrollTop = el.scrollHeight;
-  }, [mensagens, enviando]);
+  }, [mensagens, enviando, aberto]);
 
   async function perguntar(texto: string) {
     const p = texto.trim();
@@ -194,11 +194,15 @@ export function ChatDoAssistente({
     const turnId = randomId();
     const idLocal = `local-${turnId}`;
     versao.current += 1;
+    // Se a pessoa abrir outra conversa ou clicar em "Nova conversa" enquanto isto voa,
+    // `versao` muda e a resposta de agora NÃO pode escrever na tela nova.
+    const minha = versao.current;
     setEnviando(true);
     setErro(null);
     setMensagens((atuais) => [...atuais, { id: idLocal, author_kind: "human", body: p }]);
     setPergunta("");
     const falhou = async (r: Response | null) => {
+      if (minha !== versao.current) return;
       setMensagens((atuais) => atuais.filter((m) => m.id !== idLocal));
       setPergunta((atual) => (atual === "" ? p : atual));
       setErro((r === null ? null : await mensagemDoErro(r)) ?? t("Não foi possível perguntar agora."));
@@ -220,6 +224,11 @@ export function ChatDoAssistente({
         return;
       }
       const { data } = (await r.json()) as { data: RespostaDoChat };
+      if (minha !== versao.current) {
+        // A pergunta foi gravada no servidor; só a tela atual é de outra conversa.
+        void carregarThreads();
+        return;
+      }
       setThreadId(data.thread_id);
       guardarConversa(data.thread_id);
       if (typeof data.resposta === "string") {

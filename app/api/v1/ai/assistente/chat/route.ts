@@ -198,8 +198,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   // ─── A thread existe? O turno já aconteceu? ──────────────────────────────
   if (thread_id !== undefined) {
     const { rows } = await pool.query<{ id: string }>(
-      "select id from public.config_threads where id = $1 and organization_id = $2",
-      [thread_id, orgId],
+      "select id from public.config_threads where id = $1 and organization_id = $2 and created_by = $3",
+      [thread_id, orgId, userId],
     );
     if (rows.length === 0) {
       return fail("not_found", t("Conversa não encontrada."), 404, { requestId });

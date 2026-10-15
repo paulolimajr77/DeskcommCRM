@@ -34,6 +34,7 @@ export async function GET(
     .from("config_threads")
     .select("id")
     .eq("organization_id", authz.org.orgId)
+    .eq("created_by", authz.user.id)
     .eq("id", parsed.data.id)
     .limit(1);
   if (erroThread !== null) {

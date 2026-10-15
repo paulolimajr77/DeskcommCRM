@@ -80,6 +80,8 @@ export function CommandPalette({
           if (!abriuOPainel.current) return;
           abriuOPainel.current = false;
           e.preventDefault();
+          // O Radix devolveria o foco ao botão que abriu a paleta: quem o recebe é o campo do painel.
+          document.querySelector<HTMLElement>('[data-testid="assistente-pergunta"]')?.focus();
         }}
       >
         <DialogTitle className="sr-only">{t("Buscar telas")}</DialogTitle>

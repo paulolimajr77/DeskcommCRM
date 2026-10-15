@@ -50,6 +50,9 @@ export function PainelDoAssistente() {
       role={aberto ? (ehCelular ? "dialog" : "complementary") : undefined}
       aria-label={t("Assistente")}
       data-testid="assistente-painel"
+      // Clicar em área sem foco (lista, cabeçalho) leva o foco para o próprio painel, e não
+      // para o `body`: assim o Escape do celular chega a este `onKeyDown`.
+      tabIndex={-1}
       hidden={!aberto}
       inert={!aberto}
       onKeyDown={(e) => {
@@ -60,7 +63,7 @@ export function PainelDoAssistente() {
       }}
       className={cn(
         aberto ? "flex" : "hidden",
-        "flex-col bg-background",
+        "flex-col bg-background outline-none",
         "fixed inset-x-0 top-0 bottom-[var(--rodape-ocupado,0px)] z-40",
         "md:sticky md:inset-x-auto md:top-0 md:bottom-auto md:z-auto md:h-dvh md:w-96 md:shrink-0 md:self-start md:border-l",
       )}

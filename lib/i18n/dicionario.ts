@@ -3694,7 +3694,6 @@ export const DICIONARIO: Traducoes = {
   },
   "Por pessoa, por dia": { es: "Por persona, por día" },
   "Por organização, por dia": { es: "Por organización, por día" },
-  "vazio": { es: "vacío" },
   "Sem limite": { es: "Sin límite" },
   "Deixe vazio para sem limite": { es: "Déjalo vacío para sin límite" },
   "Inteiro entre 1 e 10.000": { es: "Número entero entre 1 y 10.000" },

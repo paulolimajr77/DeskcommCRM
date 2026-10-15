@@ -123,6 +123,8 @@ function estadoDaTela(over: Partial<BudgetStatus> = {}): BudgetStatus {
     enforcement_env: "on",
     blocked_now: false,
     gasto_incompleto: false,
+    assistant_questions_per_user_day: 60,
+    assistant_questions_per_org_day: null,
     current_period_start: "2026-08-01",
     last_alarm_sent_at: null,
     updated_at: "2026-08-15T00:00:00.000Z",

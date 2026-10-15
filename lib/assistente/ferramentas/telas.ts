@@ -60,8 +60,8 @@ function tituloDe(tela: NavDestination, idioma: ContextoDeConsulta["idioma"]): s
 }
 
 function grupoDe(tela: NavDestination, idioma: ContextoDeConsulta["idioma"]): string {
-  const rotulo = NAV_GROUPS.find((grupo) => grupo.id === tela.group)?.label ?? tela.group;
-  return traduzir(rotulo, idioma);
+  const grupo = NAV_GROUPS.find((candidato) => candidato.id === tela.group);
+  return traduzir(grupo ? grupo.label : tela.group, idioma);
 }
 
 const esquemaDeListar = z.strictObject({ busca: z.string().max(80).optional() });

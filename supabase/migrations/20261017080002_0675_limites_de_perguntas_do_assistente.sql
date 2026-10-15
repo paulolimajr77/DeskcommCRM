@@ -16,8 +16,8 @@ alter table public.ai_budgets
   add column if not exists assistant_questions_per_org_day integer;
 
 -- A faixa é do banco além de ser da rota: um valor fora dela escrito por outro
--- caminho (SQL à mão, script) não pode nascer. `add constraint if not exists` não
--- existe no Postgres; drop + add é o que torna a REGRA idempotente. Os dados já
+-- caminho (SQL à mão, script) não pode nascer. O Postgres não aceita `if not exists`
+-- em constraint; drop + add é o que torna a REGRA idempotente. Os dados já
 -- satisfazem: 60 e null.
 alter table public.ai_budgets
   drop constraint if exists ai_budgets_assistant_per_user_day_check;

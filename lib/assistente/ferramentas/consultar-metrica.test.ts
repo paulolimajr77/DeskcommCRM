@@ -162,7 +162,8 @@ describe("consultar_metrica", () => {
 
   it("a descrição ensina os seis formatos de período e manda listar as métricas antes", async () => {
     const { ferramentas } = montarParaTeste("manager");
-    const descricao = ferramentas.consultar_metrica?.description ?? "";
+    const bruta = ferramentas.consultar_metrica?.description;
+    const descricao = typeof bruta === "string" ? bruta : "";
 
     for (const tipo of ["semana_passada", "semana_atual", "ultimos_dias", "mes_atual", "mes_passado", "intervalo"]) {
       expect({ tipo, citado: descricao.includes(`"tipo":"${tipo}"`) }).toEqual({ tipo, citado: true });

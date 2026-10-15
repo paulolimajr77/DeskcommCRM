@@ -65,7 +65,7 @@ function resposta(corpo: unknown, status = 200): RespostaFalsa {
   return { ok: status >= 200 && status < 300, status, json: async () => corpo };
 }
 
-const NOME_DA_CHAVE = "deskcomm:assistente:thread";
+const NOME_DA_CHAVE = "assistente:conversa-da-aba";
 
 const rede = vi.hoisted(() => ({
   chat: undefined as undefined | ((corpo: Record<string, unknown>) => Promise<unknown>),

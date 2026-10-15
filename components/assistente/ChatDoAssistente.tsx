@@ -38,7 +38,7 @@ interface RespostaDoChat {
 const PERGUNTA_RAPIDA = "resumo: quantas conversas abertas?";
 
 /** A conversa da aba: só conveniência. Sem `sessionStorage` a tela funciona do mesmo jeito. */
-const CHAVE_DA_CONVERSA = "deskcomm:assistente:thread";
+const CHAVE_DA_CONVERSA = "assistente:conversa-da-aba";
 
 function lerConversaGuardada(): string | null {
   try {

@@ -63,7 +63,7 @@ export function PainelDoAssistente() {
       }}
       className={cn(
         aberto ? "flex" : "hidden",
-        "flex-col bg-background outline-none",
+        "flex-col bg-background outline-hidden",
         "fixed inset-x-0 top-0 bottom-[var(--rodape-ocupado,0px)] z-40",
         "md:sticky md:inset-x-auto md:top-0 md:bottom-auto md:z-auto md:h-dvh md:w-96 md:shrink-0 md:self-start md:border-l",
       )}

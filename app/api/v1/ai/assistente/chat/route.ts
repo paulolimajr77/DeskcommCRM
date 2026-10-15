@@ -70,6 +70,7 @@ import {
   MAXIMO_DE_PASSOS_DO_ASSISTENTE,
   montarFerramentasDoAssistente,
 } from "@/lib/assistente/ferramentas";
+import { agenteVistoNaTela } from "@/lib/assistente/contexto-da-tela";
 import { verificarLimiteDePerguntas } from "@/lib/assistente/limites";
 import type { ContextoDeConsulta, Papel } from "@/lib/assistente/metricas";
 import { respostaDoPiso } from "@/lib/assistente/piso";
@@ -96,6 +97,9 @@ const corpoDoPost = z
     thread_id: z.string().uuid().optional(),
     turn_id: z.string().uuid(),
     pergunta: z.string().trim().min(3).max(1000),
+    // Onde a pessoa está (painel do assistente). SÓ o caminho: o id do objeto aberto
+    // é extraído e conferido contra a organização da sessão em `contexto-da-tela.ts`.
+    contexto: z.strictObject({ caminho: z.string().max(200) }).optional(),
   })
   .strict();
 
@@ -168,7 +172,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       requestId,
     });
   }
-  const { thread_id, turn_id, pergunta } = parsed.data;
+  const { thread_id, turn_id, pergunta, contexto } = parsed.data;
 
   // ─── Limite por minuto: vale para toda chamada, replay inclusive ─────────
   const porPessoa = await checkRateLimit(`assistente:u:${userId}`, TETO_POR_USUARIO_POR_MINUTO, JANELA_SEGUNDOS);
@@ -282,7 +286,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     };
     const skills = (await loadSkills(pool, orgId)).filter((s) => s.name.startsWith("assistente-"));
     const tools = montarFerramentasDoAssistente({ ctx, skills, coletor });
-    const system = montarSystemDoAssistente({ idioma, fuso, agoraIso });
+    // Contexto da tela: o agente que a pessoa está vendo, só se for desta organização.
+    // Não vai para a auditoria, não entra no limite nem no replay.
+    const agenteEmTela = await agenteVistoNaTela(pool, orgId, contexto?.caminho);
+    const system = montarSystemDoAssistente({ idioma, fuso, agoraIso, agenteEmTela });
 
     // As mensagens ANTERIORES a este turno. Pegamos as mais recentes (desc) e
     // devolvemos em ordem cronológica; o recorte por caracteres vem depois.

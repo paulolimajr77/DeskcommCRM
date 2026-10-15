@@ -69,7 +69,8 @@ describe("Sidebar agrupado", () => {
       .filter(Boolean);
     // Organização não tem título aqui: seu hub (Configurações) vive no rodapé
     // fixo, fora da área que rola — medido, ele caía fora da dobra até em 1080px.
-    // "Assistente" (spec 2026-10-14) NÃO é grupo do menu lateral: mora no ícone do topo e no ⌘K.
+    // O assistente (spec 2026-10-14) não é item nem grupo do catálogo de navegação: é um painel
+    // lateral, aberto pelo ícone do topo e pelo ⌘K.
     expect(titulos).toEqual(["Atendimento", "CRM", "Agente de IA", "Canais", "Análise"]);
   });
 

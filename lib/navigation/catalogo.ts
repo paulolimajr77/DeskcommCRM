@@ -17,7 +17,7 @@ import type { CapacidadeDaOrganizacao } from "@/lib/organizacao/capacidades";
  * Doutrina: docs/doctrine/sistema-vivo.md — "por qual porta se chega até mim?"
  */
 
-export type NavGroupId = "atendimento" | "crm" | "ia" | "canais" | "analise" | "organizacao" | "assistente";
+export type NavGroupId = "atendimento" | "crm" | "ia" | "canais" | "analise" | "organizacao";
 
 export interface NavGroup {
   id: NavGroupId;
@@ -97,7 +97,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Organização",
     hub: { href: "/app/settings", label: "Configurações" },
   },
-  { id: "assistente", label: "Assistente" },
 ];
 
 /**
@@ -1088,25 +1087,6 @@ export const NAV_CATALOG = [
     // Módulo opcional da instalação, desligado por padrão (doc 37): a porta só
     // existe onde quem administra o servidor o ligou, em `/admin/sistema`.
     modulo: "banco_externo",
-  },
-  {
-    // Assistente interno de configuração e rotina (spec 2026-10-14, F1).
-    // `sidebar: false` — o FALLBACK que esta decisão já previa: o dono queria o
-    // item no menu lateral (uso diário), mas o menu está no limite contado
-    // (15 itens, folga 0 a 1280x900; `tests/unit/interface-por-empresa.test.ts`)
-    // e o CI do fork acusou 16 com este item. A porta segue no atalho do
-    // TopBar (`components/shell/AssistenteLink.tsx`), no grupo e no ⌘K.
-    // `minRole: "viewer"` pela regra 1 do cabeçalho: dúvida e leitura valem
-    // para qualquer papel (decisão do dono, 2026-10-14); a página redireciona
-    // abaixo de viewer, então a navegação não mostra link que morre em /403.
-    // Sem `section`: o grupo não tem hub.
-    href: "/app/assistente",
-    label: "Conversar",
-    description: "Pergunte sobre a operação e monte configurações com aprovação.",
-    icon: "Robot",
-    group: "assistente",
-    minRole: "viewer",
-    sidebar: false,
   },
 ] as const satisfies readonly NavMetadata[];
 

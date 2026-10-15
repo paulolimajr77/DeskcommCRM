@@ -15506,6 +15506,12 @@ export const DICIONARIO: Traducoes = {
   "Resumo da operação": { es: "Resumen de la operación" },
   "Escreva sua pergunta...": { es: "Escribe tu pregunta..." },
   "Não foi possível perguntar agora.": { es: "No fue posible preguntar ahora." },
+  // Assistente interno (F1b, T8): painel lateral, ícone do topo e item do ⌘K.
+  // "Conversas anteriores" já existe (10782).
+  "Conversar com o assistente": { es: "Conversar con el asistente" },
+  "Pergunte sobre a operação, os números e as telas do CRM.": {
+    es: "Pregunta sobre la operación, los números y las pantallas del CRM.",
+  },
   "Ainda estou aprendendo a responder isso. Na F1 eu respondo resumos da operação e trechos dos guias — a conversa com IA chega na F2.": {
     es: "Todavía estoy aprendiendo a responder eso. En la F1 respondo resúmenes de la operación y fragmentos de las guías — la conversación con IA llega en la F2.",
   },

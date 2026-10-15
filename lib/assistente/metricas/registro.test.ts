@@ -46,14 +46,16 @@ const metricaDeGerente: DefinicaoDeMetrica<unknown> = {
 const catalogoDeTeste: DefinicaoDeMetrica<unknown>[] = [...METRICAS, metricaDeGerente];
 
 describe("registro — higiene do catálogo", () => {
-  it("os 15 ids, únicos e em snake_case", () => {
+  it("os 17 ids, únicos e em snake_case", () => {
     const ids = METRICAS.map((def) => def.id);
     expect([...ids].sort()).toEqual(
       [
+        "anuncios_meta",
         "atividades",
         "atrito",
         "canais",
         "conversas_por_visao",
+        "conversoes_enviadas",
         "desempenho_atendentes",
         "etiquetas",
         "evolucao_da_ia",
@@ -72,7 +74,7 @@ describe("registro — higiene do catálogo", () => {
   });
 
   it("papelMinimo de cada uma é EXATAMENTE o da rota medida", () => {
-    const esperado: Record<string, "viewer" | "agent" | "manager"> = {
+    const esperado: Record<string, "viewer" | "agent" | "manager" | "admin"> = {
       conversas_por_visao: "viewer",
       faturamento: "viewer",
       desempenho_atendentes: "agent",
@@ -88,6 +90,8 @@ describe("registro — higiene do catálogo", () => {
       fechamentos_por_funil: "agent",
       leads_por_origem: "agent",
       propostas_aceitas_por_produto: "viewer",
+      anuncios_meta: "manager",
+      conversoes_enviadas: "admin",
     };
     for (const def of METRICAS) {
       expect(def.papelMinimo).toBe(esperado[def.id]);

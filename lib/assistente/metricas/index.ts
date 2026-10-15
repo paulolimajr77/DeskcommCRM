@@ -96,3 +96,13 @@ export {
   metricaPropostasAceitasPorProduto,
   type ParametrosDePropostasAceitasPorProduto,
 } from "./adaptadores/propostas_aceitas_por_produto";
+export {
+  metricaAnunciosMeta,
+  sobreporHandlersDeAnuncios,
+  type ParametrosDeAnunciosMeta,
+} from "./adaptadores/anuncios_meta";
+export {
+  metricaConversoesEnviadas,
+  sobreporClienteAdminDeConversoes,
+  type ParametrosDeConversoesEnviadas,
+} from "./adaptadores/conversoes_enviadas";

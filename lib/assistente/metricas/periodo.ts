@@ -37,7 +37,7 @@ function diaDoMs(ms: number): string {
 }
 
 /** Soma (ou subtrai) dias civis sem tocar em fuso. */
-function somarDias(dia: string, n: number): string {
+export function somarDias(dia: string, n: number): string {
   return diaDoMs(msDoDia(dia) + n * MS_POR_DIA);
 }
 

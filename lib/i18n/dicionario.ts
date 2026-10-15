@@ -3737,6 +3737,24 @@ export const DICIONARIO: Traducoes = {
   },
   "Orçamento de IA": { es: "Presupuesto de IA" },
   "Orçamento mensal de IA": { es: "Presupuesto mensual de IA" },
+  "Perguntas ao assistente": { es: "Preguntas al asistente" },
+  "Cada pergunta ao assistente usa a chave de IA da organização. O limite em dinheiro, acima, continua valendo por cima destes.": {
+    es: "Cada pregunta al asistente usa la clave de IA de la organización. El límite en dinero, arriba, sigue siendo válido por encima de estos.",
+  },
+  "Por pessoa, por dia": { es: "Por persona, por día" },
+  "Por organização, por dia": { es: "Por organización, por día" },
+  "Sem limite": { es: "Sin límite" },
+  "Deixe vazio para sem limite": { es: "Déjalo vacío para sin límite" },
+  "Inteiro entre 1 e 10.000": { es: "Número entero entre 1 y 10.000" },
+  "Inteiro entre 1 e 100.000": { es: "Número entero entre 1 y 100.000" },
+  "perguntas por pessoa por dia": { es: "preguntas por persona por día" },
+  "por organização por dia": { es: "por organización por día" },
+  "Você chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
+    es: "Has alcanzado el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
+  },
+  "A organização chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
+    es: "La organización alcanzó el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
+  },
   "Para avisar ou parar no limite, ele precisa ser de pelo menos": {
     es: "Para avisar o detenerse en el límite, tiene que ser de al menos",
   },
@@ -13333,6 +13351,17 @@ export const DICIONARIO: Traducoes = {
   "Quem vai decidir o caso pergunta e não recebe resposta — decide sem o contexto, ou larga o caso na fila.":
     { es: "Quien va a decidir el caso pregunta y no recibe respuesta: decide sin contexto o deja el caso en la fila." },
 
+  // ── Conversar com o assistente da empresa (F1b, ponto `assistente_chat`) ──
+  // Três textos do registro, no mesmo molde do `case_chat` acima: o teste
+  // `i18n-provedores-e-pontos.test.ts:32` cobra espanhol de rótulo, descrição e
+  // sintoma de todo ponto — sem entrada aqui, a tela em espanhol mostra
+  // português sem nenhum gate reclamar.
+  "Conversar com o assistente da empresa": { es: "Conversar con el asistente de la empresa" },
+  "Responde a perguntas de gestores e equipe sobre a operação — números, telas e guias — consultando só dados agregados pelas métricas oficiais. Nunca fala com o cliente e nunca altera nada.":
+    { es: "Responde las preguntas de gestores y equipo sobre la operación — números, pantallas y guías — consultando solo datos agregados de las métricas oficiales. Nunca habla con el cliente ni modifica nada." },
+  "Quem pergunta ao assistente não recebe a análise com inteligência: o chat volta às respostas prontas dos guias e a pessoa precisa consultar as telas por conta própria.":
+    { es: "Quien pregunta al asistente no recibe el análisis con inteligencia: el chat vuelve a las respuestas listas de las guías y la persona necesita consultar las pantallas por su cuenta." },
+
   // As de baixo são mensagens de ERRO DE ROTA, e `PASTAS_IGNORADAS` do gate de
   // espanhol inclui `api`: elas ficam FORA da catraca e entram aqui por
   // disciplina. Escrito para que a próxima pessoa saiba que a ausência de um
@@ -15727,6 +15756,46 @@ export const DICIONARIO: Traducoes = {
   },
   "Nenhum negócio com este campo de data neste período.": {
     es: "Ningún negocio con este campo de fecha en este período.",
+  },
+  // Assistente interno (spec 2026-10-14, F1): "Assistente" já existe em 14441.
+  "Conversar": { es: "Conversar" },
+  "Pergunte sobre a operação e monte configurações com aprovação.": {
+    es: "Pregunta sobre la operación y crea configuraciones con aprobación.",
+  },
+  "Pergunte sobre a operação e os guias. Na F1 ele responde resumos e trechos — a conversa com IA chega na F2.": {
+    es: "Pregunta sobre la operación y las guías. En la F1 responde resúmenes y fragmentos — la conversación con IA llega en la F2.",
+  },
+  "Pergunte sobre a operação ou os guias.": { es: "Pregunta sobre la operación o las guías." },
+  "Resumo da operação": { es: "Resumen de la operación" },
+  "Escreva sua pergunta...": { es: "Escribe tu pregunta..." },
+  "Não foi possível perguntar agora.": { es: "No fue posible preguntar ahora." },
+  // Assistente interno (F1b, T8): painel lateral, ícone do topo e item do ⌘K.
+  // "Conversas anteriores" já existe (10782).
+  "Conversar com o assistente": { es: "Conversar con el asistente" },
+  "Pergunte sobre a operação, os números e as telas do CRM.": {
+    es: "Pregunta sobre la operación, los números y las pantallas del CRM.",
+  },
+  "Ainda estou aprendendo a responder isso. Na F1 eu respondo resumos da operação e trechos dos guias — a conversa com IA chega na F2.": {
+    es: "Todavía estoy aprendiendo a responder eso. En la F1 respondo resúmenes de la operación y fragmentos de las guías — la conversación con IA llega en la F2.",
+  },
+  "Resumo da operação: ": { es: "Resumen de la operación: " },
+  "{conversas} conversas em atendimento, {leads} negócios abertos em {funis} funis.": {
+    es: "{conversas} conversaciones en atención, {leads} negocios abiertos en {funis} embudos.",
+  },
+  "Não foi possível listar.": { es: "No fue posible listar." },
+  "Não foi possível ler.": { es: "No fue posible leer." },
+  // Assistente interno (F1b, T7): o piso fixo e os três avisos de por que a IA não respondeu.
+  "Ainda não consegui responder isso. Posso mostrar um resumo da operação ou trechos dos guias.": {
+    es: "Todavía no pude responder eso. Puedo mostrar un resumen de la operación o fragmentos de las guías.",
+  },
+  "Conecte uma chave de IA em IA › Provedores para o assistente responder com inteligência.": {
+    es: "Conecta una clave de IA en IA › Proveedores para que el asistente responda con inteligencia.",
+  },
+  "O limite de gasto com IA foi atingido; por enquanto respondo só com resumos e guias.": {
+    es: "Se alcanzó el límite de gasto con IA; por ahora respondo solo con resúmenes y guías.",
+  },
+  "Não consegui usar a IA agora; respondi só com resumos e guias.": {
+    es: "No pude usar la IA ahora; respondí solo con resúmenes y guías.",
   },
   // #2728 — o editor de campos do funil monta a condição de exibição.
   "Mostrar só quando:": { es: "Mostrar solo cuando:" },

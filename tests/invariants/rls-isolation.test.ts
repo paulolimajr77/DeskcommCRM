@@ -120,6 +120,8 @@ beforeAll(() => {
       v_empresa uuid;
       v_pessoa uuid;
       v_lote uuid;
+      v_thread uuid;
+      v_thread_alheia uuid;
     begin
       foreach v_org in array array['${ORG_A}'::uuid, '${ORG_B}'::uuid] loop
         select id into v_sess from public.channel_sessions where organization_id = v_org limit 1;
@@ -576,6 +578,50 @@ beforeAll(() => {
           values
             (v_org, v_sess, timestamptz '2030-01-01 03:00:00+00', timestamptz '2030-01-01 05:00:00+00');
         end if;
+
+        -- migration 0674 — o histórico do chat do assistente interno. Guarda o
+        -- que a pessoa perguntou sobre a operação e o que o assistente
+        -- respondeu: sem contact_id de propósito (config + agregados, nunca
+        -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
+        -- a operação dele, não dado de cliente. Leitura é o único comando que
+        -- a tabela concede a authenticated (papel viewer ou acima); a
+        -- escrita é do servidor. Select-then-insert, como as irmãs acima: o
+        -- controle positivo precisa da thread semeada nesta passada do loop.
+        select id into v_thread from public.config_threads
+          where organization_id = v_org
+            and created_by = case when v_org = '${ORG_A}'::uuid then '${USER_A}'::uuid else '${USER_B}'::uuid end
+          limit 1;
+        -- A conversa é do DONO (created_by = auth.uid()): a semente da organização é
+        -- do usuário dela, senão o controle positivo falharia por ACERTO.
+        if v_thread is null then
+          insert into public.config_threads (organization_id, kind, created_by)
+            values (v_org, 'leitura',
+                    case when v_org = '${ORG_A}'::uuid then '${USER_A}'::uuid else '${USER_B}'::uuid end)
+            returning id into v_thread;
+        end if;
+        if not exists (select 1 from public.config_messages where thread_id = v_thread) then
+          insert into public.config_messages
+            (thread_id, organization_id, turn_id, author_kind, body)
+          values
+            (v_thread, v_org, gen_random_uuid(), 'human',
+             'RLS invariant config question');
+        end if;
+        -- Uma conversa de OUTRA pessoa da MESMA organização (id que não é de ninguém
+        -- semeado aqui): o usuário da organização não pode ler nem a conversa nem as mensagens.
+        select id into v_thread_alheia from public.config_threads
+          where organization_id = v_org and created_by = 'cccccccc-1111-4000-8000-000000000003'::uuid limit 1;
+        if v_thread_alheia is null then
+          insert into public.config_threads (organization_id, kind, created_by)
+            values (v_org, 'leitura', 'cccccccc-1111-4000-8000-000000000003'::uuid)
+            returning id into v_thread_alheia;
+        end if;
+        if not exists (select 1 from public.config_messages where thread_id = v_thread_alheia) then
+          insert into public.config_messages
+            (thread_id, organization_id, turn_id, author_kind, body)
+          values
+            (v_thread_alheia, v_org, gen_random_uuid(), 'ai',
+             'RLS invariant resposta de outra pessoa da mesma organização');
+        end if;
       end loop;
     end
     $seed$;
@@ -747,6 +793,12 @@ export const TABLES = [
   // RPC. Vazar a linha entrega ao vizinho quando o outro vai mexer nas
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
+  // migration 0674 — o histórico do chat do assistente interno (F1). Leitura
+  // org-scoped com gate de papel `viewer` (o usuário semeado aqui é `agent`,
+  // então é controle positivo legítimo); a ESCRITA é do servidor e não é
+  // medida aqui — quem mede a escrita são as rotas, em teste de rota.
+  "config_threads",
+  "config_messages",
   // ⚠️ `cobranca_assinaturas` (migration 0583) NÃO entra nesta lista, pelo mesmo
   // motivo de `webhook_lead_captures`: a leitura é só do `admin` e o usuário
   // semeado aqui é `agent`, então o controle positivo falharia por ACERTO. A
@@ -785,6 +837,30 @@ describe("RLS tenant isolation (fn_user_org_ids pattern)", () => {
     expect(Number(sql(
       `select count(distinct organization_id) from public.ai_reply_drafts where organization_id in ('${ORG_A}','${ORG_B}');`,
     ))).toBe(2);
+  });
+
+  // O histórico do assistente é do DONO: a resposta carrega números de métricas com papel
+  // mínimo, e a trava de papel só vale na hora da consulta. Duas conversas existem em cada
+  // organização (a do usuário semeado e a de outra pessoa da MESMA organização); o usuário lê
+  // só a sua, e as mensagens seguem a conversa.
+  it("config_threads/config_messages: dentro da MESMA organização só o dono lê a conversa", () => {
+    for (const [user, org] of [[USER_A, ORG_A], [USER_B, ORG_B]] as const) {
+      expect(Number(sql(
+        `select count(*) from public.config_threads where organization_id = '${org}';`,
+      ))).toBe(2);
+      expect(countAs(user,
+        `select count(*) from public.config_threads where organization_id = '${org}';`,
+      )).toBe(1);
+      expect(Number(sql(
+        `select count(*) from public.config_messages where organization_id = '${org}';`,
+      ))).toBe(2);
+      expect(countAs(user,
+        `select count(*) from public.config_messages where organization_id = '${org}';`,
+      )).toBe(1);
+      expect(countAs(user,
+        `select count(*) from public.config_messages where organization_id = '${org}' and author_kind = 'ai';`,
+      )).toBe(0);
+    }
   });
 
   it("superuser sees both orgs (seed sanity: cross-tenant rows really exist)", () => {

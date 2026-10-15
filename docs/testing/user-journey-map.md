@@ -3500,3 +3500,31 @@ do commit (resposta perdida, processo reiniciado) e retomada pela segunda tentat
 partir da lápide, com o 500 que não diz "nada foi apagado": medida por unidade em
 `lib/tenants/exclusao.test.ts` e `…/delete/route.test.ts`, e o inventário da lápide em
 `tests/invariants/gestao-de-tenants.test.ts`.
+
+## J45 — Conversar com o assistente interno no painel lateral `[P1]` (2026-10-15)
+
+Abrir o painel pelo ícone de IA no topo e pelo item "Conversar" do ⌘K, pedir o
+resumo da operação, perguntar um número ("quantas conversas há na fila?") e uma
+dúvida de guia — e trocar de página com o painel aberto, sem perder a conversa.
+Spec: `tests/e2e/assistente-chat-leitura.spec.ts` (job e2e, parte 1), com o dublê
+do modelo (`INTERNAL_AGENT_RUN_STUB`): o par chat × `GET conversations/counts`
+direto prova que o número na tela é o do banco, mesma sessão e mesmo escopo RLS.
+
+**Estado da medição: os casos abaixo ainda NÃO rodaram.** A spec foi estendida sem
+rodar localmente (e2e exige app + banco semeado); a primeira medição é a do job
+`e2e` deste PR. Sem prova em VPS fresca.
+
+| # | Caso | Expectativa | Resultado |
+|---|------|-------------|-----------|
+| J45.1 | Ícone do topo abre o painel | painel "Assistente" visível; a URL não muda (não há página) | a medir (CI) |
+| J45.2 | Resumo da operação | resposta do turno (dublê) na conversa | a medir (CI) |
+| J45.3 | Par da fila | o número no chat é o `fila` do GET direto | a medir (CI) |
+| J45.4 | Troca de página | painel continua aberto, com o rascunho digitado | a medir (CI) |
+| J45.5 | ⌘K → Conversar | abre o mesmo painel, sem trocar de página | a medir (CI) |
+| J45.6 | Sem página em tela cheia | `GET /app/assistente` → 404 | a medir (CI) |
+
+Não provado pela tela: o piso sem chave de IA (coberto por unidade em
+`tests/unit/assistente-chat-rota.test.ts`, bloco "piso quando o modelo não
+responde"); a avaliação com modelo real, de 15 a 20 perguntas, que o plano exige
+antes de qualquer PR ao repositório do Rafael.
+

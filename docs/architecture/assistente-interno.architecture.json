@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Assistente interno de leitura — o painel, o turno e o catálogo",
+    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode",
+    "output": "assistente-interno.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    {
+      "id": "pessoa",
+      "label": "Onde a pessoa pergunta e lê"
+    },
+    {
+      "id": "turno",
+      "label": "O turno de leitura (rota + emissor)"
+    },
+    {
+      "id": "leitura",
+      "label": "De onde sai o número"
+    },
+    {
+      "id": "limite",
+      "label": "Quem barra, e quem paga"
+    },
+    {
+      "id": "registro",
+      "label": "O que fica gravado"
+    }
+  ],
+  "mainPath": [
+    "painel",
+    "rotaChat",
+    "emissor",
+    "catalogo",
+    "rotasLeitura"
+  ],
+  "nodes": [
+    {
+      "id": "painel",
+      "lane": "pessoa",
+      "col": 0,
+      "type": "frontend",
+      "label": "PainelDoAssistente (AppShell)",
+      "sublabel": "única superfície: ícone do topo e ⌘K abrem o mesmo painel; sem página em tela cheia"
+    },
+    {
+      "id": "rotaChat",
+      "lane": "turno",
+      "col": 1,
+      "type": "route",
+      "label": "POST /v1/ai/assistente/chat",
+      "sublabel": "sessão cookie, requireRole viewer · Zod .strict() · replay/retomada antes do limite diário"
+    },
+    {
+      "id": "emissor",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "responderComoAssistente",
+      "sublabel": "ponto assistente_chat · herda o padrão da org, sem llmOverride · tools + maxSteps 6"
+    },
+    {
+      "id": "catalogo",
+      "lane": "leitura",
+      "col": 3,
+      "type": "lib",
+      "label": "catálogo de métricas (17)",
+      "sublabel": "listar/consultar · lista positiva por métrica · papel e módulo antes de executar · sem SQL livre"
+    },
+    {
+      "id": "rotasLeitura",
+      "lane": "leitura",
+      "col": 4,
+      "type": "route",
+      "label": "rotas GET por dentro",
+      "sublabel": "chamadas na mesma requisição, herdando login, papel e RLS · agregado, nunca PII"
+    },
+    {
+      "id": "piso",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "respostaDoPiso",
+      "sublabel": "sem chave, teto estourado, erro ou vazio: resumo/guia + aviso do motivo · error_code na linha"
+    },
+    {
+      "id": "limites",
+      "lane": "limite",
+      "col": 2,
+      "type": "lib",
+      "label": "verificarLimiteDePerguntas",
+      "sublabel": "60/dia por pessoa, org sem limite (padrão) · admin ajusta no cartão · conta no banco, 24h"
+    },
+    {
+      "id": "orcamento",
+      "lane": "limite",
+      "col": 3,
+      "type": "config",
+      "label": "cartão Orçamento (ai_budgets)",
+      "sublabel": "tetos de perguntas + teto mensal em dinheiro, que vale por cima via runModelCall"
+    },
+    {
+      "id": "threads",
+      "lane": "registro",
+      "col": 1,
+      "type": "table",
+      "label": "config_threads/messages",
+      "sublabel": "histórico do chat · idempotência por turn_id · RLS org + dono · escrita só service role"
+    },
+    {
+      "id": "llmCalls",
+      "lane": "registro",
+      "col": 3,
+      "type": "table",
+      "label": "llm_calls",
+      "sublabel": "o turno registra com purpose assistente_chat · call_id amarra a resposta à execução"
+    },
+    {
+      "id": "auditoria",
+      "lane": "registro",
+      "col": 4,
+      "type": "table",
+      "label": "api_audit_log",
+      "sublabel": "ai.assistente_asked com turn_id, fonte, métricas e call_id — nunca o texto"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "painel",
+      "to": "rotaChat",
+      "label": "pergunta + caminho da tela (o id do objeto é validado na org)"
+    },
+    {
+      "id": "e2",
+      "from": "rotaChat",
+      "to": "painel",
+      "label": "resposta + aviso + ações (botão Abrir tela, nunca navega sozinho)"
+    },
+    {
+      "id": "e3",
+      "from": "rotaChat",
+      "to": "emissor",
+      "label": "system + histórico (20/8000) + 5 ferramentas de leitura"
+    },
+    {
+      "id": "e4",
+      "from": "emissor",
+      "to": "catalogo",
+      "label": "listar_metricas, consultar_metrica, listar_telas, abrir_tela, ler_guia"
+    },
+    {
+      "id": "e5",
+      "from": "catalogo",
+      "to": "rotasLeitura",
+      "label": "adaptador chama a rota · cliente de SESSÃO (RLS vale)"
+    },
+    {
+      "id": "e6",
+      "from": "rotasLeitura",
+      "to": "catalogo",
+      "label": "números + régua + avisos · PII cortada na projeção"
+    },
+    {
+      "id": "e7",
+      "from": "emissor",
+      "to": "llmCalls",
+      "label": "runModelCall registra a chamada com o purpose"
+    },
+    {
+      "id": "e8",
+      "from": "llmCalls",
+      "to": "auditoria",
+      "label": "call_id amarra a pergunta auditada à execução do modelo"
+    },
+    {
+      "id": "e9",
+      "from": "rotaChat",
+      "to": "limites",
+      "label": "pergunta nova passa no teto diário antes de gravar"
+    },
+    {
+      "id": "e10",
+      "from": "limites",
+      "to": "rotaChat",
+      "label": "estourou: 429 em PT/ES, sem thread e sem linha"
+    },
+    {
+      "id": "e11",
+      "from": "orcamento",
+      "to": "limites",
+      "label": "admin define os tetos no cartão · PATCH audita antes/depois"
+    },
+    {
+      "id": "e12",
+      "from": "orcamento",
+      "to": "emissor",
+      "label": "teto mensal em dinheiro vale por cima, no seam"
+    },
+    {
+      "id": "e13",
+      "from": "rotaChat",
+      "to": "piso",
+      "label": "modelo não pôde: cai no determinístico com o motivo"
+    },
+    {
+      "id": "e14",
+      "from": "piso",
+      "to": "rotaChat",
+      "label": "resumo da operação ou trecho de guia + aviso"
+    },
+    {
+      "id": "e15",
+      "from": "rotaChat",
+      "to": "threads",
+      "label": "grava human e ai (service role, org da sessão)"
+    },
+    {
+      "id": "e16",
+      "from": "threads",
+      "to": "painel",
+      "label": "relê o histórico: troca de página e nova aba mantêm a conversa"
+    },
+    {
+      "id": "e17",
+      "from": "rotaChat",
+      "to": "auditoria",
+      "label": "ai.assistente_asked — sem pergunta e sem resposta"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "red",
+      "title": "Duas não-ligações DELIBERADAS",
+      "items": [
+        "o assistente NUNCA navega sozinho e nunca publica: `abrir_tela` devolve um botão com destino do catálogo, e Publicar é clique do admin na tela do agente",
+        "o modelo NUNCA escreve SQL: cada pergunta futura é uma métrica nova no catálogo, nunca uma consulta livre — o SQL livre sobre visões seguras ficou registrado como opção futura com revisão própria"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "O service role que quase vazou tudo (achado da revisão da T7)",
+      "items": [
+        "os interruptores de módulo moram em tabelas sem policy para a sessão: lidos pelo cliente da sessão, todo módulo pareceria desligado e as métricas de módulo responderiam 'não usa'",
+        "o conserto é `ctx.bancoDaInstalacao` (service role, OPCIONAL), usado SÓ por `modulosLigados` e `telas.ts` — e uma cerca prende que só 4 arquivos citam o campo e nenhuma métrica o usa",
+        "os DADOS seguem sempre pelo cliente de sessão: o que o modelo lê é o que a pessoa já vê"
+      ]
+    },
+    {
+      "dot": "green",
+      "title": "O par como unidade de prova",
+      "items": [
+        "todo aceite que atravessa o modelo vem em par com a medição direta da ferramenta, mesmo texto cru — e só conta quando os dois concordam",
+        "o e2e `assistente-chat-leitura` compara o número do chat com o GET `conversations/counts` direto, mesma sessão e mesmo escopo RLS"
+      ]
+    }
+  ]
+}

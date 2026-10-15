@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { createFakeRegistry } from '../edge/llm/providers';
 import { MARCA_DA_CONSULTA_INTERNA } from './conversa-do-caso/contexto';
+import { MARCA_DO_ASSISTENTE } from './assistente/prompt';
 export function previewFixtureRegistry() {
   return createFakeRegistry(async (options) => {
     const text = JSON.stringify(options.prompt);
@@ -52,28 +53,118 @@ export function previewFixtureRegistry() {
       // `JSON.stringify` cego poria a resposta do chat entre aspas na tela.
       content.push({ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) });
     } else {
-      const has = (name: string) =>
-        options.tools?.some((t) => t.type === 'function' && t.name === name);
-      const name =
-        has('search_knowledge') && !saw('search_knowledge')
-          ? 'search_knowledge'
-          : !saw('send_message')
-            ? 'send_message'
-            : null;
-      if (name)
-        content.push({
-          type: 'tool-call',
-          toolCallId: randomUUID(),
-          toolName: name,
-          input: JSON.stringify(
-            name === 'search_knowledge'
-              ? { query: 'informações de atendimento' }
-              : {
-                  body: 'Olá! Posso ajudar com as informações do atendimento. O que você gostaria de saber?',
-                },
-          ),
-        });
-      else content.push({ type: 'text', text: 'Sugestão registrada.' });
+      // O CHAT DO ASSISTENTE vem ANTES da escolha search_knowledge/send_message:
+      // sem este ramo, o e2e do assistente emitiria `send_message`, que não
+      // existe naquele turno — e o teste provaria um caminho que o produto não
+      // tem. A marca é IMPORTADA do módulo do prompt, nunca um literal
+      // duplicado (ver o comentário do ramo sem tools acima).
+      // Ramo do PAR (T9): a pergunta sobre a fila desce até `consultar_metrica`
+      // de verdade — o número que o chat mostra é o mesmo do GET direto, porque
+      // a métrica lê a mesma rota por dentro. O dublê só finge o raciocínio do
+      // modelo (qual ferramenta chamar); dado, papel e RLS continuam reais.
+      // NUNCA lança: extração defensiva com fallback para o texto fixo.
+      const extrairTextoUltimaMensagemDoUsuario = (prompt: unknown): string => {
+        try {
+          if (!Array.isArray(prompt)) return "";
+          for (let i = prompt.length - 1; i >= 0; i--) {
+            const msg = prompt[i] as { role?: unknown; content?: unknown } | null | undefined;
+            if (msg == null || typeof msg !== "object") continue;
+            if (msg.role !== "user") continue;
+            const conteudo = msg.content;
+            if (typeof conteudo === "string") return conteudo;
+            if (Array.isArray(conteudo)) {
+              return conteudo
+                .map((parte) => {
+                  if (typeof parte === "string") return parte;
+                  if (
+                    parte != null &&
+                    typeof parte === "object" &&
+                    typeof (parte as { text?: unknown }).text === "string"
+                  )
+                    return (parte as { text: string }).text;
+                  return "";
+                })
+                .join(" ");
+            }
+            if (
+              conteudo != null &&
+              typeof conteudo === "object" &&
+              typeof (conteudo as { text?: unknown }).text === "string"
+            )
+              return (conteudo as { text: string }).text;
+            if (conteudo == null) return "";
+            return String(conteudo);
+          }
+          return "";
+        } catch {
+          return "";
+        }
+      };
+      const extrairFila = (resultados: unknown[]): number | null => {
+        for (const item of resultados) {
+          try {
+            const achado = JSON.stringify(item).match(/"fila"\s*:\s*(\d+)/);
+            if (achado) return Number(achado[1]);
+          } catch {
+            continue;
+          }
+        }
+        return null;
+      };
+      if (text.includes(MARCA_DO_ASSISTENTE)) {
+        const temConsulta = options.tools?.some((t) => t.type === 'function' && t.name === 'consultar_metrica');
+        const consultou = saw('consultar_metrica');
+        const textoDaUltimaMensagemDoUsuario = extrairTextoUltimaMensagemDoUsuario(options.prompt);
+        if (/fila/i.test(textoDaUltimaMensagemDoUsuario) && temConsulta === true && !consultou) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: 'consultar_metrica',
+            input: JSON.stringify({ metrica: 'conversas_por_visao', parametros: {} }),
+          });
+        } else if (consultou) {
+          const fila = extrairFila(toolResults);
+          content.push({
+            type: 'text',
+            text: fila === null ? 'Resposta de teste do assistente.' : `Há ${fila} conversas na fila do inbox.`,
+          });
+        } else if (
+          options.tools?.some((t) => t.type === 'function' && t.name === 'listar_metricas') &&
+          !saw('listar_metricas')
+        ) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: 'listar_metricas',
+            input: '{}',
+          });
+        } else {
+          content.push({ type: 'text', text: 'Resposta de teste do assistente.' });
+        }
+      } else {
+        const has = (name: string) =>
+          options.tools?.some((t) => t.type === 'function' && t.name === name);
+        const name =
+          has('search_knowledge') && !saw('search_knowledge')
+            ? 'search_knowledge'
+            : !saw('send_message')
+              ? 'send_message'
+              : null;
+        if (name)
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: name,
+            input: JSON.stringify(
+              name === 'search_knowledge'
+                ? { query: 'informações de atendimento' }
+                : {
+                    body: 'Olá! Posso ajudar com as informações do atendimento. O que você gostaria de saber?',
+                  },
+            ),
+          });
+        else content.push({ type: 'text', text: 'Sugestão registrada.' });
+      }
     }
     return {
       content,

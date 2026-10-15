@@ -256,6 +256,36 @@ Não avaliado por falta de execução/instância:
 - Escopo do service role key no Supabase e rotação de chaves.
 - Efetividade do `beforeSend` do Sentry contra PII real.
 
+### T9 — Assistente interno: o modelo lê por dentro e recebe agregado 🟢 MITIGADO — CONFIRMADO
+
+`POST /api/v1/ai/assistente/chat` (F1b) é superfície **com sessão**: cookie, `requireRole("viewer")`,
+corpo Zod `.strict()`, sem entrada em `public-paths.ts` — a auth de borda vale. O risco não é
+quem entra, e sim o que o turno faz lá dentro:
+
+1. **Chamadas por dentro.** Os adaptadores chamam rotas `GET` na mesma requisição, herdando
+   login, papel e organização (`lib/assistente/metricas/chamar-rota.ts`). O modelo nunca enxerga
+   além do que a pessoa já vê — exceto `ctx.bancoDaInstalacao` (service role, só para os
+   interruptores de módulo sem policy para a sessão). A cerca é propositalmente estreita: só 4
+   arquivos citam o campo e nenhuma métrica o usa (`tests/unit/assistente-banco-da-instalacao-so-para-modulos.test.ts`).
+2. **Dado que vai ao modelo.** Só agregado, por lista positiva por métrica + varredura de chaves
+   proibidas (`lib/assistente/metricas/projecao.ts`): e-mail, telefone, nome de contato, título
+   de negócio, motivo livre e prévia de mensagem nunca passam. **Residual honesto:** o ponto de IA
+   aceita `base_url` arbitrária, então o agregado pode ir a servidor terceiro — a contenção é a
+   lista positiva, não o destino. O `board` do funil foi excluído do catálogo exatamente por
+   carregar `last_message_preview`.
+3. **Contexto da tela.** O painel manda caminho + id do objeto aberto; o servidor valida que o id
+   pertence à org da sessão antes de usar (`lib/assistente/contexto-da-tela.ts`). O assistente
+   nunca navega sozinho e nunca publica: `abrir_tela` devolve botão com destino do catálogo.
+4. **Abuso de custo (insider).** 12/min por pessoa e 60/min por organização (`checkRateLimit`),
+   mais teto diário configurável (padrão 60 por pessoa, org sem limite — IA-12) e teto mensal em
+   dinheiro por cima. Replay do mesmo `turn_id` não conta nem chama o modelo. **Residual:** uma
+   pessoa legítima ainda consegue gastar a chave da org até o teto — é limite, não prevenção.
+5. **Auditoria e erro.** `ai.assistente_asked` grava `turn_id`, fonte, métricas e `call_id`, nunca
+   o texto (`lib/audit/actions.ts`). A mensagem do erro nunca vai à resposta, ao aviso, à linha
+   gravada nem ao log — só o nome (`assistente.chat.modelo_nao_respondeu`).
+6. **Piso.** Sem chave, teto estourado, erro ou texto vazio, a resposta é o determinístico da F1
+   (resumo + guia, mesmos dados com RLS) com aviso do motivo e `error_code` na linha.
+
 ---
 
 ## 3. Sumário de prioridade
@@ -269,6 +299,7 @@ Não avaliado por falta de execução/instância:
 | T5 | 3 secrets fora do `.env.example` | 🟠 | trivial |
 | T7 | Sem scan de secret no CI + 116 PNGs de evidência sem revisão de PII | 🟡 | baixo |
 | T6 | Guard de SSRF existe; o E2E que o prova não roda no CI | 🟢 | baixo |
+| T9 | Assistente interno manda agregado ao modelo; residual é destino e gasto insider | 🟢 | — (construído com as cercas) |
 
 **Conclusão honesta:** os *mecanismos* de segurança deste projeto são acima da média para
 um CRM open-source — HMAC em tempo constante em toda borda, fail-closed nos crons, hash de

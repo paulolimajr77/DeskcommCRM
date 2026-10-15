@@ -6,6 +6,7 @@ import {
   traduzirResposta,
   type HandlerDeRota,
 } from "@/lib/assistente/metricas/chamar-rota";
+import { logger } from "@/lib/logger";
 
 function respostaJson(status: number, corpo: unknown): Response {
   return new Response(JSON.stringify(corpo), {
@@ -48,6 +49,100 @@ describe("chamarRotaPorDentro", () => {
     const handler: HandlerDeRota = async () => new Response(null, { status: 204 });
     const resultado = await chamarRotaPorDentro(handler, "/api/v1/x", {});
     expect(resultado).toEqual({ status: 204, corpo: null });
+  });
+
+  it("A. POST com corpo: o handler recebe POST e o corpo igual", async () => {
+    let metodo = "";
+    let corpoRecebido: unknown = null;
+    const corpoEnviado = { nome: "Clínica Teste" };
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpoRecebido = await req.json();
+      return respostaJson(201, { data: { id: "1" } });
+    };
+    const resultado = await chamarRotaPorDentro(handler, "/api/v1/ai/agents", {}, {
+      metodo: "POST",
+      corpo: corpoEnviado,
+    });
+    expect(metodo).toBe("POST");
+    expect(corpoRecebido).toEqual(corpoEnviado);
+    expect(resultado).toEqual({ status: 201, corpo: { data: { id: "1" } } });
+  });
+
+  it("B. PATCH com corpo: o handler recebe PATCH e o corpo igual", async () => {
+    let metodo = "";
+    let corpoRecebido: unknown = null;
+    const corpoEnviado = { nome: "Novo nome" };
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpoRecebido = await req.json();
+      return respostaJson(200, { data: { id: "1" } });
+    };
+    const resultado = await chamarRotaPorDentro(handler, "/api/v1/ai/agents/1", {}, {
+      metodo: "PATCH",
+      corpo: corpoEnviado,
+    });
+    expect(metodo).toBe("PATCH");
+    expect(corpoRecebido).toEqual(corpoEnviado);
+    expect(resultado).toEqual({ status: 200, corpo: { data: { id: "1" } } });
+  });
+
+  it("C. sem opcoes: o handler recebe GET e body null", async () => {
+    let metodo = "";
+    let corpo: unknown = "nao-lido";
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpo = req.body;
+      return respostaJson(200, { data: {} });
+    };
+    await chamarRotaPorDentro(handler, "/api/v1/x", {});
+    expect(metodo).toBe("GET");
+    expect(corpo).toBeNull();
+  });
+
+  it("D. GET com corpo: o corpo é ignorado", async () => {
+    let metodo = "";
+    let corpo: unknown = "nao-lido";
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpo = req.body;
+      return respostaJson(200, { data: {} });
+    };
+    await chamarRotaPorDentro(handler, "/api/v1/x", {}, { metodo: "GET", corpo: { x: 1 } });
+    expect(metodo).toBe("GET");
+    expect(corpo).toBeNull();
+  });
+
+  it("E. handler que lança: devolve { falhou } e o logger não recebe o corpo", async () => {
+    const handler: HandlerDeRota = async () => {
+      throw new Error("quebrou");
+    };
+    const aviso = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    const resultado = await chamarRotaPorDentro(handler, "/api/v1/x", {}, {
+      metodo: "POST",
+      corpo: { segredo: "SEGREDO-DE-TESTE" },
+    });
+    expect(resultado).toEqual({ falhou: "a chamada interna à rota falhou" });
+    const tudo = JSON.stringify(aviso.mock.calls);
+    expect(tudo).not.toContain("SEGREDO-DE-TESTE");
+    aviso.mockRestore();
+  });
+
+  it("G. POST e PATCH sem corpo continuam POST e PATCH (nunca viram GET)", async () => {
+    const metodos: string[] = [];
+    const handler: HandlerDeRota = async (req) => {
+      metodos.push(req.method);
+      return respostaJson(200, { data: {} });
+    };
+    await chamarRotaPorDentro(handler, "/api/v1/x", {}, { metodo: "POST" });
+    await chamarRotaPorDentro(handler, "/api/v1/x", {}, { metodo: "PATCH" });
+    expect(metodos).toEqual(["POST", "PATCH"]);
+  });
+
+  it("F. resposta que não é JSON: corpo null com o status preservado", async () => {
+    const handler: HandlerDeRota = async () => new Response("não é json", { status: 200 });
+    const resultado = await chamarRotaPorDentro(handler, "/api/v1/x", {});
+    expect(resultado).toEqual({ status: 200, corpo: null });
   });
 });
 

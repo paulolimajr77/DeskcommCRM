@@ -128,6 +128,39 @@ As peças existem **separadas** nas rotas de hoje; o que não existe é quem as 
 **E2E nova:** `assistente-proposta-aprovar.spec.ts` (pedir agente da clínica → aprovar → rascunho existe, nada publicado; par chat × POST direto no handler).
 **Docs no PR:** `spec-16` (4º papel), `spec-11` (8 tools fora do catálogo), `spec-12`, mapa (arestas do turno), `threat-model`, `business-rules` (audit do turno), `docs/doctrine/operacao-de-agentes.md`. DoD 4/5/7 + 12 (par) — refs acima.
 
+### Tarefas da F2 — plano de execução (15/10/2026)
+
+**Por que mudou de forma:** a F1b entregou o turno do assistente com 5 ferramentas de LEITURA que chamam as rotas `/api/v1` **por dentro**, com a sessão da pessoa (`lib/assistente/metricas/chamar-rota.ts`: `chamarRotaPorDentro`, hoje só `GET`). A F2 reaproveita exatamente esse caminho para ESCREVER: o assistente nunca ganha service role nem SQL; cada escrita passa pelo mesmo `requireRole` + `requireSupportWrite` + `audit()` + RLS da tela. Isso permite dividir a F2 em duas entregas, na mesma branch:
+
+- **F2a — rascunhos diretos (T10 a T17):** cria agente, follow-up (por modelo e por nicho) e o pacote do nicho como RASCUNHO, e testa. **Sem migration nova** (só usa rotas existentes). É o "monta o atendimento da minha clínica".
+- **F2b — propostas ao vivo (T18 a T21):** roteador, conhecimento em texto, memória, modelo dos auxiliares e funil viram proposta com clique do admin (`config_proposals`, rotas aprovar/aplicar/rejeitar).
+
+**Decisões de desenho (minhas, sobre a spec §12; revisáveis):**
+1. As ferramentas de escrita só entram no catálogo do turno quando o papel DA SESSÃO é `admin` (escrita só admin, spec §7b). Para os demais papéis, o catálogo continua com as 5 de leitura. A trava real continua nas rotas (defesa em profundidade): o assistente não é a fronteira de permissão.
+2. `provider`, `model` e `credential_id` de um agente NUNCA vêm do que o modelo digita: saem da leitura da configuração da organização. Sem credencial validada, a ferramenta devolve "PRECISO CONFIRMAR: falta a chave do provedor" com o link da tela — não inventa e não toca em credencial.
+3. Toda escrita é **lida de volta** antes de a ferramenta devolver (regra de conduta 3 da spec §12.C): o id, o nome e o estado (rascunho) que a tela mostraria. O resultado alimenta o coletor do turno e vira o cartão "Criado como rascunho" na tela.
+4. Publicar nunca é ferramenta (spec §12.A): o cartão leva o botão "Abrir o agente", e o clique de Publicar é do administrador.
+5. Os pacotes de nicho (`nichos.md`) viram DADO tipado em `lib/assistente/nichos/` (prompt, perguntas de FAQ, toques de follow-up, pacote de ferramentas), validado por teste: todo `tool_id` existe, o total respeita `TETO_TOOLS_POR_AGENTE` (27), todo grafo de follow-up passa pelo montador `montarEscada`, nenhum texto tem marca nem dado pessoal.
+
+**Medido hoje (15/10/2026) — pontos de encaixe:** o turno recebe `tools: ToolSet` montado em `app/api/v1/ai/assistente/chat/route.ts` (~linhas 279-292: `montarFerramentasDoAssistente({ ctx, skills, coletor })` e `montarSystemDoAssistente(...)`; o papel da sessão está em `papel`, linha ~160). Criar agente exige `system_prompt` (10 a 20000), `provider`, `model`, `credential_id` (uuid ou nulo), `channel_session_id` (uuid ou nulo) e aceita `tool_ids`, `pipeline_ids`, `knowledge_source_ids`, `followup` (`lib/ai/agents/validation.ts`, `versionShapeSchema`, `agentMcpCreateSchema`: `name`, `description`, `priority`, `version`). Follow-up por modelo: `POST ai/followup-flows/from-model` (role `manager`, só rascunho, `modeloPorId`); montador: `montarEscada` em `lib/followup/modelos/escada.ts:51`. Nichos: `.agents/skills/deskcomm-cliente-novo/references/nichos.md` (clínica, imobiliária, serviços, curso, loja, advocacia, genérico). **Não medido ainda (cada tarefa mede antes):** os GET de credenciais, agentes, funis e materiais para as leituras da T11; o corpo exato de `POST ai/followup-flows` + `PATCH …/[id]`; o número da migration da T18; o custo do botão Testar (T15).
+
+| T | O que é | Depende | Estado |
+|---|---|---|---|
+| T10 | **Escrita por dentro:** `chamarRotaPorDentro` aceita método (`POST`/`PATCH`) e corpo JSON, sem rede, mesmo contexto de sessão; nunca lança; nunca loga o corpo. Só a primitiva e os testes | — | **feito** (15/10: primitiva + 7 casos, POST/PATCH sem corpo mantêm o método) |
+| T11 | **Leituras de configuração** (papel `admin`/`manager`, projeção por lista positiva, nunca segredo): `ler_configuracao_de_ia` (provedor e modelo padrão + credenciais: só id, nome e estado), `listar_agentes`, `listar_funis`, `listar_materiais`. Mede os GET antes | T10 | pendente |
+| T12 | **`criar_rascunho_de_agente`** (`POST ai/agents`): nome, descrição, prompt, pacote de ferramentas por nome (`atender`, `vender`, `reter`, `escalar`, `organizar`, `evoluir`), funis e materiais por id; provedor/modelo/credencial da T11; lê de volta; só `admin` | T10, T11 | pendente |
+| T13 | **Follow-up:** `criar_followup_de_modelo` (os 4 modelos da clínica, `from-model`) e `montar_followup_de_nicho` (toques do nicho → `montarEscada` → rascunho). Mede o corpo de `POST ai/followup-flows` e `PATCH` | T10 | pendente |
+| T14 | **Nichos como dado + `montar_pacote_do_nicho`:** os 7 nichos em `lib/assistente/nichos/` + a ferramenta que cria agente e follow-ups em rascunho numa pedida e devolve "o que foi criado / o que falta" (roteador, conhecimento e memória = propostas da F2b; canal e credencial = PRECISO CONFIRMAR) | T12, T13 | pendente |
+| T15 | **`testar_agente`** (botão Testar, `…/versions/[vid]/test`): roda numa versão RASCUNHO e lê o resultado; declara o custo; nunca em versão publicada | T12 | pendente |
+| T16 | **Tela:** cartão "Criado como rascunho" (tipo, nome, "Abrir o agente/follow-up") e revisão do pacote no painel (`components/assistente/ChatDoAssistente.tsx`; `AcaoDoChat` ganha o tipo `artefato`); PT + ES | T12 | pendente |
+| T17 | **Conduta e prova da F2a:** bloco do prompt com as 5 regras (spec §12.C, só para `admin`); e2e com o dublê + **par** (pedir o agente da clínica no chat × `GET ai/agents` direto: o rascunho existe e nada foi publicado); docs, mapa vivo, `threat-model`, fragmento `.changes/` | T12 a T16 | pendente |
+| T18 | **Migration `config_proposals`** (5 estados, RLS por org, apêndice no baseline, `-- manifest:`, tipos regenerados). Número medido no dia (`pnpm checar:colisao-de-migration`) | F2a | pendente |
+| T19 | **`propor_*`** (roteador, conhecimento FAQ/texto, memória, modelo dos auxiliares, funil e etapas) gravando em `config_proposals` com a sessão (nunca service role) | T18 | pendente |
+| T20 | **Rotas** `GET propostas` e `POST propostas/[id]/{aprovar,aplicar,rejeitar}`: só `admin` + `requireSupportWrite` + `audit()`; `aplicar` exige `aprovada`; 1 proposta = 1 artefato, aplicado pelos handlers existentes | T18, T19 | pendente |
+| T21 | **Tela de propostas** (antes/depois, aprovar, rejeitar, expirar; `pendente` visível com responsável e prazo = anti-morte) + e2e + par + docs | T20 | pendente |
+
+**Sobre os tetos de uso:** a spec previa tetos próprios na F2. A T6 da F1b já entregou os limites de perguntas do administrador (`lib/assistente/limites.ts`, cartão Orçamento). Conferir na T17 se basta para as ferramentas de escrita (que gastam mais: o Testar chama a IA); se faltar, vira tarefa nova, não suposição.
+
 ## F3 — auditoria do tenant (branch `feat/assistente-f3-auditoria`)
 
 **Entrega:** migration `config_snapshots` (`organization_id`, `taken_at`, `resultado jsonb`, `pendencias`), rota de auditoria (calcula PREENCHIDO/POSSO COMPLETAR/PRECISO CONFIRMAR/NÃO SE APLICA + dependências, grava snapshot, mostra evolução), retenção = a do tenant (decisão registrada), bloco na tela do assistente, `.changes/assistente-auditoria.md`.

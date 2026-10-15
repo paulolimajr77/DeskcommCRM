@@ -58,8 +58,39 @@ export function previewFixtureRegistry() {
       // existe naquele turno — e o teste provaria um caminho que o produto não
       // tem. A marca é IMPORTADA do módulo do prompt, nunca um literal
       // duplicado (ver o comentário do ramo sem tools acima).
+      // Ramo do PAR (T9): a pergunta sobre a fila desce até `consultar_metrica`
+      // de verdade — o número que o chat mostra é o mesmo do GET direto, porque
+      // a métrica lê a mesma rota por dentro. O dublê só finge o raciocínio do
+      // modelo (qual ferramenta chamar); dado, papel e RLS continuam reais.
+      // NUNCA lança: extração defensiva com fallback para o texto fixo.
+      const extrairFila = (resultados: unknown[]): number | null => {
+        for (const item of resultados) {
+          try {
+            const achado = JSON.stringify(item).match(/"fila"\s*:\s*(\d+)/);
+            if (achado) return Number(achado[1]);
+          } catch {
+            continue;
+          }
+        }
+        return null;
+      };
       if (text.includes(MARCA_DO_ASSISTENTE)) {
-        if (
+        const temConsulta = options.tools?.some((t) => t.type === 'function' && t.name === 'consultar_metrica');
+        const consultou = saw('consultar_metrica');
+        if (/fila/i.test(text) && temConsulta === true && !consultou) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: 'consultar_metrica',
+            input: JSON.stringify({ metrica: 'conversas_por_visao', parametros: {} }),
+          });
+        } else if (consultou) {
+          const fila = extrairFila(toolResults);
+          content.push({
+            type: 'text',
+            text: fila === null ? 'Resposta de teste do assistente.' : `Há ${fila} conversas na fila do inbox.`,
+          });
+        } else if (
           options.tools?.some((t) => t.type === 'function' && t.name === 'listar_metricas') &&
           !saw('listar_metricas')
         ) {

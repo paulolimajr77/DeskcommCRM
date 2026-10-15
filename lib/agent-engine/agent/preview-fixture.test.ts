@@ -58,6 +58,49 @@ describe("previewFixtureRegistry — o ramo do assistente", () => {
     expect(r.content).toEqual([{ type: "text", text: "Resposta de teste do assistente." }]);
   });
 
+  it("pergunta sobre a fila: 1ª etapa pede `consultar_metrica(conversas_por_visao)`", async () => {
+    const r = await fabrica()("chave", "modelo").doGenerate(
+      opcoes(
+        [
+          { role: "system", content: SYSTEM_DO_ASSISTENTE },
+          { role: "user", content: "quantas conversas há na fila?" },
+        ],
+        [
+          { type: "function", name: "listar_metricas" },
+          { type: "function", name: "consultar_metrica" },
+        ],
+      ),
+    );
+    expect(r.content).toHaveLength(1);
+    expect(r.content[0]).toMatchObject({ type: "tool-call", toolName: "consultar_metrica" });
+    expect((r.content[0] as { input: string }).input).toContain("conversas_por_visao");
+  });
+
+  it("2ª etapa da fila: com o resultado de `consultar_metrica`, o texto traz o número", async () => {
+    const r = await fabrica()("chave", "modelo").doGenerate(
+      opcoes(
+        [
+          { role: "system", content: SYSTEM_DO_ASSISTENTE },
+          { role: "user", content: "quantas conversas há na fila?" },
+          {
+            role: "tool",
+            content: [
+              {
+                toolName: "consultar_metrica",
+                output: { ok: true, metrica: "conversas_por_visao", dados: { fila: 7 } },
+              },
+            ],
+          },
+        ],
+        [
+          { type: "function", name: "listar_metricas" },
+          { type: "function", name: "consultar_metrica" },
+        ],
+      ),
+    );
+    expect(r.content).toEqual([{ type: "text", text: expect.stringContaining("7") }]);
+  });
+
   it("prompt SEM a marca segue o comportamento antigo", async () => {
     // A guarda contra regressão do ramo vizinho: o assistente não pode mudar o
     // que o dublê devolve para os outros turnos.

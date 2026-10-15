@@ -46,7 +46,7 @@ export function criarConsultarMetrica(entrada: EntradaDasFerramentas): Tool {
       '{"tipo":"mes_atual"} (dia 1 até hoje, parcial); ' +
       '{"tipo":"mes_passado"} (o mês anterior inteiro); ' +
       '{"tipo":"intervalo","de":"2026-10-01","ate":"2026-10-07"} (datas AAAA-MM-DD, o `ate` conta como dia incluído). ' +
-      'Exemplo de chamada: {"metrica":"conversas","parametros":{"periodo":{"tipo":"ultimos_dias","dias":30}}}. ' +
+      'Exemplo de chamada: {"metrica":"conversas_por_visao"} (foto do inbox agora; esta métrica não tem parâmetros — as de período pedem {"periodo":{"tipo":"semana_passada"}}). ' +
       "Se o resultado vier com `sem_permissao`, `modulo_ausente` ou `indisponivel`, diga isso à " +
       "pessoa com clareza; nunca invente o número.",
     inputSchema: esquemaDeEntrada,

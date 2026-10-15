@@ -6,8 +6,9 @@
  * da operação; (5) uma pergunta de guia devolve trecho do guia.
  * Login como agent (papel mínimo do chat).
  *
- * As expectativas de CONTEÚDO das respostas (4 e 5) são do tempo da F1 e ficam
- * como estão até a T9 (e2e com o dublê do modelo).
+ * O PAR (T9): a pergunta sobre a fila desce até `consultar_metrica` de verdade
+ * (o dublê só finge o raciocínio do modelo), então o número na tela é o mesmo
+ * do `GET /api/v1/conversations/counts` direto — mesma sessão, mesmo escopo RLS.
  */
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -99,6 +100,23 @@ test("⌘K → Conversar com o assistente abre o mesmo painel", async ({ page })
   expect(page.url()).toBe(urlAntes);
   // É o mesmo painel que o ícone do topo abre e fecha.
   await expect(page.getByTestId("assistente-link")).toHaveAttribute("aria-expanded", "true");
+});
+
+test("par: a fila no chat é o número do GET direto (dublê desce até a métrica)", async ({ page }) => {
+  await login(page, creds.users.agent!.email);
+  await abrirAssistente(page);
+
+  await page.getByTestId("assistente-pergunta").fill("quantas conversas há na fila?");
+  await page.getByTestId("assistente-perguntar").click();
+
+  const mensagens = page.getByTestId("assistente-mensagens");
+  await expect(mensagens).toContainText(/Há \d+ conversas na fila/);
+  const doChat = Number((await mensagens.innerText()).match(/Há (\d+) conversas na fila/)?.[1]);
+
+  const direto = await page.request.get("/api/v1/conversations/counts");
+  expect(direto.ok()).toBe(true);
+  const corpo = (await direto.json()) as { data: { fila: number } };
+  expect(doChat).toBe(corpo.data.fila);
 });
 
 test("/app/assistente não existe mais: não há página em tela cheia", async ({ page }) => {

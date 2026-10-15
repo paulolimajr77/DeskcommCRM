@@ -170,4 +170,16 @@ describe("consultar_metrica", () => {
     }
     expect(descricao).toContain("listar_metricas");
   });
+
+  it("o exemplo da descrição usa um id real do catálogo (conversas_por_visao, sem período)", async () => {
+    const { ferramentas } = montarParaTeste("manager");
+    const bruta = ferramentas.consultar_metrica?.description;
+    const descricao = typeof bruta === "string" ? bruta : "";
+
+    // "conversas" não é id (o catálogo só resolve o id exato) e a métrica de
+    // conversas não aceita período — o exemplo velho ensinava uma chamada que
+    // voltava `parametro_invalido`.
+    expect(descricao).toContain('"metrica":"conversas_por_visao"');
+    expect(descricao.includes('"metrica":"conversas",')).toBe(false);
+  });
 });

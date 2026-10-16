@@ -18,6 +18,14 @@ interface AcaoDaTela {
   href: string;
 }
 
+/** Um cartão "criado como rascunho"; o `href` foi montado no servidor. */
+interface CartaoNaTela {
+  artefato: "agente" | "followup";
+  nome: string;
+  rotulo: string;
+  href: string;
+}
+
 interface MensagemNaTela {
   id: string;
   author_kind: "human" | "ai";
@@ -25,14 +33,24 @@ interface MensagemNaTela {
   /** Só na resposta recém-chegada: por que a IA não respondeu (piso). */
   aviso?: string | null;
   /** Só na resposta recém-chegada. */
-  acoes?: AcaoDaTela[];
+  botoes?: AcaoDaTela[];
+  /** Só na resposta recém-chegada. */
+  cartoes?: CartaoNaTela[];
+}
+
+interface ItemDeAcao {
+  tipo?: unknown;
+  artefato?: unknown;
+  nome?: unknown;
+  rotulo?: unknown;
+  href?: unknown;
 }
 
 interface RespostaDoChat {
   thread_id: string;
   resposta?: string;
   aviso?: string | null;
-  acoes?: Array<{ rotulo?: unknown; href?: unknown }>;
+  acoes?: ItemDeAcao[];
 }
 
 const PERGUNTA_RAPIDA = "resumo: quantas conversas abertas?";
@@ -68,15 +86,31 @@ function ehDestinoInterno(href: string): boolean {
   return href.startsWith("/app/");
 }
 
-function acoesValidas(acoes: RespostaDoChat["acoes"]): AcaoDaTela[] {
-  if (!Array.isArray(acoes)) return [];
-  const validas: AcaoDaTela[] = [];
+/** Um item `artefato` só vira cartão com os 4 campos válidos; o resto cai fora em silêncio. */
+function cartaoValido(acao: ItemDeAcao): CartaoNaTela | null {
+  if (acao.tipo !== "artefato") return null;
+  if (acao.artefato !== "agente" && acao.artefato !== "followup") return null;
+  if (typeof acao.nome !== "string" || acao.nome.trim() === "") return null;
+  if (typeof acao.rotulo !== "string" || acao.rotulo.trim() === "") return null;
+  if (typeof acao.href !== "string" || !ehDestinoInterno(acao.href)) return null;
+  return { artefato: acao.artefato, nome: acao.nome, rotulo: acao.rotulo, href: acao.href };
+}
+
+function acoesValidas(acoes: RespostaDoChat["acoes"]): { botoes: AcaoDaTela[]; cartoes: CartaoNaTela[] } {
+  if (!Array.isArray(acoes)) return { botoes: [], cartoes: [] };
+  const botoes: AcaoDaTela[] = [];
+  const cartoes: CartaoNaTela[] = [];
   for (const acao of acoes) {
+    const cartao = cartaoValido(acao);
+    if (cartao !== null) {
+      cartoes.push(cartao);
+      continue;
+    }
     if (typeof acao.rotulo !== "string" || typeof acao.href !== "string") continue;
     if (!ehDestinoInterno(acao.href)) continue;
-    validas.push({ rotulo: acao.rotulo, href: acao.href });
+    botoes.push({ rotulo: acao.rotulo, href: acao.href });
   }
-  return validas;
+  return { botoes, cartoes };
 }
 
 /** A frase do envelope `{ error: { message } }`, quando a rota mandou uma. */
@@ -233,6 +267,7 @@ export function ChatDoAssistente({
       guardarConversa(data.thread_id);
       if (typeof data.resposta === "string") {
         const resposta = data.resposta;
+        const { botoes, cartoes } = acoesValidas(data.acoes);
         setMensagens((atuais) => [
           ...atuais,
           {
@@ -240,7 +275,8 @@ export function ChatDoAssistente({
             author_kind: "ai",
             body: corpoSemAviso(resposta, data.aviso),
             aviso: data.aviso ?? null,
-            acoes: acoesValidas(data.acoes),
+            botoes,
+            cartoes,
           },
         ]);
       } else {
@@ -318,9 +354,9 @@ export function ChatDoAssistente({
             {m.body !== "" ? (
               <p className="max-w-full rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{m.body}</p>
             ) : null}
-            {m.acoes !== undefined && m.acoes.length > 0 ? (
+            {m.botoes !== undefined && m.botoes.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {m.acoes.map((acao) => (
+                {m.botoes.map((acao) => (
                   <button
                     key={acao.href}
                     type="button"
@@ -330,6 +366,32 @@ export function ChatDoAssistente({
                   >
                     {acao.rotulo}
                   </button>
+                ))}
+              </div>
+            ) : null}
+            {m.cartoes !== undefined && m.cartoes.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {m.cartoes.map((cartao) => (
+                  <div
+                    key={cartao.href}
+                    role="region"
+                    aria-label={cartao.nome}
+                    data-testid="assistente-cartao"
+                    className="max-w-full rounded-md border px-3 py-2"
+                  >
+                    <p className="text-xs font-medium">{t("Criado como rascunho")}</p>
+                    <p className="text-sm">{cartao.artefato === "agente" ? t("Agente") : t("Follow-up")}</p>
+                    <p className="text-sm font-medium">{cartao.nome}</p>
+                    <p className="text-xs text-text-muted">{t("Nada foi publicado.")}</p>
+                    <button
+                      type="button"
+                      onClick={() => abrirTela(cartao.href)}
+                      data-testid="assistente-cartao-abrir"
+                      className="mt-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      {cartao.rotulo}
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : null}

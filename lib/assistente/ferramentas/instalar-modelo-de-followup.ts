@@ -22,7 +22,7 @@ import { chamarRotaPorDentro, type HandlerDeRota } from "@/lib/assistente/metric
 import { MODELOS_DE_FOLLOWUP, modeloPorId } from "@/lib/followup/modelos";
 
 import { protegida } from "./protegida";
-import type { EntradaDasFerramentas } from "./tipos";
+import { anotarCartaoDeArtefato, type EntradaDasFerramentas } from "./tipos";
 
 const IDS_DOS_MODELOS = MODELOS_DE_FOLLOWUP.map((m) => m.id) as unknown as [string, ...string[]];
 
@@ -134,8 +134,15 @@ export function criarInstalarModeloDeFollowup(entrada: EntradaDasFerramentas): T
       "instalar_modelo_de_followup",
       esquemaDeEntrada,
       async ({ model_id, etapa_id, nome }) => {
-        void entrada;
-        return instalarModeloDeFollowup({ model_id, etapa_id, nome });
+        const resultado = await instalarModeloDeFollowup({ model_id, etapa_id, nome });
+        if (resultado.ok) {
+          anotarCartaoDeArtefato(entrada.coletor, entrada.ctx.idioma, {
+            artefato: "followup",
+            nome: resultado.followup.nome,
+            href: `/app/ai/followups/${resultado.followup.id}`,
+          });
+        }
+        return resultado;
       },
     ),
   });

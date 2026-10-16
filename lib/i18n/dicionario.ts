@@ -15759,6 +15759,10 @@ export const DICIONARIO: Traducoes = {
   "A conversa abriu, mas a primeira mensagem não pôde ser enviada.": {
     es: "La conversación se abrió, pero el primer mensaje no se pudo enviar.",
   },
+  "Criado como rascunho": { es: "Creado como borrador" },
+  "Nada foi publicado.": { es: "No se publicó nada." },
+  "Abrir o agente": { es: "Abrir el agente" },
+  "Abrir o follow-up": { es: "Abrir el seguimiento" },
 };
 
 /**

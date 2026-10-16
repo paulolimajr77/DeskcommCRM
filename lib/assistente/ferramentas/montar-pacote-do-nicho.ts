@@ -37,7 +37,7 @@ import { modeloPorId } from "@/lib/followup/modelos";
 import { criarAgenteRascunho, type MotivoDeFalhaAoAlcancarAgente } from "./criar-rascunho-de-agente";
 import { instalarModeloDeFollowup } from "./instalar-modelo-de-followup";
 import { protegida } from "./protegida";
-import type { EntradaDasFerramentas } from "./tipos";
+import { anotarCartaoDeArtefato, type EntradaDasFerramentas } from "./tipos";
 
 const NICHOS = IDS_DE_NICHO as unknown as [IdDeNicho, ...IdDeNicho[]];
 
@@ -269,16 +269,30 @@ export function criarMontarPacoteDoNicho(entrada: EntradaDasFerramentas): Tool {
       "modelo DESTE nicho, opcionais). Nada publica, nada liga follow-up a agente, nada cria funil.",
     inputSchema: esquemaDeEntrada,
     execute: protegida("montar_pacote_do_nicho", esquemaDeEntrada, async ({ nicho, negocio, descricao, nome_do_agente, followups }) => {
-      void entrada;
       const dados = nichoPorId(nicho);
       if (!dados) return { ok: false as const, motivo: "pedido_invalido" as const };
-      return montarPacoteDoNicho({
+      const resultado = await montarPacoteDoNicho({
         nicho: dados,
         negocio,
         descricao,
         nomeDoAgente: nome_do_agente,
         followups: followups ?? [],
       });
+      if (resultado.ok) {
+        anotarCartaoDeArtefato(entrada.coletor, entrada.ctx.idioma, {
+          artefato: "agente",
+          nome: resultado.criado.agente.nome,
+          href: `/app/ai/agents/${resultado.criado.agente.id}`,
+        });
+        for (const followup of resultado.criado.followups) {
+          anotarCartaoDeArtefato(entrada.coletor, entrada.ctx.idioma, {
+            artefato: "followup",
+            nome: followup.nome,
+            href: `/app/ai/followups/${followup.id}`,
+          });
+        }
+      }
+      return resultado;
     }),
   });
 }

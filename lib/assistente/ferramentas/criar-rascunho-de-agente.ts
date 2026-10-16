@@ -31,7 +31,7 @@ import { PACOTES, type ToolBundle } from "@/lib/mcp/tools/pacotes";
 import { excedeuTeto, ligarPacote } from "@/lib/mcp/tools/selecao-por-pacote";
 
 import { protegida } from "./protegida";
-import type { EntradaDasFerramentas } from "./tipos";
+import { anotarCartaoDeArtefato, type EntradaDasFerramentas } from "./tipos";
 
 const NOMES_DOS_PACOTES = PACOTES.map((p) => p.id) as unknown as [ToolBundle, ...ToolBundle[]];
 
@@ -266,8 +266,15 @@ export function criarRascunhoDeAgente(entrada: EntradaDasFerramentas): Tool {
       "para abrir o agente. Publicar é sempre clique do administrador.",
     inputSchema: esquemaDeEntrada,
     execute: protegida("criar_rascunho_de_agente", esquemaDeEntrada, async ({ nome, descricao, prompt, pacotes, funis, materiais }) => {
-      void entrada;
-      return criarAgenteRascunho({ nome, descricao, prompt, pacotes, funis, materiais });
+      const resultado = await criarAgenteRascunho({ nome, descricao, prompt, pacotes, funis, materiais });
+      if (resultado.ok) {
+        anotarCartaoDeArtefato(entrada.coletor, entrada.ctx.idioma, {
+          artefato: "agente",
+          nome: resultado.agente.nome,
+          href: `/app/ai/agents/${resultado.agente.id}`,
+        });
+      }
+      return resultado;
     }),
   });
 }

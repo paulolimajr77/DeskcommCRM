@@ -13,11 +13,13 @@
  * - timeout 8000ms por tentativa; 1 retry real em falha transitória
  *   (timeout/conexão) — o docstring antigo prometia sem implementar;
  * - transitória persistente vira veredito PROVISÓRIO (não citável, reverificado
- *   até `LIMITE_TENTATIVAS`); definitivo só o comprovado (HTTP/SSL/agregador).
+ *   até `LIMITE_TENTATIVAS`); definitivo só o comprovado (HTTP/SSL/agregador)
+ *   e o domínio inexistente (NXDOMAIN com certeza do resolvedor, na hora).
  *
  * Residual conhecido: DNS rebinding entre a verificação e o connect (TOCTOU),
  * declarado na guarda da casa. Fora do modelo de ameaça desta fase.
  */
+import { lookup as lookupDns } from "node:dns/promises";
 import { isIP } from "node:net";
 
 import {
@@ -30,15 +32,23 @@ import {
   hostDeSite,
   MINIMO_CHARS_PAGINA_REAL,
   montarChecklist,
+  vereditoPuro,
   type ErroDeRede,
   type SiteEnrichment,
 } from "@/lib/prospecting/site-classify";
+import { LIMITE_TENTATIVAS } from "@/lib/prospecting/site-efetivo";
 
 const TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 200_000;
 const LIMITE_LENTO_MS = 5000;
 const MAX_CHARS_RESUMO = 1200;
+/**
+ * Prazo do LOTE de auditoria (todos os sites juntos). Um site pode pendurar
+ * mesmo com `AbortSignal.timeout` (medido na VPS: o tick ficou ~30 min
+ * segurando o lock). Quem não couber no prazo sai provisório e continua depois.
+ */
+export const PRAZO_DO_LOTE_MS = 60_000;
 const UA_NAVEGADOR =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
@@ -102,7 +112,35 @@ function codigoSsl(erro: unknown): string | null {
 /** Verifica o host pela guarda da casa. Injetável para testes determinísticos. */
 export type VerificadorDeHost = (hostname: string) => Promise<void>;
 
-const verificadorPadrao: VerificadorDeHost = (hostname) => assertDestinoResolvidoSeguro(hostname);
+/** `lookup` injetável de DNS (fake nos testes, `node:dns/promises` em produção). */
+export type FuncaoLookup = (
+  hostname: string,
+  opcoes: { all: true },
+) => Promise<Array<{ address: string }>>;
+
+/**
+ * Verificador padrão com NXDOMAIN separado de dúvida de rede (spec 24):
+ * resolvedor respondeu `ENOTFOUND` = domínio não existe (prova, definitivo);
+ * qualquer outra falha de lookup = dúvida (provisório, como a guarda da casa).
+ * Sucesso e literal de IP delegam à guarda da casa (só ela julga IP privado).
+ */
+export function criarVerificadorPadrao(lookupFn: FuncaoLookup = lookupDns): VerificadorDeHost {
+  return async (hostname: string) => {
+    const literal = hostname.replace(/^\[(.*)\]$/, "$1");
+    if (isIP(literal) !== 0) return assertDestinoResolvidoSeguro(hostname);
+    try {
+      await lookupFn(hostname, { all: true });
+    } catch (erro) {
+      if ((erro as { code?: string } | null)?.code === "ENOTFOUND") {
+        throw new Error("unsafe_url:dns_nxdomain");
+      }
+      throw new Error("unsafe_url:dns_failed");
+    }
+    return assertDestinoResolvidoSeguro(hostname);
+  };
+}
+
+const verificadorPadrao: VerificadorDeHost = criarVerificadorPadrao();
 
 async function hostLiberado(
   url: string,
@@ -113,8 +151,9 @@ async function hostLiberado(
   try {
     await verificar(new URL(url).hostname);
   } catch (erro) {
-    // Preserva a mensagem da casa (`unsafe_url:private_ip` vs
-    // `unsafe_url:dns_failed`): o chamador decide entre definitivo e provisório.
+    // Preserva a mensagem da casa (`unsafe_url:private_ip`,
+    // `unsafe_url:dns_nxdomain` vs `unsafe_url:dns_failed`): o chamador
+    // decide entre definitivo e provisório.
     const mensagem = erro instanceof Error ? erro.message : String(erro);
     return mensagem.includes("unsafe_url:") ? mensagem : "rede-interna";
   }
@@ -219,11 +258,12 @@ function anoDesatualizado(html: string): string | null {
 /**
  * Audita um site e devolve o veredito pronto para `data.site`.
  *
- * Transitória (timeout, conexão resetada, DNS recusado) ganha UMA nova
+ * Transitória (timeout, conexão resetada, dúvida de rede) ganha UMA nova
  * tentativa e, persistindo, vira veredito PROVISÓRIO (`provisorio: true`,
  * `tentativas` incrementado) — não citável, reverificado pelo tick depois do
- * intervalo mínimo até `LIMITE_TENTATIVAS`, quando congela definitivo. O docstring antigo prometia
- * esse retry sem implementá-lo; agora existe de verdade.
+ * intervalo mínimo até `LIMITE_TENTATIVAS`, quando congela definitivo.
+ * Domínio inexistente (NXDOMAIN) é prova, não dúvida: definitivo na hora.
+ * O docstring antigo prometia esse retry sem implementá-lo; agora existe de verdade.
  * `pagespeed` sempre null nesta fase (faixa lenta posterior, spec §3.5).
  */
 export async function auditarSite(
@@ -233,6 +273,12 @@ export async function auditarSite(
   verificar: VerificadorDeHost = verificadorPadrao,
   tentativasAnteriores = 0,
 ): Promise<SiteEnrichment> {
+  // Portão puro antes de qualquer rede: Instagram/WhatsApp/linktree e afins
+  // nunca foram site — as linhas antigas (de antes do veredito no insert)
+  // chegam aqui pelo tick e pela reanálise, e buscar URL de agregador além
+  // de desperdiçar fetch ainda rende veredito errado ("lento", "fora-do-ar").
+  const puro = vereditoPuro(url, agoraIso);
+  if (puro) return { ...puro, tentativas: tentativasAnteriores };
   const falha = (
     classe: SiteEnrichment["classe"],
     problemas: string[] = [],
@@ -259,6 +305,11 @@ export async function auditarSite(
       // internet pública — definitivo e citável (nada há para reverificar).
       if (bloqueio === "url-invalida" || bloqueio === "rede-interna" || bloqueio.includes("private_ip")) {
         return falha("fora-do-ar", ["fora-do-ar"]);
+      }
+      // Domínio NÃO EXISTE (NXDOMAIN com certeza do resolvedor): prova, não
+      // dúvida — definitivo e citável na hora, sem retry.
+      if (bloqueio.includes("dns_nxdomain")) {
+        return falha("fora-do-ar", ["fora-do-ar"], false, tentativasAnteriores + 1);
       }
       // DNS que não resolveu: passageiro até prova em contrário.
       if (bloqueio.includes("dns_")) return provisorio(tentativasAnteriores);
@@ -325,20 +376,24 @@ export async function auditarSite(
   }
 }
 
-/** Teto de reverificações de um veredito provisório antes de congelar. */
-export const LIMITE_TENTATIVAS = 3;
-
-// As 3 tentativas precisam cobrir um período de verdade, não 3 minutos de queda de rede.
-export const INTERVALO_MINIMO_ENTRE_TENTATIVAS_MIN = 120;
-
-/** Verdadeiro quando o tick deve buscar este veredito de novo. */
-export function deveReverificar(site: { provisorio: boolean; tentativas: number }): boolean {
-  return site.provisorio && site.tentativas < LIMITE_TENTATIVAS;
-}
+/**
+ * O teto de tentativas e o intervalo entre elas moram em `site-efetivo.ts`
+ * (client-safe, porque o contador da tela lê a mesma régua). Reexportados aqui
+ * para os consumidores server-side continuarem importando deste módulo.
+ */
+export {
+  deveReverificar,
+  INTERVALO_MINIMO_ENTRE_TENTATIVAS_MIN,
+  LIMITE_TENTATIVAS,
+} from "@/lib/prospecting/site-efetivo";
 
 /**
  * Roda N auditorias com paralelismo limitado, sem derrubar o lote por 1 falha
  * (cada item sempre resolve um veredito — nunca rejeita).
+ *
+ * O lote tem PRAZO: 1 site pendurado não pode segurar o lock por minutos
+ * (medido na VPS: o tick ficou ~30 min e a fila inteira respondia 409).
+ * Quem não couber no prazo sai provisório, e o próximo tick/rodada continua.
  */
 export async function auditarSites(
   urls: string[],
@@ -347,16 +402,46 @@ export async function auditarSites(
   fetchFn: typeof fetch = fetch,
   verificar: VerificadorDeHost = verificadorPadrao,
   tentativasAnteriores: number[] | number = 0,
+  prazoMs = PRAZO_DO_LOTE_MS,
 ): Promise<SiteEnrichment[]> {
   const saidas: SiteEnrichment[] = new Array(urls.length);
+  const abortadorDoLote = new AbortController();
+  const relogioDoLote = setTimeout(() => abortadorDoLote.abort(), prazoMs);
+  const anteriorDe = (i: number) =>
+    Array.isArray(tentativasAnteriores) ? (tentativasAnteriores[i] ?? 0) : tentativasAnteriores;
+  const provisorioDe = (i: number): SiteEnrichment => {
+    const anterior = anteriorDe(i);
+    return {
+      ver: 1, classe: "fora-do-ar", problemas: ["fora-do-ar"],
+      checklist: { tem: [], falta: [] }, final_url: null, http_status: null,
+      tempo_ms: 0, conteudo_resumo: null, pagespeed: null, verificado_em: agoraIso,
+      provisorio: anterior + 1 < LIMITE_TENTATIVAS, tentativas: anterior + 1,
+    };
+  };
   let proximo = 0;
   const operarios = Array.from({ length: Math.max(1, Math.min(paralelismo, urls.length)) }, async () => {
     for (;;) {
       const i = proximo++;
       if (i >= urls.length) break;
-      const anterior = Array.isArray(tentativasAnteriores) ? (tentativasAnteriores[i] ?? 0) : tentativasAnteriores;
+      if (abortadorDoLote.signal.aborted) {
+        // Fora do prazo: o próximo tick continua daqui.
+        saidas[i] = provisorioDe(i);
+        continue;
+      }
+      const anterior = anteriorDe(i);
       try {
-        saidas[i] = await auditarSite(urls[i]!, agoraIso, fetchFn, verificar, anterior);
+        // O sinal do lote acompanha cada item: quando o prazo estoura, a rede
+        // em voo é abortada e o item sai provisório em vez de pendurar.
+        saidas[i] = await Promise.race([
+          auditarSite(urls[i]!, agoraIso, fetchFn, verificar, anterior),
+          new Promise<SiteEnrichment>((resolve) => {
+            abortadorDoLote.signal.addEventListener(
+              "abort",
+              () => resolve(provisorioDe(i)),
+              { once: true },
+            );
+          }),
+        ]);
       } catch {
         saidas[i] = {
           ver: 1, classe: "fora-do-ar", problemas: ["fora-do-ar"],
@@ -367,7 +452,11 @@ export async function auditarSites(
       }
     }
   });
-  await Promise.all(operarios);
+  try {
+    await Promise.all(operarios);
+  } finally {
+    clearTimeout(relogioDoLote);
+  }
   return saidas;
 }
 

@@ -14,6 +14,7 @@ import type pg from "pg";
 
 import { audit } from "@/lib/audit";
 import { logger } from "@/lib/logger";
+import { vereditoPuro } from "@/lib/prospecting/site-classify";
 import {
   auditarSites,
   INTERVALO_MINIMO_ENTRE_TENTATIVAS_MIN,
@@ -41,8 +42,35 @@ export async function enriquecerSitesPendentes(
   org: string,
   requestId: string,
   deadline: number,
+  campanhaId?: string,
 ): Promise<ResumoEnriquecimento> {
   const vazio: ResumoEnriquecimento = { enriquecidos: 0, classes: {} };
+  let curados = 0;
+  try {
+    // Cura das linhas ÓRFÃS: sem `website` não há rede a fazer, mas elas
+    // também nunca passam pelo select de baixo (que exige website não-nulo).
+    // Medido na VPS: 116 linhas assim ficavam em "A verificar" para sempre.
+    // O veredito sem-site é determinístico: um UPDATE em lote resolve todas.
+    const semSite = vereditoPuro(null, new Date().toISOString());
+    if (semSite) {
+      const curadas = await db.query(
+        "update prospecting_candidates set data = data || jsonb_build_object('site', $3::jsonb), " +
+          "updated_at = now() where organization_id = $1 " +
+          "and ($2::uuid is null or campaign_id = $2::uuid) " +
+          "and selected is not false " +
+          "and data->'site' is null " +
+          "and nullif(trim(data->>'website'), '') is null",
+        [org, campanhaId ?? null, JSON.stringify(semSite)],
+      );
+      curados = curadas.rowCount ?? 0;
+    }
+  } catch (error) {
+    logger.error("[prospecting.enriquecer-sites] cura de sem-site falhou", {
+      organizationId: org,
+      error: error instanceof Error ? error.message : String(error),
+      requestId,
+    });
+  }
   let rows: Array<{ id: string; website: string; tentativas: number }>;
   try {
     const resultado = await db.query<{ id: string; website: string; tentativas: number }>(
@@ -50,12 +78,18 @@ export async function enriquecerSitesPendentes(
         "coalesce(nullif(data->'site'->>'tentativas', '')::int, 0) as tentativas " +
         "from prospecting_candidates " +
         "where organization_id=$1 " +
+        // O botão da tela é POR CAMPANHA: sem este filtro, "Verificar sites" de
+        // uma campanha gastava o lote da org inteira.
+        "and ($5::uuid is null or campaign_id = $5::uuid) " +
         "and nullif(trim(data->>'website'), '') is not null " +
+        // Desmarcado na preparação fica de fora: ele não vai ser abordado, e a
+        // auditoria é para decidir QUEM abordar (retorna ao marcar de novo).
+        "and selected is not false " +
         "and (data->'site' is null or (coalesce((data->'site'->>'provisorio')::boolean, false) " +
         "and coalesce(nullif(data->'site'->>'tentativas', '')::int, 0) < $3 " +
         "and coalesce(nullif(data->'site'->>'verificado_em','')::timestamptz, 'epoch'::timestamptz) <= now() - make_interval(mins => $4))) " +
         "order by created_at limit $2",
-      [org, TETO_POR_RODADA, LIMITE_TENTATIVAS, INTERVALO_MINIMO_ENTRE_TENTATIVAS_MIN],
+      [org, TETO_POR_RODADA, LIMITE_TENTATIVAS, INTERVALO_MINIMO_ENTRE_TENTATIVAS_MIN, campanhaId ?? null],
     );
     rows = resultado.rows;
   } catch (error) {
@@ -67,7 +101,28 @@ export async function enriquecerSitesPendentes(
     });
     return vazio;
   }
-  if (rows.length === 0 || Date.now() >= deadline) return vazio;
+  const classes: Record<string, number> = {};
+  let enriquecidos = 0;
+  if (curados > 0) {
+    enriquecidos += curados;
+    classes["sem-site"] = (classes["sem-site"] ?? 0) + curados;
+  }
+  if (rows.length === 0 || Date.now() >= deadline) {    // A cura em lote pode ter rodado MESMO sem linha de rede: o resumo precisa
+    // dela (o botão mostra "N verificadas") — o early return antigo devolvia 0
+    // e o operador via trabalho feito sem número.
+    if (enriquecidos > 0) {
+      void audit({
+        action: "prospecting.site_enriched",
+        organizationId: org,
+        bypassedRls: true,
+        resourceType: "prospecting",
+        resourceId: null,
+        metadata: { enriquecidos, classes },
+        requestId,
+      });
+    }
+    return { enriquecidos, classes };
+  }
 
   const agoraIso = new Date().toISOString();
   let veredictos: Awaited<ReturnType<typeof auditarSites>>;
@@ -88,9 +143,6 @@ export async function enriquecerSitesPendentes(
     });
     return vazio;
   }
-
-  const classes: Record<string, number> = {};
-  let enriquecidos = 0;
   for (let i = 0; i < rows.length; i++) {
     const veredito = veredictos[i]!;
     try {

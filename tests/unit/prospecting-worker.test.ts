@@ -274,6 +274,16 @@ describe("tick da prospecção × organização parada", () => {
     expect(sql).not.toMatch(/organization_id <> all/);
     expect(params ?? []).toEqual([]);
   });
+
+  it("o tick NÃO enriquece site: a verificação é sob demanda (botão), não automática", async () => {
+    const query = vi.fn(async (_sql: string, _params?: unknown[]) => ({ rows: [] }));
+    await tickProspecting({ query } as never, {} as never);
+    const [sql] = query.mock.calls[0]!;
+    // O portão da org continua só com quem roda busca/campanha: org ociosa não
+    // entra para fetch de site (isso segurava o lock por minutos com 100+ leads).
+    expect(sql).not.toMatch(/data->'site'/);
+    expect(sql).toMatch(/status='running'/);
+  });
 });
 
 describe("tick da prospecção × organização que para no meio do envio", () => {

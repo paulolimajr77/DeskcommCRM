@@ -313,3 +313,154 @@ describe("prospectEnrichmentSchema com site", () => {
     expect(parsed.success).toBe(false);
   });
 });
+
+describe("dns: inexistente é definitivo na hora, dúvida de rede espera", () => {
+  type LookupFake = (
+    hostname: string,
+    opcoes: { all: true },
+  ) => Promise<Array<{ address: string }>>;
+
+  // `criarVerificadorPadrao` nasce nesta mudança: o import dinâmico isola o
+  // vermelho de hoje (função inexistente) sem quebrar a coleta do arquivo.
+  async function verificadorNovo(lookupFn: LookupFake) {
+    const mod = (await import("@/lib/prospecting/site-fetch")) as unknown as {
+      criarVerificadorPadrao?: (fn: LookupFake) => VerificadorDeHost;
+    };
+    expect(mod.criarVerificadorPadrao, "criarVerificadorPadrao ainda não existe").toBeDefined();
+    return mod.criarVerificadorPadrao!(lookupFn);
+  }
+
+  function lookupQueFalha(codigo?: string): LookupFake {
+    return async () => {
+      const erro = new Error(codigo ? `getaddrinfo ${codigo}` : "queda sem código");
+      if (codigo) (erro as { code?: string }).code = codigo;
+      throw erro;
+    };
+  }
+
+  function fetchExplosivo(contador: { chamadas: number }): typeof fetch {
+    return (() => {
+      contador.chamadas++;
+      throw new Error("fetch não deveria ser chamado");
+    }) as unknown as typeof fetch;
+  }
+
+  it("caso A: ENOTFOUND vira fora-do-ar definitivo na hora, sem retry e sem fetch", async () => {
+    const verificar = await verificadorNovo(lookupQueFalha("ENOTFOUND"));
+    const contador = { chamadas: 0 };
+    const v = await auditarSite(
+      "https://dominio-que-nao-existe.test/", AGORA, fetchExplosivo(contador), verificar,
+    );
+    expect(v.classe).toBe("fora-do-ar");
+    expect(v.provisorio).toBe(false);
+    expect(v.tentativas).toBeGreaterThanOrEqual(1);
+    expect(contador.chamadas).toBe(0);
+  });
+
+  it("caso B: EAI_AGAIN continua provisório, como hoje", async () => {
+    const verificar = await verificadorNovo(lookupQueFalha("EAI_AGAIN"));
+    const contador = { chamadas: 0 };
+    const v = await auditarSite(
+      "https://instavel.test/", AGORA, fetchExplosivo(contador), verificar,
+    );
+    expect(v.classe).toBe("fora-do-ar");
+    expect(v.provisorio).toBe(true);
+    expect(v.tentativas).toBe(1);
+    expect(contador.chamadas).toBe(0);
+  });
+
+  it("caso C: ETIMEOUT ou erro sem código continua provisório", async () => {
+    for (const codigo of ["ETIMEOUT", undefined] as const) {
+      const verificar = await verificadorNovo(lookupQueFalha(codigo));
+      const contador = { chamadas: 0 };
+      const v = await auditarSite(
+        "https://instavel.test/", AGORA, fetchExplosivo(contador), verificar,
+      );
+      expect(v.provisorio).toBe(true);
+      expect(v.tentativas).toBe(1);
+      expect(contador.chamadas).toBe(0);
+    }
+  });
+
+  it("caso D: 3 ticks seguidos de dúvida não congelam", async () => {
+    const verificar = await verificadorNovo(lookupQueFalha("EAI_AGAIN"));
+    const contador = { chamadas: 0 };
+    for (const hora of ["12:00", "12:01", "12:02"]) {
+      const v = await auditarSite(
+        "https://instavel.test/",
+        `2026-10-10T${hora}:00.000Z`,
+        fetchExplosivo(contador),
+        verificar,
+      );
+      expect(v.classe).toBe("fora-do-ar");
+      expect(v.provisorio).toBe(true);
+    }
+    expect(contador.chamadas).toBe(0);
+  });
+
+  it("caso E: literal privado continua definitivo (lookup nem é consultado)", async () => {
+    const verificar = await verificadorNovo(async () => {
+      throw new Error("lookup não deveria ser chamado para literal");
+    });
+    await expect(verificar("127.0.0.1")).rejects.toThrow("unsafe_url:private_ip");
+    const contador = { chamadas: 0 };
+    const v = await auditarSite(
+      "http://127.0.0.1:9/", AGORA, fetchExplosivo(contador), verificar,
+    );
+    expect(v.classe).toBe("fora-do-ar");
+    expect(v.provisorio).toBe(false);
+    expect(contador.chamadas).toBe(0);
+  });
+
+  it("portão puro: Instagram sai agregador sem fetch", async () => {
+    const contador = { chamadas: 0 };
+    const v = await auditarSite(
+      "https://instagram.com/saliesteticaavancada", AGORA, fetchExplosivo(contador), VERIFICADOR_LIBERADO,
+    );
+    expect(v.classe).toBe("agregador");
+    expect(v.provisorio).toBe(false);
+    expect(contador.chamadas).toBe(0);
+  });
+
+  it("o lote inteiro termina dentro do prazo, mesmo com um site pendurado", async () => {
+    let liberarPendurado: (() => void) | null = null;
+    const fetchPendurado: typeof fetch = (async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("pendurado")) {
+        // Nunca responde: simula o site que ignora o abort (o defeito medido
+        // na VPS: o tick ficou ~30 min segurando o lock por causa de 1 site).
+        await new Promise<void>(() => {
+          liberarPendurado = () => undefined;
+        });
+      }
+      return new Response(PAGINA_BOA, { status: 200 });
+    }) as unknown as typeof fetch;
+    const t0 = Date.now();
+    const saidas = await auditarSites(
+      ["https://a.test/", "https://pendurado.test/", "https://b.test/"],
+      AGORA,
+      3,
+      fetchPendurado,
+      VERIFICADOR_LIBERADO,
+      0,
+      1000, // prazo curto: o teste mede a MECÂNICA do teto, não o default.
+    );
+    const decorrido = Date.now() - t0;
+    // Sem o teto do lote, este teste nunca termina (o runner morre no timeout).
+    expect(decorrido).toBeLessThan(30_000);
+    expect(saidas).toHaveLength(3);
+    expect(saidas[0]?.classe).toBe("site-ok");
+    expect(saidas[2]?.classe).toBe("site-ok");
+    void liberarPendurado;
+  }, 45_000);
+
+  it("portão puro: link de WhatsApp sai agregador sem fetch", async () => {
+    const contador = { chamadas: 0 };
+    const v = await auditarSite(
+      "https://wa.me/5511999990000", AGORA, fetchExplosivo(contador), VERIFICADOR_LIBERADO,
+    );
+    expect(v.classe).toBe("agregador");
+    expect(v.provisorio).toBe(false);
+    expect(contador.chamadas).toBe(0);
+  });
+});

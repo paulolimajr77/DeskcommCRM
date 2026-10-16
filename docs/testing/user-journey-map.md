@@ -3548,7 +3548,7 @@ partir da lápide, com o 500 que não diz "nada foi apagado": medida por unidade
 `lib/tenants/exclusao.test.ts` e `…/delete/route.test.ts`, e o inventário da lápide em
 `tests/invariants/gestao-de-tenants.test.ts`.
 
-## J45 — Conversar com o assistente interno no painel lateral `[P1]` (2026-10-15)
+## J48 — Conversar com o assistente interno no painel lateral `[P1]` (2026-10-15)
 
 Abrir o painel pelo ícone de IA no topo e pelo item "Conversar" do ⌘K, pedir o
 resumo da operação, perguntar um número ("quantas conversas há na fila?") e uma
@@ -3556,7 +3556,7 @@ dúvida de guia — e trocar de página com o painel aberto, sem perder a conver
 Spec: `tests/e2e/assistente-chat-leitura.spec.ts` (job e2e, parte 1), com o dublê
 do modelo (`INTERNAL_AGENT_RUN_STUB`): o par chat × `GET conversations/counts`
 direto prova que o número na tela é o do banco, mesma sessão e mesmo escopo RLS.
-O caso de escrita (J45.7) é a spec `tests/e2e/assistente-rascunho-de-agente.spec.ts`
+O caso de escrita (J48.7) é a spec `tests/e2e/assistente-rascunho-de-agente.spec.ts`
 (job e2e, parte 6): o par chat × `GET ai/agents` direto prova que o rascunho
 existe e que nada foi publicado — cobre SÓ o rascunho de agente via pacote do
 nicho; follow-up instalado junto, Testar e propostas ao vivo (F2b) seguem sem
@@ -3568,13 +3568,13 @@ rodar localmente (e2e exige app + banco semeado); a primeira medição é a do j
 
 | # | Caso | Expectativa | Resultado |
 |---|------|-------------|-----------|
-| J45.1 | Ícone do topo abre o painel | painel "Assistente" visível; a URL não muda (não há página) | a medir (CI) |
-| J45.2 | Resumo da operação | resposta do turno (dublê) na conversa | a medir (CI) |
-| J45.3 | Par da fila | o número no chat é o `fila` do GET direto | a medir (CI) |
-| J45.4 | Troca de página | painel continua aberto, com o rascunho digitado | a medir (CI) |
-| J45.5 | ⌘K → Conversar | abre o mesmo painel, sem trocar de página | a medir (CI) |
-| J45.6 | Sem página em tela cheia | `GET /app/assistente` → 404 | a medir (CI) |
-| J45.7 | Pedir o agente da clínica no chat (admin, F2a) | cartão "Criado como rascunho" com o nome do agente + `GET ai/agents` direto mostra o rascunho sem nada publicado (par) | a medir (CI) |
+| J48.1 | Ícone do topo abre o painel | painel "Assistente" visível; a URL não muda (não há página) | a medir (CI) |
+| J48.2 | Resumo da operação | resposta do turno (dublê) na conversa | a medir (CI) |
+| J48.3 | Par da fila | o número no chat é o `fila` do GET direto | a medir (CI) |
+| J48.4 | Troca de página | painel continua aberto, com o rascunho digitado | a medir (CI) |
+| J48.5 | ⌘K → Conversar | abre o mesmo painel, sem trocar de página | a medir (CI) |
+| J48.6 | Sem página em tela cheia | `GET /app/assistente` → 404 | a medir (CI) |
+| J48.7 | Pedir o agente da clínica no chat (admin, F2a) | cartão "Criado como rascunho" com o nome do agente + `GET ai/agents` direto mostra o rascunho sem nada publicado (par) | a medir (CI) |
 
 Não provado pela tela: o piso sem chave de IA (coberto por unidade em
 `tests/unit/assistente-chat-rota.test.ts`, bloco "piso quando o modelo não

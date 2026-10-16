@@ -25,6 +25,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 import { test, expect, type Page } from "./helpers/test";
+import { cifrarChaveDeTeste } from "./helpers/chave-de-ia-de-teste";
 import { lerCreds, loginComoAdmin, type CredsE2E } from "./helpers/login-admin";
 
 const ETIQUETA_DA_CREDENCIAL = "E2E Assistente Rascunho";
@@ -57,10 +58,9 @@ test.beforeAll(async () => {
       organization_id: organizacaoId,
       provider: provedor,
       label: ETIQUETA_DA_CREDENCIAL,
-      api_key_encrypted: "\\x00",
-      api_key_iv: "\\x00",
-      api_key_tag: "\\x00",
-      api_key_last4: "e2e2",
+      // CIFRADA de verdade: o seam decifra a credencial da organização, e bytes de
+      // enfeite derrubam o turno com TypeError (ver o helper).
+      ...cifrarChaveDeTeste("chave-de-teste-e2e"),
       is_active: true,
       validated_at: new Date().toISOString(),
     } as never)

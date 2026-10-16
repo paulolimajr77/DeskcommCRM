@@ -382,7 +382,7 @@ passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
 
 - Chat com IA de leitura no painel lateral (F1b): 17 métricas agregadas, guias,
   botão de abrir tela, piso determinístico, tetos de perguntas no cartão
-  Orçamento (`docs/architecture/assistente-interno.architecture.json`, J45).
+  Orçamento (`docs/architecture/assistente-interno.architecture.json`, J48).
 - Rascunhos diretos pelo chat, só para `admin` (F2a): criar rascunho de agente,
   follow-up por modelo, pacote do nicho (clínica e advocacia têm prompt pronto;
   os outros 5 nichos recusam), botão Testar em rascunho e cartão "Criado como

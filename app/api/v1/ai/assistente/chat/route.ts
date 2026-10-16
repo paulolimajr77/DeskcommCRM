@@ -338,13 +338,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   } catch (erro) {
     motivoDoPiso = motivoDoErro(erro);
-    // Só o NOME do erro vai ao log: a mensagem pode carregar detalhe do
-    // provedor e nunca vai à resposta, ao aviso nem ao `error_code`.
+    // O NOME do erro e o começo da mensagem (200 caracteres) vão ao log, para o
+    // próximo erro não ser cego (o vermelho do e2e da clínica só dizia
+    // "TypeError"). A mensagem NUNCA vai à resposta, ao aviso nem ao
+    // `error_code`; a pergunta da pessoa não entra aqui.
     logger.warn("assistente.chat.modelo_nao_respondeu", {
       requestId,
       organization_id: orgId,
       motivo: motivoDoPiso,
       erro: erro instanceof Error ? erro.name : "desconhecido",
+      mensagem: erro instanceof Error ? erro.message.slice(0, 200) : "",
     });
   }
 

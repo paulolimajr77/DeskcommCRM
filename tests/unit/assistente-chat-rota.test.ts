@@ -802,7 +802,7 @@ describe("POST — piso quando o modelo não responde", () => {
     },
   );
 
-  it("a mensagem do erro não vai a lugar nenhum: nem resposta, nem linha gravada, nem auditoria, nem log", async () => {
+  it("a mensagem do erro só vai ao log (truncada em 200): nem resposta, nem linha gravada, nem auditoria", async () => {
     vi.mocked(loadSkills).mockResolvedValue([]);
     vi.mocked(responderComoAssistente).mockRejectedValue(new Error("SEGREDO-DO-ERRO"));
     const { mensagens } = poolFalso();
@@ -810,13 +810,24 @@ describe("POST — piso quando o modelo não responde", () => {
     expect(JSON.stringify(await corpoDe(r))).not.toContain("SEGREDO-DO-ERRO");
     expect(JSON.stringify(mensagens)).not.toContain("SEGREDO-DO-ERRO");
     expect(JSON.stringify(vi.mocked(audit).mock.calls)).not.toContain("SEGREDO-DO-ERRO");
-    expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain("SEGREDO-DO-ERRO");
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(vi.mocked(logger.warn).mock.calls[0]?.[1]).toMatchObject({
       motivo: "erro_do_modelo",
       erro: "Error",
+      mensagem: "SEGREDO-DO-ERRO",
       organization_id: ORG_ID,
     });
+  });
+
+  it("a mensagem do erro vai ao log truncada em 200 caracteres, sem a pergunta da pessoa", async () => {
+    vi.mocked(loadSkills).mockResolvedValue([]);
+    vi.mocked(responderComoAssistente).mockRejectedValue(new TypeError("X".repeat(500)));
+    poolFalso();
+    await POST(pedido(CORPO_OK));
+    const campos = vi.mocked(logger.warn).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(campos.erro).toBe("TypeError");
+    expect(campos.mensagem).toBe("X".repeat(200));
+    expect(JSON.stringify(campos)).not.toContain("anúncios");
   });
 
   it("falha ao montar as ferramentas também cai no piso, sem vazar a mensagem", async () => {

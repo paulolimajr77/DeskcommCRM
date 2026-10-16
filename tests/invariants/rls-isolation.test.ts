@@ -826,6 +826,12 @@ export const TABLES = [
   // motivo de `webhook_lead_captures`: a leitura é só do `admin` e o usuário
   // semeado aqui é `agent`, então o controle positivo falharia por ACERTO. A
   // prova vive em `tests/invariants/cobranca-isolamento.test.ts`.
+  // ⚠️ `config_proposals` (migration 0690) também NÃO entra, pelo mesmo motivo: o
+  // payload da proposta pode carregar prompt, texto de conhecimento e memória, então
+  // a leitura é só do `admin` (diferente do chat, que é `viewer`+) e o `agent`
+  // semeado aqui leria ZERO. A prova vive no `describe` dedicado mais abaixo
+  // ("config_proposals (migration 0690)"), neste mesmo arquivo, e a tabela está
+  // declarada em PROVA_PROPRIA de rls-completude-varredura.test.ts.
 ] as const;
 
 describe("RLS tenant isolation (fn_user_org_ids pattern)", () => {
@@ -893,5 +899,302 @@ describe("RLS tenant isolation (fn_user_org_ids pattern)", () => {
       ),
     );
     expect(total).toBe(2);
+  });
+});
+
+/**
+ * config_proposals (migration 0690) — as propostas de configuração do assistente.
+ *
+ * Fora de `TABLES` de propósito (ver o comentário no fim dela): a leitura é só do
+ * `admin`, e o usuário semeado lá é `agent`. Aqui há dois tenants com um usuário de
+ * cada papel em A (admin, manager, agent, viewer) e um admin em B.
+ *
+ * Três coisas são medidas: o isolamento e o gate de papel (leitura e inserção),
+ * o privilégio (a sessão NUNCA atualiza nem apaga — aprovar e aplicar são do
+ * servidor) e o gatilho de transição ("aplicar exige aprovada", conteúdo imutável).
+ */
+describe("config_proposals (migration 0690)", () => {
+  const P = "c0690000-0000-4000-8000";
+  const u = (n: number) => `${P}-${String(n).padStart(12, "0")}`;
+  const ADMIN_A = u(11);
+  const MANAGER_A = u(12);
+  const VIEWER_A = u(13);
+  const ADMIN_B = u(14);
+  // O `agent` de A é o USER_A semeado no topo do arquivo.
+  const PROP_A = u(101); // semeada, pendente, org A
+  const PROP_B = u(102); // semeada, pendente, org B
+  const PROP_INSERIDA = u(103); // inserida pela SESSÃO do admin de A
+  const PROP_T1 = u(111); // pendente -> aplicada (recusada)
+  const PROP_T2 = u(112); // pendente -> aprovada -> aplicada (passa); depois aplicada -> pendente (recusada)
+  const PROP_T3 = u(113); // mudar o payload (recusado)
+  const PROP_T4 = u(114); // aprovada -> rejeitada (recusada)
+  const PROP_T5 = u(115); // aprovada -> aplicada trocando decided_by (recusada)
+
+  /** stderr do psql com SQLSTATE (VERBOSITY verbose), ou "" se o script passou. */
+  function erroDe(script: string): string {
+    try {
+      sql(`\\set VERBOSITY verbose\n${script}`);
+      return "";
+    } catch (err) {
+      return String((err as { stderr?: string }).stderr ?? err);
+    }
+  }
+
+  function comoUsuario(user: string, comando: string): string {
+    return `set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', false);
+${comando};`;
+  }
+
+  function comoServidor(comando: string): string {
+    return `set role service_role;
+${comando};`;
+  }
+
+  /** Semente pelo dono do banco (ignora RLS), idempotente. */
+  function semear(id: string, org: string, pedidoPor: string): string {
+    return `insert into public.config_proposals
+        (id, organization_id, kind, risk, resumo, motivo, payload, requested_by)
+      values ('${id}', '${org}', 'memoria', 'seguro', 'Resumo de teste', 'Motivo de teste',
+              '{"texto":"original"}'::jsonb, '${pedidoPor}')
+      on conflict (id) do nothing;`;
+  }
+
+  /** Insert pela SESSÃO, sem RETURNING (RETURNING exigiria também a policy de leitura). */
+  function inserirComoSessao(id: string, org: string, pedidoPor: string): string {
+    return `insert into public.config_proposals
+        (id, organization_id, kind, risk, resumo, motivo, payload, requested_by)
+      values ('${id}', '${org}', 'memoria', 'seguro', 'Resumo de teste', 'Motivo de teste',
+              '{"texto":"x"}'::jsonb, '${pedidoPor}')`;
+  }
+
+  function estado(id: string): string {
+    return sql(`select status from public.config_proposals where id = '${id}';`);
+  }
+
+  beforeAll(() => {
+    sql(`
+      insert into auth.users (id, email) values
+        ('${ADMIN_A}', 'prop-admin-a@invariant.test'),
+        ('${MANAGER_A}', 'prop-manager-a@invariant.test'),
+        ('${VIEWER_A}', 'prop-viewer-a@invariant.test'),
+        ('${ADMIN_B}', 'prop-admin-b@invariant.test')
+      on conflict (id) do nothing;
+      insert into public.user_organizations (user_id, organization_id, role, accepted_at) values
+        ('${ADMIN_A}', '${ORG_A}', 'admin', now()),
+        ('${MANAGER_A}', '${ORG_A}', 'manager', now()),
+        ('${VIEWER_A}', '${ORG_A}', 'viewer', now()),
+        ('${ADMIN_B}', '${ORG_B}', 'admin', now())
+      on conflict do nothing;
+      ${semear(PROP_A, ORG_A, ADMIN_A)}
+      ${semear(PROP_B, ORG_B, ADMIN_B)}
+      ${semear(PROP_T1, ORG_A, ADMIN_A)}
+      ${semear(PROP_T2, ORG_A, ADMIN_A)}
+      ${semear(PROP_T3, ORG_A, ADMIN_A)}
+      ${semear(PROP_T4, ORG_A, ADMIN_A)}
+      ${semear(PROP_T5, ORG_A, ADMIN_A)}
+    `);
+  });
+
+  it("controle: as duas organizações têm proposta semeada", () => {
+    expect(Number(sql(
+      `select count(distinct organization_id) from public.config_proposals where organization_id in ('${ORG_A}','${ORG_B}');`,
+    ))).toBe(2);
+  });
+
+  // (i) + (iii)
+  it("o admin de A lê só as propostas de A e zero as de B", () => {
+    const todasDeA = Number(sql(`select count(*) from public.config_proposals where organization_id = '${ORG_A}';`));
+    expect(todasDeA).toBeGreaterThanOrEqual(5);
+    expect(countAs(ADMIN_A, `select count(*) from public.config_proposals where organization_id = '${ORG_A}';`)).toBe(todasDeA);
+    expect(countAs(ADMIN_A, `select count(*) from public.config_proposals where organization_id = '${ORG_B}';`)).toBe(0);
+    // Sem filtro de organização: a RLS sozinha limita ao que é de A.
+    expect(countAs(ADMIN_A, `select count(*) from public.config_proposals;`)).toBe(todasDeA);
+  });
+
+  it("o admin de B lê a de B e zero as de A (direção inversa)", () => {
+    expect(countAs(ADMIN_B, `select count(*) from public.config_proposals where organization_id = '${ORG_B}';`)).toBeGreaterThanOrEqual(1);
+    expect(countAs(ADMIN_B, `select count(*) from public.config_proposals where organization_id = '${ORG_A}';`)).toBe(0);
+  });
+
+  // (ii)
+  it("manager, agent e viewer de A não leem nenhuma proposta, nem as da própria organização", () => {
+    for (const user of [MANAGER_A, USER_A, VIEWER_A]) {
+      expect(countAs(user, `select count(*) from public.config_proposals where organization_id = '${ORG_A}';`), user).toBe(0);
+      expect(countAs(user, `select count(*) from public.config_proposals;`), user).toBe(0);
+    }
+  });
+
+  // (iv)
+  it("o admin de A insere proposta pendente da própria organização, assinando como ele mesmo", () => {
+    expect(erroDe(comoUsuario(ADMIN_A, inserirComoSessao(PROP_INSERIDA, ORG_A, ADMIN_A)))).toBe("");
+    expect(estado(PROP_INSERIDA)).toBe("pendente");
+  });
+
+  it("o admin de A NÃO insere para a organização B", () => {
+    const e = erroDe(comoUsuario(ADMIN_A, inserirComoSessao(u(121), ORG_B, ADMIN_A)));
+    expect(e).toContain("42501");
+    expect(e).toContain("row-level security");
+    expect(Number(sql(`select count(*) from public.config_proposals where id = '${u(121)}';`))).toBe(0);
+  });
+
+  it("o admin de A NÃO insere já aprovada (nem com os carimbos coerentes)", () => {
+    const e = erroDe(comoUsuario(ADMIN_A, `insert into public.config_proposals
+        (id, organization_id, kind, risk, resumo, motivo, payload, requested_by, status, decided_by, decided_at)
+      values ('${u(122)}', '${ORG_A}', 'memoria', 'seguro', 'Resumo de teste', 'Motivo de teste',
+              '{"texto":"x"}'::jsonb, '${ADMIN_A}', 'aprovada', '${ADMIN_A}', now())`));
+    expect(e).toContain("42501");
+    expect(e).toContain("row-level security");
+    expect(Number(sql(`select count(*) from public.config_proposals where id = '${u(122)}';`))).toBe(0);
+  });
+
+  it("o admin de A NÃO insere assinando como outra pessoa (requested_by alheio)", () => {
+    const e = erroDe(comoUsuario(ADMIN_A, inserirComoSessao(u(123), ORG_A, ADMIN_B)));
+    expect(e).toContain("42501");
+    expect(e).toContain("row-level security");
+    expect(Number(sql(`select count(*) from public.config_proposals where id = '${u(123)}';`))).toBe(0);
+  });
+
+  it("manager, agent e viewer de A NÃO inserem proposta (o papel mínimo é admin)", () => {
+    let n = 130;
+    for (const user of [MANAGER_A, USER_A, VIEWER_A]) {
+      const id = u(n++);
+      const e = erroDe(comoUsuario(user, inserirComoSessao(id, ORG_A, user)));
+      expect(e, user).toContain("42501");
+      expect(Number(sql(`select count(*) from public.config_proposals where id = '${id}';`)), user).toBe(0);
+    }
+  });
+
+  // (v)
+  it("authenticated NÃO atualiza nem apaga (privilégio revogado, nem o admin da própria proposta)", () => {
+    for (const comando of [
+      `update public.config_proposals set status = 'aprovada', decided_by = '${ADMIN_A}', decided_at = now() where id = '${PROP_A}'`,
+      `delete from public.config_proposals where id = '${PROP_A}'`,
+    ]) {
+      const e = erroDe(comoUsuario(ADMIN_A, comando));
+      expect(e, comando).toContain("42501");
+      expect(e, comando).toContain("permission denied for table config_proposals");
+    }
+    expect(estado(PROP_A)).toBe("pendente");
+  });
+
+  it("anon não lê a tabela", () => {
+    const e = erroDe(`set role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select count(*) from public.config_proposals;`);
+    expect(e).toContain("permission denied for table config_proposals");
+  });
+
+  // (vi)
+  it("pendente -> aplicada é recusada pelo gatilho (23514), mesmo com todos os carimbos", () => {
+    const e = erroDe(comoServidor(`update public.config_proposals
+        set status = 'aplicada', decided_by = '${ADMIN_A}', decided_at = now(),
+            applied_by = '${ADMIN_A}', applied_at = now(), apply_result = '{"tipo":"memoria"}'::jsonb
+      where id = '${PROP_T1}'`));
+    expect(e).toContain("23514");
+    expect(e).toContain("pendente para aplicada");
+    expect(estado(PROP_T1)).toBe("pendente");
+  });
+
+  it("pendente -> aprovada -> aplicada passa; depois aplicada -> pendente é recusada", () => {
+    expect(erroDe(comoServidor(`update public.config_proposals
+        set status = 'aprovada', decided_by = '${ADMIN_A}', decided_at = now()
+      where id = '${PROP_T2}'`))).toBe("");
+    expect(estado(PROP_T2)).toBe("aprovada");
+
+    expect(erroDe(comoServidor(`update public.config_proposals
+        set status = 'aplicada', applied_by = '${ADMIN_A}', applied_at = now(),
+            apply_result = '{"tipo":"memoria","id":"x"}'::jsonb
+      where id = '${PROP_T2}'`))).toBe("");
+    expect(estado(PROP_T2)).toBe("aplicada");
+
+    const volta = erroDe(comoServidor(`update public.config_proposals
+        set status = 'pendente', decided_by = null, decided_at = null,
+            applied_by = null, applied_at = null, apply_result = null
+      where id = '${PROP_T2}'`));
+    expect(volta).toContain("23514");
+    expect(volta).toContain("aplicada para pendente");
+    expect(estado(PROP_T2)).toBe("aplicada");
+  });
+
+  it("mudar o payload de uma proposta existente é recusado (aprovou A, não aplica B)", () => {
+    const e = erroDe(comoServidor(`update public.config_proposals
+        set payload = '{"texto":"outro"}'::jsonb
+      where id = '${PROP_T3}'`));
+    expect(e).toContain("23514");
+    expect(sql(`select payload->>'texto' from public.config_proposals where id = '${PROP_T3}';`)).toBe("original");
+  });
+
+  it("aprovada -> rejeitada é recusada (a decisão não se desfaz)", () => {
+    expect(erroDe(comoServidor(`update public.config_proposals
+        set status = 'aprovada', decided_by = '${ADMIN_A}', decided_at = now()
+      where id = '${PROP_T4}'`))).toBe("");
+    const e = erroDe(comoServidor(`update public.config_proposals
+        set status = 'rejeitada', decided_by = '${ADMIN_A}', decided_at = now()
+      where id = '${PROP_T4}'`));
+    expect(e).toContain("23514");
+    expect(e).toContain("aprovada para rejeitada");
+    expect(estado(PROP_T4)).toBe("aprovada");
+  });
+
+  it("o carimbo da decisão é imutável: aprovada -> aplicada trocando decided_by é recusada", () => {
+    expect(erroDe(comoServidor(`update public.config_proposals
+        set status = 'aprovada', decided_by = '${ADMIN_A}', decided_at = now()
+      where id = '${PROP_T5}'`))).toBe("");
+    const e = erroDe(comoServidor(`update public.config_proposals
+        set status = 'aplicada', decided_by = '${ADMIN_B}', applied_by = '${ADMIN_A}',
+            applied_at = now(), apply_result = '{"tipo":"memoria"}'::jsonb
+      where id = '${PROP_T5}'`));
+    expect(e).toContain("23514");
+    expect(e).toContain("carimbo da decis");
+    expect(estado(PROP_T5)).toBe("aprovada");
+    expect(sql(`select decided_by from public.config_proposals where id = '${PROP_T5}';`)).toBe(ADMIN_A);
+  });
+
+  it("pendente é estrita: nasce sem decided_by, decision_reason nem applied_by", () => {
+    for (const [n, coluna, valor] of [
+      [161, "decided_by", `'${ADMIN_A}'`],
+      [162, "decision_reason", `'motivo qualquer'`],
+      [163, "applied_by", `'${ADMIN_A}'`],
+    ] as const) {
+      const e = erroDe(`insert into public.config_proposals
+          (id, organization_id, kind, risk, resumo, motivo, payload, requested_by, ${coluna})
+        values ('${u(n)}', '${ORG_A}', 'memoria', 'seguro', 'Resumo de teste', 'Motivo de teste',
+                '{"x":1}'::jsonb, '${ADMIN_A}', ${valor});`);
+      expect(e, coluna).toContain("23514");
+      expect(e, coluna).toContain("config_proposals_estado_coerente");
+      expect(Number(sql(`select count(*) from public.config_proposals where id = '${u(n)}';`)), coluna).toBe(0);
+    }
+  });
+
+  it("a função do gatilho não é executável por anon nem por authenticated", () => {
+    expect(sql(`select has_function_privilege('anon', 'public.fn_config_proposals_transicao()', 'execute');`)).toBe("f");
+    expect(sql(`select has_function_privilege('authenticated', 'public.fn_config_proposals_transicao()', 'execute');`)).toBe("f");
+    expect(sql(`select has_function_privilege('service_role', 'public.fn_config_proposals_transicao()', 'execute');`)).toBe("t");
+  });
+
+  it("reenvio do mesmo turno não duplica: único parcial (org, turno, tipo); sem turno, não há trava", () => {
+    const turno = u(901);
+    const base = (id: string, kind: string, turn: string) => `insert into public.config_proposals
+        (id, organization_id, turn_id, kind, risk, resumo, motivo, payload, requested_by)
+      values ('${id}', '${ORG_A}', ${turn}, '${kind}', 'seguro', 'Resumo de teste', 'Motivo de teste',
+              '{"x":1}'::jsonb, '${ADMIN_A}')`;
+    expect(erroDe(`${base(u(141), "memoria", `'${turno}'`)};`)).toBe("");
+    const dobro = erroDe(`${base(u(142), "memoria", `'${turno}'`)};`);
+    expect(dobro).toContain("23505");
+    expect(dobro).toContain("config_proposals_turno_unico");
+    // Outro tipo no mesmo turno é outra proposta; sem turn_id duas iguais convivem.
+    expect(erroDe(`${base(u(143), "funil", `'${turno}'`)};`)).toBe("");
+    expect(erroDe(`${base(u(144), "memoria", "null")};`)).toBe("");
+    expect(erroDe(`${base(u(145), "memoria", "null")};`)).toBe("");
+  });
+
+  it("a coerência de estado é do banco: aplicada sem carimbo de aplicação não nasce", () => {
+    const e = erroDe(`insert into public.config_proposals
+        (id, organization_id, kind, risk, resumo, motivo, payload, requested_by, status, decided_by, decided_at)
+      values ('${u(151)}', '${ORG_A}', 'memoria', 'seguro', 'Resumo de teste', 'Motivo de teste',
+              '{"x":1}'::jsonb, '${ADMIN_A}', 'aplicada', '${ADMIN_A}', now());`);
+    expect(e).toContain("23514");
+    expect(e).toContain("config_proposals_estado_coerente");
   });
 });

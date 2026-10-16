@@ -349,6 +349,17 @@ const PROVA_PROPRIA: readonly Excecao[] = [
       "agent), promovido a admin passa a ler (controle), e UPDATE/INSERT/DELETE " +
       "pela sessão e qualquer leitura por anon dão permission denied. Migration 0510.",
   },
+  {
+    tabela: "config_proposals",
+    razao:
+      "tests/invariants/rls-isolation.test.ts (describe \"config_proposals (migration 0690)\") — " +
+      "dois tenants reais por JWT: admin de A lê só as de A e zero as de B (e o espelho), " +
+      "manager/agent/viewer de A leem zero (o payload pode ter prompt e memória; por isso não " +
+      "cabe em TABLES, cujo usuário semeado é agent), admin insere pendente só na própria " +
+      "organização e assinando como ele mesmo (nunca para B, já aprovada ou com requested_by " +
+      "alheio), authenticated não atualiza nem apaga, e o gatilho recusa aplicar sem aprovar e " +
+      "mudar o conteúdo. Migration 0690.",
+  },
 ];
 
 /**

@@ -36,6 +36,14 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   listar_telas: ["busca"],
   abrir_tela: ["destino"],
   ler_guia: ["guia"],
+  ler_configuracao_de_ia: [],
+  listar_agentes: ["incluir_arquivados"],
+  listar_funis: [],
+  listar_materiais: [],
+  criar_rascunho_de_agente: ["nome", "descricao", "prompt", "pacotes", "funis", "materiais"],
+  listar_modelos_de_followup: [],
+  listar_etapas_do_funil: ["funil_id"],
+  instalar_modelo_de_followup: ["model_id", "etapa_id", "nome"],
 };
 
 /** Todos os nomes de propriedade de um JSON Schema, em qualquer profundidade. */
@@ -75,16 +83,62 @@ describe("montarFerramentasDoAssistente", () => {
     vi.restoreAllMocks();
   });
 
-  it("o conjunto tem EXATAMENTE as cinco chaves do contrato", () => {
-    const { ferramentas } = montarParaTeste("admin");
+  it("viewer e agent têm SÓ as cinco de leitura — as 4 de configuração não existem", () => {
+    for (const papel of ["viewer", "agent"] as const) {
+      const { ferramentas } = montarParaTeste(papel);
+
+      expect(Object.keys(ferramentas).sort()).toEqual([
+        "abrir_tela",
+        "consultar_metrica",
+        "ler_guia",
+        "listar_metricas",
+        "listar_telas",
+      ]);
+    }
+  });
+
+  it("manager e admin têm as cinco de leitura MAIS as 4 de configuração e as 2 de follow-up", () => {
+    const { ferramentas } = montarParaTeste("manager");
 
     expect(Object.keys(ferramentas).sort()).toEqual([
       "abrir_tela",
       "consultar_metrica",
+      "ler_configuracao_de_ia",
       "ler_guia",
+      "listar_agentes",
+      "listar_etapas_do_funil",
+      "listar_funis",
+      "listar_materiais",
       "listar_metricas",
+      "listar_modelos_de_followup",
       "listar_telas",
     ]);
+    expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
+    expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
+  });
+
+  it("só admin tem criar_rascunho_de_agente e instalar_modelo_de_followup — manager, viewer e agent não", () => {
+    const { ferramentas: doAdmin } = montarParaTeste("admin");
+    expect(Object.keys(doAdmin).sort()).toEqual([
+      "abrir_tela",
+      "consultar_metrica",
+      "criar_rascunho_de_agente",
+      "instalar_modelo_de_followup",
+      "ler_configuracao_de_ia",
+      "ler_guia",
+      "listar_agentes",
+      "listar_etapas_do_funil",
+      "listar_funis",
+      "listar_materiais",
+      "listar_metricas",
+      "listar_modelos_de_followup",
+      "listar_telas",
+    ]);
+    for (const papel of ["manager", "viewer", "agent"] as const) {
+      const { ferramentas } = montarParaTeste(papel);
+      expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
+      expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
+    }
   });
 
   it("o teto de passos do turno é 6", () => {
@@ -140,6 +194,14 @@ describe("montarFerramentasDoAssistente", () => {
     ["listar_telas", { busca: 42 }],
     ["abrir_tela", { destino: ["/app/inbox"] }],
     ["ler_guia", { guia: {} }],
+    ["ler_configuracao_de_ia", { x: 1 }],
+    ["listar_agentes", { incluir_arquivados: "sim" }],
+    ["listar_funis", { x: 1 }],
+    ["listar_materiais", { x: 1 }],
+    ["criar_rascunho_de_agente", { nome: 123 }],
+    ["listar_modelos_de_followup", { x: 1 }],
+    ["listar_etapas_do_funil", { funil_id: 123 }],
+    ["instalar_modelo_de_followup", { model_id: 123 }],
   ])("%s com entrada de tipo errado não lança e devolve parametro_invalido", async (nome, entrada) => {
     const { ferramentas, sessao } = montarParaTeste("admin");
 
@@ -149,7 +211,21 @@ describe("montarFerramentasDoAssistente", () => {
     expect(sessao.consultas.length).toBe(0);
   });
 
-  it.each(["listar_metricas", "consultar_metrica", "listar_telas", "abrir_tela", "ler_guia"])(
+  it.each([
+    "listar_metricas",
+    "consultar_metrica",
+    "listar_telas",
+    "abrir_tela",
+    "ler_guia",
+    "ler_configuracao_de_ia",
+    "listar_agentes",
+    "listar_funis",
+    "listar_materiais",
+    "criar_rascunho_de_agente",
+    "listar_modelos_de_followup",
+    "listar_etapas_do_funil",
+    "instalar_modelo_de_followup",
+  ])(
     "%s com entrada nula não lança e devolve parametro_invalido",
     async (nome) => {
       const { ferramentas } = montarParaTeste("admin");

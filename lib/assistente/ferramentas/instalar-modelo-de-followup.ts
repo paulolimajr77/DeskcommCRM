@@ -1,0 +1,111 @@
+/**
+ * Ferramenta `instalar_modelo_de_followup` — instala um modelo do catálogo
+ * como RASCUNHO da organização (nada publicado, ninguém atende).
+ *
+ * Chama `POST /api/v1/ai/followup-flows/from-model` POR DENTRO, com a sessão do
+ * administrador. O corpo traduz o vocabulário da ferramenta para o da rota
+ * (`etapa_id`→`stage_id`, `nome`→`name`) e OMITE o que não veio. Nunca leva
+ * organização: ela vem da sessão, nunca do modelo.
+ *
+ * Modelo que `pedeEtapa` sem `etapa_id` nem chega ao POST — devolve
+ * `falta_etapa` com o pedido de confirmação. `201` com `status` diferente de
+ * `draft` é tratado como indisponível (a rota instala rascunho por definição).
+ * Escrita de verdade, só `admin` (a montagem barra os outros papéis).
+ */
+import { tool, type Tool } from "ai";
+import { z } from "zod";
+
+import { chamarRotaPorDentro, type HandlerDeRota } from "@/lib/assistente/metricas/chamar-rota";
+import { MODELOS_DE_FOLLOWUP, modeloPorId } from "@/lib/followup/modelos";
+
+import { protegida } from "./protegida";
+import type { EntradaDasFerramentas } from "./tipos";
+
+const IDS_DOS_MODELOS = MODELOS_DE_FOLLOWUP.map((m) => m.id) as unknown as [string, ...string[]];
+
+const esquemaDeEntrada = z.strictObject({
+  model_id: z.enum(IDS_DOS_MODELOS),
+  etapa_id: z.string().uuid().optional(),
+  nome: z.string().trim().min(1).max(80).optional(),
+});
+
+let handlerSobreposto: HandlerDeRota | null = null;
+
+/** Só para testes: troca o handler real (que exigiria sessão) por um dublê. */
+export function sobreporHandlerDeInstalacao(handler: HandlerDeRota | null): void {
+  handlerSobreposto = handler;
+}
+
+async function handlerAtual(): Promise<HandlerDeRota> {
+  if (handlerSobreposto) return handlerSobreposto;
+  const modulo = await import("@/app/api/v1/ai/followup-flows/from-model/route");
+  return modulo.POST;
+}
+
+function eObjeto(valor: unknown): valor is Record<string, unknown> {
+  return valor !== null && typeof valor === "object";
+}
+
+export function criarInstalarModeloDeFollowup(entrada: EntradaDasFerramentas): Tool {
+  return tool({
+    description:
+      "Instala um modelo de follow-up como RASCUNHO (nada publicado, ninguém atende). " +
+      "`model_id` do catálogo, `etapa_id` (obrigatório só para modelo que dispara por etapa) e " +
+      "`nome` (opcional, para renomear). Publicar o follow-up e ligá-lo a um agente são passos da tela.",
+    inputSchema: esquemaDeEntrada,
+    execute: protegida(
+      "instalar_modelo_de_followup",
+      esquemaDeEntrada,
+      async ({ model_id, etapa_id, nome }) => {
+        void entrada;
+        const modelo = modeloPorId(model_id);
+        if (!modelo) return { ok: false as const, motivo: "pedido_invalido" as const };
+        if (modelo.pedeEtapa && etapa_id === undefined) {
+          return {
+            ok: false as const,
+            motivo: "falta_etapa" as const,
+            detalhe:
+              "PRECISO CONFIRMAR: este modelo dispara quando um negócio entra numa etapa do funil. " +
+              "Diga qual etapa (use listar_funis e listar_etapas_do_funil).",
+          };
+        }
+
+        const resposta = await chamarRotaPorDentro(
+          await handlerAtual(),
+          "/api/v1/ai/followup-flows/from-model",
+          {},
+          {
+            metodo: "POST",
+            corpo: {
+              model_id,
+              ...(etapa_id === undefined ? {} : { stage_id: etapa_id }),
+              ...(nome === undefined ? {} : { name: nome }),
+            },
+          },
+        );
+        if ("falhou" in resposta) return { ok: false as const, motivo: "indisponivel" as const };
+        if (resposta.status === 409) return { ok: false as const, motivo: "ja_existe" as const };
+        if (resposta.status === 404 || resposta.status === 422) {
+          return { ok: false as const, motivo: "pedido_invalido" as const };
+        }
+        if (resposta.status !== 201) return { ok: false as const, motivo: "indisponivel" as const };
+
+        const corpo = eObjeto(resposta.corpo)
+          ? (resposta.corpo as { data?: unknown }).data
+          : undefined;
+        if (!eObjeto(corpo) || typeof corpo.id !== "string" || typeof corpo.name !== "string") {
+          return { ok: false as const, motivo: "indisponivel" as const };
+        }
+        if (corpo.status !== "draft") return { ok: false as const, motivo: "indisponivel" as const };
+
+        return {
+          ok: true as const,
+          followup: { id: corpo.id, nome: corpo.name, estado: "rascunho" as const },
+          aviso:
+            "Rascunho criado. Para disparar sozinho, um agente PUBLICADO precisa ter este follow-up " +
+            "ligado em Agente › Follow-up, e publicar o follow-up é clique do administrador.",
+        };
+      },
+    ),
+  });
+}

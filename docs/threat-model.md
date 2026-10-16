@@ -312,6 +312,19 @@ leitura, e o bloco de conduta do prompt (§12.C) só entra para `admin`:
    sessão; o par do e2e (`assistente-rascunho-de-agente`: cartão na tela ×
    `GET ai/agents` direto, mesma sessão) prova que o rascunho nasceu na org
    certa e que `published_version_id` segue nulo.
+5. **Propostas (F2b, T19): conteúdo e ids, nunca destino.** As 5 ferramentas
+   `propor_*` (só `admin`) gravam uma linha `pendente` em `config_proposals`; o
+   `payload` guarda `{ operacao, ids alvo, corpo }` num subconjunto curado e
+   estrito, e rota/método/URL moram em `lib/assistente/propostas/operacoes.ts`
+   — chave `rota`/`url`/`path`/`method`/`metodo` em qualquer nível é recusada.
+   Nenhuma delas chama rota de escrita de roteador, conhecimento, memória,
+   provedor ou funil (só GET e o POST de propostas); `credential_id` não existe.
+6. **Insert pela sessão do admin, aplicação só na T20.** O POST de propostas usa
+   o cliente da SESSÃO (RLS da 0690: `requested_by = auth.uid()`, `status =
+   'pendente'`, papel admin), nunca service role; `organization_id` e `risk`
+   saem da sessão e do código. O audit (`assistente.proposta_criada`) leva só
+   tipo, operação e risco, sem o texto. Nada muda no negócio até o clique de
+   aprovar e a rota de aplicar (T20).
 
 **Residual honesto:** um admin legítimo ainda consegue criar rascunhos à
 vontade até o teto de perguntas (IA-12) — é limite, não prevenção; e o

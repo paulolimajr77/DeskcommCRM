@@ -285,7 +285,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       bancoDaInstalacao: createAdminClient(),
     };
     const skills = (await loadSkills(pool, orgId)).filter((s) => s.name.startsWith("assistente-"));
-    const tools = montarFerramentasDoAssistente({ ctx, skills, coletor });
+    // `turno`: a conversa e o turno desta pergunta, para as ferramentas `propor_*`
+    // não duplicarem a proposta num reenvio. Ids da rota, nunca do modelo.
+    const tools = montarFerramentasDoAssistente({ ctx, skills, coletor, turno: { threadId, turnId: turn_id } });
     // Contexto da tela: o agente que a pessoa está vendo, só se for desta organização.
     // Não vai para a auditoria, não entra no limite nem no replay.
     const agenteEmTela = await agenteVistoNaTela(pool, orgId, contexto?.caminho);

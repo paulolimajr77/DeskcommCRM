@@ -650,6 +650,25 @@ describe("POST — caminho feliz (modelo)", () => {
     expect(ctx.bancoDosModulos).toBe(alvos.SESSAO);
   });
 
+  it("as ferramentas recebem a conversa e o turno DA ROTA (para as propor_* não duplicarem a proposta num reenvio)", async () => {
+    // Sabotagem: apagar `turno: { threadId, turnId: turn_id }` na chamada de
+    // `montarFerramentasDoAssistente` em chat/route.ts → os dois expects ficam vermelhos.
+    poolFalso();
+    await POST(pedido(CORPO_OK));
+    expect(vi.mocked(montarFerramentasDoAssistente).mock.calls[0]![0].turno).toEqual({
+      threadId: THREAD_ID,
+      turnId: TURN_ID,
+    });
+
+    vi.mocked(montarFerramentasDoAssistente).mockClear();
+    poolFalso();
+    await POST(pedido(CORPO_NOVA_CONVERSA));
+    expect(vi.mocked(montarFerramentasDoAssistente).mock.calls[0]![0].turno).toEqual({
+      threadId: NOVA_THREAD_ID,
+      turnId: TURN_ID,
+    });
+  });
+
   it("papel ai_operator (agente, não pessoa) vira o menor papel no ctx", async () => {
     session("ai_operator");
     poolFalso();

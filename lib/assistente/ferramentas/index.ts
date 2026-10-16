@@ -19,6 +19,12 @@
  *                                        nicho (T14b), SÓ para `admin`
  *   testar_agente                       — roda o botão Testar num agente em
  *                                        RASCUNHO (T15), SÓ para `admin`
+ *   propor_roteador, propor_conhecimento, propor_memoria,
+ *   propor_modelo_dos_auxiliares, propor_funil
+ *                                      — PROPÕEM mudança ao vivo (T19): só LEEM e
+ *                                        gravam uma proposta `pendente`; quem
+ *                                        aplica é a T20 após o clique do admin,
+ *                                        SÓ para `admin`
  *
  * Quem monta é a rota do chat (T7): ela entrega o `ContextoDeConsulta` com a
  * organização e o papel DA SESSÃO (nunca do corpo) e um coletor novo por
@@ -40,6 +46,11 @@ import { criarListarMateriais } from "./listar-materiais";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarListarModelosDeFollowup } from "./listar-modelos-de-followup";
 import { criarMontarPacoteDoNicho } from "./montar-pacote-do-nicho";
+import { criarProporConhecimento } from "./propor-conhecimento";
+import { criarProporFunil } from "./propor-funil";
+import { criarProporMemoria } from "./propor-memoria";
+import { criarProporModeloDosAuxiliares } from "./propor-modelo-dos-auxiliares";
+import { criarProporRoteador } from "./propor-roteador";
 import { criarTestarAgente } from "./testar-agente";
 import { criarAbrirTela, criarListarTelas } from "./telas";
 import type { EntradaDasFerramentas } from "./tipos";
@@ -90,5 +101,11 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
     instalar_modelo_de_followup: criarInstalarModeloDeFollowup(entrada),
     montar_pacote_do_nicho: criarMontarPacoteDoNicho(entrada),
     testar_agente: criarTestarAgente(entrada),
+    // Mudanças AO VIVO viram PROPOSTA (T19): grava uma linha pendente, não muda nada.
+    propor_roteador: criarProporRoteador(entrada),
+    propor_conhecimento: criarProporConhecimento(entrada),
+    propor_memoria: criarProporMemoria(entrada),
+    propor_modelo_dos_auxiliares: criarProporModeloDosAuxiliares(entrada),
+    propor_funil: criarProporFunil(entrada),
   };
 }

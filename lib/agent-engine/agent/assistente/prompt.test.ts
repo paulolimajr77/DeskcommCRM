@@ -140,6 +140,20 @@ describe("montarSystemDoAssistente — conduta por papel (F2a)", () => {
     }
   });
 
+  it("só o admin recebe a frase de que mudança ao vivo vira PROPOSTA aprovada na tela (T19)", () => {
+    // Sabotagem: mover a frase para fora do bloco `quem` do admin (ou trocar
+    // `ehAdmin` por `true`) → o `not.toContain` dos outros papéis fica vermelho;
+    // apagar a frase → o `toContain` do admin fica vermelho.
+    const admin = como("admin");
+    expect(admin).toContain("Mudanças AO VIVO (roteador, conhecimento, memória, modelo dos auxiliares, funil)");
+    expect(admin).toContain("viram PROPOSTA que o administrador aprova na tela");
+    expect(admin).toContain("diga que você PROPÔS, nunca que mudou");
+    for (const papel of ["manager", "agent", "viewer"] as const) {
+      expect(como(papel), papel).not.toContain("PROPOSTA");
+      expect(como(papel), papel).not.toContain("PROPÔS");
+    }
+  });
+
   it("só o admin é apresentado como quem pode pedir rascunhos; os outros seguem só de leitura", () => {
     // Sabotagem: trocar `ehAdmin` por `true` em `quem` → o `not.toContain` fica vermelho.
     expect(como("admin")).toContain("monte RASCUNHOS");

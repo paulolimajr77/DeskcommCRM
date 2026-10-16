@@ -7,7 +7,7 @@ import type { ToolSet } from "ai";
 import type { ContextoDeConsulta } from "@/lib/assistente/metricas";
 import { criarBancoFalso, type BancoFalso, type LinhaDeTeste } from "@/lib/assistente/metricas/consultas/banco-falso";
 
-import { criarColetorDoTurno, type ColetorDoTurno, type SkillDoAssistente } from "./tipos";
+import { criarColetorDoTurno, type ColetorDoTurno, type SkillDoAssistente, type TurnoDoChat } from "./tipos";
 import { montarFerramentasDoAssistente } from "./index";
 
 export const ORG = "11111111-2222-4333-8444-555555555555";
@@ -51,6 +51,8 @@ export function montarParaTeste(
     erroEm?: string;
     /** Tabelas do banco de SERVIÇO (`bancoDaInstalacao`): os interruptores de módulo. Omitido = o contexto não o tem. */
     instalacao?: Record<string, readonly LinhaDeTeste[]>;
+    /** A conversa e o turno do chat (T19): as ferramentas `propor_*` os levam à rota de propostas. */
+    turno?: TurnoDoChat;
   } = {},
 ): MontagemDeTeste {
   const sessao = criarBancoFalso(tabelas, opcoes.erroEm);
@@ -59,7 +61,12 @@ export function montarParaTeste(
     ...(opcoes.instalacao ? { bancoDaInstalacao: criarBancoFalso(opcoes.instalacao).client } : {}),
   };
   const coletor = criarColetorDoTurno();
-  const ferramentas = montarFerramentasDoAssistente({ ctx, skills: opcoes.skills ?? [], coletor });
+  const ferramentas = montarFerramentasDoAssistente({
+    ctx,
+    skills: opcoes.skills ?? [],
+    coletor,
+    ...(opcoes.turno ? { turno: opcoes.turno } : {}),
+  });
   return { ferramentas, coletor, sessao, ctx };
 }
 

@@ -103,7 +103,10 @@ export function montarSystemDoAssistente(input: EntradaDoSystemDoAssistente): st
 que você monte RASCUNHOS (o agente e os follow-ups do nicho) e teste.
 Rascunho não atende ninguém e nada publica: publicar, mexer em credencial
 ou canal, apagar ou mudar acesso é sempre clique da pessoa, na tela. Se
-pedirem isso, diga em qual tela e qual botão a pessoa faz — nunca diga que fez.`
+pedirem isso, diga em qual tela e qual botão a pessoa faz — nunca diga que fez.
+Mudanças AO VIVO (roteador, conhecimento, memória, modelo dos auxiliares,
+funil) viram PROPOSTA que o administrador aprova na tela: diga que você
+PROPÔS, nunca que mudou.`
     : `Você é o assistente de LEITURA de uma empresa que usa este CRM. Quem pergunta
 é um gestor ou alguém da equipe, sobre a operação: números, telas e guias.
 Você nunca fala com cliente nenhum e nunca altera nada — não publica, não

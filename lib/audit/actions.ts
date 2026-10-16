@@ -1169,6 +1169,18 @@ export const AUDIT_ACTIONS = [
   // `removidas` no metadata) ou dentro do `template.deleted`, que são os atos
   // em que a imagem sai de fato.
   "template.media_added",
+  /**
+   * O assistente interno PROPÔS uma mudança ao vivo (F2b, migration 0690): uma
+   * linha `pendente` em `config_proposals`, gravada com a sessão do admin.
+   * Propor não muda nada no negócio; quem aplica é a rota da T20, depois do
+   * clique de aprovar.
+   *
+   * ⚠️ SEM O TEXTO. O metadata leva só `kind`, `operacao` e `risk` (e o id da
+   * proposta vai em `resource_id`): o `payload` carrega prompt, FAQ e memória
+   * da empresa, e `api_audit_log` é append-only — o que entra ali não sai pela
+   * cascata de LGPD.
+   */
+  "assistente.proposta_criada",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

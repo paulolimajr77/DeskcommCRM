@@ -74,10 +74,22 @@ export function anotarCartaoDeArtefato(
 /** O que `loadSkills` devolve, já filtrado por quem chama (`name` começa com "assistente-"). */
 export type SkillDoAssistente = Awaited<ReturnType<typeof loadSkills>>[number];
 
+/** A conversa e o turno em andamento — só a rota do chat os conhece (ids dela, nunca do modelo). */
+export interface TurnoDoChat {
+  threadId: string;
+  turnId: string;
+}
+
 export interface EntradaDasFerramentas {
   ctx: ContextoDeConsulta;
   skills: SkillDoAssistente[];
   coletor: ColetorDoTurno;
+  /**
+   * Opcional: a conversa e o turno do chat. As ferramentas `propor_*` os levam à
+   * rota de propostas, que por eles não duplica a proposta num reenvio do mesmo
+   * turno. Ausente (teste, outro chamador), a proposta nasce sem vínculo.
+   */
+  turno?: TurnoDoChat;
 }
 
 /** O que uma ferramenta devolve quando não pôde trabalhar — sem a mensagem do erro. */

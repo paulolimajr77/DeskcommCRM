@@ -46,7 +46,25 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   instalar_modelo_de_followup: ["model_id", "etapa_id", "nome"],
   montar_pacote_do_nicho: ["nicho", "negocio", "descricao", "nome_do_agente", "followups"],
   testar_agente: ["agente_id", "mensagens"],
+  propor_roteador: [
+    "operacao", "resumo", "motivo", "router_id", "name", "channel_session_id", "fallback_agent_id",
+    "members", "agent_id", "intent_name", "intent_description", "examples",
+  ],
+  propor_conhecimento: [
+    "source_type", "resumo", "motivo", "name", "items", "question", "answer", "locale", "markdown_blob", "agent_id",
+  ],
+  propor_memoria: ["operacao", "resumo", "motivo", "title", "body", "entry_id"],
+  propor_modelo_dos_auxiliares: ["operacao", "resumo", "motivo", "purpose", "provider", "model_id", "default_model"],
+  propor_funil: ["operacao", "resumo", "motivo", "pipeline_id", "stage_id", "name", "description", "depois_de"],
 };
+
+const FERRAMENTAS_DE_PROPOSTA = [
+  "propor_roteador",
+  "propor_conhecimento",
+  "propor_memoria",
+  "propor_modelo_dos_auxiliares",
+  "propor_funil",
+];
 
 /** Todos os nomes de propriedade de um JSON Schema, em qualquer profundidade. */
 function nomesDePropriedades(esquema: unknown): string[] {
@@ -119,7 +137,7 @@ describe("montarFerramentasDoAssistente", () => {
     expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
   });
 
-  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho e testar_agente — manager, viewer e agent não", () => {
+  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente e as cinco propor_* — manager, viewer e agent não", () => {
     const { ferramentas: doAdmin } = montarParaTeste("admin");
     expect(Object.keys(doAdmin).sort()).toEqual([
       "abrir_tela",
@@ -136,6 +154,11 @@ describe("montarFerramentasDoAssistente", () => {
       "listar_modelos_de_followup",
       "listar_telas",
       "montar_pacote_do_nicho",
+      "propor_conhecimento",
+      "propor_funil",
+      "propor_memoria",
+      "propor_modelo_dos_auxiliares",
+      "propor_roteador",
       "testar_agente",
     ]);
     for (const papel of ["manager", "viewer", "agent"] as const) {
@@ -144,6 +167,8 @@ describe("montarFerramentasDoAssistente", () => {
       expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
       expect(ferramentas).not.toHaveProperty("montar_pacote_do_nicho");
       expect(ferramentas).not.toHaveProperty("testar_agente");
+      // Sabotagem: mover as propor_* para o catálogo de manager em index.ts → este laço fica vermelho.
+      for (const nome of FERRAMENTAS_DE_PROPOSTA) expect(ferramentas, nome).not.toHaveProperty(nome);
     }
   });
 
@@ -210,6 +235,11 @@ describe("montarFerramentasDoAssistente", () => {
     ["instalar_modelo_de_followup", { model_id: 123 }],
     ["montar_pacote_do_nicho", { nicho: 123 }],
     ["testar_agente", { agente_id: 123 }],
+    ["propor_roteador", { operacao: 123 }],
+    ["propor_conhecimento", { source_type: 123 }],
+    ["propor_memoria", { operacao: 123 }],
+    ["propor_modelo_dos_auxiliares", { operacao: 123 }],
+    ["propor_funil", { operacao: 123 }],
   ])("%s com entrada de tipo errado não lança e devolve parametro_invalido", async (nome, entrada) => {
     const { ferramentas, sessao } = montarParaTeste("admin");
 
@@ -235,6 +265,7 @@ describe("montarFerramentasDoAssistente", () => {
     "instalar_modelo_de_followup",
     "montar_pacote_do_nicho",
     "testar_agente",
+    ...FERRAMENTAS_DE_PROPOSTA,
   ])(
     "%s com entrada nula não lança e devolve parametro_invalido",
     async (nome) => {

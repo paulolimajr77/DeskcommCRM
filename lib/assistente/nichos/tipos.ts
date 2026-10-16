@@ -50,6 +50,15 @@ export interface FollowupsDoNicho {
   observacoes: string[];
 }
 
+/** De qual entrada da montagem sai o valor de um marcador do esqueleto. */
+export type OrigemDeCampoDoNicho = "negocio" | "descricao" | "nome_do_agente";
+
+export interface CampoDoNicho {
+  /** O nome do marcador, como `placeholdersDoEsqueleto` devolve (sem chaves). */
+  marcador: string;
+  de: OrigemDeCampoDoNicho;
+}
+
 export interface NichoDoAssistente {
   id: IdDeNicho;
   /** O título `## ` da seção no `.md` (ex.: "Clínica, consultório ou salão"). */
@@ -66,6 +75,12 @@ export interface NichoDoAssistente {
   /** As capacidades do nicho. `[]` quando o `.md` não declara. */
   pacotes: ToolBundle[];
   followups: FollowupsDoNicho;
+  /**
+   * Como preencher o esqueleto: cada marcador do prompt sai de uma das três
+   * entradas da montagem. Só existe nos nichos com esqueleto; marcador sem
+   * entrada aqui NÃO é preenchido (vira `falta_dado`, nunca palpite).
+   */
+  campos: CampoDoNicho[];
   faq: string[];
   memoria: string[];
   promessas: string[];

@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { MODELOS_DE_FOLLOWUP } from "@/lib/followup/modelos";
 
-import { NICHOS_DO_ASSISTENTE, nichoPorId } from "./index";
+import { NICHOS_DO_ASSISTENTE, nichoPorId, placeholdersDoEsqueleto } from "./index";
 
 /** O caminho do `nichos.md`, achando a pasta da skill pelo sufixo do nome. */
 function caminhoDoNichosMd(): string {
@@ -152,5 +152,25 @@ describe("NICHOS_DO_ASSISTENTE — follow-ups citados existem no catálogo", () 
       "clinica-cirurgia-decisao",
       "clinica-falta-remarcar",
     ]);
+  });
+});
+
+describe("NICHOS_DO_ASSISTENTE — campos cobre os marcadores do esqueleto", () => {
+  it("todo marcador do esqueleto tem entrada em campos, e campos não tem nome morto", () => {
+    for (const nicho of NICHOS_DO_ASSISTENTE) {
+      if (nicho.esqueleto === null) {
+        expect(nicho.campos, `campos de ${nicho.id}`).toEqual([]);
+        continue;
+      }
+      const marcadores = placeholdersDoEsqueleto(nicho.esqueleto);
+      expect(marcadores.length, `marcadores de ${nicho.id}`).toBeGreaterThan(0);
+      expect(
+        nicho.campos.map((c) => c.marcador).sort(),
+        `campos de ${nicho.id}`,
+      ).toEqual([...marcadores].sort());
+      for (const campo of nicho.campos) {
+        expect(["negocio", "descricao", "nome_do_agente"], `origem de ${nicho.id}`).toContain(campo.de);
+      }
+    }
   });
 });

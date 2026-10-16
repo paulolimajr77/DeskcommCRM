@@ -18,6 +18,9 @@
  * Escrita de verdade, só para `admin` (a montagem barra os outros papéis).
  * Canal: `null` (nulo rascunha, não atende). Rota fora do 201 ou corpo fora
  * do formato: `indisponivel`, sem detalhe.
+ *
+ * O miolo vive em `criarAgenteRascunho` — extraído para a montagem do pacote
+ * do nicho (T14b) reusar SEM mudar comportamento. `execute` só repassa.
  */
 import { tool, type Tool } from "ai";
 import { z } from "zod";
@@ -98,6 +101,160 @@ async function lerLista(
   return Array.isArray(corpo) ? (corpo as Record<string, unknown>[]) : null;
 }
 
+/** O que a montagem do pacote do nicho (T14b) passa para criar o agente. */
+export interface PedidoDeAgenteRascunho {
+  nome: string;
+  descricao?: string;
+  prompt: string;
+  pacotes?: ToolBundle[];
+  funis?: string[];
+  materiais?: string[];
+}
+
+export type MotivoDeFalhaAoAlcancarAgente =
+  | "prompt_curto"
+  | "indisponivel"
+  | "sem_modelo_padrao"
+  | "sem_credencial"
+  | "teto_de_ferramentas"
+  | "escopo_invalido";
+
+export type ResultadoDeAgenteRascunho =
+  | { ok: true; agente: { id: string; nome: string; estado: "rascunho" } }
+  | { ok: false; motivo: MotivoDeFalhaAoAlcancarAgente; detalhe?: string };
+
+/**
+ * O miolo de `criar_rascunho_de_agente`, extraído sem mudar comportamento:
+ * mesmas checagens, na mesma ordem, com os mesmos motivos.
+ */
+export async function criarAgenteRascunho(
+  pedido: PedidoDeAgenteRascunho,
+): Promise<ResultadoDeAgenteRascunho> {
+  const { nome, descricao, prompt, pacotes, funis, materiais } = pedido;
+  // Decisão do dono (delegada): prompt curto nem chama a rota.
+  if (prompt.trim().length < 10) {
+    return { ok: false, motivo: "prompt_curto" };
+  }
+  const pacotesPedidos = pacotes ?? PACOTES_PADRAO;
+  const funisPedidos = funis ?? [];
+  const materiaisPedidos = materiais ?? [];
+
+  // Provedor, modelo e credencial: da configuração, nunca do modelo.
+  const respostaProvedores = await chamarRotaPorDentro(
+    await handlerDeProvedores(),
+    "/api/v1/ai/providers",
+    {},
+  );
+  if (!("status" in respostaProvedores) || respostaProvedores.status !== 200) {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  const corpoProv = eObjeto(respostaProvedores.corpo)
+    ? (respostaProvedores.corpo as { data?: unknown }).data
+    : undefined;
+  if (!eObjeto(corpoProv)) return { ok: false, motivo: "indisponivel" };
+  const padrao = eObjeto(corpoProv.padrao)
+    ? (corpoProv.padrao as { provider?: unknown; defaultModel?: unknown })
+    : null;
+  const credenciais = Array.isArray(corpoProv.credenciais) ? corpoProv.credenciais : null;
+  if (padrao === null || credenciais === null) {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  if (typeof padrao.provider !== "string") return { ok: false, motivo: "indisponivel" };
+  if (typeof padrao.defaultModel !== "string") {
+    return {
+      ok: false,
+      motivo: "sem_modelo_padrao",
+      detalhe: `PRECISO CONFIRMAR: falta definir o modelo padrão da empresa. Defina em ${LINK_DA_TELA_DE_PROVEDORES}.`,
+    };
+  }
+  // A credencial tem de ser do MESMO provedor do padrão: uma chave de outro
+  // provedor nasceria no rascunho e quebraria na hora de publicar.
+  const credencial = (credenciais as Record<string, unknown>[]).find(
+    (c) =>
+      c.provider === padrao.provider &&
+      c.validated_at !== null &&
+      c.validated_at !== undefined &&
+      c.is_active !== false &&
+      typeof c.id === "string",
+  );
+  if (credencial === undefined || typeof credencial.id !== "string") {
+    return {
+      ok: false,
+      motivo: "sem_credencial",
+      detalhe: `PRECISO CONFIRMAR: falta a chave do provedor. Cadastre em ${LINK_DA_TELA_DE_CREDENCIAIS}.`,
+    };
+  }
+
+  // tool_ids: união dos pacotes pelo catálogo com handler. Sem teto no
+  // assistente — ele passa tudo; se a união estoura o teto da rota,
+  // recusa fechada com a contagem, nunca corta sozinho.
+  const catalogo = catalogoComHandler();
+  let toolIds: string[] = [];
+  for (const pacote of pacotesPedidos) {
+    toolIds = ligarPacote(toolIds, catalogo, pacote);
+  }
+  if (excedeuTeto(toolIds)) {
+    return {
+      ok: false,
+      motivo: "teto_de_ferramentas",
+      detalhe: `${pacotesPedidos.join("+")}: ${toolIds.length} capacidades, teto 27. Peça menos pacotes.`,
+    };
+  }
+
+  // Escopo: funil/material de fora da org (ou inativo) nem chega ao POST.
+  if (funisPedidos.length > 0) {
+    const funis = await lerLista(await handlerDeFunis(), "/api/v1/pipelines");
+    if (funis === null) return { ok: false, motivo: "indisponivel" };
+    const ids = new Set(funis.map((f) => f.id));
+    if (!funisPedidos.every((id) => ids.has(id))) {
+      return { ok: false, motivo: "escopo_invalido" };
+    }
+  }
+  if (materiaisPedidos.length > 0) {
+    const materiais = await lerLista(await handlerDeMateriais(), "/api/v1/ai/knowledge/sources");
+    if (materiais === null) return { ok: false, motivo: "indisponivel" };
+    const ids = new Set(materiais.map((m) => m.id));
+    if (!materiaisPedidos.every((id) => ids.has(id))) {
+      return { ok: false, motivo: "escopo_invalido" };
+    }
+  }
+
+  const resposta = await chamarRotaPorDentro(await handlerDeCriacao(), "/api/v1/ai/agents", {}, {
+    metodo: "POST",
+    corpo: {
+      name: nome,
+      ...(descricao === undefined ? {} : { description: descricao }),
+      priority: 0,
+      version: {
+        system_prompt: prompt,
+        provider: padrao.provider,
+        model: padrao.defaultModel,
+        credential_id: credencial.id,
+        channel_session_id: null,
+        tool_ids: toolIds,
+        pipeline_ids: funisPedidos,
+        knowledge_source_ids: materiaisPedidos,
+      },
+    },
+  });
+  if (!("status" in resposta) || resposta.status !== 201) {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  const corpo = eObjeto(resposta.corpo) ? (resposta.corpo as { data?: unknown }).data : undefined;
+  const agente = eObjeto(corpo) ? (corpo.agent as Record<string, unknown> | undefined) : undefined;
+  const versao = eObjeto(corpo) ? (corpo.version as Record<string, unknown> | undefined) : undefined;
+  if (!eObjeto(agente) || typeof agente.id !== "string" || typeof agente.name !== "string") {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  if (!eObjeto(versao) || versao.status !== "draft") {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  return {
+    ok: true,
+    agente: { id: agente.id, nome: agente.name, estado: "rascunho" },
+  };
+}
+
 export function criarRascunhoDeAgente(entrada: EntradaDasFerramentas): Tool {
   return tool({
     description:
@@ -110,128 +267,7 @@ export function criarRascunhoDeAgente(entrada: EntradaDasFerramentas): Tool {
     inputSchema: esquemaDeEntrada,
     execute: protegida("criar_rascunho_de_agente", esquemaDeEntrada, async ({ nome, descricao, prompt, pacotes, funis, materiais }) => {
       void entrada;
-      // Decisão do dono (delegada): prompt curto nem chama a rota.
-      if (prompt.trim().length < 10) {
-        return { ok: false as const, motivo: "prompt_curto" as const };
-      }
-      const pacotesPedidos = pacotes ?? PACOTES_PADRAO;
-      const funisPedidos = funis ?? [];
-      const materiaisPedidos = materiais ?? [];
-
-      // Provedor, modelo e credencial: da configuração, nunca do modelo.
-      const respostaProvedores = await chamarRotaPorDentro(
-        await handlerDeProvedores(),
-        "/api/v1/ai/providers",
-        {},
-      );
-      if (!("status" in respostaProvedores) || respostaProvedores.status !== 200) {
-        return { ok: false as const, motivo: "indisponivel" as const };
-      }
-      const corpoProv = eObjeto(respostaProvedores.corpo)
-        ? (respostaProvedores.corpo as { data?: unknown }).data
-        : undefined;
-      if (!eObjeto(corpoProv)) return { ok: false as const, motivo: "indisponivel" as const };
-      const padrao = eObjeto(corpoProv.padrao)
-        ? (corpoProv.padrao as { provider?: unknown; defaultModel?: unknown })
-        : null;
-      const credenciais = Array.isArray(corpoProv.credenciais) ? corpoProv.credenciais : null;
-      if (padrao === null || credenciais === null) {
-        return { ok: false as const, motivo: "indisponivel" as const };
-      }
-      if (typeof padrao.provider !== "string") return { ok: false as const, motivo: "indisponivel" as const };
-      if (typeof padrao.defaultModel !== "string") {
-        return {
-          ok: false as const,
-          motivo: "sem_modelo_padrao" as const,
-          detalhe: `PRECISO CONFIRMAR: falta definir o modelo padrão da empresa. Defina em ${LINK_DA_TELA_DE_PROVEDORES}.`,
-        };
-      }
-      // A credencial tem de ser do MESMO provedor do padrão: uma chave de outro
-      // provedor nasceria no rascunho e quebraria na hora de publicar.
-      const credencial = (credenciais as Record<string, unknown>[]).find(
-        (c) =>
-          c.provider === padrao.provider &&
-          c.validated_at !== null &&
-          c.validated_at !== undefined &&
-          c.is_active !== false &&
-          typeof c.id === "string",
-      );
-      if (credencial === undefined || typeof credencial.id !== "string") {
-        return {
-          ok: false as const,
-          motivo: "sem_credencial" as const,
-          detalhe: `PRECISO CONFIRMAR: falta a chave do provedor. Cadastre em ${LINK_DA_TELA_DE_CREDENCIAIS}.`,
-        };
-      }
-
-      // tool_ids: união dos pacotes pelo catálogo com handler. Sem teto no
-      // assistente — ele passa tudo; se a união estoura o teto da rota,
-      // recusa fechada com a contagem, nunca corta sozinho.
-      const catalogo = catalogoComHandler();
-      let toolIds: string[] = [];
-      for (const pacote of pacotesPedidos) {
-        toolIds = ligarPacote(toolIds, catalogo, pacote);
-      }
-      if (excedeuTeto(toolIds)) {
-        return {
-          ok: false as const,
-          motivo: "teto_de_ferramentas" as const,
-          detalhe: `${pacotesPedidos.join("+")}: ${toolIds.length} capacidades, teto 27. Peça menos pacotes.`,
-        };
-      }
-
-      // Escopo: funil/material de fora da org (ou inativo) nem chega ao POST.
-      if (funisPedidos.length > 0) {
-        const funis = await lerLista(await handlerDeFunis(), "/api/v1/pipelines");
-        if (funis === null) return { ok: false as const, motivo: "indisponivel" as const };
-        const ids = new Set(funis.map((f) => f.id));
-        if (!funisPedidos.every((id) => ids.has(id))) {
-          return { ok: false as const, motivo: "escopo_invalido" as const };
-        }
-      }
-      if (materiaisPedidos.length > 0) {
-        const materiais = await lerLista(await handlerDeMateriais(), "/api/v1/ai/knowledge/sources");
-        if (materiais === null) return { ok: false as const, motivo: "indisponivel" as const };
-        const ids = new Set(materiais.map((m) => m.id));
-        if (!materiaisPedidos.every((id) => ids.has(id))) {
-          return { ok: false as const, motivo: "escopo_invalido" as const };
-        }
-      }
-
-      const resposta = await chamarRotaPorDentro(await handlerDeCriacao(), "/api/v1/ai/agents", {}, {
-        metodo: "POST",
-        corpo: {
-          name: nome,
-          ...(descricao === undefined ? {} : { description: descricao }),
-          priority: 0,
-          version: {
-            system_prompt: prompt,
-            provider: padrao.provider,
-            model: padrao.defaultModel,
-            credential_id: credencial.id,
-            channel_session_id: null,
-            tool_ids: toolIds,
-            pipeline_ids: funisPedidos,
-            knowledge_source_ids: materiaisPedidos,
-          },
-        },
-      });
-      if (!("status" in resposta) || resposta.status !== 201) {
-        return { ok: false as const, motivo: "indisponivel" as const };
-      }
-      const corpo = eObjeto(resposta.corpo) ? (resposta.corpo as { data?: unknown }).data : undefined;
-      const agente = eObjeto(corpo) ? (corpo.agent as Record<string, unknown> | undefined) : undefined;
-      const versao = eObjeto(corpo) ? (corpo.version as Record<string, unknown> | undefined) : undefined;
-      if (!eObjeto(agente) || typeof agente.id !== "string" || typeof agente.name !== "string") {
-        return { ok: false as const, motivo: "indisponivel" as const };
-      }
-      if (!eObjeto(versao) || versao.status !== "draft") {
-        return { ok: false as const, motivo: "indisponivel" as const };
-      }
-      return {
-        ok: true as const,
-        agente: { id: agente.id, nome: agente.name, estado: "rascunho" as const },
-      };
+      return criarAgenteRascunho({ nome, descricao, prompt, pacotes, funis, materiais });
     }),
   });
 }

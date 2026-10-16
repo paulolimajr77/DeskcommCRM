@@ -15,10 +15,12 @@ import { placeholdersDoEsqueleto, preencherEsqueleto } from "./esqueleto";
 
 export { IDS_DE_NICHO } from "./tipos";
 export type {
+  CampoDoNicho,
   FollowupsDoNicho,
   FunilDoNicho,
   IdDeNicho,
   NichoDoAssistente,
+  OrigemDeCampoDoNicho,
   VocabularioDoNicho,
 } from "./tipos";
 export { placeholdersDoEsqueleto, preencherEsqueleto };
@@ -88,6 +90,11 @@ Curto, uma pergunta por vez, sem termos técnicos. Emoji: não.`,
         "Lembrete de consulta é a agenda, não follow-up.",
       ],
     },
+    campos: [
+      { marcador: "clínica", de: "negocio" },
+      { marcador: "especialidades, em uma frase", de: "descricao" },
+      { marcador: "nome", de: "nome_do_agente" },
+    ],
     faq: [
       "convênios aceitos",
       "preço de consulta particular",
@@ -144,6 +151,7 @@ Curto, uma pergunta por vez, sem termos técnicos. Emoji: não.`,
         'depois da visita, 24 h: "o que achou?"',
       ],
     },
+    campos: [],
     faq: [
       "taxas e comissão",
       "documentos para alugar",
@@ -192,6 +200,7 @@ Curto, uma pergunta por vez, sem termos técnicos. Emoji: não.`,
         "7 dias: última tentativa e registrar motivo",
       ],
     },
+    campos: [],
     faq: [
       "o que está incluso",
       "prazo médio",
@@ -241,6 +250,7 @@ Curto, uma pergunta por vez, sem termos técnicos. Emoji: não.`,
         "fim de turma/lote como gatilho manual",
       ],
     },
+    campos: [],
     faq: [
       "conteúdo e carga horária",
       "certificado",
@@ -291,6 +301,7 @@ Curto, uma pergunta por vez, sem termos técnicos. Emoji: não.`,
         '"Escolhendo o produto" em silêncio 24 h: "ficou alguma dúvida sobre o {produto}?"',
       ],
     },
+    campos: [],
     faq: [
       "frete e prazo",
       "troca/devolução",
@@ -372,6 +383,11 @@ Mensagens curtas, uma pergunta por vez, sem termos jurídicos sem explicação. 
         "no-show de consulta agendada",
       ],
     },
+    campos: [
+      { marcador: "escritório", de: "negocio" },
+      { marcador: "área(s) do direito", de: "descricao" },
+      { marcador: "nome", de: "nome_do_agente" },
+    ],
     faq: [
       "áreas que atendem de fato",
       "se cobram pela consulta inicial e quanto",
@@ -418,6 +434,7 @@ Mensagens curtas, uma pergunta por vez, sem termos jurídicos sem explicação. 
       modelos: [],
       observacoes: ["follow-up de silêncio 24 h/72 h"],
     },
+    campos: [],
     faq: [],
     memoria: ["horário", "região", "o que não fazem"],
     promessas: [],

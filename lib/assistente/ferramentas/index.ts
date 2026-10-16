@@ -14,6 +14,9 @@
  *   criar_rascunho_de_agente, instalar_modelo_de_followup
  *                                      — cria agente e follow-up como rascunho
  *                                        (T12/T13), SÓ para `admin`
+ *   montar_pacote_do_nicho              — agente + follow-ups de modelo em
+ *                                        rascunho, numa pedida, do pacote do
+ *                                        nicho (T14b), SÓ para `admin`
  *
  * Quem monta é a rota do chat (T7): ela entrega o `ContextoDeConsulta` com a
  * organização e o papel DA SESSÃO (nunca do corpo) e um coletor novo por
@@ -34,6 +37,7 @@ import { criarListarFunis } from "./listar-funis";
 import { criarListarMateriais } from "./listar-materiais";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarListarModelosDeFollowup } from "./listar-modelos-de-followup";
+import { criarMontarPacoteDoNicho } from "./montar-pacote-do-nicho";
 import { criarAbrirTela, criarListarTelas } from "./telas";
 import type { EntradaDasFerramentas } from "./tipos";
 
@@ -81,5 +85,6 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
     ...configuracao,
     criar_rascunho_de_agente: criarRascunhoDeAgente(entrada),
     instalar_modelo_de_followup: criarInstalarModeloDeFollowup(entrada),
+    montar_pacote_do_nicho: criarMontarPacoteDoNicho(entrada),
   };
 }

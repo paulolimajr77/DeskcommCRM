@@ -11,6 +11,9 @@
  * `falta_etapa` com o pedido de confirmação. `201` com `status` diferente de
  * `draft` é tratado como indisponível (a rota instala rascunho por definição).
  * Escrita de verdade, só `admin` (a montagem barra os outros papéis).
+ *
+ * O miolo vive em `instalarModeloDeFollowup` — extraído para a montagem do
+ * pacote do nicho (T14b) reusar SEM mudar comportamento. `execute` só repassa.
  */
 import { tool, type Tool } from "ai";
 import { z } from "zod";
@@ -46,6 +49,80 @@ function eObjeto(valor: unknown): valor is Record<string, unknown> {
   return valor !== null && typeof valor === "object";
 }
 
+/** O que a montagem do pacote do nicho (T14b) passa para instalar um modelo. */
+export interface PedidoDeFollowupDeModelo {
+  model_id: string;
+  etapa_id?: string;
+  nome?: string;
+}
+
+export type MotivoDeFalhaAoInstalarFollowup =
+  | "pedido_invalido"
+  | "falta_etapa"
+  | "ja_existe"
+  | "indisponivel";
+
+export type ResultadoDeFollowupDeModelo =
+  | { ok: true; followup: { id: string; nome: string; estado: "rascunho" }; aviso: string }
+  | { ok: false; motivo: MotivoDeFalhaAoInstalarFollowup; detalhe?: string };
+
+/**
+ * O miolo de `instalar_modelo_de_followup`, extraído sem mudar comportamento:
+ * mesmas checagens, na mesma ordem, com os mesmos motivos.
+ */
+export async function instalarModeloDeFollowup(
+  pedido: PedidoDeFollowupDeModelo,
+): Promise<ResultadoDeFollowupDeModelo> {
+  const { model_id, etapa_id, nome } = pedido;
+  const modelo = modeloPorId(model_id);
+  if (!modelo) return { ok: false, motivo: "pedido_invalido" };
+  if (modelo.pedeEtapa && etapa_id === undefined) {
+    return {
+      ok: false,
+      motivo: "falta_etapa",
+      detalhe:
+        "PRECISO CONFIRMAR: este modelo dispara quando um negócio entra numa etapa do funil. " +
+        "Diga qual etapa (use listar_funis e listar_etapas_do_funil).",
+    };
+  }
+
+  const resposta = await chamarRotaPorDentro(
+    await handlerAtual(),
+    "/api/v1/ai/followup-flows/from-model",
+    {},
+    {
+      metodo: "POST",
+      corpo: {
+        model_id,
+        ...(etapa_id === undefined ? {} : { stage_id: etapa_id }),
+        ...(nome === undefined ? {} : { name: nome }),
+      },
+    },
+  );
+  if ("falhou" in resposta) return { ok: false, motivo: "indisponivel" };
+  if (resposta.status === 409) return { ok: false, motivo: "ja_existe" };
+  if (resposta.status === 404 || resposta.status === 422) {
+    return { ok: false, motivo: "pedido_invalido" };
+  }
+  if (resposta.status !== 201) return { ok: false, motivo: "indisponivel" };
+
+  const corpo = eObjeto(resposta.corpo)
+    ? (resposta.corpo as { data?: unknown }).data
+    : undefined;
+  if (!eObjeto(corpo) || typeof corpo.id !== "string" || typeof corpo.name !== "string") {
+    return { ok: false, motivo: "indisponivel" };
+  }
+  if (corpo.status !== "draft") return { ok: false, motivo: "indisponivel" };
+
+  return {
+    ok: true,
+    followup: { id: corpo.id, nome: corpo.name, estado: "rascunho" },
+    aviso:
+      "Rascunho criado. Para disparar sozinho, um agente PUBLICADO precisa ter este follow-up " +
+      "ligado em Agente › Follow-up, e publicar o follow-up é clique do administrador.",
+  };
+}
+
 export function criarInstalarModeloDeFollowup(entrada: EntradaDasFerramentas): Tool {
   return tool({
     description:
@@ -58,53 +135,7 @@ export function criarInstalarModeloDeFollowup(entrada: EntradaDasFerramentas): T
       esquemaDeEntrada,
       async ({ model_id, etapa_id, nome }) => {
         void entrada;
-        const modelo = modeloPorId(model_id);
-        if (!modelo) return { ok: false as const, motivo: "pedido_invalido" as const };
-        if (modelo.pedeEtapa && etapa_id === undefined) {
-          return {
-            ok: false as const,
-            motivo: "falta_etapa" as const,
-            detalhe:
-              "PRECISO CONFIRMAR: este modelo dispara quando um negócio entra numa etapa do funil. " +
-              "Diga qual etapa (use listar_funis e listar_etapas_do_funil).",
-          };
-        }
-
-        const resposta = await chamarRotaPorDentro(
-          await handlerAtual(),
-          "/api/v1/ai/followup-flows/from-model",
-          {},
-          {
-            metodo: "POST",
-            corpo: {
-              model_id,
-              ...(etapa_id === undefined ? {} : { stage_id: etapa_id }),
-              ...(nome === undefined ? {} : { name: nome }),
-            },
-          },
-        );
-        if ("falhou" in resposta) return { ok: false as const, motivo: "indisponivel" as const };
-        if (resposta.status === 409) return { ok: false as const, motivo: "ja_existe" as const };
-        if (resposta.status === 404 || resposta.status === 422) {
-          return { ok: false as const, motivo: "pedido_invalido" as const };
-        }
-        if (resposta.status !== 201) return { ok: false as const, motivo: "indisponivel" as const };
-
-        const corpo = eObjeto(resposta.corpo)
-          ? (resposta.corpo as { data?: unknown }).data
-          : undefined;
-        if (!eObjeto(corpo) || typeof corpo.id !== "string" || typeof corpo.name !== "string") {
-          return { ok: false as const, motivo: "indisponivel" as const };
-        }
-        if (corpo.status !== "draft") return { ok: false as const, motivo: "indisponivel" as const };
-
-        return {
-          ok: true as const,
-          followup: { id: corpo.id, nome: corpo.name, estado: "rascunho" as const },
-          aviso:
-            "Rascunho criado. Para disparar sozinho, um agente PUBLICADO precisa ter este follow-up " +
-            "ligado em Agente › Follow-up, e publicar o follow-up é clique do administrador.",
-        };
+        return instalarModeloDeFollowup({ model_id, etapa_id, nome });
       },
     ),
   });

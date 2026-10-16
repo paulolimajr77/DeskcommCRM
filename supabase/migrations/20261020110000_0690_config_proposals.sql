@@ -146,17 +146,6 @@ begin
       using errcode = '23514';
   end if;
 
-  -- 1b. O carimbo da decisão, depois de nascido, não se reescreve: quem decidiu,
-  -- quando e por quê ficam como foram, inclusive na passagem aprovada>aplicada.
-  if old.decided_at is not null
-    and (old.decided_by is distinct from new.decided_by
-      or old.decided_at is distinct from new.decided_at
-      or old.decision_reason is distinct from new.decision_reason)
-  then
-    raise exception 'config_proposals: o carimbo da decisão é imutável depois de nascido'
-      using errcode = '23514';
-  end if;
-
   -- Sem mudança nenhuma, trata como no-op (ex.: UPDATE que reescreve os mesmos
   -- valores). Qualquer mudança com o estado igual cai na regra 2 e reprova.
   if old is not distinct from new then
@@ -169,6 +158,17 @@ begin
   if not ((old.status = 'pendente' and new.status in ('aprovada', 'rejeitada', 'expirada'))
     or (old.status = 'aprovada' and new.status in ('aplicada', 'expirada'))) then
     raise exception 'config_proposals: transição de estado % para % não permitida', old.status, new.status
+      using errcode = '23514';
+  end if;
+
+  -- 2b. O carimbo da decisão, depois de nascido, não se reescreve: quem decidiu,
+  -- quando e por quê ficam como foram, inclusive na passagem aprovada>aplicada.
+  if old.decided_at is not null
+    and (old.decided_by is distinct from new.decided_by
+      or old.decided_at is distinct from new.decided_at
+      or old.decision_reason is distinct from new.decision_reason)
+  then
+    raise exception 'config_proposals: o carimbo da decisão é imutável depois de nascido'
       using errcode = '23514';
   end if;
 

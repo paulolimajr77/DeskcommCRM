@@ -466,7 +466,7 @@ owner: Rafael Melgaço
 - **Origem**: `docs/superpowers/specs/2026-10-14-agente-interno-config-design.md` §12 + planos (F1b/T6)
 - **Tipo**: Default com override
 - **Regra**: GIVEN pergunta nova ao assistente interno; WHEN a contagem de perguntas `human` das últimas 24 h em `config_messages` alcança o teto; THEN a rota responde 429 em PT/ES, sem criar thread e sem gravar linha. Teto por pessoa padrão 60 (1–10000); teto por organização padrão sem limite (1–100000). Replay e retomada do mesmo `turn_id` não passam pelo teto.
-- **Enforcement**: Rota `POST /api/v1/ai/assistente/chat` via `lib/assistente/limites.ts` (cliente de serviço, `organization_id` da sessão em toda consulta); colunas em `ai_budgets` (migration 0677) editadas só pelo admin no cartão Orçamento (`PATCH /api/v1/ai/budget`, com auditoria de antes/depois).
+- **Enforcement**: Rota `POST /api/v1/ai/assistente/chat` via `lib/assistente/limites.ts` (cliente de serviço, `organization_id` da sessão em toda consulta); colunas em `ai_budgets` (migration 0689) editadas só pelo admin no cartão Orçamento (`PATCH /api/v1/ai/budget`, com auditoria de antes/depois).
 - **Override**: Admin da organização ajusta os dois tetos no cartão Orçamento. Sem linha em `ai_budgets`, valem os padrões do código.
 - **Estado**: construída na F1b. O teto em dinheiro do mesmo cartão continua valendo por cima, pelo `runModelCall`.
 

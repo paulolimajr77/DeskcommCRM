@@ -181,6 +181,22 @@ beforeAll(() => {
               'pending', 'RLS invariant private reply');
         end if;
 
+        -- 0665 (#2796): o vínculo versão↔número. O agente passa a declarar em
+        -- quais números atende; o número PRINCIPAL segue em
+        -- ai_agent_versions.channel_session_id. A linha abaixo vincula a versão
+        -- publicada acima ao número da organização, para o caso de isolamento
+        -- desta lista (o agent semeado é controle positivo legítimo: a leitura
+        -- é org-scoped sem gate de papel).
+        if not exists (select 1 from public.ai_agent_version_channels where organization_id = v_org) then
+          insert into public.ai_agent_version_channels
+            (organization_id, agent_version_id, channel_session_id)
+          select v_org, v.id, v_sess
+            from public.ai_agent_versions v
+           where v.organization_id = v_org
+           order by v.version_number desc
+           limit 1;
+        end if;
+
         -- 0281: a conversa INTERNA da equipe com a IA sobre um caso. Guarda o
         -- texto que a pessoa perguntou e a resposta que a IA deu sobre um
         -- contato identificável — vazar entre organizações entregaria ao
@@ -579,7 +595,7 @@ beforeAll(() => {
             (v_org, v_sess, timestamptz '2030-01-01 03:00:00+00', timestamptz '2030-01-01 05:00:00+00');
         end if;
 
-        -- migration 0674 — o histórico do chat do assistente interno. Guarda o
+        -- migration 0687 — o histórico do chat do assistente interno. Guarda o
         -- que a pessoa perguntou sobre a operação e o que o assistente
         -- respondeu: sem contact_id de propósito (config + agregados, nunca
         -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
@@ -793,12 +809,19 @@ export const TABLES = [
   // RPC. Vazar a linha entrega ao vizinho quando o outro vai mexer nas
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
-  // migration 0674 — o histórico do chat do assistente interno (F1). Leitura
+  // migration 0687 — o histórico do chat do assistente interno (F1). Leitura
   // org-scoped com gate de papel `viewer` (o usuário semeado aqui é `agent`,
   // então é controle positivo legítimo); a ESCRITA é do servidor e não é
   // medida aqui — quem mede a escrita são as rotas, em teste de rota.
   "config_threads",
   "config_messages",
+  // migration 0665 (#2796, fatia 1) — o vínculo versão↔número: em quais números
+  // uma versão de agente atende. A LEITURA é org-scoped pela policy `select`
+  // (fn_user_org_ids) sem gate de papel, então o `agent` semeado é controle
+  // positivo legítimo; a ESCRITA é `for all` com fn_role_at_least(admin),
+  // medida em vinculo-do-agente-ao-numero.test.ts. O número PRINCIPAL segue em
+  // ai_agent_versions.channel_session_id — esta tabela só acrescenta vínculos.
+  "ai_agent_version_channels",
   // ⚠️ `cobranca_assinaturas` (migration 0583) NÃO entra nesta lista, pelo mesmo
   // motivo de `webhook_lead_captures`: a leitura é só do `admin` e o usuário
   // semeado aqui é `agent`, então o controle positivo falharia por ACERTO. A

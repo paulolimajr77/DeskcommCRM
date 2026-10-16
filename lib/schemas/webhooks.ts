@@ -322,9 +322,16 @@ const acoesFixas = [
       include_owner: z.boolean().optional(),
     }),
   }),
+  // #2647 — a ação alcança o fluxo de ATENDIMENTO, e o caminho é o do produto
+  // (iniciarFluxoDeAtendimento, `coletando`), não o enroll de follow-up.
+  // `surface` é OPCIONAL de propósito: config sem ela é o follow-up de sempre,
+  // então toda regra já gravada continua apontando para o MESMO fluxo.
   z.object({
     type: z.literal("start_message_flow"),
-    config: z.object({ flow_pointer_id: z.string().uuid() }),
+    config: z.object({
+      flow_pointer_id: z.string().uuid(),
+      surface: z.enum(["followup", "atendimento"]).optional(),
+    }),
   }),
   // #1540 — a ação que NUNCA fala com o cliente: grava `crm_tasks` e avisa o
   // responsável. Advocacia, saúde e serviços regulados precisam do lembrete e
@@ -440,6 +447,16 @@ export const updateWebhookSourceSchema = createWebhookSourceSchema.partial().ext
   name: z.string().trim().min(1).max(120).optional(),
   is_active: z.boolean().optional(),
   authorize_ai_on_capture: z.boolean().optional(),
+  /**
+   * A opção do #2316: quando o `external_id` já existe, ATUALIZAR o card da
+   * MESMA fonte em vez de descartar o envio como reenvio.
+   *
+   * Só entra no PATCH — criar fonte com ela ligada não existe, porque o
+   * segredo que a habilita é da mesma tela e vem depois. Nasce DESLIGADA por
+   * DEFAULT na coluna (migration 0683): quem nunca mexer aqui segue exatamente
+   * como antes do #2316, sem a integração poder reescrever edição manual.
+   */
+  update_existing_lead_on_capture: z.boolean().optional(),
 });
 
 export const createAutomationRuleSchema = z

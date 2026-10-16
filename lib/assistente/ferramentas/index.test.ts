@@ -45,6 +45,7 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   listar_etapas_do_funil: ["funil_id"],
   instalar_modelo_de_followup: ["model_id", "etapa_id", "nome"],
   montar_pacote_do_nicho: ["nicho", "negocio", "descricao", "nome_do_agente", "followups"],
+  testar_agente: ["agente_id", "mensagens"],
 };
 
 /** Todos os nomes de propriedade de um JSON Schema, em qualquer profundidade. */
@@ -118,7 +119,7 @@ describe("montarFerramentasDoAssistente", () => {
     expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
   });
 
-  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup e montar_pacote_do_nicho — manager, viewer e agent não", () => {
+  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho e testar_agente — manager, viewer e agent não", () => {
     const { ferramentas: doAdmin } = montarParaTeste("admin");
     expect(Object.keys(doAdmin).sort()).toEqual([
       "abrir_tela",
@@ -135,12 +136,14 @@ describe("montarFerramentasDoAssistente", () => {
       "listar_modelos_de_followup",
       "listar_telas",
       "montar_pacote_do_nicho",
+      "testar_agente",
     ]);
     for (const papel of ["manager", "viewer", "agent"] as const) {
       const { ferramentas } = montarParaTeste(papel);
       expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
       expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
       expect(ferramentas).not.toHaveProperty("montar_pacote_do_nicho");
+      expect(ferramentas).not.toHaveProperty("testar_agente");
     }
   });
 
@@ -206,6 +209,7 @@ describe("montarFerramentasDoAssistente", () => {
     ["listar_etapas_do_funil", { funil_id: 123 }],
     ["instalar_modelo_de_followup", { model_id: 123 }],
     ["montar_pacote_do_nicho", { nicho: 123 }],
+    ["testar_agente", { agente_id: 123 }],
   ])("%s com entrada de tipo errado não lança e devolve parametro_invalido", async (nome, entrada) => {
     const { ferramentas, sessao } = montarParaTeste("admin");
 
@@ -230,6 +234,7 @@ describe("montarFerramentasDoAssistente", () => {
     "listar_etapas_do_funil",
     "instalar_modelo_de_followup",
     "montar_pacote_do_nicho",
+    "testar_agente",
   ])(
     "%s com entrada nula não lança e devolve parametro_invalido",
     async (nome) => {

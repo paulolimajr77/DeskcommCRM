@@ -17,6 +17,8 @@
  *   montar_pacote_do_nicho              — agente + follow-ups de modelo em
  *                                        rascunho, numa pedida, do pacote do
  *                                        nicho (T14b), SÓ para `admin`
+ *   testar_agente                       — roda o botão Testar num agente em
+ *                                        RASCUNHO (T15), SÓ para `admin`
  *
  * Quem monta é a rota do chat (T7): ela entrega o `ContextoDeConsulta` com a
  * organização e o papel DA SESSÃO (nunca do corpo) e um coletor novo por
@@ -38,6 +40,7 @@ import { criarListarMateriais } from "./listar-materiais";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarListarModelosDeFollowup } from "./listar-modelos-de-followup";
 import { criarMontarPacoteDoNicho } from "./montar-pacote-do-nicho";
+import { criarTestarAgente } from "./testar-agente";
 import { criarAbrirTela, criarListarTelas } from "./telas";
 import type { EntradaDasFerramentas } from "./tipos";
 
@@ -86,5 +89,6 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
     criar_rascunho_de_agente: criarRascunhoDeAgente(entrada),
     instalar_modelo_de_followup: criarInstalarModeloDeFollowup(entrada),
     montar_pacote_do_nicho: criarMontarPacoteDoNicho(entrada),
+    testar_agente: criarTestarAgente(entrada),
   };
 }

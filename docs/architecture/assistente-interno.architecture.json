@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Assistente interno de leitura — o painel, o turno e o catálogo",
-    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode",
+    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up, pacote do nicho, testar) só para admin, com cartão e prova em par",
     "output": "assistente-interno.html",
     "quality_profile": "standard"
   },
@@ -124,6 +124,30 @@
       "type": "table",
       "label": "api_audit_log",
       "sublabel": "ai.assistente_asked com turn_id, fonte, métricas e call_id — nunca o texto"
+    },
+    {
+      "id": "escrita",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "ferramentas de escrita (F2a)",
+      "sublabel": "criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente — só quando o papel da sessão é admin; a trava real está nas rotas"
+    },
+    {
+      "id": "rascunhos",
+      "lane": "registro",
+      "col": 2,
+      "type": "table",
+      "label": "ai_agents / followup_flow_pointers (rascunho)",
+      "sublabel": "v1 draft e ponteiros rascunho via POST por dentro; published_version_id nulo — o assistente nunca publica"
+    },
+    {
+      "id": "cartao",
+      "lane": "pessoa",
+      "col": 1,
+      "type": "frontend",
+      "label": "cartão Criado como rascunho",
+      "sublabel": "tipo, nome e Abrir o agente/follow-up; href montado no servidor a partir do id lido de volta"
     }
   ],
   "edges": [
@@ -143,7 +167,7 @@
       "id": "e3",
       "from": "rotaChat",
       "to": "emissor",
-      "label": "system + histórico (20/8000) + 5 ferramentas de leitura"
+      "label": "system (conduta só para admin) + histórico (20/8000) + ferramentas do papel"
     },
     {
       "id": "e4",
@@ -228,6 +252,48 @@
       "from": "rotaChat",
       "to": "auditoria",
       "label": "ai.assistente_asked — sem pergunta e sem resposta"
+    },
+    {
+      "id": "e18",
+      "from": "rotaChat",
+      "to": "escrita",
+      "label": "monta as 4 de escrita só quando o papel da sessão é admin"
+    },
+    {
+      "id": "e19",
+      "from": "escrita",
+      "to": "rascunhos",
+      "label": "cria pela mesma rota da tela (POST por dentro, requireRole admin)"
+    },
+    {
+      "id": "e20",
+      "from": "rascunhos",
+      "to": "escrita",
+      "label": "lê de volta id, nome e estado antes de devolver (conduta 3)"
+    },
+    {
+      "id": "e21",
+      "from": "escrita",
+      "to": "rotaChat",
+      "label": "anota o cartão no coletor do turno"
+    },
+    {
+      "id": "e22",
+      "from": "rotaChat",
+      "to": "cartao",
+      "label": "resposta traz ações artefato com href do servidor"
+    },
+    {
+      "id": "e23",
+      "from": "cartao",
+      "to": "painel",
+      "label": "o painel mostra tipo, nome e o botão Abrir"
+    },
+    {
+      "id": "e24",
+      "from": "rascunhos",
+      "to": "auditoria",
+      "label": "a criação audita como a tela, sem texto do modelo"
     }
   ],
   "cards": [
@@ -253,7 +319,17 @@
       "title": "O par como unidade de prova",
       "items": [
         "todo aceite que atravessa o modelo vem em par com a medição direta da ferramenta, mesmo texto cru — e só conta quando os dois concordam",
-        "o e2e `assistente-chat-leitura` compara o número do chat com o GET `conversations/counts` direto, mesma sessão e mesmo escopo RLS"
+        "o e2e `assistente-chat-leitura` compara o número do chat com o GET `conversations/counts` direto, mesma sessão e mesmo escopo RLS",
+        "o e2e `assistente-rascunho-de-agente` (F2a) compara o cartão do chat com o GET `ai/agents` direto: o rascunho existe e `published_version_id` é nulo"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F2a: rascunho direto só admin, publicar nunca",
+      "items": [
+        "o bloco de conduta do prompt (§12.C) e as 4 ferramentas de escrita só entram quando o papel da sessão é admin; a trava real continua nas rotas",
+        "toda escrita é lida de volta antes de devolver; o cartão leva ao Botão Abrir e o clique de Publicar é do administrador",
+        "propostas ao vivo (roteador, conhecimento, memória) são F2b: ainda não existem"
       ]
     }
   ]

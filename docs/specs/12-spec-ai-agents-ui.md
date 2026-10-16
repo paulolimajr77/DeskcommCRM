@@ -725,9 +725,16 @@ precisa ficar à mão em qualquer tela.
   nunca de texto do modelo, no máximo 3 por turno. O assistente nunca navega
   sozinho e nunca publica.
 
-### 16.3 O que o painel NÃO faz
+### 16.3 O que o painel faz e o que NÃO faz (F2a)
 
-- Não edita configuração: rascunho e proposta com clique do admin são a F2.
+- Monta RASCUNHOS quando quem pede é admin: o agente, os follow-ups por modelo
+  e o pacote do nicho numa pedida, com o cartão "Criado como rascunho" (tipo,
+  nome, "Abrir o agente/follow-up") e sem publicar nada. O bloco de conduta e
+  as ferramentas de escrita só entram com papel `admin` da sessão.
+- Roda o Testar num rascunho e lê o resultado (chama o modelo, sem WhatsApp e
+  sem contato real; o custo é declarado na resposta).
+- NÃO propõe nem aplica nada ao vivo: roteador, conhecimento, memória, modelo
+  dos auxiliares e funil com clique do admin são a F2b — ainda não existem.
 - Não mostra dado pessoal: os números vêm do catálogo de métricas, que só entrega
   agregado (lista positiva por métrica + varredura de chaves proibidas).
 - Não guarda texto em auditoria: `ai.assistente_asked` leva `turn_id`, fonte,

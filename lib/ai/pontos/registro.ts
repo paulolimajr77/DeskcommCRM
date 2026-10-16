@@ -361,7 +361,7 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     id: "assistente_chat",
     rotulo: "Conversar com o assistente da empresa",
     oQueFaz:
-      "Responde a perguntas de gestores e equipe sobre a operação — números, telas e guias — consultando só dados agregados pelas métricas oficiais. Nunca fala com o cliente e nunca altera nada.",
+      "Responde a perguntas de gestores e equipe sobre a operação — números, telas e guias — consultando só dados agregados pelas métricas oficiais. Para o administrador, monta rascunhos do agente e dos follow-ups e testa — sem publicar nada. Nunca fala com o cliente.",
     papel: "melhorar",
     // O ponto roda COM FERRAMENTAS (o catálogo de métricas da F1b): sem
     // `tools: true`, a tela aceitaria um modelo sem tool calling e o turno

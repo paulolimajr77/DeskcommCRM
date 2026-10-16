@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { MARCA_DO_ASSISTENTE, montarSystemDoAssistente } from "./prompt";
 
-const BASE = { idioma: "pt-BR", fuso: "America/Sao_Paulo", agoraIso: "2026-10-14T09:00:00-03:00" } as const;
+const BASE = {
+  idioma: "pt-BR",
+  fuso: "America/Sao_Paulo",
+  agoraIso: "2026-10-14T09:00:00-03:00",
+  papel: "admin",
+} as const;
 
 /** Frases numa linha só: o teste não pode depender de onde o texto quebra linha. */
 const norm = (s: string) => s.replace(/\s+/g, " ");
@@ -99,5 +104,48 @@ describe("montarSystemDoAssistente", () => {
   it("em espanhol, o dia da semana sai em espanhol", () => {
     const s = norm(montarSystemDoAssistente({ ...BASE, idioma: "es" }));
     expect(s).toContain("miércoles");
+  });
+});
+
+describe("montarSystemDoAssistente — conduta por papel (F2a)", () => {
+  const como = (papel: "admin" | "manager" | "agent" | "viewer") =>
+    norm(
+      montarSystemDoAssistente({
+        idioma: "pt-BR",
+        fuso: "America/Sao_Paulo",
+        agoraIso: "2026-10-14T09:00:00-03:00",
+        papel,
+      }),
+    );
+
+  it("TODO papel recebe as 5 regras de conduta", () => {
+    // Sabotagem: devolver `conduta = ""` para um papel em prompt.ts → o teste
+    // desse papel fica vermelho (a regra 2 some do texto).
+    for (const papel of ["admin", "manager", "agent", "viewer"] as const) {
+      const s = como(papel);
+      expect(s, papel).toContain("Regras de conduta");
+      expect(s, papel).toContain("só mostrar onde a pessoa faz");
+      expect(s, papel).toContain("vêm sempre da sessão");
+      expect(s, papel).toContain("nunca com dado pessoal de cliente");
+      expect(s, papel).toContain("Não invente tela, botão, campo");
+    }
+  });
+
+  it("só o admin recebe a regra de ler de volta o que executou", () => {
+    // Sabotagem: trocar `ehAdmin` por `true` na regra 3 → manager/agent/viewer
+    // passam a ter "leia de volta" e o `not.toContain` abaixo fica vermelho.
+    expect(como("admin")).toContain('leia de volta o resultado antes de dizer "pronto"');
+    for (const papel of ["manager", "agent", "viewer"] as const) {
+      expect(como(papel), papel).not.toContain("leia de volta o resultado");
+    }
+  });
+
+  it("só o admin é apresentado como quem pode pedir rascunhos; os outros seguem só de leitura", () => {
+    // Sabotagem: trocar `ehAdmin` por `true` em `quem` → o `not.toContain` fica vermelho.
+    expect(como("admin")).toContain("monte RASCUNHOS");
+    for (const papel of ["manager", "agent", "viewer"] as const) {
+      expect(como(papel), papel).not.toContain("RASCUNHOS");
+      expect(como(papel), papel).toContain("assistente de LEITURA");
+    }
   });
 });

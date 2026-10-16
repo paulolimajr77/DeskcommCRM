@@ -374,3 +374,18 @@ Duas lições que valem para quem mantiver este documento:
 ### Conversões de anúncios: confirmação e reprocessamento
 
 A integração de vendas oferece Data Manager nas novas autorizações do Google, preserva conexões anteriores e acompanha protocolos assíncronos. Configurações → Conversões mostra falhas temporárias, teste Meta e pendências com ação de reprocessamento. Contratos, limites e roteiro de piloto: [conversões de anúncios](runbooks/conversoes-de-anuncios.md). A captura web oferece links nomeados e script por número; regras Google por etapa, histórico e diagnóstico ficam em Configurações → Conversões. Os testes e limites de validação desta continuação estão no mapa de jornadas. Entrega real às plataformas exige um piloto com credenciais e recibos da conta.
+
+### Adendo 2026-10-16 — assistente interno, F2a (não é retrato: é acréscimo datado)
+
+O corpo acima segue sendo o retrato de 2026-07-29 e não foi reescrito. O que
+passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
+
+- Chat com IA de leitura no painel lateral (F1b): 17 métricas agregadas, guias,
+  botão de abrir tela, piso determinístico, tetos de perguntas no cartão
+  Orçamento (`docs/architecture/assistente-interno.architecture.json`, J45).
+- Rascunhos diretos pelo chat, só para `admin` (F2a): criar rascunho de agente,
+  follow-up por modelo, pacote do nicho (clínica e advocacia têm prompt pronto;
+  os outros 5 nichos recusam), botão Testar em rascunho e cartão "Criado como
+  rascunho" no painel — nada publica, nada toca em credencial/canal/exclusão.
+- Propostas ao vivo (roteador, conhecimento, memória, ajustes com clique do
+  admin) são F2b: ainda não existem.

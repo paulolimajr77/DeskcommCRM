@@ -289,7 +289,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     // Contexto da tela: o agente que a pessoa está vendo, só se for desta organização.
     // Não vai para a auditoria, não entra no limite nem no replay.
     const agenteEmTela = await agenteVistoNaTela(pool, orgId, contexto?.caminho);
-    const system = montarSystemDoAssistente({ idioma, fuso, agoraIso, agenteEmTela });
+    // O bloco "Regras de conduta" do `system` só entra para `admin` — o papel
+    // vem DA SESSÃO (nunca do corpo), como as ferramentas de escrita.
+    const system = montarSystemDoAssistente({ idioma, fuso, agoraIso, papel, agenteEmTela });
 
     // As mensagens ANTERIORES a este turno. Pegamos as mais recentes (desc) e
     // devolvemos em ordem cronológica; o recorte por caracteres vem depois.

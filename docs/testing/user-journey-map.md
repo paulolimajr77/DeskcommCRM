@@ -3556,6 +3556,11 @@ dúvida de guia — e trocar de página com o painel aberto, sem perder a conver
 Spec: `tests/e2e/assistente-chat-leitura.spec.ts` (job e2e, parte 1), com o dublê
 do modelo (`INTERNAL_AGENT_RUN_STUB`): o par chat × `GET conversations/counts`
 direto prova que o número na tela é o do banco, mesma sessão e mesmo escopo RLS.
+O caso de escrita (J45.7) é a spec `tests/e2e/assistente-rascunho-de-agente.spec.ts`
+(job e2e, parte 6): o par chat × `GET ai/agents` direto prova que o rascunho
+existe e que nada foi publicado — cobre SÓ o rascunho de agente via pacote do
+nicho; follow-up instalado junto, Testar e propostas ao vivo (F2b) seguem sem
+prova em tela.
 
 **Estado da medição: os casos abaixo ainda NÃO rodaram.** A spec foi estendida sem
 rodar localmente (e2e exige app + banco semeado); a primeira medição é a do job
@@ -3569,6 +3574,7 @@ rodar localmente (e2e exige app + banco semeado); a primeira medição é a do j
 | J45.4 | Troca de página | painel continua aberto, com o rascunho digitado | a medir (CI) |
 | J45.5 | ⌘K → Conversar | abre o mesmo painel, sem trocar de página | a medir (CI) |
 | J45.6 | Sem página em tela cheia | `GET /app/assistente` → 404 | a medir (CI) |
+| J45.7 | Pedir o agente da clínica no chat (admin, F2a) | cartão "Criado como rascunho" com o nome do agente + `GET ai/agents` direto mostra o rascunho sem nada publicado (par) | a medir (CI) |
 
 Não provado pela tela: o piso sem chave de IA (coberto por unidade em
 `tests/unit/assistente-chat-rota.test.ts`, bloco "piso quando o modelo não

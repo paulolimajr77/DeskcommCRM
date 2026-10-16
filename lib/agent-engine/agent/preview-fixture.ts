@@ -111,11 +111,53 @@ export function previewFixtureRegistry() {
         }
         return null;
       };
+      // Ramo do PAR (T17): o pedido "monta o agente da minha clínica" desce
+      // até `montar_pacote_do_nicho` de verdade — o dublê só finge o raciocínio
+      // do modelo (qual ferramenta chamar, com dados do nicho com prompt
+      // pronto); criar o rascunho, ler de volta e anotar o cartão é a
+      // ferramenta real, com a sessão do administrador. NUNCA lança.
+      const extrairNomeDoAgente = (resultados: unknown[]): string | null => {
+        for (const item of resultados) {
+          try {
+            const achado = JSON.stringify(item).match(/"nome"\s*:\s*"([^"]+)"/);
+            if (achado) return achado[1] ?? null;
+          } catch {
+            continue;
+          }
+        }
+        return null;
+      };
       if (text.includes(MARCA_DO_ASSISTENTE)) {
         const temConsulta = options.tools?.some((t) => t.type === 'function' && t.name === 'consultar_metrica');
         const consultou = saw('consultar_metrica');
         const textoDaUltimaMensagemDoUsuario = extrairTextoUltimaMensagemDoUsuario(options.prompt);
-        if (/fila/i.test(textoDaUltimaMensagemDoUsuario) && temConsulta === true && !consultou) {
+        const temPacote = options.tools?.some(
+          (t) => t.type === 'function' && t.name === 'montar_pacote_do_nicho',
+        );
+        const montou = saw('montar_pacote_do_nicho') || saw('criar_rascunho_de_agente');
+        if (/cl[ií]nica|monta o agente/i.test(textoDaUltimaMensagemDoUsuario) && temPacote === true && !montou) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: randomUUID(),
+            toolName: 'montar_pacote_do_nicho',
+            input: JSON.stringify({
+              nicho: 'clinica',
+              negocio: 'Clínica E2E',
+              descricao: 'atendimento da clínica de teste',
+              nome_do_agente: `Agente Clinica E2E ${randomUUID().slice(0, 8)}`,
+              followups: ['clinica-consulta-retomada'],
+            }),
+          });
+        } else if (montou) {
+          const nome = extrairNomeDoAgente(toolResults);
+          content.push({
+            type: 'text',
+            text:
+              nome === null
+                ? 'Não consegui criar o rascunho agora — confira o motivo e tente de novo.'
+                : `Criei o rascunho do ${nome}. Confira o cartão abaixo — nada foi publicado.`,
+          });
+        } else if (/fila/i.test(textoDaUltimaMensagemDoUsuario) && temConsulta === true && !consultou) {
           content.push({
             type: 'tool-call',
             toolCallId: randomUUID(),

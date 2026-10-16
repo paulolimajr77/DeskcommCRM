@@ -286,6 +286,40 @@ quem entra, e sim o que o turno faz lá dentro:
 6. **Piso.** Sem chave, teto estourado, erro ou texto vazio, a resposta é o determinístico da F1
    (resumo + guia, mesmos dados com RLS) com aviso do motivo e `error_code` na linha.
 
+### T10 — Assistente interno com ferramentas de escrita (F2a) 🟢 MITIGADO — CONFIRMADO
+
+A F2a dá ao turno do assistente 4 ferramentas que ESCREVEM (`criar_rascunho_de_agente`,
+`instalar_modelo_de_followup`, `montar_pacote_do_nicho`, `testar_agente`), só
+quando o papel DA SESSÃO é `admin` — os outros papéis continuam só com as 5 de
+leitura, e o bloco de conduta do prompt (§12.C) só entra para `admin`:
+
+1. **Superfície.** As ferramentas chamam as rotas `POST` por dentro
+   (`chamarRotaPorDentro`, mesma requisição, herdando login, papel e
+   organização). Nenhuma escrita direta em tabela de negócio, nenhum service
+   role no turno, nenhum `organization_id` vindo do modelo (os esquemas são
+   `.strict()` e recusam org/papel/URL/SQL).
+2. **O que nasce é rascunho.** Agente nasce `v1 draft`, follow-up por modelo
+   nasce rascunho, nada é ligado a agente e nada é publicado — publicar
+   continua sendo clique do administrador na tela (o cartão leva o botão
+   "Abrir o agente"). `testar_agente` só roda versão em rascunho e declara o
+   custo (chama o modelo e consome crédito).
+3. **Conduta em código, não só em prompt.** Provedor/modelo/credencial vêm da
+   configuração lida por dentro (nunca do que o modelo digita); sem credencial
+   validada a ferramenta devolve PRECISO CONFIRMAR com o link da tela.
+   Credencial, canal, billing, usuários e exclusões não têm ferramenta —
+   viram "PRECISO CONFIRMAR" com o link. Toda escrita é lida de volta (id,
+   nome, estado) antes de devolver, e o cartão tem `href` montado no servidor.
+4. **Tenant da sessão.** As rotas de aplicar já filtram `organization_id` da
+   sessão; o par do e2e (`assistente-rascunho-de-agente`: cartão na tela ×
+   `GET ai/agents` direto, mesma sessão) prova que o rascunho nasceu na org
+   certa e que `published_version_id` segue nulo.
+
+**Residual honesto:** um admin legítimo ainda consegue criar rascunhos à
+vontade até o teto de perguntas (IA-12) — é limite, não prevenção; e o
+`testar_agente` gasta a chave da org a cada mensagem (o custo é declarado na
+resposta, mas o teto diário conta perguntas ao assistente, não testes — ver
+§4, pergunta 6).
+
 ---
 
 ## 3. Sumário de prioridade
@@ -300,6 +334,7 @@ quem entra, e sim o que o turno faz lá dentro:
 | T7 | Sem scan de secret no CI + 116 PNGs de evidência sem revisão de PII | 🟡 | baixo |
 | T6 | Guard de SSRF existe; o E2E que o prova não roda no CI | 🟢 | baixo |
 | T9 | Assistente interno manda agregado ao modelo; residual é destino e gasto insider | 🟢 | — (construído com as cercas) |
+| T10 | Assistente com escrita cria só rascunho (só admin); residual é gasto do Testar fora do teto diário | 🟢 | — (travas nas rotas + par no e2e) |
 
 **Conclusão honesta:** os *mecanismos* de segurança deste projeto são acima da média para
 um CRM open-source — HMAC em tempo constante em toda borda, fail-closed nos crons, hash de
@@ -323,3 +358,9 @@ construídas.
 4. Existe branch protection exigindo os dois checks do CI verdes no merge? (não é visível
    no checkout)
 5. Há intenção de pedir pentest externo antes de divulgar a v1.0.0 mais amplamente?
+6. O gasto do `testar_agente` do assistente (F2a) entra no teto diário de perguntas
+   (IA-12)? Hoje não: o teto conta linhas `human` em `config_messages`, e o Testar
+   roda dentro de um turno já contado — cada mensagem de teste chama o modelo sem
+   passar pelo limite. Se a resposta for "deve entrar", vira tarefa nova (contar
+   testes no limite ou teto próprio); por enquanto o custo é só declarado na
+   resposta da ferramenta.

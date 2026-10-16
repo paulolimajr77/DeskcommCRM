@@ -4,26 +4,18 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 import { resolveAuthDual, tetoDeEscritaDoToken } from "@/lib/api/auth-dual";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { capabilitiesOf } from "@/lib/channels/capabilities";
 import type { ChannelProvider } from "@/lib/channels/types";
 import { ProspectingError } from "@/lib/prospecting/provider";
-import { campaignConfigSchema, prospectingInputSchema, type Prospect } from "@/lib/prospecting/schema";
+import { prospectingInputSchema, type Prospect } from "@/lib/prospecting/schema";
 import { auditarSite } from "@/lib/prospecting/site-fetch";
-import { siteEfetivo } from "@/lib/prospecting/site-efetivo";
+import { gravarPrevia } from "@/lib/prospecting/previa";
+import { gerarPreviaDoCandidato } from "@/lib/prospecting/previa-gerar";
 import { enriquecerSitesPendentes } from "@/lib/prospecting/site-enrich";
-import {
-  instrucaoDeAbordagemFria,
-  montarDadosDeAbordagem,
-  montarEstrategia,
-  pontuarCandidato,
-  type OfertaDaCampanha,
-} from "@/lib/prospecting/estrategia-site";
-import { blocoVozVendedor, lerPersonalizacao, personalizacaoDaOrganizacao } from "@/lib/prospecting/personalizar";
-import { gerarAbordagemDeFormulario } from "@/lib/agent-engine/agent/abordagem-de-formulario";
-import { llmEdgeConfigFromEnv } from "@/lib/agent-engine/edge/llm/credentials";
-import { env } from "@/lib/env";
+import { lerPersonalizacao } from "@/lib/prospecting/personalizar";
 import {
   activateCampaign,
   adjustPace,
@@ -266,7 +258,9 @@ export async function POST(req: NextRequest) {
         classes: reanalise.classes,
       };
     } else if (body.action === "prever_abordagem") {
-      // Somente leitura: gera a copy sem enviar e sem auditar (sem mutação).
+      // Gera a copy, GUARDA a prévia no candidato (B1) e audita. Deixou de ser
+      // somente leitura: a copy que a pessoa revisa vira o rascunho que o tick
+      // envia, e a gravação precisa de trilha.
       const linhas = await pool.query(
         "select pc.id, pc.data, pc.status, pc.contact_id, pc.campaign_id, c.config, c.search from prospecting_candidates pc join prospecting_campaigns c on c.organization_id=pc.organization_id and c.id=pc.campaign_id where pc.organization_id=$1 and pc.campaign_id=$2 and pc.id=$3",
         [org, body.id, body.candidate_id],
@@ -282,65 +276,64 @@ export async function POST(req: NextRequest) {
           }
         | undefined;
       if (!linha) throw new ProspectingError("Candidato não encontrado.", 404);
-      // A4: a prévia usa o MESMO veredito que a tela mostra. Quem não tem site
-      // próprio já tem `sem-site` derivado (sem rede); o 409 fica só para quem
-      // tem site na web e ainda espera a auditoria — antes isso barrava também
-      // as linhas sem site, que nunca teriam auditoria nenhuma.
-      const site = siteEfetivo(linha.data, new Date().toISOString());
-      if (!site)
-        throw new ProspectingError(
-          "Auditoria pendente para este candidato. Aguarde o tick ou use Reanalisar site.",
-          409,
-        );
-      // Config parcial salva pelo meio (sem `agent_id`) não é campanha
-      // configurada: o `parse` cru estourava ZodError (500) em vez do 422 que a
-      // tela entende — mesma origem do defeito corrigido na ativação.
-      const cfg = linha.config ? campaignConfigSchema.safeParse(linha.config) : null;
-      if (!cfg?.success || !cfg.data.agent_id)
-        throw new ProspectingError("Configure o agente da campanha para pré-visualizar.", 422);
-      const ofertas = (cfg.data.ofertas ?? ["site"]) as OfertaDaCampanha[];
-      // Mesmos fios do envio (voz + vocabulário da org): a prévia só vale se
-      // for byte a byte o que o tick mandaria.
-      const personalizacao = await personalizacaoDaOrganizacao(pool, org);
-      const gerado = await gerarAbordagemDeFormulario(pool, llmEdgeConfigFromEnv(env), {
-        tenantId: org,
-        agentId: cfg.data.agent_id,
-        leadId: linha.contact_id ?? null,
-        instrucao: instrucaoDeAbordagemFria(
-          cfg.data.instruction,
-          cfg.data.qualification,
-          blocoVozVendedor(personalizacao) || undefined,
-        ),
-        origem: "Pesquisa de empresas",
-        origemDaAbordagem: "prospeccao_fria",
-        dados: montarDadosDeAbordagem(linha.data, site),
-      });
-      if (!gerado.ok)
-        throw new ProspectingError(`A IA não produziu uma abordagem: ${gerado.reason}.`, 422);
-      const estrategia = montarEstrategia({
-        classe: site.classe,
-        problemas: site.problemas,
-        checklist: site.checklist,
-        nota: linha.data.rating,
-        numAvaliacoes: linha.data.reviews,
-        temInstagram: /instagram/i.test((linha.data.socials ?? []).join(",")),
-        ofertas,
-        nicho: linha.search?.niche ?? linha.data.category ?? "",
-        sobrescritaVocabulario: personalizacao.vocabulario ?? null,
-        provisorio: site.provisorio ?? false,
-        status: linha.status,
-        followUpsEnviados: 0,
-      });
-      result = {
-        mensagem: gerado.texto,
-        estrategia,
-        score: pontuarCandidato(linha.data.rating, linha.data.reviews, site.classe, ofertas[0] ?? "site", site.provisorio ?? false),
-      };
+      // A geração mora em `gerarPreviaDoCandidato` (B2), a MESMA que o preparo
+      // automático do tick chama: o que o operador revisa aqui e o que o sistema
+      // guarda sozinho saem do mesmo código. Esta rota só traduz o motivo em HTTP.
+      const gerada = await gerarPreviaDoCandidato(pool, org, linha);
+      if (!gerada.ok) {
+        if (gerada.motivo === "auditoria_pendente")
+          // Quem tem site na web e ainda espera a auditoria. Quem não tem site
+          // próprio já tem `sem-site` derivado e nunca cai aqui.
+          throw new ProspectingError(
+            "Auditoria pendente para este candidato. Aguarde o tick ou use Reanalisar site.",
+            409,
+          );
+        // Config parcial salva pelo meio (sem `agent_id`) não é campanha
+        // configurada: 422 que a tela entende, não um ZodError (500).
+        if (gerada.motivo === "sem_agente")
+          throw new ProspectingError("Configure o agente da campanha para pré-visualizar.", 422);
+        throw new ProspectingError(`A IA não produziu uma abordagem: ${gerada.detalhe}.`, 422);
+      }
+      const { previa, estrategia, score } = gerada;
+      // A prévia é ancorada na CHAVE da auditoria, nunca num instante solto.
+      // FAIL-OPEN: se a gravação falhar, a pessoa ainda recebe a copy
+      // (`salva:false`) — perder a prévia por erro de escrita seria pior do que
+      // não guardá-la. O log NUNCA carrega o TEXTO.
+      let salva = false;
+      try {
+        await gravarPrevia(pool, {
+          organizationId: org,
+          campaignId: body.id,
+          candidateId: body.candidate_id,
+          previa,
+        });
+        salva = true;
+        await audit({
+          action: "prospecting.preview_saved",
+          organizationId: org,
+          actorUserId: auth.actor.type === "user" ? auth.actor.id : null,
+          actorApiTokenId: auth.apiTokenId ?? null,
+          resourceType: "prospecting",
+          resourceId: body.candidate_id,
+          metadata: { operation: body.action, score: score.valor },
+          requestId,
+        });
+      } catch (error) {
+        logger.warn("prospecting.preview_not_saved", {
+          requestId,
+          campaignId: body.id,
+          candidateId: body.candidate_id,
+          message: error instanceof Error ? error.message : "erro desconhecido",
+        });
+      }
+      result = { mensagem: gerada.texto, estrategia, score, salva };
     } else if (body.action === "verificar_sites") {
-      // Verificação sob demanda (spec 24): roda o MESMO enriquecimento do tick,
-      // agora — teto de 30 candidatos e prazo de lote de 60s por dentro, então
-      // a requisição termina e o lock não fica preso. Pode ser chamado de novo
-      // enquanto houver "A verificar".
+      // "Verificar agora" (spec 24): ADIANTA o que o preparo automático do tick
+      // faria sozinho (`prepararCandidatos`) — o MESMO enriquecimento, com teto de
+      // 30 candidatos e prazo de lote por dentro, então a requisição termina e o
+      // lock não fica preso. Diferente do tick, esta rota segura o bloqueio da
+      // organização enquanto roda; o tick não. Pode ser chamado de novo enquanto
+      // houver "A verificar".
       const enriquecido = await withProspectingLock(pool, org, async (db) =>
         enriquecerSitesPendentes(db, org, requestId, Date.now() + 120_000, body.id),
       );
@@ -377,8 +370,8 @@ export async function POST(req: NextRequest) {
       });
     }
     const resourceId = "id" in body ? body.id : null;
-    // Prévia é somente leitura: sem mutação, sem audit (a regra do cron vazio
-    // vale para rota de leitura; o custo aparece em `llm_calls`).
+    // A prévia audita DENTRO do bloco (só quando a gravação venceu): aqui é só
+    // devolver, para não gravar uma trilha de "changed" que não houve.
     if (body.action === "prever_abordagem") return ok(result, { requestId, headers });
     await audit({
       action: "prospecting.changed",

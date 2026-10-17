@@ -847,6 +847,15 @@ export const AUDIT_ACTIONS = [
    */
   "ai.case_chat_asked",
   /**
+   * A equipe perguntou ao assistente interno (migration 0687). Uma linha por
+   * PERGUNTA, respondida ou não.
+   *
+   * ⚠️ SEM O TEXTO. Nem a pergunta, nem a resposta: `api_audit_log` é
+   * append-only, sem UPDATE nem DELETE para papel nenhum — o que entra ali não
+   * sai pela cascata de LGPD.
+   */
+  "ai.assistente_asked",
+  /**
    * O aviso de caso no WhatsApp da equipe (migration 0292).
    *
    * Três códigos e não um: "saiu", "não saiu em definitivo" e "alguém mudou a
@@ -1154,12 +1163,70 @@ export const AUDIT_ACTIONS = [
   // A marca foi removida: só limpa `ai_opt_out`; a conversa segue com a trava
   // de handoff de quem a pôs.
   "contacts.always_human_unmarked",
+  // A tela de Contatos devolvendo a base em CSV/vCard (#2759) — portabilidade,
+  // LGPD art. 18, V. Audita o GESTO com o total de linhas e os filtros que
+  // valiam, nunca o termo de busca.
+  "contacts.exported",
   // O operador carregou a imagem que a Resposta rápida passa a enviar junto
   // com o texto — `POST /message-templates/:id/midias` (#2526). A REMOÇÃO não
   // tem código próprio: ela acontece dentro do `template.updated` (campo
   // `removidas` no metadata) ou dentro do `template.deleted`, que são os atos
   // em que a imagem sai de fato.
   "template.media_added",
+  /**
+   * O assistente interno PROPÔS uma mudança ao vivo (F2b, migration 0690): uma
+   * linha `pendente` em `config_proposals`, gravada com a sessão do admin.
+   * Propor não muda nada no negócio; quem aplica é a rota da T20, depois do
+   * clique de aprovar.
+   *
+   * ⚠️ SEM O TEXTO. O metadata leva só `kind`, `operacao` e `risk` (e o id da
+   * proposta vai em `resource_id`): o `payload` carrega prompt, FAQ e memória
+   * da empresa, e `api_audit_log` é append-only — o que entra ali não sai pela
+   * cascata de LGPD.
+   */
+  "assistente.proposta_criada",
+  /**
+   * O admin APROVOU uma proposta do assistente (F2b, T20) — transição
+   * `pendente → aprovada`. Aprovar nunca executa efeito: quem aplica é a
+   * ação própria, depois.
+   *
+   * ⚠️ SEM O TEXTO: o metadata leva só `kind`, `operacao` e `risk` — o
+   * `payload` carrega prompt, FAQ e memória da empresa, e `api_audit_log` é
+   * append-only (o que entra ali não sai pela cascata de LGPD).
+   */
+  "assistente.proposta_aprovada",
+  /**
+   * O admin REJEITOU uma proposta do assistente (T20) — `pendente →
+   * rejeitada`, com `decision_reason`. O MOTIVO nunca entra no metadata (o
+   * texto fica na linha de `config_proposals`, que a RLS limita a admin);
+   * aqui vai só `kind`, `operacao` e `risk`. O motivo é insumo estruturado do
+   * laço de retorno (F4), não texto de trilha.
+   */
+  "assistente.proposta_rejeitada",
+  /**
+   * O admin APLICOU uma proposta aprovada (T20) — o destino fixo do mapa
+   * (`operacoes.ts`) recebeu o corpo pelo handler existente e respondeu 2xx.
+   * O metadata leva `kind`, `operacao`, `risk` e o `http_status` do destino —
+   * nunca o corpo da resposta (pode carregar texto do recurso criado).
+   */
+  "assistente.proposta_aplicada",
+  /**
+   * A APLICAÇÃO FALHOU (T20): o destino respondeu não-2xx (ou lançou). A
+   * proposta FICA `aprovada` — pode tentar de novo —, e esta linha é a que
+   * responde "por que ficou aprovada e nada mudou?". Metadata com `kind`,
+   * `operacao`, `risk`, `http_status` e `codigo_do_destino` (o `error.code` do
+   * envelope do destino, sem texto livre).
+   */
+  "assistente.proposta_falhou_ao_aplicar",
+  // O cron de lembrete de tarefa (#2529) avisou RESPONSÁVEIS nesta rodada —
+  // só quando houve efeito, como manda a lei do §Audit log. O metadata traz
+  // quantas tarefas, quantas puladas e por quê; nunca o número de WhatsApp de
+  // ninguém.
+  "task.reminder_batch",
+  // A pessoa gravou a própria preferência de lembrete de tarefa (os dois
+  // interruptores, a antecedência e o opt-in de WhatsApp). O número NÃO entra:
+  // é dado de contato, e o audit é trilha legível por quem administra.
+  "user.task_reminder_prefs_updated",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

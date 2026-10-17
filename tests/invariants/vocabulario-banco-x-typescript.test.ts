@@ -508,6 +508,29 @@ const PARES: Array<{
     arquivo: "lib/external-db/types.ts",
     simbolo: "ModoDeFontes",
   },
+  {
+    tabela: "config_proposals",
+    coluna: "kind",
+    // lib/assistente/propostas/tipos.ts → TIPOS_DE_PROPOSTA (tupla `as const`).
+    // Migration 0690 (assistente interno, F2b): o tipo que a ferramenta de propor
+    // grava. Um tipo só no TypeScript viraria `23514` no INSERT da sessão do admin.
+    arquivo: "lib/assistente/propostas/tipos.ts",
+    simbolo: "TIPOS_DE_PROPOSTA",
+  },
+  {
+    tabela: "config_proposals",
+    coluna: "risk",
+    // RISCOS_DA_PROPOSTA — sem `critico` de propósito (spec §6/§7b).
+    arquivo: "lib/assistente/propostas/tipos.ts",
+    simbolo: "RISCOS_DA_PROPOSTA",
+  },
+  {
+    tabela: "config_proposals",
+    coluna: "status",
+    // STATUS_DA_PROPOSTA — o gatilho de transição só aceita estes cinco estados.
+    arquivo: "lib/assistente/propostas/tipos.ts",
+    simbolo: "STATUS_DA_PROPOSTA",
+  },
 ];
 
 /** Tira um nível de parênteses externos, se ele envolver a expressão inteira. */

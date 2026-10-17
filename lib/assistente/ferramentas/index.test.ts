@@ -45,6 +45,7 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   listar_etapas_do_funil: ["funil_id"],
   instalar_modelo_de_followup: ["model_id", "etapa_id", "nome"],
   montar_pacote_do_nicho: ["nicho", "negocio", "descricao", "nome_do_agente", "followups"],
+  montar_followup_de_nicho: ["nicho", "nome", "toques", "rotulo", "texto", "espera_horas", "silencio_horas", "etapa_id"],
   testar_agente: ["agente_id", "mensagens"],
   propor_roteador: [
     "operacao", "resumo", "motivo", "router_id", "name", "channel_session_id", "fallback_agent_id",
@@ -139,7 +140,7 @@ describe("montarFerramentasDoAssistente", () => {
     expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
   });
 
-  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente e as cinco propor_* — manager, viewer e agent não", () => {
+  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, montar_followup_de_nicho, testar_agente e as cinco propor_* — manager, viewer e agent não", () => {
     const { ferramentas: doAdmin } = montarParaTeste("admin");
     expect(Object.keys(doAdmin).sort()).toEqual([
       "abrir_tela",
@@ -156,6 +157,7 @@ describe("montarFerramentasDoAssistente", () => {
       "listar_metricas",
       "listar_modelos_de_followup",
       "listar_telas",
+      "montar_followup_de_nicho",
       "montar_pacote_do_nicho",
       "propor_conhecimento",
       "propor_funil",
@@ -169,6 +171,7 @@ describe("montarFerramentasDoAssistente", () => {
       expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
       expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
       expect(ferramentas).not.toHaveProperty("montar_pacote_do_nicho");
+      expect(ferramentas).not.toHaveProperty("montar_followup_de_nicho");
       expect(ferramentas).not.toHaveProperty("testar_agente");
       // Sabotagem: mover as propor_* para o catálogo de manager em index.ts → este laço fica vermelho.
       for (const nome of FERRAMENTAS_DE_PROPOSTA) expect(ferramentas, nome).not.toHaveProperty(nome);
@@ -237,6 +240,7 @@ describe("montarFerramentasDoAssistente", () => {
     ["listar_etapas_do_funil", { funil_id: 123 }],
     ["instalar_modelo_de_followup", { model_id: 123 }],
     ["montar_pacote_do_nicho", { nicho: 123 }],
+    ["montar_followup_de_nicho", { nicho: 123 }],
     ["testar_agente", { agente_id: 123 }],
     ["propor_roteador", { operacao: 123 }],
     ["propor_conhecimento", { source_type: 123 }],
@@ -267,6 +271,7 @@ describe("montarFerramentasDoAssistente", () => {
     "listar_etapas_do_funil",
     "instalar_modelo_de_followup",
     "montar_pacote_do_nicho",
+    "montar_followup_de_nicho",
     "testar_agente",
     ...FERRAMENTAS_DE_PROPOSTA,
   ])(

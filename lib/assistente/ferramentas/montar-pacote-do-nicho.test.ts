@@ -159,19 +159,47 @@ describe("montar_pacote_do_nicho", () => {
     expect(saida.falta.some((f) => f.includes("PRECISO CONFIRMAR"))).toBe(true);
   });
 
+  it.each(["imobiliaria", "servicos", "infoproduto", "loja", "generico", "advocacia"] as const)(
+    "D. %s: cria o agente em rascunho com o prompt do nicho preenchido e o pacote vender",
+    async (nicho) => {
+      const capturaAgente: CorpoCapturado = { metodo: "", corpos: [] };
+      ligar({ capturaAgente });
+      const { ferramentas } = montarParaTeste("admin");
+
+      const saida = await chamar<{ ok: boolean; criado: { agente: { estado: string } }; falta: string[] }>(
+        ferramentas,
+        "montar_pacote_do_nicho",
+        { nicho, negocio: "Negócio Teste", descricao: "faz coisas boas", nome_do_agente: "Atendente Teste" },
+      );
+
+      expect(saida.ok).toBe(true);
+      expect(saida.criado.agente.estado).toBe("rascunho");
+      expect(capturaAgente.corpos).toHaveLength(1);
+      const versao = capturaAgente.corpos[0]?.version as { system_prompt: string; tool_ids: string[] };
+      expect(versao.system_prompt).toContain("Negócio Teste");
+      expect(versao.system_prompt).toContain("faz coisas boas");
+      expect(versao.system_prompt).toContain("Atendente Teste");
+      // Nenhum marcador ficou sem preencher: o texto que vai ao banco não tem chave.
+      expect(versao.system_prompt).not.toMatch(/[{}]/);
+      expect(versao.tool_ids.length).toBeGreaterThan(0);
+      expect(saida.falta.some((f) => f.includes("publicar"))).toBe(true);
+    },
+  );
+
   it("B. nicho sem prompt: nicho_sem_prompt e NENHUM POST", async () => {
     const capturaAgente: CorpoCapturado = { metodo: "", corpos: [] };
     const capturaFollowup: CorpoCapturado = { metodo: "", corpos: [] };
     ligar({ capturaAgente, capturaFollowup });
-    const { ferramentas } = montarParaTeste("admin");
+    const sem = { ...nichoPorId("imobiliaria")!, esqueleto: null, campos: [] } as NichoDoAssistente;
+    const saida = await montarPacoteDoNicho({
+      nicho: sem,
+      negocio: "Imob Sul",
+      descricao: "venda e locação",
+      nomeDoAgente: "Vendas Sul",
+      followups: [],
+    });
 
-    const saida = await chamar<{ ok: boolean; motivo: string; detalhe: string }>(
-      ferramentas,
-      "montar_pacote_do_nicho",
-      { nicho: "imobiliaria", negocio: "Imob Sul", descricao: "venda e locação", nome_do_agente: "Vendas Sul" },
-    );
-
-    expect(saida.ok).toBe(false);
+    if (saida.ok) throw new Error("devia recusar");
     expect(saida.motivo).toBe("nicho_sem_prompt");
     expect(saida.detalhe).toContain("PRECISO CONFIRMAR");
     expect(capturaAgente.corpos).toEqual([]);

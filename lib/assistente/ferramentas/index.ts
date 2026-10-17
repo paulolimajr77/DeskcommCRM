@@ -17,6 +17,9 @@
  *   montar_pacote_do_nicho              — agente + follow-ups de modelo em
  *                                        rascunho, numa pedida, do pacote do
  *                                        nicho (T14b), SÓ para `admin`
+ *   montar_followup_de_nicho            — follow-up de nicho sem modelo pronto,
+ *                                        montado por `montarEscada` e criado em
+ *                                        RASCUNHO (T13), SÓ para `admin`
  *   testar_agente                       — roda o botão Testar num agente em
  *                                        RASCUNHO (T15), SÓ para `admin`
  *   propor_roteador, propor_conhecimento, propor_memoria,
@@ -46,6 +49,7 @@ import { criarListarFunis } from "./listar-funis";
 import { criarListarMateriais } from "./listar-materiais";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarListarModelosDeFollowup } from "./listar-modelos-de-followup";
+import { criarMontarFollowupDeNicho } from "./montar-followup-de-nicho";
 import { criarMontarPacoteDoNicho } from "./montar-pacote-do-nicho";
 import { criarProporConhecimento } from "./propor-conhecimento";
 import { criarProporFunil } from "./propor-funil";
@@ -102,6 +106,7 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
     criar_rascunho_de_agente: criarRascunhoDeAgente(entrada),
     instalar_modelo_de_followup: criarInstalarModeloDeFollowup(entrada),
     montar_pacote_do_nicho: criarMontarPacoteDoNicho(entrada),
+    montar_followup_de_nicho: criarMontarFollowupDeNicho(entrada),
     testar_agente: criarTestarAgente(entrada),
     // Mudanças AO VIVO viram PROPOSTA (T19): grava uma linha pendente, não muda nada.
     propor_roteador: criarProporRoteador(entrada),

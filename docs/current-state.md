@@ -384,9 +384,12 @@ passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
   botão de abrir tela, piso determinístico, tetos de perguntas no cartão
   Orçamento (`docs/architecture/assistente-interno.architecture.json`, J48).
 - Rascunhos diretos pelo chat, só para `admin` (F2a): criar rascunho de agente,
-  follow-up por modelo, pacote do nicho (clínica e advocacia têm prompt pronto;
-  os outros 5 nichos recusam), botão Testar em rascunho e cartão "Criado como
-  rascunho" no painel — nada publica, nada toca em credencial/canal/exclusão.
+  follow-up por modelo, follow-up de nicho (`montar_followup_de_nicho`: toques
+  informados, desenho montado pelo sistema), pacote do nicho com prompt dos 7
+  nichos (os 5 novos aguardam revisão do Paulo), botão Testar em rascunho e
+  cartão "Criado como rascunho" no painel — nada publica, nada toca em
+  credencial/canal/exclusão. Sem teto mensal em dinheiro, o único freio do Testar
+  é o limite de perguntas (60 por pessoa em 24 h).
 - Propostas ao vivo (roteador, conhecimento, memória, ajustes com clique do
   admin) são F2b: ainda não existem.
 

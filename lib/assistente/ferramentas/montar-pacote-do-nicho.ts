@@ -4,7 +4,7 @@
  *
  * Passos, nesta ordem — parar no primeiro que falhar, e nada é criado antes
  * de TODAS as checagens 1–4 passarem:
- *   1. nicho sem `esqueleto` → `nicho_sem_prompt`;
+ *   1. nicho sem `esqueleto` → `nicho_sem_prompt` (defesa: hoje os 7 têm prompt);
  *   2. preencher o esqueleto pelos `campos` do nicho → `falta_dado`;
  *   3. nome do agente já existe (inclui arquivados) → `ja_existe`;
  *   4. follow-up pedido fora do nicho → `followup_de_outro_nicho`;
@@ -264,7 +264,7 @@ export function criarMontarPacoteDoNicho(entrada: EntradaDasFerramentas): Tool {
     description:
       "Monta o atendimento de um nicho numa pedida: cria o agente como RASCUNHO (prompt do " +
       "nicho preenchido) e instala os follow-ups de modelo escolhidos, também como rascunho. " +
-      "`nicho` (clínica e advocacia têm prompt pronto; os demais recusam), `negocio` (nome do " +
+      "`nicho` (os 7 têm prompt: clínica, imobiliária, serviços, infoproduto, loja, advocacia e genérico), `negocio` (nome do " +
       "negócio), `descricao` (o que faz, em uma frase), `nome_do_agente` e `followups` (ids de " +
       "modelo DESTE nicho, opcionais). Nada publica, nada liga follow-up a agente, nada cria funil.",
     inputSchema: esquemaDeEntrada,

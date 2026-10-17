@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Assistente interno de leitura — o painel, o turno e o catálogo",
-    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up, pacote do nicho, testar) só para admin, com cartão e prova em par; a F2b (T20): propostas ao vivo com aprovação humana — aprovar/rejeitar/aplicar, CAS com org da sessão, destino fixo do mapa",
+    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up por modelo e por nicho, pacote do nicho, testar) só para admin, com cartão e prova em par; a F2b (T20): propostas ao vivo com aprovação humana — aprovar/rejeitar/aplicar, CAS com org da sessão, destino fixo do mapa",
     "output": "assistente-interno.html",
     "quality_profile": "standard"
   },
@@ -131,7 +131,7 @@
       "col": 2,
       "type": "lib",
       "label": "ferramentas de escrita (F2a + F2b)",
-      "sublabel": "rascunho: criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente · propor_* (F2b): propor_roteador, propor_conhecimento, propor_memoria, propor_modelo_auxiliares, propor_funil — só quando o papel da sessão é admin; a trava real está nas rotas"
+      "sublabel": "rascunho: criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, montar_followup_de_nicho, testar_agente · propor_* (F2b): propor_roteador, propor_conhecimento, propor_memoria, propor_modelo_auxiliares, propor_funil — só quando o papel da sessão é admin; a trava real está nas rotas"
     },
     {
       "id": "rascunhos",
@@ -252,6 +252,22 @@
       "type": "frontend",
       "label": "bloco 'O que o assistente propôs' (Evolução)",
       "sublabel": "por tipo: sugeridas, aprovadas, aplicadas, recusadas, sem decisão e aprovadas não aplicadas; taxa sobre o decidido; PT + ES"
+    },
+    {
+      "id": "nichos",
+      "lane": "leitura",
+      "col": 2,
+      "type": "lib",
+      "label": "nichos como dado (lib/assistente/nichos)",
+      "sublabel": "7 nichos: prompt (esqueleto), funil, follow-ups, FAQ · fonte é o nichos.md, o teste compara byte a byte · só 3 marcadores (negócio, descrição, nome); preço e prazo vêm dos materiais"
+    },
+    {
+      "id": "escada",
+      "lane": "turno",
+      "col": 3,
+      "type": "lib",
+      "label": "montarEscada (lib/followup/modelos/escada.ts)",
+      "sublabel": "o modelo da conversa informa só os toques (texto + espera); o desenho do fluxo é montado aqui e conferido por flowGraphSchema + validateFlowForPublish antes de gravar"
     }
   ],
   "edges": [
@@ -361,7 +377,7 @@
       "id": "e18",
       "from": "rotaChat",
       "to": "escrita",
-      "label": "monta as 9 de escrita só quando o papel da sessão é admin (4 de rascunho + 5 propor_*)"
+      "label": "monta as 10 de escrita só quando o papel da sessão é admin (5 de rascunho + 5 propor_*)"
     },
     {
       "id": "e19",
@@ -542,6 +558,30 @@
       "from": "blocoEvolucao",
       "to": "telaPropostas",
       "label": "fecha o laço: a taxa de aprovação diz à pessoa se as sugestões acertam, e a aba Propostas é onde ela decide"
+    },
+    {
+      "id": "e49",
+      "from": "escrita",
+      "to": "nichos",
+      "label": "montar_pacote_do_nicho lê o prompt e os marcadores do nicho; nunca inventa texto de atendimento"
+    },
+    {
+      "id": "e50",
+      "from": "nichos",
+      "to": "rascunhos",
+      "label": "o prompt preenchido vira system_prompt da versão rascunho do agente (v1 draft)"
+    },
+    {
+      "id": "e51",
+      "from": "escrita",
+      "to": "escada",
+      "label": "montar_followup_de_nicho entrega os toques; sem gatilho vira follow-up manual"
+    },
+    {
+      "id": "e52",
+      "from": "escada",
+      "to": "rascunhos",
+      "label": "o grafo validado é gravado como rascunho por POST + PATCH por dentro; nunca publica, nunca liga a agente"
     }
   ],
   "cards": [

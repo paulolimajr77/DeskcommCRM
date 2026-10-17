@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import { MODELOS_DE_FOLLOWUP } from "@/lib/followup/modelos";
 
-import { NICHOS_DO_ASSISTENTE, nichoPorId, placeholdersDoEsqueleto } from "./index";
+import { IDS_DE_NICHO, NICHOS_DO_ASSISTENTE, nichoPorId, placeholdersDoEsqueleto } from "./index";
 
 /** O caminho do `nichos.md`, achando a pasta da skill pelo sufixo do nome. */
 function caminhoDoNichosMd(): string {
@@ -57,8 +57,8 @@ function blocoMarkdownDepoisDe(titulo: string): string | null {
   return null;
 }
 
-/** Nichos que o `.md` NÃO traz com bloco de prompt completo (esqueleto = null). */
-const SEM_ESQUELETO = ["imobiliaria", "servicos", "infoproduto", "loja", "generico"] as const;
+/** O que o assistente preenche num prompt: só estas três entradas viram marcador. */
+const ORIGENS_VALIDAS = ["negocio", "descricao", "nome_do_agente"] as const;
 
 describe("NICHOS_DO_ASSISTENTE — paridade com nichos.md", () => {
   it("tem exatamente 7 nichos, e cada nome bate com um título `## ` do .md", () => {
@@ -67,30 +67,75 @@ describe("NICHOS_DO_ASSISTENTE — paridade com nichos.md", () => {
     expect(NICHOS_DO_ASSISTENTE.map((n) => n.nome)).toEqual(titulos);
   });
 
-  it.each(["clinica", "advocacia"] as const)(
-    "o esqueleto de %s é IGUAL ao bloco ```markdown da seção",
-    (id) => {
-      const nicho = nichoPorId(id);
-      expect(nicho).toBeDefined();
-      if (!nicho) return;
-      const bloco = blocoMarkdownDepoisDe(nicho.nome);
-      expect(bloco).not.toBeNull();
-      expect(nicho.esqueleto).toBe(bloco);
-    },
-  );
+  it.each(IDS_DE_NICHO)("o esqueleto de %s é IGUAL ao bloco ```markdown da seção", (id) => {
+    const nicho = nichoPorId(id);
+    expect(nicho).toBeDefined();
+    if (!nicho) return;
+    const bloco = blocoMarkdownDepoisDe(nicho.nome);
+    expect(bloco).not.toBeNull();
+    expect(nicho.esqueleto).toBe(bloco);
+  });
 
-  it("só clínica e advocacia têm esqueleto; os demais são null (lista fixa de propósito)", () => {
-    for (const nicho of NICHOS_DO_ASSISTENTE) {
-      if ((SEM_ESQUELETO as readonly string[]).includes(nicho.id)) {
-        expect({ id: nicho.id, esqueleto: nicho.esqueleto }).toEqual({ id: nicho.id, esqueleto: null });
-      } else {
-        expect(typeof nicho.esqueleto).toBe("string");
-      }
+  it("os 7 nichos têm esqueleto (os 5 que faltavam foram escritos pelo assistente)", () => {
+    // Sabotagem: devolver `esqueleto: null` num nicho → este teste e o de paridade ficam vermelhos.
+    expect(NICHOS_DO_ASSISTENTE.filter((n) => n.esqueleto === null).map((n) => n.id)).toEqual([]);
+    expect(NICHOS_DO_ASSISTENTE.map((n) => n.id)).toEqual([...IDS_DE_NICHO]);
+  });
+});
+
+describe("NICHOS_DO_ASSISTENTE — o prompt de cada nicho segue o guia de prompt", () => {
+  const SECOES = [
+    "# Quem você é",
+    "# O que você faz primeiro",
+    "# Como você decide o próximo passo",
+    "# Situações",
+    "# Limites",
+    "# Estilo",
+  ];
+  // Vocabulário que o portão de saída veta e o prompt não pode ensinar.
+  const JARGAO = /\b(lead|etapa|webhook|admin|uuid|funil|crm_|tool|ferramenta)\b|\{\{/i;
+  // Número de preço, prazo ou percentual: o negócio informa pelos materiais, nunca o prompt.
+  const PROMESSA_NUMERICA = /R\$|\d\s?%|\d+\s?(dias?|horas?|minutos?|semanas?|meses|h)\b/i;
+
+  it.each(IDS_DE_NICHO)("%s: seis seções na ordem, sem jargão, sem número de preço ou prazo, sem emoji", (id) => {
+    const esqueleto = nichoPorId(id)?.esqueleto ?? "";
+    let ultimo = -1;
+    for (const secao of SECOES) {
+      const posicao = esqueleto.indexOf(secao);
+      expect(posicao, `${id}: falta ${secao}`).toBeGreaterThan(ultimo);
+      ultimo = posicao;
     }
-    expect(NICHOS_DO_ASSISTENTE.filter((n) => n.esqueleto !== null).map((n) => n.id)).toEqual([
-      "clinica",
-      "advocacia",
-    ]);
+    expect(esqueleto, `${id}: jargão`).not.toMatch(JARGAO);
+    expect(esqueleto, `${id}: número de preço/prazo`).not.toMatch(PROMESSA_NUMERICA);
+    expect(esqueleto, `${id}: emoji`).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(esqueleto, `${id}: estilo sem emoji`).toContain("Emoji: não.");
+    expect(esqueleto.length, `${id}: cabe numa tela`).toBeLessThan(3500);
+  });
+
+  // Clínica e advocacia vêm prontos do .md (revisados antes); a regra de "materiais" vale para os 5 novos.
+  const NOVOS = ["imobiliaria", "servicos", "infoproduto", "loja", "generico"] as const;
+
+  it.each(NOVOS)("%s: preço e prazo vêm dos materiais, e a passagem para uma pessoa é por situação", (id) => {
+    const esqueleto = nichoPorId(id)?.esqueleto ?? "";
+    expect(esqueleto, id).toContain("materiais");
+    expect(esqueleto, id).toMatch(/Chama\s+uma\s+pessoa\s+do\s+time\s+quando:/);
+    expect(esqueleto, id).toMatch(/nunca estime|Nunca estime|não promete|não fecha|não confirma/);
+  });
+
+  it.each(IDS_DE_NICHO)("%s: todo marcador é preenchido por negócio, descrição ou nome do agente", (id) => {
+    const nicho = nichoPorId(id);
+    const marcadores = placeholdersDoEsqueleto(nicho?.esqueleto ?? "");
+    expect(marcadores.length).toBe(3);
+    for (const campo of nicho?.campos ?? []) {
+      expect(ORIGENS_VALIDAS).toContain(campo.de);
+    }
+    expect((nicho?.campos ?? []).map((c) => c.de).sort()).toEqual([...ORIGENS_VALIDAS].sort());
+  });
+
+  it("os 5 prompts novos pedem o pacote vender, como o padrão do onboarding", () => {
+    for (const id of NOVOS) {
+      expect(nichoPorId(id)?.pacotes, id).toEqual(["vender"]);
+    }
   });
 });
 

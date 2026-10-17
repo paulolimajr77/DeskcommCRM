@@ -253,8 +253,9 @@ describe("cartão de rascunho — montar_pacote_do_nicho", () => {
     }
   });
 
-  it("B. nicho sem prompt não anota nada", async () => {
+  it("B. pacote que falha (nome já existe) não anota nada", async () => {
     ligarPacote();
+    sobreporHandlerDeListaDeAgentes(async () => respostaJson(200, { data: [{ name: "Vendas Sul" }] }));
     const { ferramentas, coletor } = montarParaTeste("admin");
 
     expect(
@@ -264,7 +265,7 @@ describe("cartão de rascunho — montar_pacote_do_nicho", () => {
         descricao: "vendas",
         nome_do_agente: "Vendas Sul",
       }),
-    ).toMatchObject({ ok: false, motivo: "nicho_sem_prompt" });
+    ).toMatchObject({ ok: false, motivo: "ja_existe" });
     expect(coletor.acoes).toEqual([]);
   });
 });

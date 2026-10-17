@@ -287,10 +287,12 @@ quem entra, e sim o que o turno faz lá dentro:
 
 ### T10 — Assistente interno com ferramentas de escrita (F2a) 🟢 MITIGADO — CONFIRMADO
 
-A F2a dá ao turno do assistente 4 ferramentas que ESCREVEM (`criar_rascunho_de_agente`,
-`instalar_modelo_de_followup`, `montar_pacote_do_nicho`, `testar_agente`), só
-quando o papel DA SESSÃO é `admin` — os outros papéis continuam só com as 5 de
-leitura, e o bloco de conduta do prompt (§12.C) só entra para `admin`:
+A F2a dá ao turno do assistente 5 ferramentas que ESCREVEM (`criar_rascunho_de_agente`,
+`instalar_modelo_de_followup`, `montar_pacote_do_nicho`, `montar_followup_de_nicho`,
+`testar_agente`), só quando o papel DA SESSÃO é `admin` — os outros papéis continuam
+só com as de leitura. As 5 regras de conduta (§12.C) valem para TODO papel; o admin
+recebe a regra 3 com "ler de volta o que executou" (`prompt.test.ts` vigia os dois
+lados):
 
 1. **Superfície.** As ferramentas chamam as rotas `POST` por dentro
    (`chamarRotaPorDentro`, mesma requisição, herdando login, papel e
@@ -345,6 +347,25 @@ leitura, e o bloco de conduta do prompt (§12.C) só entra para `admin`:
    (`proposta_falhou_ao_aplicar`, 422/502) — o audit leva só kind, operacao,
    risk e `http_status`/`codigo_do_destino`, nunca o texto do payload nem o
    motivo da rejeição.
+
+8. **Follow-up de nicho: o texto é do modelo, o desenho é nosso.** Em
+   `montar_followup_de_nicho` o modelo escreve só os textos e as esperas dos
+   toques (1 a 4); o grafo vem de `montarEscada` e é conferido por
+   `flowGraphSchema` + `validateFlowForPublish` antes de gravar — o modelo nunca
+   escreve JSON de grafo nem escolhe rota. O texto com chaves `{}` é recusado
+   (o modo texto não preenche marcador e a chave sairia LITERAL para o cliente).
+   A etapa do gatilho é conferida na organização da SESSÃO (RLS + `organization_id`
+   da sessão), nunca aceita só pelo id. O que o texto escrito pelo modelo pode
+   causar só existe depois do clique de Publicar, que é do administrador, que
+   lê o texto no construtor; nada é ligado a agente. **Residual:** se o PATCH
+   falha depois do POST fica um rascunho vazio (a resposta diz o nome; nenhuma
+   ferramenta do assistente apaga).
+9. **Prompts dos 7 nichos.** O texto que vira `system_prompt` é fixo no código
+   (`lib/assistente/nichos`, igual ao `nichos.md` por teste), só com três
+   marcadores — o modelo da conversa não reescreve o prompt do nicho. Os 5
+   prompts novos foram escritos pelo assistente de código e **aguardam revisão
+   do Paulo** antes de qualquer uso com cliente; saem como rascunho, e preço,
+   prazo e política ficam por conta dos materiais da empresa, nunca do prompt.
 
 **Residual honesto:** um admin legítimo ainda consegue criar rascunhos à
 vontade até o teto de perguntas (IA-12) — é limite, não prevenção; e o

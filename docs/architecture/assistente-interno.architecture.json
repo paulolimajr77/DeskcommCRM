@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Assistente interno de leitura — o painel, o turno e o catálogo",
-    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up, pacote do nicho, testar) só para admin, com cartão e prova em par",
+    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up, pacote do nicho, testar) só para admin, com cartão e prova em par; a F2b (T20): propostas ao vivo com aprovação humana — aprovar/rejeitar/aplicar, CAS com org da sessão, destino fixo do mapa",
     "output": "assistente-interno.html",
     "quality_profile": "standard"
   },
@@ -130,8 +130,8 @@
       "lane": "turno",
       "col": 2,
       "type": "lib",
-      "label": "ferramentas de escrita (F2a)",
-      "sublabel": "criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente — só quando o papel da sessão é admin; a trava real está nas rotas"
+      "label": "ferramentas de escrita (F2a + F2b)",
+      "sublabel": "rascunho: criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, testar_agente · propor_* (F2b): propor_roteador, propor_conhecimento, propor_memoria, propor_modelo_auxiliares, propor_funil — só quando o papel da sessão é admin; a trava real está nas rotas"
     },
     {
       "id": "rascunhos",
@@ -148,6 +148,30 @@
       "type": "frontend",
       "label": "cartão Criado como rascunho",
       "sublabel": "tipo, nome e Abrir o agente/follow-up; href montado no servidor a partir do id lido de volta"
+    },
+    {
+      "id": "propostasRota",
+      "lane": "turno",
+      "col": 3,
+      "type": "route",
+      "label": "rotas de propostas (F2b, T20)",
+      "sublabel": "GET fila + [id]/{aprovar,rejeitar,aplicar} · só admin + requireSupportWrite · CAS no pool com org da SESSÃO · trava consultiva por proposta · destino SÓ do mapa (operacoes.ts) · aplicar exige aprovada"
+    },
+    {
+      "id": "configProposals",
+      "lane": "registro",
+      "col": 3,
+      "type": "table",
+      "label": "config_proposals (0690)",
+      "sublabel": "5 estados com gatilho de transição (aplicar exige aprovada) · RLS: select/insert só admin pela sessão, update/delete só servidor · vence em 7 dias · vencida é CALCULADO na leitura"
+    },
+    {
+      "id": "destinosProposta",
+      "lane": "turno",
+      "col": 4,
+      "type": "route",
+      "label": "handlers existentes de destino",
+      "sublabel": "roteadores (+membros PUT), conhecimento, memória, provedores, funil/etapas — chamados por dentro na sessão do admin: o RBAC, a validação e o audit deles valem; nenhuma proposta apaga nada"
     }
   ],
   "edges": [
@@ -257,7 +281,7 @@
       "id": "e18",
       "from": "rotaChat",
       "to": "escrita",
-      "label": "monta as 4 de escrita só quando o papel da sessão é admin"
+      "label": "monta as 9 de escrita só quando o papel da sessão é admin (4 de rascunho + 5 propor_*)"
     },
     {
       "id": "e19",
@@ -294,6 +318,42 @@
       "from": "rascunhos",
       "to": "auditoria",
       "label": "a criação audita como a tela, sem texto do modelo"
+    },
+    {
+      "id": "e25",
+      "from": "escrita",
+      "to": "propostasRota",
+      "label": "as 5 propor_* gravam UMA linha pendente pelo POST por dentro (só admin; propor não cria nada)"
+    },
+    {
+      "id": "e26",
+      "from": "propostasRota",
+      "to": "configProposals",
+      "label": "aprovar/rejeitar/aplicar por CAS no pool de serviço — estado esperado na própria condição, org da SESSÃO, nunca do corpo"
+    },
+    {
+      "id": "e27",
+      "from": "configProposals",
+      "to": "propostasRota",
+      "label": "zero linhas do CAS lê a linha para explicar: 404, marca expirada e 409, ou 409 com o status"
+    },
+    {
+      "id": "e28",
+      "from": "propostasRota",
+      "to": "destinosProposta",
+      "label": "aplicar chama EXATAMENTE o destino do mapa, com o id trocado e o método do mapa; 1 proposta = 1 artefato; falha deixa a proposta aprovada"
+    },
+    {
+      "id": "e29",
+      "from": "propostasRota",
+      "to": "auditoria",
+      "label": "proposta_aprovada/rejeitada/aplicada/falhou_ao_aplicar — só kind, operacao, risk (+http_status); o motivo da rejeição nunca entra"
+    },
+    {
+      "id": "e30",
+      "from": "destinosProposta",
+      "to": "auditoria",
+      "label": "o handler do destino audita com a própria ação (ai.router_created, ai.router_members_updated, ai.purpose_binding_updated…)"
     }
   ],
   "cards": [
@@ -329,7 +389,17 @@
       "items": [
         "o bloco de conduta do prompt (§12.C) e as 4 ferramentas de escrita só entram quando o papel da sessão é admin; a trava real continua nas rotas",
         "toda escrita é lida de volta antes de devolver; o cartão leva ao Botão Abrir e o clique de Publicar é do administrador",
-        "propostas ao vivo (roteador, conhecimento, memória) são F2b: ainda não existem"
+        "propostas ao vivo (F2b, T20): propor não cria nada; o admin aprova e a rota de aplicar executa pelo destino fixo do mapa — pendente, rejeitada, expirada e vencida NUNCA aplicam (guardrail 2)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F2b (T20): o que a aplicação faz — e o que ela NÃO faz",
+      "items": [
+        "o aplicar executa com trava consultiva por proposta (pg_try_advisory_lock) e CAS no pool de serviço: estado esperado na própria condição, organização da SESSÃO",
+        "o destino é do CÓDIGO (operacoes.ts): o payload só leva ids e corpo curado; chave rota/url/path/method no dado é recusada desde a proposta",
+        "definir_ponto PRESERVA a credencial que o binding do ponto já tinha (o PUT sem credential_id a apagaria); a proposta nunca escolhe credencial",
+        "credencial, canal, exclusão e demais críticos não têm proposta nenhuma — continuam 'PRECISO CONFIRMAR' com link da tela"
       ]
     }
   ]

@@ -1,60 +1,130 @@
 /**
- * POST /api/v1/ai/assistente/propostas — o assistente PROPÕE uma mudança ao vivo
- * (F2b, T19). Grava UMA linha `pendente` em `config_proposals` (1 proposta = 1
- * artefato) e nada mais: propor não cria, não altera e não apaga nada no negócio.
- * Quem aplica é a T20, depois do clique de aprovar do administrador (GET e as
- * ações `aprovar`/`aplicar`/`rejeitar` entram lá).
+ * GET/POST /api/v1/ai/assistente/propostas — a fila de propostas do assistente
+ * (GET, T20) e o registro de UMA proposta `pendente` (POST, T19).
+ *
+ * O POST grava UMA linha em `config_proposals` (1 proposta = 1 artefato) e
+ * nada mais: propor não cria, não altera e não apaga nada no negócio. O GET
+ * lista as propostas da organização e NUNCA escreve nada — nem marca
+ * vencida: `vencida` sai calculado (`lib/assistente/propostas/projecao.ts`),
+ * porque é estado do mundo, não dado gravado. Quem muda estado são as ações
+ * `aprovar`/`rejeitar`/`aplicar` (rotas próprias, também da T20).
  *
  * ## O que a ordem das linhas garante
  *
  *  1. `requireSupportWrite()` ANTES de qualquer efeito (gate
  *     `suporte-cobertura-de-efeitos`). É guarda de efeito, não de papel.
  *  2. `requireRole("admin")` — papel DA SESSÃO. manager/agent/viewer recebem 403.
- *  3. O corpo passa por `lib/assistente/propostas/payload.ts` (Zod estrito por
- *     tipo e operação). Chave de destino (`rota`, `url`, `path`, `method`,
- *     `metodo`) em qualquer nível do `payload` é recusada: o destino é do
- *     código (`operacoes.ts`), nunca do dado.
- *  4. O INSERT usa o cliente da SESSÃO (`createClient`), nunca o de serviço: é a
- *     RLS da 0690 que prende `requested_by = auth.uid()`, `status = 'pendente'`
- *     e o papel admin. `organization_id` sai da sessão; se vier no corpo, o
- *     esquema estrito recusa. O `risk` sai do código, por tipo.
- *  5. Reenvio do mesmo turno não duplica: o índice único parcial
+ *  3. (POST) O corpo passa por `lib/assistente/propostas/payload.ts` (Zod
+ *     estrito por tipo e operação). Chave de destino (`rota`, `url`, `path`,
+ *     `method`, `metodo`) em qualquer nível do `payload` é recusada: o destino
+ *     é do código (`operacoes.ts`), nunca do dado.
+ *  4. (POST) O INSERT usa o cliente da SESSÃO (`createClient`), nunca o de
+ *     serviço: é a RLS da 0690 que prende `requested_by = auth.uid()`,
+ *     `status = 'pendente'` e o papel admin. `organization_id` sai da sessão;
+ *     se vier no corpo, o esquema estrito recusa. O `risk` sai do código, por
+ *     tipo. (GET) O select também é pelo cliente da SESSÃO — a RLS já limita
+ *     a admin; o `.eq("organization_id")` é defesa em profundidade.
+ *  5. (POST) Reenvio do mesmo turno não duplica: o índice único parcial
  *     `(organization_id, turn_id, kind)` responde 23505 e a rota devolve a
  *     proposta que já existe (200), sem novo audit.
- *  6. `audit()` leva só `kind`, `operacao` e `risk` — nunca o texto do payload.
+ *  6. `audit()` (POST) leva só `kind`, `operacao` e `risk` — nunca o texto do
+ *     payload. O GET não audita: leitura não é mutação.
  */
 import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
+import { z } from "zod";
 
 import { fail, ok } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { destinoDaOperacao, riscoDoTipo } from "@/lib/assistente/propostas/operacoes";
+import {
+  COLUNAS_DA_PROPOSTA,
+  dadosDaProposta,
+  type LinhaDaProposta,
+} from "@/lib/assistente/propostas/projecao";
 import { esquemaDoCorpoDaProposta, temChaveDeDestino } from "@/lib/assistente/propostas/payload";
+import { STATUS_DA_PROPOSTA } from "@/lib/assistente/propostas/tipos";
 import { requireSupportWrite } from "@/lib/impersonate/support";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
 
-const COLUNAS_DA_RESPOSTA = "id, kind, risk, status, resumo, expires_at, payload";
+/** Teto da página: a fila é para um humano decidir, não para varrer. */
+export const LIMITE_MAXIMO_DA_PAGINA = 50;
 
-interface LinhaDaProposta {
-  id: string;
-  kind: string;
-  risk: string;
-  status: string;
-  resumo: string;
-  expires_at: string;
-  payload: { operacao?: unknown } | null;
+/**
+ * A consulta do GET. `cursor` é o `created_at` do último item da página
+ * anterior (ordem `created_at desc`); `limit` carrega o teto de 50.
+ */
+const esquemaDaConsulta = z.strictObject({
+  status: z.enum(STATUS_DA_PROPOSTA).optional(),
+  limit: z.coerce.number().int().min(1).max(LIMITE_MAXIMO_DA_PAGINA).default(20),
+  cursor: z.string().min(1).max(64).optional(),
+});
+
+export async function GET(req: NextRequest): Promise<Response> {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+
+  const requestId = randomUUID();
+  const authz = await requireRole("admin", { requestId, resource: "assistente_propostas" });
+  if (!authz.ok) return authz.response;
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
+  const orgId = authz.org.orgId;
+
+  const parsed = esquemaDaConsulta.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) {
+    return fail("validation_failed", t("Consulta inválida."), 422, {
+      requestId,
+      details: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    });
+  }
+  const { status, limit, cursor } = parsed.data;
+
+  // Leitura pelo cliente da SESSÃO: a RLS da 0690 só deixa admin ler, e o
+  // filtro de organização é redundância defensiva — nunca da query string.
+  const supabase = await createClient();
+  let consulta = supabase
+    .from("config_proposals")
+    .select(COLUNAS_DA_PROPOSTA)
+    .eq("organization_id", orgId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+  if (status !== undefined) consulta = consulta.eq("status", status);
+  if (cursor !== undefined) consulta = consulta.lt("created_at", cursor);
+  // Uma linha a mais é a única forma honesta de dizer se existe página seguinte.
+  const { data, error } = await consulta.limit(limit + 1);
+
+  if (error) {
+    return fail("internal_error", t("Não consegui listar as propostas."), 500, { requestId });
+  }
+
+  const linhas = (data ?? []) as LinhaDaProposta[];
+  const pagina = linhas.slice(0, limit);
+  const temMais = linhas.length > pagina.length;
+  const cursorDaProxima = temMais && pagina.length > 0 ? pagina[pagina.length - 1]!.created_at : null;
+
+  return ok(pagina.map(dadosDaProposta), {
+    requestId,
+    meta: { cursor: cursorDaProxima, has_more: temMais },
+  });
 }
 
-/** A resposta pública: nunca devolve o payload, só a operação que ele carrega. */
+/** Colunas da resposta ENXUTA do POST (T19): nunca devolve o payload, só a operação. */
+const COLUNAS_DA_RESPOSTA = "id, kind, risk, status, resumo, expires_at, payload";
+
+/** A resposta pública do POST: nunca devolve o payload, só a operação que ele carrega. */
 function dadosDaResposta(linha: LinhaDaProposta) {
+  const payload =
+    linha.payload !== null && typeof linha.payload === "object"
+      ? (linha.payload as { operacao?: unknown } | null)
+      : null;
   return {
     id: linha.id,
     kind: linha.kind,
-    operacao: typeof linha.payload?.operacao === "string" ? linha.payload.operacao : null,
+    operacao: typeof payload?.operacao === "string" ? payload.operacao : null,
     risk: linha.risk,
     status: linha.status,
     resumo: linha.resumo,

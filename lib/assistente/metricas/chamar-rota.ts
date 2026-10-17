@@ -10,9 +10,12 @@
  * contexto herdado é o da pessoa que perguntou: a organização nunca vem do
  * modelo e nunca viaja na URL.
  *
- * Também ESCREVE: com `opcoes.metodo` POST/PATCH, o pedido leva o corpo em
- * JSON. A permissão continua sendo a do handler (`requireRole`,
- * `requireSupportWrite`, `audit()`, RLS) — esta função não autoriza nada.
+ * Também ESCREVE: com `opcoes.metodo` POST/PATCH/PUT, o pedido leva o corpo em
+ * JSON. (`PUT` entrou na T20 — as rotas `roteador/membros` e
+ * `modelo_auxiliares/definir_ponto` são PUT — e `DELETE` NÃO existe de
+ * propósito: nenhuma proposta apaga nada.) A permissão continua sendo a do
+ * handler (`requireRole`, `requireSupportWrite`, `audit()`, RLS) — esta função
+ * não autoriza nada.
  *
  * NUNCA LANÇA: qualquer exceção do handler vira `{ falhou }` — logado só com
  * `caminho` e `detalhe`, nunca com o corpo do pedido ou da resposta, que pode
@@ -29,7 +32,7 @@ export type HandlerDeRota = (req: NextRequest) => Promise<Response>;
 export type RespostaDaRota = { status: number; corpo: unknown } | { falhou: string };
 
 export type OpcoesDeChamadaInterna = {
-  metodo?: "GET" | "POST" | "PATCH";
+  metodo?: "GET" | "POST" | "PATCH" | "PUT";
   corpo?: unknown;
 };
 
@@ -43,7 +46,7 @@ export async function chamarRotaPorDentro(
     const url = new URL(caminho, "http://interno.invalid");
     for (const [chave, valor] of Object.entries(query)) url.searchParams.set(chave, valor);
     const metodo = opcoes?.metodo ?? "GET";
-    const ehEscrita = metodo === "POST" || metodo === "PATCH";
+    const ehEscrita = metodo === "POST" || metodo === "PATCH" || metodo === "PUT";
     const requisicao = new NextRequest(url, {
       method: metodo,
       ...(ehEscrita && opcoes?.corpo !== undefined

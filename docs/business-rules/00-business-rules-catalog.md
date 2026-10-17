@@ -478,6 +478,14 @@ owner: Rafael Melgaço
 - **Override**: Admin arma o modo (`off` → fiscalizar/bloquear) no cartão Orçamento.
 - **Estado**: comportamento vigente medido no código. Por isso o limite por pessoa do assistente (IA-12) é a proteção real, e é definido pelo administrador.
 
+### IA-14 — Proposta do assistente: só admin aprova/aplica/rejeita; vence em 7 dias; aplicar exige aprovada
+- **Origem**: `docs/superpowers/specs/2026-10-14-agente-interno-config-design.md` §6/§7b + T20
+- **Tipo**: Hard constraint
+- **Regra**: GIVEN proposta do assistente em `config_proposals`; WHEN qualquer uma das rotas `aprovar`/`rejeitar`/`aplicar` é chamada; THEN só sessão `admin` passa (manager/agent/viewer → 403), a mudança de estado é compare-and-swap com `organization_id` da sessão, e `aplicar` só executa com `status = 'aprovada'` dentro do prazo — proposta `pendente`, `rejeitada`, `expirada` ou vencida NUNCA gera escrita no negócio (guardrail 2 da spec). Proposta pendente sem decisão vence em 7 dias (`expires_at`, default da 0690); a marcação de `expirada` é efeito da ação negada, e `vencida` no GET é calculado, nunca coluna. Falha no destino deixa a proposta `aprovada` para nova tentativa.
+- **Enforcement**: Rotas `app/api/v1/ai/assistente/propostas/**` (pool de serviço com CAS, `requireSupportWrite` antes do efeito, audit `assistente.proposta_*` sem texto); gatilho `fn_config_proposals_transicao()` da migration 0690 como última trava no banco; RLS com `update`/`delete` exclusivos do servidor.
+- **Exceção**: Nenhuma.
+- **Estado**: construída na T20 (F2b), provada por testes locais (vitest); RLS real e banco real só no CI.
+
 ---
 
 ## 7. Billing & Uso (B)

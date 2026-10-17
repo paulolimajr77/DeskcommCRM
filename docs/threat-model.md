@@ -325,6 +325,26 @@ leitura, e o bloco de conduta do prompt (§12.C) só entra para `admin`:
    saem da sessão e do código. O audit (`assistente.proposta_criada`) leva só
    tipo, operação e risco, sem o texto. Nada muda no negócio até o clique de
    aprovar e a rota de aplicar (T20).
+7. **Rotas de ação (T20): só admin, CAS, trava, destino fixo, credencial
+   preservada.** O GET da fila e as três ações (`aprovar`, `rejeitar`,
+   `aplicar` em `propostas/[id]/…`) são sessão-cookie, `requireSupportWrite`
+   antes de qualquer efeito e `requireRole("admin")` da SESSÃO; `[id]` é
+   validado como uuid. O GET nunca escreve (`vencida` é CALCULADO, nunca
+   coluna). A mudança de estado é exclusiva do servidor (a 0690 tirou
+   `update` de `authenticated`): compare-and-swap no pool de serviço com o
+   estado esperado na PRÓPRIA condição e `organization_id` da sessão como
+   parâmetro — nunca do corpo; zero linhas lê a linha (com org) para explicar
+   404 / expirada / estado inválido. O aplicar toma trava consultiva não
+   bloqueante por proposta (`pg_try_advisory_lock`, liberada no `finally`),
+   revalida o payload com `payload.ts` (linha antiga no banco não aplicada) e
+   chama EXATAMENTE o destino do mapa (`operacoes.ts`) por dentro, na sessão
+   do admin — o RBAC, a validação e o audit do handler valem; o dado nunca
+   escolhe rota. `definir_ponto` preserva o `credential_id` que o binding do
+   ponto já tinha (o PUT sem `credential_id` o apagaria); a proposta nunca
+   escolhe credencial. Falha do destino deixa a proposta `aprovada`
+   (`proposta_falhou_ao_aplicar`, 422/502) — o audit leva só kind, operacao,
+   risk e `http_status`/`codigo_do_destino`, nunca o texto do payload nem o
+   motivo da rejeição.
 
 **Residual honesto:** um admin legítimo ainda consegue criar rascunhos à
 vontade até o teto de perguntas (IA-12) — é limite, não prevenção; e o

@@ -1181,6 +1181,39 @@ export const AUDIT_ACTIONS = [
    * cascata de LGPD.
    */
   "assistente.proposta_criada",
+  /**
+   * O admin APROVOU uma proposta do assistente (F2b, T20) — transição
+   * `pendente → aprovada`. Aprovar nunca executa efeito: quem aplica é a
+   * ação própria, depois.
+   *
+   * ⚠️ SEM O TEXTO: o metadata leva só `kind`, `operacao` e `risk` — o
+   * `payload` carrega prompt, FAQ e memória da empresa, e `api_audit_log` é
+   * append-only (o que entra ali não sai pela cascata de LGPD).
+   */
+  "assistente.proposta_aprovada",
+  /**
+   * O admin REJEITOU uma proposta do assistente (T20) — `pendente →
+   * rejeitada`, com `decision_reason`. O MOTIVO nunca entra no metadata (o
+   * texto fica na linha de `config_proposals`, que a RLS limita a admin);
+   * aqui vai só `kind`, `operacao` e `risk`. O motivo é insumo estruturado do
+   * laço de retorno (F4), não texto de trilha.
+   */
+  "assistente.proposta_rejeitada",
+  /**
+   * O admin APLICOU uma proposta aprovada (T20) — o destino fixo do mapa
+   * (`operacoes.ts`) recebeu o corpo pelo handler existente e respondeu 2xx.
+   * O metadata leva `kind`, `operacao`, `risk` e o `http_status` do destino —
+   * nunca o corpo da resposta (pode carregar texto do recurso criado).
+   */
+  "assistente.proposta_aplicada",
+  /**
+   * A APLICAÇÃO FALHOU (T20): o destino respondeu não-2xx (ou lançou). A
+   * proposta FICA `aprovada` — pode tentar de novo —, e esta linha é a que
+   * responde "por que ficou aprovada e nada mudou?". Metadata com `kind`,
+   * `operacao`, `risk`, `http_status` e `codigo_do_destino` (o `error.code` do
+   * envelope do destino, sem texto livre).
+   */
+  "assistente.proposta_falhou_ao_aplicar",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

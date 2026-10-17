@@ -139,6 +139,42 @@ describe("chamarRotaPorDentro", () => {
     expect(metodos).toEqual(["POST", "PATCH"]);
   });
 
+  it("H. PUT com corpo (T20): o handler recebe PUT, o corpo igual e content-type json", async () => {
+    // Sabotagem: tirar "PUT" do `ehEscrita` (ou do union de `metodo`) → o handler recebe
+    // GET (ou body null) e este caso fica vermelho.
+    let metodo = "";
+    let corpoRecebido: unknown = null;
+    let contentType: string | null = null;
+    const corpoEnviado = { members: [{ agent_id: "a", intent_name: "i", intent_description: "d" }] };
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpoRecebido = await req.json();
+      contentType = req.headers.get("content-type");
+      return respostaJson(200, { data: { count: 1 } });
+    };
+    const resultado = await chamarRotaPorDentro(handler, "/api/v1/ai/routers/1/members", {}, {
+      metodo: "PUT",
+      corpo: corpoEnviado,
+    });
+    expect(metodo).toBe("PUT");
+    expect(corpoRecebido).toEqual(corpoEnviado);
+    expect(contentType).toBe("application/json");
+    expect(resultado).toEqual({ status: 200, corpo: { data: { count: 1 } } });
+  });
+
+  it("H2. PUT sem corpo continua PUT (nunca vira GET)", async () => {
+    let metodo = "";
+    let corpo: unknown = "nao-lido";
+    const handler: HandlerDeRota = async (req) => {
+      metodo = req.method;
+      corpo = req.body;
+      return respostaJson(200, { data: {} });
+    };
+    await chamarRotaPorDentro(handler, "/api/v1/x", {}, { metodo: "PUT" });
+    expect(metodo).toBe("PUT");
+    expect(corpo).toBeNull();
+  });
+
   it("F. resposta que não é JSON: corpo null com o status preservado", async () => {
     const handler: HandlerDeRota = async () => new Response("não é json", { status: 200 });
     const resultado = await chamarRotaPorDentro(handler, "/api/v1/x", {});

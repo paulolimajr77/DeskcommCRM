@@ -389,3 +389,273 @@ describe("a resposta e a auditoria", () => {
     expect(tudo).not.toContain("A pessoa pediu");
   });
 });
+
+// ─── GET (T20): a fila da organização ────────────────────────────────────────
+
+const COLUNAS_ESPERADAS =
+  "id, kind, payload, risk, status, resumo, motivo, antes, requested_by, decided_by, decided_at, decision_reason, applied_by, applied_at, apply_result, expires_at, created_at";
+
+interface LinhaDeTeste {
+  id: string;
+  kind: string;
+  payload: unknown;
+  risk: string;
+  status: string;
+  resumo: string;
+  motivo: string;
+  antes: unknown;
+  requested_by: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_reason: string | null;
+  applied_by: string | null;
+  applied_at: string | null;
+  apply_result: unknown;
+  expires_at: string;
+  created_at: string;
+}
+
+interface EstadoGet {
+  propostas: LinhaDeTeste[];
+  filtros: Array<[string, unknown]>;
+  ordens: string[];
+  limites: number[];
+  escritas: string[];
+  erroNoSelect: { message: string } | null;
+}
+
+function linhaDeTeste(over: Partial<LinhaDeTeste>): LinhaDeTeste {
+  return {
+    id: PROPOSTA_ID,
+    kind: "memoria",
+    payload: { operacao: "criar", corpo: { title: "t", body: SEGREDO_DO_TEXTO } },
+    risk: "seguro",
+    status: "pendente",
+    resumo: "Guardar o horário",
+    motivo: "A pessoa pediu.",
+    antes: null,
+    requested_by: USER_ID,
+    decided_by: null,
+    decided_at: null,
+    decision_reason: null,
+    applied_by: null,
+    applied_at: null,
+    apply_result: null,
+    expires_at: "2099-10-23T09:00:00Z",
+    created_at: "2026-10-16T09:00:00Z",
+    ...over,
+  };
+}
+
+/**
+ * O dublê do cliente de sessão para o GET: builder encadeável como o do
+ * supabase-js, que REGISTRA toda escrita chamada. Se a rota tentar
+ * `update`/`insert`/`delete`, o registro guarda — e o teste do "GET nunca
+ * escreve" fica vermelho.
+ */
+function clienteGetFalso(estadoGet: EstadoGet) {
+  function consulta() {
+    const q = {
+      select(colunas: string) {
+        estadoGet.ordens.push(`select:${colunas}`);
+        return q;
+      },
+      eq(coluna: string, valor: unknown) {
+        estadoGet.filtros.push([coluna, valor]);
+        return q;
+      },
+      lt(coluna: string, valor: unknown) {
+        estadoGet.filtros.push([`lt:${coluna}`, valor]);
+        return q;
+      },
+      order(coluna: string, opts?: { ascending?: boolean }) {
+        estadoGet.ordens.push(`${coluna}:${opts?.ascending === false ? "desc" : "asc"}`);
+        return q;
+      },
+      limit(n: number) {
+        estadoGet.limites.push(n);
+        return q;
+      },
+      update() {
+        estadoGet.escritas.push("update");
+        return q;
+      },
+      insert() {
+        estadoGet.escritas.push("insert");
+        return q;
+      },
+      delete() {
+        estadoGet.escritas.push("delete");
+        return q;
+      },
+      then(
+        resolve: (v: { data: LinhaDeTeste[] | null; error: { message: string } | null }) => unknown,
+        reject: (e: unknown) => unknown,
+      ) {
+        const base = Promise.resolve(
+          estadoGet.erroNoSelect
+            ? { data: null, error: estadoGet.erroNoSelect }
+            : { data: estadoGet.propostas, error: null },
+        );
+        return base.then(resolve, reject);
+      },
+    };
+    return q;
+  }
+  return {
+    from(tabela: string) {
+      estadoGet.ordens.push(`from:${tabela}`);
+      return consulta();
+    },
+  };
+}
+
+let estadoGet: EstadoGet;
+
+function requisicaoGet(query = ""): NextRequest {
+  return new NextRequest(`http://interno.invalid/api/v1/ai/assistente/propostas${query}`, {
+    method: "GET",
+  });
+}
+
+const { GET } = await import("@/app/api/v1/ai/assistente/propostas/route");
+
+describe("GET /propostas (T20)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireSupportWrite).mockResolvedValue(null);
+    vi.mocked(audit).mockResolvedValue(undefined);
+    estadoGet = {
+      propostas: [],
+      filtros: [],
+      ordens: [],
+      limites: [],
+      escritas: [],
+      erroNoSelect: null,
+    };
+    vi.mocked(createClient).mockImplementation(async () => clienteGetFalso(estadoGet) as never);
+    sessao("admin");
+  });
+
+  it.each(["manager", "agent", "viewer"] as const)("%s recebe 403 e nada é lido", async (papel) => {
+    sessao(papel);
+
+    const resposta = await GET(requisicaoGet());
+
+    expect(resposta.status).toBe(403);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("requireSupportWrite roda ANTES de qualquer efeito (também na leitura)", async () => {
+    vi.mocked(requireSupportWrite).mockResolvedValue(fail("support_readonly", "somente leitura", 403, {}) as never);
+
+    const resposta = await GET(requisicaoGet());
+
+    expect(resposta.status).toBe(403);
+    expect(requireRole).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("lê pelo cliente da SESSÃO, filtra a organização, ordena created_at desc e NUNCA escreve", async () => {
+    // Sabotagem: trocar o select por update (ou acrescentar escrita) → `escritas` deixa
+    // de estar vazio e este caso fica vermelho.
+    estadoGet.propostas = [linhaDeTeste({})];
+
+    const resposta = await GET(requisicaoGet());
+
+    expect(resposta.status).toBe(200);
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(estadoGet.escritas).toEqual([]);
+    expect(estadoGet.filtros).toContainEqual(["organization_id", ORG_ID]);
+    expect(estadoGet.ordens).toEqual(
+      expect.arrayContaining(["from:config_proposals", `select:${COLUNAS_ESPERADAS}`, "created_at:desc", "id:desc"]),
+    );
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("devolve o item completo, com `operacao` extraída e `vencida` CALCULADA", async () => {
+    estadoGet.propostas = [
+      linhaDeTeste({ id: "22222222-2222-4333-8444-555555555521", status: "pendente", expires_at: "2020-01-01T00:00:00Z" }),
+      linhaDeTeste({ id: "22222222-2222-4333-8444-555555555522", status: "pendente", expires_at: "2099-01-01T00:00:00Z" }),
+      linhaDeTeste({
+        id: "22222222-2222-4333-8444-555555555523",
+        status: "aplicada",
+        expires_at: "2020-01-01T00:00:00Z",
+        applied_by: USER_ID,
+        applied_at: "2026-10-16T10:00:00Z",
+        apply_result: { destino: "x", http_status: 200 },
+      }),
+    ];
+
+    const resposta = await GET(requisicaoGet());
+
+    expect(resposta.status).toBe(200);
+    const json = (await resposta.json()) as { data: Array<{ id: string; vencida: boolean; operacao: string | null }> };
+    const vencidaPorId = new Map(json.data.map((p) => [p.id, p.vencida]));
+    // vencida = (pendente|aprovada) and expires_at < now() — aplicada vencida NÃO é vencida.
+    expect(vencidaPorId.get("22222222-2222-4333-8444-555555555521")).toBe(true);
+    expect(vencidaPorId.get("22222222-2222-4333-8444-555555555522")).toBe(false);
+    expect(vencidaPorId.get("22222222-2222-4333-8444-555555555523")).toBe(false);
+    expect(json.data[0]!.operacao).toBe("criar");
+    // O payload vai inteiro para a tela da T21 (só admin lê, pela RLS).
+    expect(JSON.stringify(json)).toContain(SEGREDO_DO_TEXTO);
+  });
+
+  it("filtro ?status= e a paginação limit/cursor chegam ao banco", async () => {
+    await GET(requisicaoGet("?status=aprovada&limit=10&cursor=2026-10-15T09%3A00%3A00Z"));
+
+    expect(estadoGet.filtros).toEqual(
+      expect.arrayContaining([
+        ["organization_id", ORG_ID],
+        ["status", "aprovada"],
+        ["lt:created_at", "2026-10-15T09:00:00Z"],
+      ]),
+    );
+    expect(estadoGet.limites).toEqual([11]);
+  });
+
+  it("paginação: uma linha a mais vira has_more com o cursor do último item", async () => {
+    estadoGet.propostas = [
+      linhaDeTeste({ id: "22222222-2222-4333-8444-555555555531", created_at: "2026-10-16T09:00:00Z" }),
+      linhaDeTeste({ id: "22222222-2222-4333-8444-555555555532", created_at: "2026-10-15T09:00:00Z" }),
+      linhaDeTeste({ id: "22222222-2222-4333-8444-555555555533", created_at: "2026-10-14T09:00:00Z" }),
+    ];
+
+    const resposta = await GET(requisicaoGet("?limit=2"));
+
+    expect(resposta.status).toBe(200);
+    const json = (await resposta.json()) as {
+      data: Array<{ id: string }>;
+      meta: { cursor: string | null; has_more: boolean };
+    };
+    expect(json.data).toHaveLength(2);
+    expect(json.meta.has_more).toBe(true);
+    expect(json.meta.cursor).toBe("2026-10-15T09:00:00Z");
+  });
+
+  it("paginação na última página: cursor null e has_more false", async () => {
+    estadoGet.propostas = [linhaDeTeste({ created_at: "2026-10-16T09:00:00Z" })];
+
+    const resposta = await GET(requisicaoGet("?limit=20"));
+
+    const json = (await resposta.json()) as { meta: { cursor: string | null; has_more: boolean } };
+    expect(json.meta.has_more).toBe(false);
+    expect(json.meta.cursor).toBeNull();
+  });
+
+  it("query inválida (limit > 50, status estranho) é 422 e nada é lido", async () => {
+    expect((await GET(requisicaoGet("?limit=51"))).status).toBe(422);
+    expect((await GET(requisicaoGet("?status=zumbi"))).status).toBe(422);
+    expect((await GET(requisicaoGet("?invasor=1"))).status).toBe(422);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("erro do select é 500 sem vazar a mensagem do banco", async () => {
+    estadoGet.erroNoSelect = { message: "row-level security" };
+
+    const resposta = await GET(requisicaoGet());
+
+    expect(resposta.status).toBe(500);
+    expect(JSON.stringify(await resposta.json())).not.toContain("row-level security");
+  });
+});

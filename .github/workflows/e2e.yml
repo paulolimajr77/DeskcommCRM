@@ -1279,6 +1279,7 @@ jobs:
         suspensao-administrativa.spec.ts
         integracao-dados-fontes-liberadas.spec.ts
         assistente-rascunho-de-agente.spec.ts
+        assistente-propostas.spec.ts
 
       # ─── FORA_DO_CI — as que ficaram fora, e o motivo de cada uma ───
       #

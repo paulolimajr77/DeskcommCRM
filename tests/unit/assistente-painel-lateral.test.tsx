@@ -27,6 +27,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { ChatDoAssistente } from "@/components/assistente/ChatDoAssistente";
 import { AssistentePainelProvider } from "@/components/assistente/AssistentePainelProvider";
@@ -50,7 +51,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => rota.caminho,
   useRouter: () => ({ push }),
 }));
-vi.mock("@/hooks/auth/AuthProvider", () => ({ useAuth: () => authRef }));
+vi.mock("@/hooks/auth/AuthProvider", () => ({
+  // O painel lê o papel para decidir se a aba Propostas existe (T21): os
+  // cenários daqui são de quem usa a conversa, e o papel deles no seed é admin.
+  useAuth: () => authRef,
+  useActiveOrg: () => ({ orgId: "org-1", name: "Org", role: "admin", org_status: "active" }),
+}));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (texto: string) => texto }));
 
 // ─── fetch dublê ────────────────────────────────────────────────────────────
@@ -73,6 +79,12 @@ const rede = vi.hoisted(() => ({
 }));
 const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
   if (url.startsWith("/api/v1/ai/assistente/threads?")) return resposta({ data: { threads: [] } });
+  if (url.startsWith("/api/v1/ai/assistente/propostas?")) {
+    // A fila de propostas (T21) monta para admin junto do painel: vazia aqui —
+    // os testes da fila moram no arquivo dela.
+    return new Response(JSON.stringify({ data: [], meta: { cursor: null, has_more: false } }), { status: 200, headers: { "content-type": "application/json" } }) as unknown as RespostaFalsa;
+  }
+  if (url === "/api/v1/team") return new Response("[]", { status: 200, headers: { "content-type": "application/json" } }) as unknown as RespostaFalsa;
   if (/\/api\/v1\/ai\/assistente\/threads\/[^/]+\/messages/.test(url)) {
     return (rede.mensagensDaThread?.() ?? resposta({ data: { mensagens: [] } })) as RespostaFalsa;
   }
@@ -106,13 +118,18 @@ function PaletaControlada() {
   return <CommandPalette open={aberta} onOpenChange={setAberta} />;
 }
 
+// A fila de propostas (T21) usa react-query; o app real tem o provider em app/providers.tsx.
+const clienteDeConsultas = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function Casca({ comPaleta = false }: { comPaleta?: boolean }) {
   return (
-    <AssistentePainelProvider>
-      <BotaoDoAssistente />
-      {comPaleta ? <PaletaControlada /> : null}
-      <PainelDoAssistente />
-    </AssistentePainelProvider>
+    <QueryClientProvider client={clienteDeConsultas}>
+      <AssistentePainelProvider>
+        <BotaoDoAssistente />
+        {comPaleta ? <PaletaControlada /> : null}
+        <PainelDoAssistente />
+      </AssistentePainelProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -328,7 +345,8 @@ describe("(c) o item do ⌘K abre o mesmo painel", () => {
 
     await usuario.click(screen.getByRole("option", { name: ITEM }));
 
-    await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
+    // A paleta fechou: a OPTION dela (e o dialog dela) saem do DOM.
+    await waitFor(() => expect(screen.queryByRole("option", { name: ITEM })).toBeNull());
     await waitFor(() => expect(painelAcessivel()).not.toBeNull());
     expect(push).not.toHaveBeenCalled();
     // É o MESMO botão que enxerga o estado.

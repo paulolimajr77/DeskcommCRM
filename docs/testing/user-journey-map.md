@@ -3575,9 +3575,15 @@ rodar localmente (e2e exige app + banco semeado); a primeira medição é a do j
 | J48.5 | ⌘K → Conversar | abre o mesmo painel, sem trocar de página | a medir (CI) |
 | J48.6 | Sem página em tela cheia | `GET /app/assistente` → 404 | a medir (CI) |
 | J48.7 | Pedir o agente da clínica no chat (admin, F2a) | cartão "Criado como rascunho" com o nome do agente + `GET ai/agents` direto mostra o rascunho sem nada publicado (par) | a medir (CI) |
+| J48.8 | A fila de propostas na aba "Propostas" do painel (admin, F2b/T21) | duas pendentes com prazo e risco com texto, contador marca 2; só admin vê a aba; roteador diz que nasce ativo ANTES de aplicar | a medir (CI) |
+| J48.9 | Rejeitar uma proposta com motivo | contador cai; o cartão rejeitado mostra o motivo no filtro "Rejeitadas"; `GET ai/routers` direto NÃO tem o roteador proposto (nunca criou nada) | a medir (CI) |
+| J48.10 | Aprovar e aplicar uma proposta (FAQ) | o cartão diz "Aplicada" E `GET ai/knowledge/sources` direto mostra a fonte criada com o nome proposto (par) | a medir (CI) |
 
 Não provado pela tela: o piso sem chave de IA (coberto por unidade em
 `tests/unit/assistente-chat-rota.test.ts`, bloco "piso quando o modelo não
 responde"); a avaliação com modelo real, de 15 a 20 perguntas, que o plano exige
-antes de qualquer PR ao repositório do Rafael.
+antes de qualquer PR ao repositório do Rafael. A fila de propostas (J48.8–J48.10)
+é a spec `tests/e2e/assistente-propostas.spec.ts` (job e2e, parte 6), com seed
+de duas pendentes pelo service role (mesmo caminho das specs `assistente-*`)
+e o par tela × GET direto do artefato.
 

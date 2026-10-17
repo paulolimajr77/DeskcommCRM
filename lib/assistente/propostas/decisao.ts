@@ -61,14 +61,18 @@ export async function recusaDaTransicao(
     );
     return fail(
       "proposta_expirada",
-      t(`A proposta venceu (7 dias) e não pode mais ser ${verbo}.`),
+      verbo === "aprovada"
+        ? t("A proposta venceu (7 dias) e não pode mais ser aprovada.")
+        : t("A proposta venceu (7 dias) e não pode mais ser rejeitada."),
       409,
       { requestId },
     );
   }
   return fail(
     "proposta_em_estado_invalido",
-    t(`A proposta está "${status}" — só uma "pendente" pode ser ${verbo}.`),
+    verbo === "aprovada"
+      ? t('A proposta está em outro estado — só uma "pendente" pode ser aprovada.')
+      : t('A proposta está em outro estado — só uma "pendente" pode ser rejeitada.'),
     409,
     { requestId, details: { status } },
   );

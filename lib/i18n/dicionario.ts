@@ -9251,7 +9251,7 @@ export const DICIONARIO: Traducoes = {
   "Solicitação de dados": { es: "Solicitud de datos" },
   "Recebido em": { es: "Recibido el" },
   "às": { es: "a las" },
-  "Vence em": { es: "Vence el" },
+  "Vence em": { es: "Vence en" },
   "Relatório de exportação disponível (expira em 72h).": {
     es: "Informe de exportación disponible (expira en 72h).",
   },
@@ -16263,6 +16263,98 @@ export const DICIONARIO: Traducoes = {
   "atualizado": { es: "actualizado" },
   "recusado": { es: "rechazado" },
   "Recusado.": { es: "Rechazado." },
+
+  // ── Fila de propostas do assistente (T21) ───────────────────────────────
+  // A aba do painel que o administrador usa para decidir. Os VALORES (nome de
+  // funil, id de agente, texto de memória) são DADO — não passam por aqui.
+  "Seções do assistente": { es: "Secciones del asistente" },
+  "Modelo dos auxiliares": { es: "Modelo de los asistentes" },
+  "criar": { es: "crear" },
+  "alterar": { es: "alterar" },
+  "arquivar": { es: "archivar" },
+  "definir ponto": { es: "definir punto" },
+  "definir padrão": { es: "definir predeterminado" },
+  "criar funil": { es: "crear pipeline" },
+  "criar etapa": { es: "crear etapa" },
+  "alterar etapa": { es: "alterar etapa" },
+  "Confirmar rejeição": { es: "Confirmar el rechazo" },
+  "Motivo da rejeição": { es: "Motivo del rechazo" },
+  "Motivo da rejeição (opcional)": { es: "Motivo del rechazo (opcional)" },
+  "Pedido por": { es: "Solicitado por" },
+  "um administrador": { es: "un administrador" },
+  "Venceu sem decisão.": { es: "Venció sin decisión." },
+  "Venceu sem aplicação.": { es: "Venció sin aplicarse." },
+  "Expirou sem decisão.": { es: "Expiró sin decisión." },
+  "Aplicada": { es: "Aplicada" },
+  "Rejeitada": { es: "Rechazada" },
+  "Ver também": { es: "Ver también" },
+  "Esperando decisão": { es: "Esperando decisión" },
+  "Aplicadas": { es: "Aplicadas" },
+  "Rejeitadas": { es: "Rechazadas" },
+  "Expiradas": { es: "Expiradas" },
+  "Todas as propostas": { es: "Todas las propuestas" },
+  "Carregando as propostas…": { es: "Cargando las propuestas…" },
+  "Nenhuma proposta nesta visão.": { es: "Ninguna propuesta en esta vista." },
+  "Não consegui carregar as propostas.": { es: "No pude cargar las propuestas." },
+  "Entre de novo para ver as propostas.": { es: "Vuelve a entrar para ver las propuestas." },
+  "Não foi possível concluir a ação.": { es: "No fue posible completar la acción." },
+  "Esta proposta já está sendo aplicada agora. Aguarde um instante.": {
+    es: "Esta propuesta ya se está aplicando ahora. Espera un momento.",
+  },
+  "A aplicação falhou no destino.": { es: "La aplicación falló en el destino." },
+  "O destino respondeu": { es: "El destino respondió" },
+  "sem resposta do destino": { es: "sin respuesta del destino" },
+  "A proposta continua aprovada — você pode tentar de novo.": {
+    es: "La propuesta sigue aprobada — puedes intentarlo de nuevo.",
+  },
+  "Nome do roteador": { es: "Nombre del router" },
+  "Agente de reserva": { es: "Agente de reserva" },
+  "nenhum": { es: "ninguno" },
+  "nenhuma": { es: "ninguna" },
+  "O roteador nasce ativo neste número de WhatsApp: ao aplicar, ele começa a rotear conversas.": {
+    es: "El router nace activo en este número de WhatsApp: al aplicarlo, empieza a enrutar conversas.",
+  },
+  "Intenções do roteador": { es: "Intenciones del router" },
+  "A lista nova substitui TODA a lista de intenções do roteador — confira as duas listas antes de aprovar.": {
+    es: "La lista nueva sustituye TODA la lista de intenciones del router — revisa las dos listas antes de aprobar.",
+  },
+  "Tipo de material": { es: "Tipo de material" },
+  "Perguntas frequentes (FAQ)": { es: "Preguntas frecuentes (FAQ)" },
+  "Documento de texto": { es: "Documento de texto" },
+  "pergunta com resposta": { es: "pregunta con respuesta" },
+  "perguntas com resposta": { es: "preguntas con respuesta" },
+  "O material nasce pronto para os agentes consultarem, assim que aplicado.": {
+    es: "El material nace listo para que los asistentes lo consulten, en cuanto se aplique.",
+  },
+  "Entrada da memória": { es: "Entrada de la memoria" },
+  "arquivada — sai do que os agentes consultam": { es: "archivada — sale de lo que los asistentes consultan" },
+  "Ponto de IA": { es: "Punto de IA" },
+  "A credencial (chave) que o ponto já usa é preservada — a proposta nunca escolhe credencial.": {
+    es: "La credencial (clave) que el punto ya usa se conserva — la propuesta nunca elige credencial.",
+  },
+  "Vale para todo ponto que não tem escolha própria — pode mudar vários pontos de uma vez.": {
+    es: "Vale para todo punto que no tiene elección propia — puede cambiar varios puntos de una vez.",
+  },
+  "Nome do funil": { es: "Nombre del pipeline" },
+  "Nova etapa": { es: "Nueva etapa" },
+  "Posição no funil": { es: "Posición en el pipeline" },
+  "posição": { es: "posición" },
+  "primeira do funil": { es: "primera del pipeline" },
+  "depois de outra etapa": { es: "después de otra etapa" },
+  "Seguro": { es: "Seguro" },
+  "Proposta não encontrada.": { es: "Propuesta no encontrada." },
+  "A proposta venceu (7 dias) e não pode mais ser aprovada.": {
+    es: "La propuesta venció (7 días) y ya no puede aprobarse.",
+  },
+  "A proposta venceu (7 dias) e não pode mais ser rejeitada.": {
+    es: "La propuesta venció (7 días) y ya no puede rechazarse.",
+  },
+  'A proposta está em outro estado — só uma "pendente" pode ser aprovada.': {
+    es: 'La propuesta está en otro estado — solo una "pendente" puede aprobarse.',
+  },
+  'A proposta está em outro estado — só uma "pendente" pode ser rejeitada.': {
+    es: 'La propuesta está en otro estado — solo una "pendente" puede rechazarse.',
+  },
 };
 
 /**

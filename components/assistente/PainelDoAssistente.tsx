@@ -1,11 +1,15 @@
 "use client";
 
+import { useCallback, useState } from "react";
+
 import { ChatDoAssistente } from "@/components/assistente/ChatDoAssistente";
+import { PropostasDoAssistente } from "@/components/assistente/PropostasDoAssistente";
 import {
   ID_DO_PAINEL_DO_ASSISTENTE,
   useAssistentePainel,
 } from "@/components/assistente/AssistentePainelProvider";
 import { useEhCelular } from "@/components/assistente/useEhCelular";
+import { useActiveOrg } from "@/hooks/auth/AuthProvider";
 import { useT } from "@/hooks/i18n/useT";
 import { X } from "@/lib/ui/icons";
 import { cn } from "@/lib/utils";
@@ -39,6 +43,13 @@ export function PainelDoAssistente() {
   const t = useT();
   const painel = useAssistentePainel();
   const ehCelular = useEhCelular();
+  const org = useActiveOrg();
+  // A fila de propostas é decisão de admin (escrita só admin): quem não é
+  // admin não vê a aba NEM o contador — a trava real continua nas rotas.
+  const ehAdmin = org?.role === "admin";
+  const [aba, setAba] = useState<"conversa" | "propostas">("conversa");
+  const [pendentes, setPendentes] = useState(0);
+  const aoContarPendentes = useCallback((n: number) => setPendentes(n), []);
   if (painel === null) return null;
   const { aberto, fechar } = painel;
 
@@ -80,14 +91,53 @@ export function PainelDoAssistente() {
           <X size={16} aria-hidden />
         </button>
       </header>
-      <ChatDoAssistente
-        aberto={aberto}
-        aoAbrirTela={() => {
-          // No celular o painel cobre a tela: sem sair da frente, a pessoa clicaria
-          // em "Abrir X" e não veria nada acontecer. No desktop ele fica onde está.
-          if (ehCelular) fechar();
-        }}
-      />
+      {ehAdmin ? (
+        <div role="tablist" aria-label={t("Seções do assistente")} className="flex shrink-0 gap-1 border-b px-3">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={aba === "conversa"}
+            onClick={() => setAba("conversa")}
+            data-testid="assistente-aba-conversa"
+            className="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+          >
+            {t("Conversa")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={aba === "propostas"}
+            onClick={() => setAba("propostas")}
+            data-testid="assistente-aba-propostas"
+            className="inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+          >
+            {t("Propostas")}
+            {pendentes > 0 ? (
+              <span
+                data-testid="assistente-propostas-contador"
+                className="rounded-full bg-destructive px-1.5 py-0.5 text-xs font-medium text-destructive-foreground"
+              >
+                {pendentes}
+              </span>
+            ) : null}
+          </button>
+        </div>
+      ) : null}
+      <div className={cn("flex min-h-0 flex-1 flex-col", (!ehAdmin || aba === "conversa") ? "flex" : "hidden")}>
+        <ChatDoAssistente
+          aberto={aberto}
+          aoAbrirTela={() => {
+            // No celular o painel cobre a tela: sem sair da frente, a pessoa clicaria
+            // em "Abrir X" e não veria nada acontecer. No desktop ele fica onde está.
+            if (ehCelular) fechar();
+          }}
+        />
+      </div>
+      {ehAdmin ? (
+        <div className={cn("flex min-h-0 flex-1 flex-col", aba === "propostas" ? "flex" : "hidden")}>
+          <PropostasDoAssistente aberto={aberto} aoContarPendentes={aoContarPendentes} />
+        </div>
+      ) : null}
     </aside>
   );
 }

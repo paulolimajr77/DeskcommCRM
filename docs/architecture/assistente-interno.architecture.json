@@ -150,6 +150,14 @@
       "sublabel": "tipo, nome e Abrir o agente/follow-up; href montado no servidor a partir do id lido de volta"
     },
     {
+      "id": "telaPropostas",
+      "lane": "pessoa",
+      "col": 1,
+      "type": "frontend",
+      "label": "aba Propostas do painel (T21)",
+      "sublabel": "só admin vê a aba; lê o GET da fila (nunca banco direto); antes/depois legível pelo formatador puro; aprovar/rejeitar/aplicar chamam as rotas da T20; contador de pendentes na aba"
+    },
+    {
       "id": "propostasRota",
       "lane": "turno",
       "col": 3,
@@ -354,6 +362,18 @@
       "from": "destinosProposta",
       "to": "auditoria",
       "label": "o handler do destino audita com a própria ação (ai.router_created, ai.router_members_updated, ai.purpose_binding_updated…)"
+    },
+    {
+      "id": "e31",
+      "from": "telaPropostas",
+      "to": "propostasRota",
+      "label": "lê a fila pelo GET (só admin; pendente primeiro, prazo/vencida do GET) e chama aprovar/rejeitar/aplicar no clique"
+    },
+    {
+      "id": "e32",
+      "from": "propostasRota",
+      "to": "telaPropostas",
+      "label": "devolve a proposta atualizada a cada ação; falha de aplicar volta legível no cartão (http_status + código do destino)"
     }
   ],
   "cards": [

@@ -1,6 +1,6 @@
 /**
  * Limites de perguntas do assistente interno, definidos pelo administrador no
- * cartão Orçamento (colunas de `ai_budgets`, migration 0695).
+ * cartão Orçamento (colunas de `ai_budgets`, migration 0701).
  *
  * ═══ POR QUE O CLIENTE DE SERVIÇO ═══
  *

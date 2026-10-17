@@ -399,7 +399,7 @@ passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
   (credencial de IA, canal do WhatsApp, funil com etapas, agente publicado, roteador,
   conhecimento, follow-up, horário — este `nao_se_aplica` nesta instalação), com estado em
   palavras, o que falta e onde resolver. Cada rodada grava um retrato em `config_snapshots`
-  (migration 0696) e a tela mostra a evolução contra a rodada anterior. A auditoria só lê:
+  (migration 0702) e a tela mostra a evolução contra a rodada anterior. A auditoria só lê:
   nada é criado ou alterado por ela.
 - Retenção: o cron diário `data-retention` passou a chamar `fn_expurgar_config_assistente_vencida`,
   que agora também apaga propostas vencidas e retratos além da retenção (365 dias por padrão,

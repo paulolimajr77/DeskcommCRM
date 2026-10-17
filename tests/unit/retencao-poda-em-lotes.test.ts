@@ -544,7 +544,7 @@ describe("a décima poda — o rascunho sugerido vencido (issue #1686)", () => {
   });
 });
 
-describe("a décima sétima poda — o expurgo do assistente (F3, migration 0696)", () => {
+describe("a décima sétima poda — o expurgo do assistente (F3, migration 0702)", () => {
   it("o cron CHAMA fn_expurgar_config_assistente_vencida, com 365 dias e o tamanho do lote", async () => {
     const { db, chamadas } = bancoQueDevolve({ fila: [0], auditoria: [0] });
     await podarHistorico(db, {});

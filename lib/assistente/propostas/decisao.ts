@@ -1,7 +1,7 @@
 /**
  * A TRANSIÇÃO DE ESTADO das propostas por SQL do pool de serviço (F2b, T20).
  *
- * A migration 0690 tirou `update` de `authenticated` — nenhuma sessão aprova,
+ * A migration 0699 tirou `update` de `authenticated` — nenhuma sessão aprova,
  * rejeita ou aplica pelo PostgREST. Quem muda estado aqui usa `getRequestPool()`
  * com SQL parametrizado e COMPARE-AND-SWAP: o estado esperado mora na PRÓPRIA
  * condição do `update` (`status = 'pendente' and expires_at > now()`), nunca
@@ -9,7 +9,7 @@
  * parâmetro, vinda da sessão — o pool é de serviço (não vale RLS), então o
  * filtro é responsabilidade deste arquivo.
  *
- * O gatilho `fn_config_proposals_transicao()` da 0690 continua sendo a última
+ * O gatilho `fn_config_proposals_transicao()` da 0699 continua sendo a última
  * trava: se uma rota errar a condição, o banco recusa a transção com 23514.
  */
 import type { NextResponse } from "next/server";

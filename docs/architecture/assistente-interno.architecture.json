@@ -170,7 +170,7 @@
       "lane": "registro",
       "col": 3,
       "type": "table",
-      "label": "config_proposals (0690)",
+      "label": "config_proposals (0699)",
       "sublabel": "5 estados com gatilho de transição (aplicar exige aprovada) · RLS: select/insert só admin pela sessão, update/delete só servidor · vence em 7 dias · vencida é CALCULADO na leitura"
     },
     {

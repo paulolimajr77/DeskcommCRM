@@ -5,7 +5,7 @@
  * padrão para montar o estado do orçamento e `limites.ts` puxa o dicionário de
  * tradução inteiro (milhares de linhas) — importar um pelo outro arrastaria o
  * dicionário para tudo que lê o orçamento. A faixa também é do banco (CHECKs da
- * migration 0695): mudar um número aqui sem mudar lá faz a rota aceitar o que o
+ * migration 0701): mudar um número aqui sem mudar lá faz a rota aceitar o que o
  * banco recusa (500) ou o contrário.
  */
 export const PERGUNTAS_POR_PESSOA_PADRAO = 60;

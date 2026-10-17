@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0696 — mesma cerca da 0687.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0702 — mesma cerca da 0698.
  *
  * A migration cria `config_snapshots` e estende `fn_expurgar_config_assistente_vencida`
  * para também expurgar `config_proposals` e `config_snapshots` (F3, dívida de retenção).
@@ -12,13 +12,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261020160000_0696_config_snapshots.sql";
+const MIGRATION = "supabase/migrations/20261021100400_0702_config_snapshots.sql";
 
 function ler(caminho: string): string {
   return readFileSync(join(RAIZ, caminho), "utf8");
 }
 
-describe("o apêndice do baseline espelha a migration 0696", () => {
+describe("o apêndice do baseline espelha a migration 0702", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {
     expect(existsSync(join(RAIZ, MIGRATION))).toBe(true);
     expect(ler(MIGRATION).length).toBeGreaterThan(1000);
@@ -47,17 +47,17 @@ describe("o apêndice do baseline espelha a migration 0696", () => {
   it("o apêndice entra ANTES da varredura de anon (função nova não pode ficar abaixo dela)", () => {
     const baseline = ler("supabase/baseline.sql");
     // O rótulo repete (apêndice + corpo da migration): ancora na ÚLTIMA ocorrência.
-    const bloco = baseline.lastIndexOf("-- ---- snapshots de auditoria do assistente (migration 0696) ----");
+    const bloco = baseline.lastIndexOf("-- ---- snapshots de auditoria do assistente (migration 0702) ----");
     const varredura = baseline.indexOf("-- ---- VARREDURA anon:");
     expect(bloco).toBeGreaterThan(-1);
     expect(varredura).toBeGreaterThan(-1);
     expect(bloco).toBeLessThan(varredura);
   });
 
-  it("o bloco 0696 vem DEPOIS do bloco 0687 e ANTES da varredura de anon", () => {
+  it("o bloco 0702 vem DEPOIS do bloco 0698 e ANTES da varredura de anon", () => {
     const baseline = ler("supabase/baseline.sql");
-    const bloco0696 = baseline.lastIndexOf("-- ---- snapshots de auditoria do assistente (migration 0696) ----");
-    const bloco0687 = baseline.indexOf("-- ---- chat do assistente interno: config_threads/messages (migration 0687) ----");
+    const bloco0696 = baseline.lastIndexOf("-- ---- snapshots de auditoria do assistente (migration 0702) ----");
+    const bloco0687 = baseline.indexOf("-- ---- chat do assistente interno: config_threads/messages (migration 0698) ----");
     const varredura = baseline.indexOf("-- ---- VARREDURA anon:");
     expect(bloco0687).toBeGreaterThan(-1);
     expect(bloco0696).toBeGreaterThan(bloco0687);
@@ -73,9 +73,9 @@ describe("o apêndice do baseline espelha a migration 0696", () => {
     expect(resto).toContain("config_snapshots");
   });
 
-  it("o baseline traz o rótulo 0696 uma única vez", () => {
+  it("o baseline traz o rótulo 0702 uma única vez", () => {
     const baseline = ler("supabase/baseline.sql");
-    const rotulo = "-- ---- snapshots de auditoria do assistente (migration 0696) ----";
+    const rotulo = "-- ---- snapshots de auditoria do assistente (migration 0702) ----";
     expect(baseline.split(rotulo).length - 1).toBe(1);
   });
 

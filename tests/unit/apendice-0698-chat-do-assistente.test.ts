@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0687 — mesma cerca da 0611.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0698 — mesma cerca da 0611.
  *
  * A migration cria `config_threads` + `config_messages` (chat do assistente
  * interno, F1). O kit self-host aplica só o `baseline.sql`; sem espelho exato,
@@ -12,9 +12,9 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
 const MIGRATION =
-  "supabase/migrations/20261020100000_0687_chat_do_assistente.sql";
+  "supabase/migrations/20261021100000_0698_chat_do_assistente.sql";
 
-describe("o apêndice do baseline espelha a migration 0687", () => {
+describe("o apêndice do baseline espelha a migration 0698", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {
     expect(existsSync(join(RAIZ, MIGRATION))).toBe(true);
     const migration = readFileSync(join(RAIZ, MIGRATION), "utf8");

@@ -2,7 +2,7 @@
  * O VOCABULÁRIO DAS PROPOSTAS DE CONFIGURAÇÃO DO ASSISTENTE (F2b, T18).
  *
  * As três listas falam o MESMO vocabulário dos CHECKs de `config_proposals`
- * (migration 0690): `TIPOS_DE_PROPOSTA` = `kind`, `RISCOS_DA_PROPOSTA` = `risk`,
+ * (migration 0699): `TIPOS_DE_PROPOSTA` = `kind`, `RISCOS_DA_PROPOSTA` = `risk`,
  * `STATUS_DA_PROPOSTA` = `status`. Valor novo entra nos dois lados juntos —
  * `lib/assistente/propostas/tipos.test.ts` prova a paridade lendo a migration,
  * e `tests/invariants/vocabulario-banco-x-typescript.test.ts` prova contra o
@@ -38,7 +38,7 @@ export type StatusDaProposta = (typeof STATUS_DA_PROPOSTA)[number];
 
 /**
  * As 5 transições que existem — as mesmas do gatilho
- * `fn_config_proposals_transicao()` (migration 0690). Estado igual não é
+ * `fn_config_proposals_transicao()` (migration 0699). Estado igual não é
  * transição (o gatilho só aceita como no-op sem mudança): aqui reprova.
  */
 const TRANSICOES_PERMITIDAS: ReadonlyArray<

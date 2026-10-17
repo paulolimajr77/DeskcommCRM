@@ -848,7 +848,7 @@ export const AUDIT_ACTIONS = [
    */
   "ai.case_chat_asked",
   /**
-   * A equipe perguntou ao assistente interno (migration 0687). Uma linha por
+   * A equipe perguntou ao assistente interno (migration 0698). Uma linha por
    * PERGUNTA, respondida ou não.
    *
    * ⚠️ SEM O TEXTO. Nem a pergunta, nem a resposta: `api_audit_log` é
@@ -1175,7 +1175,7 @@ export const AUDIT_ACTIONS = [
   // em que a imagem sai de fato.
   "template.media_added",
   /**
-   * O assistente interno PROPÔS uma mudança ao vivo (F2b, migration 0690): uma
+   * O assistente interno PROPÔS uma mudança ao vivo (F2b, migration 0699): uma
    * linha `pendente` em `config_proposals`, gravada com a sessão do admin.
    * Propor não muda nada no negócio; quem aplica é a rota da T20, depois do
    * clique de aprovar.

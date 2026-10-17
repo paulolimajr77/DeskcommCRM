@@ -180,6 +180,54 @@
       "type": "route",
       "label": "handlers existentes de destino",
       "sublabel": "roteadores (+membros PUT), conhecimento, memória, provedores, funil/etapas — chamados por dentro na sessão do admin: o RBAC, a validação e o audit deles valem; nenhuma proposta apaga nada"
+    },
+    {
+      "id": "telaAuditoria",
+      "lane": "pessoa",
+      "col": 2,
+      "type": "frontend",
+      "label": "aba Auditoria (admin)",
+      "sublabel": "lista cada verificação com estado em palavras (Pronto, Posso completar, Preciso confirmar, Não se aplica), a evolução contra a rodada anterior e o botão Rodar de novo; Pedir ao assistente deixa a frase pronta no chat"
+    },
+    {
+      "id": "auditoriaRota",
+      "lane": "turno",
+      "col": 5,
+      "type": "route",
+      "label": "/api/v1/ai/assistente/auditoria",
+      "sublabel": "POST (admin, suporte somente-leitura recusa antes do efeito, 1 rodada por minuto por organização) e GET (membro); organização sempre a da sessão"
+    },
+    {
+      "id": "calculoAuditoria",
+      "lane": "leitura",
+      "col": 1,
+      "type": "lib",
+      "label": "calcularAuditoria + catálogo de verificações",
+      "sublabel": "função pura: recebe as leituras já feitas e devolve estado por item e pendências; dependência não pronta vira Preciso confirmar com o que falta"
+    },
+    {
+      "id": "ferramentaAuditar",
+      "lane": "turno",
+      "col": 1,
+      "type": "lib",
+      "label": "ferramenta auditar_empresa",
+      "sublabel": "o assistente roda o mesmo cálculo no chat, pelas rotas de leitura na sessão da pessoa; nunca SQL direto"
+    },
+    {
+      "id": "snapshots",
+      "lane": "registro",
+      "col": 0,
+      "type": "table",
+      "label": "config_snapshots",
+      "sublabel": "um retrato por rodada (resultado jsonb limitado, pendências); RLS org-flat na leitura, insert só admin assinando como ele mesmo, sem update nem delete para a sessão"
+    },
+    {
+      "id": "expurgoAssistente",
+      "lane": "limite",
+      "col": 4,
+      "type": "route",
+      "label": "cron data-retention → fn_expurgar_config_assistente_vencida",
+      "sublabel": "apaga em lotes mensagens, conversas órfãs, propostas e retratos além da retenção; piso de 90 dias dentro da função; registra a rodada só quando houve efeito"
     }
   ],
   "edges": [
@@ -374,6 +422,78 @@
       "from": "propostasRota",
       "to": "telaPropostas",
       "label": "devolve a proposta atualizada a cada ação; falha de aplicar volta legível no cartão (http_status + código do destino)"
+    },
+    {
+      "id": "e33",
+      "from": "telaAuditoria",
+      "to": "auditoriaRota",
+      "label": "lê os últimos retratos pelo GET e roda a auditoria pelo POST (só admin)"
+    },
+    {
+      "id": "e34",
+      "from": "auditoriaRota",
+      "to": "telaAuditoria",
+      "label": "devolve o retrato novo e o anterior para a tela mostrar a evolução; repetir em menos de 60 s volta 409 legível"
+    },
+    {
+      "id": "e35",
+      "from": "auditoriaRota",
+      "to": "rotasLeitura",
+      "label": "lê provedores, canais, funis, agentes, roteadores, conhecimento e follow-ups por dentro das rotas /api/v1, na sessão da pessoa"
+    },
+    {
+      "id": "e36",
+      "from": "auditoriaRota",
+      "to": "calculoAuditoria",
+      "label": "entrega as leituras e recebe itens + pendências"
+    },
+    {
+      "id": "e37",
+      "from": "auditoriaRota",
+      "to": "snapshots",
+      "label": "grava 1 retrato por rodada (organização da sessão)"
+    },
+    {
+      "id": "e38",
+      "from": "auditoriaRota",
+      "to": "auditoria",
+      "label": "assistente.auditoria_rodada — só pendências e contagem por estado; nunca texto de item"
+    },
+    {
+      "id": "e39",
+      "from": "ferramentaAuditar",
+      "to": "calculoAuditoria",
+      "label": "usa o mesmo cálculo puro da tela"
+    },
+    {
+      "id": "e40",
+      "from": "emissor",
+      "to": "ferramentaAuditar",
+      "label": "expõe auditar_empresa no catálogo de ferramentas de leitura"
+    },
+    {
+      "id": "e41",
+      "from": "ferramentaAuditar",
+      "to": "rotasLeitura",
+      "label": "lê pelas mesmas rotas, com o papel da pessoa"
+    },
+    {
+      "id": "e42",
+      "from": "snapshots",
+      "to": "expurgoAssistente",
+      "label": "retrato além da retenção é apagado em lote"
+    },
+    {
+      "id": "e43",
+      "from": "expurgoAssistente",
+      "to": "configProposals",
+      "label": "proposta vencida além da retenção é apagada junto"
+    },
+    {
+      "id": "e44",
+      "from": "expurgoAssistente",
+      "to": "auditoria",
+      "label": "a rodada só audita quando apagou alguma coisa"
     }
   ],
   "cards": [
@@ -420,6 +540,16 @@
         "o destino é do CÓDIGO (operacoes.ts): o payload só leva ids e corpo curado; chave rota/url/path/method no dado é recusada desde a proposta",
         "definir_ponto PRESERVA a credencial que o binding do ponto já tinha (o PUT sem credential_id a apagaria); a proposta nunca escolhe credencial",
         "credencial, canal, exclusão e demais críticos não têm proposta nenhuma — continuam 'PRECISO CONFIRMAR' com link da tela"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F3: a auditoria da empresa — o que ela faz e o que NÃO faz",
+      "items": [
+        "mede o que existe (credencial de IA, canal, funil e etapas, agente publicado, roteador, conhecimento, follow-up) lendo as rotas da casa na sessão da pessoa; não tem SQL próprio",
+        "NÃO cria nem altera nada sozinha: cada item mostra o estado e, quando o assistente pode completar, o botão Pedir ao assistente só deixa a frase no chat para a pessoa conferir e enviar",
+        "o retrato é guardado para mostrar a evolução; a retenção é executada pelo cron data-retention, com piso de 90 dias dentro da função",
+        "laço de retorno: se a auditoria errar um estado, o que muda é a pessoa agir (ou deixar de agir) em cima de um retrato falso; por isso o texto de cada item diz o porquê e onde resolver"
       ]
     }
   ]

@@ -3578,12 +3578,18 @@ rodar localmente (e2e exige app + banco semeado); a primeira medição é a do j
 | J48.8 | A fila de propostas na aba "Propostas" do painel (admin, F2b/T21) | duas pendentes com prazo e risco com texto, contador marca 2; só admin vê a aba; roteador diz que nasce ativo ANTES de aplicar | a medir (CI) |
 | J48.9 | Rejeitar uma proposta com motivo | contador cai; o cartão rejeitado mostra o motivo no filtro "Rejeitadas"; `GET ai/routers` direto NÃO tem o roteador proposto (nunca criou nada) | a medir (CI) |
 | J48.10 | Aprovar e aplicar uma proposta (FAQ) | o cartão diz "Aplicada" E `GET ai/knowledge/sources` direto mostra a fonte criada com o nome proposto (par) | a medir (CI) |
+| J48.11 | Aba "Auditoria" sem retrato (admin, F3) | convida a rodar; "Rodar agora" lista os itens com estado em palavras e a contagem por estado da tela é igual à do `GET ai/assistente/auditoria?limit=1` direto (par) | a medir (CI) |
+| J48.12 | Rodar a auditoria duas vezes seguidas | a segunda volta 409 legível ("máximo 1 por minuto") e só 1 retrato existe | a medir (CI) |
+| J48.13 | Quem não é admin | não vê a aba nem roda a auditoria; o POST devolve 403 e o suporte somente-leitura é recusado antes de qualquer efeito | PASS em unidade (`app/api/v1/ai/assistente/auditoria/route.test.ts`, `components/assistente/AuditoriaDoAssistente.test.tsx`) |
 
 Não provado pela tela: o piso sem chave de IA (coberto por unidade em
 `tests/unit/assistente-chat-rota.test.ts`, bloco "piso quando o modelo não
 responde"); a avaliação com modelo real, de 15 a 20 perguntas, que o plano exige
 antes de qualquer PR ao repositório do Rafael. A fila de propostas (J48.8–J48.10)
-é a spec `tests/e2e/assistente-propostas.spec.ts` (job e2e, parte 6), com seed
+é a spec `tests/e2e/assistente-propostas.spec.ts` (job e2e, parte 3), com seed
 de duas pendentes pelo service role (mesmo caminho das specs `assistente-*`)
-e o par tela × GET direto do artefato.
+e o par tela × GET direto do artefato. A auditoria (J48.11–J48.12) é a spec
+`tests/e2e/assistente-auditoria.spec.ts`, também na parte 3: apaga os retratos da
+organização de teste antes de cada caso (o limite de 1 rodada por minuto) e mede o par
+tela × GET direto.
 

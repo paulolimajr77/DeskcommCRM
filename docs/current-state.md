@@ -389,3 +389,17 @@ passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
   rascunho" no painel — nada publica, nada toca em credencial/canal/exclusão.
 - Propostas ao vivo (roteador, conhecimento, memória, ajustes com clique do
   admin) são F2b: ainda não existem.
+
+### Adendo 2026-10-17 — assistente interno, F3 (auditoria)
+
+- Aba "Auditoria" no painel (só `admin`): oito verificações lidas pelas rotas da casa
+  (credencial de IA, canal do WhatsApp, funil com etapas, agente publicado, roteador,
+  conhecimento, follow-up, horário — este `nao_se_aplica` nesta instalação), com estado em
+  palavras, o que falta e onde resolver. Cada rodada grava um retrato em `config_snapshots`
+  (migration 0696) e a tela mostra a evolução contra a rodada anterior. A auditoria só lê:
+  nada é criado ou alterado por ela.
+- Retenção: o cron diário `data-retention` passou a chamar `fn_expurgar_config_assistente_vencida`,
+  que agora também apaga propostas vencidas e retratos além da retenção (365 dias por padrão,
+  piso de 90 dentro da função). Antes só a conversa era expurgada.
+- Prova de banco (RLS dos retratos e expurgo) e de tela (par tela × GET direto): só no CI;
+  nesta máquina rodaram as unidades.

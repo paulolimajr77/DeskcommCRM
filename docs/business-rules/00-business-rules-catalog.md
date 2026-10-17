@@ -148,6 +148,12 @@ owner: Rafael Melgaço
 - **Enforcement**: DB.
 - **Exceção**: Nenhuma.
 
+### L-10a — Retenção do assistente interno (conversas, propostas e retratos de auditoria)
+- **Origem**: F3 do assistente interno (migration 0696)
+- **Tipo**: Hard constraint
+- **Regra**: GIVEN dado do assistente interno (`config_messages`, `config_threads` órfãs, `config_proposals` vencidas e `config_snapshots`); WHEN passa da retenção (365 dias por padrão); THEN é apagado em lotes pelo cron diário `data-retention` via `public.fn_expurgar_config_assistente_vencida` (`security definer`, **piso de 90 dias dentro da função**, revogada de anon/authenticated, concedida só a `service_role`).
+- **Enforcement**: DB (a função e o piso) + cron `app/api/v1/cron/data-retention` (que audita só quando houve efeito). A sessão nunca atualiza nem apaga retrato.
+
 ### L-10 — Audit log é append-only e retém 5 anos por padrão
 - **Origem**: Sub-PRD 01 §3.5
 - **Tipo**: Hard constraint

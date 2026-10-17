@@ -6,11 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
+import { useIdioma } from "@/lib/i18n/IdiomaProvider";
 import {
   diffLegivel,
   type DiffLegivel,
 } from "@/lib/assistente/propostas/diff-legivel";
 import type { Tradutor } from "@/lib/assistente/propostas/tradutor";
+import { formatadorDeData } from "@/lib/cobranca/fuso";
 
 const QUERY_KEY = ["assistente", "propostas"];
 
@@ -125,6 +127,7 @@ export function PropostasDoAssistente({
   aoContarPendentes: (pendentes: number) => void;
 }) {
   const t = useT();
+  const idioma = useIdioma();
   const qc = useQueryClient();
   const [filtro, setFiltro] = useState<Filtro>("decidir");
   /** id do cartão com erro de ação → frase legível. */
@@ -439,7 +442,7 @@ export function PropostasDoAssistente({
               ))}
 
               <p data-testid={`proposta-quem-${p.id}`} className="text-xs text-text-muted">
-                {t("Pedido por")} {nomeDe(p.requested_by)} · {new Date(p.created_at).toLocaleDateString()}
+                {t("Pedido por")} {nomeDe(p.requested_by)} · {formatadorDeData(idioma, null, { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(p.created_at))}
               </p>
               <p data-testid="proposta-prazo" className="text-xs font-medium">
                 {fraseDoPrazo(t, p)}

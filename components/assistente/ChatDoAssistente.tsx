@@ -135,11 +135,14 @@ function corpoSemAviso(resposta: string, aviso: string | null | undefined): stri
 export function ChatDoAssistente({
   aberto,
   aoAbrirTela,
+  rascunho = null,
 }: {
   /** O painel está visível? A primeira abertura carrega o histórico; toda abertura leva o foco ao campo. */
   aberto: boolean;
   /** Depois de um clique em "Abrir {tela}" (no celular o painel cobre a tela e precisa sair da frente). */
   aoAbrirTela: () => void;
+  /** Texto que outra aba (Auditoria) pede para deixar no campo; `n` muda a cada pedido. */
+  rascunho?: { texto: string; n: number } | null;
 }) {
   const t = useT();
   const router = useRouter();
@@ -155,6 +158,17 @@ export function ChatDoAssistente({
   const versao = useRef(0);
   const lista = useRef<HTMLDivElement | null>(null);
   const campo = useRef<HTMLInputElement | null>(null);
+
+  // A aba Auditoria deixa uma frase pronta no campo; a pessoa só confere e envia.
+  // Ajuste de estado durante a renderização (e não em efeito): cada pedido novo traz um número `n`.
+  const [rascunhoVisto, setRascunhoVisto] = useState<number | null>(null);
+  if (rascunho !== null && rascunho.n !== rascunhoVisto) {
+    setRascunhoVisto(rascunho.n);
+    setPergunta(rascunho.texto);
+  }
+  useEffect(() => {
+    if (rascunho !== null) campo.current?.focus();
+  }, [rascunho]);
 
   const carregarThreads = useCallback(async () => {
     try {

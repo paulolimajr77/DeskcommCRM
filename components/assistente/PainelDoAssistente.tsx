@@ -50,6 +50,11 @@ export function PainelDoAssistente() {
   const ehAdmin = org?.role === "admin";
   const [aba, setAba] = useState<"conversa" | "propostas" | "auditoria">("conversa");
   const [pendentes, setPendentes] = useState(0);
+  const [rascunho, setRascunho] = useState<{ texto: string; n: number } | null>(null);
+  const aoPedirAoAssistente = useCallback((texto: string) => {
+    setRascunho((atual) => ({ texto, n: (atual?.n ?? 0) + 1 }));
+    setAba("conversa");
+  }, []);
   const aoContarPendentes = useCallback((n: number) => setPendentes(n), []);
   if (painel === null) return null;
   const { aberto, fechar } = painel;
@@ -137,6 +142,7 @@ export function PainelDoAssistente() {
       <div className={cn("flex min-h-0 flex-1 flex-col", (!ehAdmin || aba === "conversa") ? "flex" : "hidden")}>
         <ChatDoAssistente
           aberto={aberto}
+          rascunho={rascunho}
           aoAbrirTela={() => {
             // No celular o painel cobre a tela: sem sair da frente, a pessoa clicaria
             // em "Abrir X" e não veria nada acontecer. No desktop ele fica onde está.
@@ -151,7 +157,7 @@ export function PainelDoAssistente() {
       ) : null}
       {ehAdmin ? (
         <div className={cn("flex min-h-0 flex-1 flex-col", aba === "auditoria" ? "flex" : "hidden")}>
-          <AuditoriaDoAssistente aberto={aberto} ehAdmin={ehAdmin} />
+          <AuditoriaDoAssistente aberto={aberto} ehAdmin={ehAdmin} aoPedir={aoPedirAoAssistente} />
         </div>
       ) : null}
     </aside>

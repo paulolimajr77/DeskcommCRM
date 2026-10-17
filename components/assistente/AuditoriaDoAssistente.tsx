@@ -64,11 +64,14 @@ function corDoEstado(estado: string): string {
 export function AuditoriaDoAssistente({
   aberto,
   ehAdmin,
+  aoPedir,
 }: {
   /** O painel está aberto? Cada abertura recarrega a auditoria. */
   aberto: boolean;
   /** Só admin roda novamente (mutação POST). */
   ehAdmin: boolean;
+  /** Deixa a frase pronta no chat do assistente (a pessoa confere e envia). */
+  aoPedir?: (frase: string) => void;
 }) {
   const t = useT();
   const qc = useQueryClient();
@@ -134,17 +137,10 @@ export function AuditoriaDoAssistente({
     },
   });
 
-  /** Preenche o chat com a frase da ferramenta (clique em "Pedir ao assistente"). */
+  /** Deixa no chat a frase do pedido (clique em "Pedir ao assistente"). */
   function pedirAoAssistente(ferramenta: string | null, titulo: string) {
     if (!ferramenta) return;
-    // A frase que o modelo deve receber: o nome da ferramenta + contexto.
-    const frase = `${ferramenta} — ${titulo}`;
-    // Insere no input do chat (se houver) e foca o painel de conversa.
-    // A rota do chat lê o input da tela quando a pessoa envia; aqui só preparamos.
-    // (A integração real com o input do chat é via coletor do turno; a tela
-    // apenas expõe o botão — a palavra-chave já vai no `itens[].ferramenta`.)
-    // eslint-disable-next-line no-console
-    console.log("Pedir ao assistente:", frase);
+    aoPedir?.(`${t("Pode completar isto para mim:")} ${titulo}`);
   }
 
   if (carregando) {
@@ -183,8 +179,10 @@ export function AuditoriaDoAssistente({
   }
 
   const textoEvolucao = anterior
-    ? `${t("Da última vez:")} ${anterior.pendencias} ${t("pendência(ões)")} ${t("agora:")} ${pendencias}.`
-    : `${t("Primeira rodada:")} ${pendencias} ${t("pendência(ões)").toLowerCase()}.`;
+    ? t("Da última vez: {antes} pendência(s); agora: {agora}.")
+        .replace("{antes}", String(anterior.pendencias))
+        .replace("{agora}", String(pendencias))
+    : t("Primeira rodada: {n} pendência(s).").replace("{n}", String(pendencias));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
@@ -209,6 +207,7 @@ export function AuditoriaDoAssistente({
           return (
             <div
               key={g.id}
+              data-testid={`auditoria-contagem-${g.id}`}
               className={cn("flex items-center gap-1.5 rounded-md border px-2 py-1.5", g.cor)}
             >
               <span className="font-medium">{n}</span>
@@ -239,8 +238,6 @@ export function AuditoriaDoAssistente({
                 {i.onde_resolver ? (
                   <a
                     href={i.onde_resolver}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="text-xs text-primary hover:underline"
                     data-testid={`auditoria-resolver-${i.id}`}
                   >

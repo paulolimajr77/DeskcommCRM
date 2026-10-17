@@ -337,6 +337,7 @@ export async function POST(_req: NextRequest): Promise<Response> {
     por_que: i.por_que,
     ferramenta: i.ferramenta,
     depende_de: i.depende_de,
+    onde_resolver: i.onde_resolver,
   }));
 
   // Resultado puro: contagem por estado.
@@ -348,7 +349,7 @@ export async function POST(_req: NextRequest): Promise<Response> {
   // O retrato anterior (para mostrar evolução na tela).
   const { data: anterior } = await supabase
     .from("config_snapshots")
-    .select("resultado, pendencias, taken_at")
+    .select("id, resultado, pendencias, taken_at")
     .eq("organization_id", orgId)
     .order("taken_at", { ascending: false })
     .limit(1)

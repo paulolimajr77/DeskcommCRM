@@ -64,7 +64,7 @@ export function calcularAuditoria(
       id,
       titulo: id,
       estado: "preciso_confirmar",
-      por_que: t(`Não dá avaliar enquanto faltar ${faltando.join(" e ")} para ativar.`),
+      por_que: t("Não dá avaliar enquanto faltar {faltando} para ativar.").replace("{faltando}", faltando.join(" e ")),
       dados: {},
       onde_resolver: "",
       ferramenta: null,

@@ -124,8 +124,7 @@ test("a fila mostra as duas pendentes com prazo, risco com texto e o contador ma
   await expect(faq.getByTestId("proposta-prazo")).toContainText("Vence em");
   await expect(roteador.getByTestId("proposta-prazo")).toContainText("Vence em");
   // …e quem pediu (o próprio admin, nomeado pela leitura da equipe).
-  // …e quem pediu (o próprio admin, nomeado pela leitura da equipe).
-  await expect(faq.locator('[data-testid^="proposta-quem-"]')).toContainText("Solicitado por");
+  await expect(faq.locator('[data-testid^="proposta-quem-"]')).toContainText("Pedido por");
   // Risco com cor E TEXTO (nunca só cor).
   await expect(faq.getByTestId("proposta-risco")).toHaveText("Seguro");
   await expect(roteador.getByTestId("proposta-risco")).toHaveText("Atenção");
@@ -152,9 +151,9 @@ test("rejeitar o roteador com motivo — e ele NUNCA cria nada (par com o GET di
   // PAR, lado da ferramenta: o roteador proposto NÃO existe no CRM.
   const roteadores = await page.evaluate(async () => {
     const r = await fetch("/api/v1/ai/routers");
-    return (await r.json()) as { data?: Array<{ name?: string }> };
+    return (await r.json()) as { data?: { routers?: Array<{ name?: string }> } };
   });
-  const nomes = (roteadores.data ?? []).map((r) => r.name ?? "");
+  const nomes = (roteadores.data?.routers ?? []).map((r) => r.name ?? "");
   expect(nomes).not.toContain(NOME_DO_ROTEADOR);
 });
 
@@ -169,7 +168,8 @@ test("aprovar e aplicar a FAQ — a tela diz Aplicada E o GET direto mostra a fo
   await aplicar.click();
 
   // PAR, lado da tela: o cartão diz Aplicada (e sai da fila de decisão).
-  await expect(page.getByTestId("assistente-propostas-contador")).toHaveText("0");
+  // Sem pendência o contador some (não mostra "0"): o par é "nenhum contador".
+  await expect(page.getByTestId("assistente-propostas-contador")).toHaveCount(0);
   await page.getByTestId("propostas-filtro").selectOption("aplicada");
   const aplicada = propostaDaTela(page, RESUMO_FAQ);
   await expect(aplicada).toBeVisible();

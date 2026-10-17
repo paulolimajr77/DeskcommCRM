@@ -337,7 +337,7 @@ function lerRoteador(
       id: "roteador",
       titulo: t("Roteador do canal"),
       estado: "preciso_confirmar",
-      por_que: t(`Não dá criar o roteador enquanto faltar ${faltando.join(" e ")}.`),
+      por_que: t("Não dá criar o roteador enquanto faltar {faltando}.").replace("{faltando}", faltando.join(" e ")),
       dados: { quantidade: leitura.roteadores.length },
       onde_resolver: "/app/ai/routers",
       ferramenta: null,

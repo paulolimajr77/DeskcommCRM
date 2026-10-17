@@ -640,6 +640,16 @@ beforeAll(() => {
              'RLS invariant resposta de outra pessoa da mesma organização');
         end if;
 
+        -- migration 0696 — o retrato da auditoria da empresa (F3): estado de cada
+        -- verificação e a contagem de pendências. Leitura org-flat (qualquer
+        -- membro; o agent semeado é controle positivo legítimo); a escrita pela
+        -- sessão é só do admin e é medida no describe dedicado
+        -- ("config_snapshots (migration 0696)"). Select-then-insert, como as irmãs.
+        if not exists (select 1 from public.config_snapshots where organization_id = v_org) then
+          insert into public.config_snapshots (organization_id, resultado, pendencias)
+          values (v_org, '{"itens":[]}'::jsonb, 0);
+        end if;
+
         -- migration 0692 (#2041): o historico do rodizio da acao assign_owner.
         -- Semeado pelo ESCRITOR de producao (a funcao), com uma regra cuja fila
         -- e o usuario semeado (agent, elegivel). A leitura e org-scoped sem gate
@@ -835,6 +845,9 @@ export const TABLES = [
   // medida aqui — quem mede a escrita são as rotas, em teste de rota.
   "config_threads",
   "config_messages",
+  // migration 0696 — o retrato da auditoria da empresa (F3). Org-flat: o agent
+  // semeado lê o da própria organização (controle positivo) e zero o da outra.
+  "config_snapshots",
   // migration 0665 (#2796, fatia 1) — o vínculo versão↔número: em quais números
   // uma versão de agente atende. A LEITURA é org-scoped pela policy `select`
   // (fn_user_org_ids) sem gate de papel, então o `agent` semeado é controle
@@ -1224,5 +1237,129 @@ select count(*) from public.config_proposals;`);
               '{"x":1}'::jsonb, '${ADMIN_A}', 'aplicada', '${ADMIN_A}', now());`);
     expect(e).toContain("23514");
     expect(e).toContain("config_proposals_estado_coerente");
+  });
+});
+
+/**
+ * config_snapshots (migration 0696) — o retrato da auditoria da empresa.
+ *
+ * Medidos aqui: o isolamento nas duas direções (com controle positivo), a escrita
+ * pela sessão (só o admin da PRÓPRIA organização, assinando como ele mesmo), o
+ * privilégio (authenticated nunca atualiza nem apaga; anon não lê) e o expurgo
+ * (a função apaga o retrato velho, preserva o recente e só o service_role a executa).
+ */
+describe("config_snapshots (migration 0696)", () => {
+  const P = "c0696000-0000-4000-8000";
+  const u = (n: number) => `${P}-${String(n).padStart(12, "0")}`;
+  const ADMIN_A = u(11);
+  const MANAGER_A = u(12);
+  const ADMIN_B = u(14);
+  const SNAP_VELHO = u(201);
+  const SNAP_RECENTE = u(202);
+  const SNAP_INSERIDO = u(203);
+
+  function erroDe(script: string): string {
+    try {
+      sql(`\\set VERBOSITY verbose\n${script}`);
+      return "";
+    } catch (err) {
+      return String((err as { stderr?: string }).stderr ?? err);
+    }
+  }
+  function comoUsuario(user: string, comando: string): string {
+    return `set role authenticated;
+select set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', false);
+${comando};`;
+  }
+  function inserirComoSessao(id: string, org: string, tomadoPor: string): string {
+    return `insert into public.config_snapshots (id, organization_id, taken_by, resultado, pendencias)
+      values ('${id}', '${org}', '${tomadoPor}', '{"itens":[]}'::jsonb, 1)`;
+  }
+
+  beforeAll(() => {
+    sql(`
+      insert into auth.users (id, email) values
+        ('${ADMIN_A}', 'snap-admin-a@invariant.test'),
+        ('${MANAGER_A}', 'snap-manager-a@invariant.test'),
+        ('${ADMIN_B}', 'snap-admin-b@invariant.test')
+      on conflict (id) do nothing;
+      insert into public.user_organizations (user_id, organization_id, role, accepted_at) values
+        ('${ADMIN_A}', '${ORG_A}', 'admin', now()),
+        ('${MANAGER_A}', '${ORG_A}', 'manager', now()),
+        ('${ADMIN_B}', '${ORG_B}', 'admin', now())
+      on conflict do nothing;
+      insert into public.config_snapshots (id, organization_id, taken_at, resultado, pendencias) values
+        ('${SNAP_VELHO}', '${ORG_A}', now() - interval '400 days', '{"itens":[]}'::jsonb, 4),
+        ('${SNAP_RECENTE}', '${ORG_A}', now() - interval '1 day', '{"itens":[]}'::jsonb, 2)
+      on conflict (id) do nothing;
+    `);
+  });
+
+  it("controle: as duas organizações têm retrato", () => {
+    expect(Number(sql(
+      `select count(distinct organization_id) from public.config_snapshots where organization_id in ('${ORG_A}','${ORG_B}');`,
+    ))).toBe(2);
+  });
+
+  it("B lê os próprios retratos e zero os de A; A lê os de A e zero os de B", () => {
+    expect(countAs(ADMIN_B, `select count(*) from public.config_snapshots where organization_id = '${ORG_B}';`)).toBeGreaterThanOrEqual(1);
+    expect(countAs(ADMIN_B, `select count(*) from public.config_snapshots where organization_id = '${ORG_A}';`)).toBe(0);
+    expect(countAs(ADMIN_B, `select count(*) from public.config_snapshots;`)).toBe(
+      countAs(ADMIN_B, `select count(*) from public.config_snapshots where organization_id = '${ORG_B}';`),
+    );
+    expect(countAs(ADMIN_A, `select count(*) from public.config_snapshots where organization_id = '${ORG_A}';`)).toBeGreaterThanOrEqual(3);
+    expect(countAs(ADMIN_A, `select count(*) from public.config_snapshots where organization_id = '${ORG_B}';`)).toBe(0);
+  });
+
+  it("o admin de A insere retrato da própria organização, assinando como ele mesmo", () => {
+    expect(erroDe(comoUsuario(ADMIN_A, inserirComoSessao(SNAP_INSERIDO, ORG_A, ADMIN_A)))).toBe("");
+    expect(Number(sql(`select count(*) from public.config_snapshots where id = '${SNAP_INSERIDO}';`))).toBe(1);
+  });
+
+  it("o admin de A NÃO insere para a organização B nem assinando como outra pessoa", () => {
+    for (const [n, org, quem] of [[211, ORG_B, ADMIN_A], [212, ORG_A, ADMIN_B]] as const) {
+      const e = erroDe(comoUsuario(ADMIN_A, inserirComoSessao(u(n), org, quem)));
+      expect(e, String(n)).toContain("42501");
+      expect(Number(sql(`select count(*) from public.config_snapshots where id = '${u(n)}';`)), String(n)).toBe(0);
+    }
+  });
+
+  it("manager e agent de A NÃO inserem retrato (o papel mínimo é admin)", () => {
+    let n = 220;
+    for (const user of [MANAGER_A, USER_A]) {
+      const id = u(n++);
+      const e = erroDe(comoUsuario(user, inserirComoSessao(id, ORG_A, user)));
+      expect(e, user).toContain("42501");
+      expect(Number(sql(`select count(*) from public.config_snapshots where id = '${id}';`)), user).toBe(0);
+    }
+  });
+
+  it("authenticated NÃO atualiza nem apaga (nem o admin do próprio retrato)", () => {
+    for (const comando of [
+      `update public.config_snapshots set pendencias = 99 where id = '${SNAP_RECENTE}'`,
+      `delete from public.config_snapshots where id = '${SNAP_RECENTE}'`,
+    ]) {
+      const e = erroDe(comoUsuario(ADMIN_A, comando));
+      expect(e, comando).toContain("42501");
+      expect(e, comando).toContain("permission denied for table config_snapshots");
+    }
+    expect(sql(`select pendencias from public.config_snapshots where id = '${SNAP_RECENTE}';`)).toBe("2");
+  });
+
+  it("anon não lê a tabela", () => {
+    const e = erroDe(`set role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', false);
+select count(*) from public.config_snapshots;`);
+    expect(e).toContain("permission denied for table config_snapshots");
+  });
+
+  it("o expurgo apaga o retrato além da retenção, preserva o recente, e só o service_role o executa", () => {
+    expect(sql(`select has_function_privilege('anon', 'public.fn_expurgar_config_assistente_vencida(int,int)', 'execute');`)).toBe("f");
+    expect(sql(`select has_function_privilege('authenticated', 'public.fn_expurgar_config_assistente_vencida(int,int)', 'execute');`)).toBe("f");
+    expect(sql(`select has_function_privilege('service_role', 'public.fn_expurgar_config_assistente_vencida(int,int)', 'execute');`)).toBe("t");
+    expect(Number(sql(`select count(*) from public.config_snapshots where id = '${SNAP_VELHO}';`))).toBe(1);
+    sql(`set role service_role; select public.fn_expurgar_config_assistente_vencida(365, 1000);`);
+    expect(Number(sql(`select count(*) from public.config_snapshots where id = '${SNAP_VELHO}';`))).toBe(0);
+    expect(Number(sql(`select count(*) from public.config_snapshots where id = '${SNAP_RECENTE}';`))).toBe(1);
   });
 });

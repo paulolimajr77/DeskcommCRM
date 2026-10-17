@@ -1218,6 +1218,12 @@ export const AUDIT_ACTIONS = [
    * envelope do destino, sem texto livre).
    */
   "assistente.proposta_falhou_ao_aplicar",
+  /**
+   * A auditoria da empresa rodou (F3): cada rodada grava um retrato em
+   * `config_snapshots` e emite esta linha. Metadata com apenas `pendencias` e
+   * a contagem por estado — nunca texto livre de itens.
+   */
+  "assistente.auditoria_rodada",
   // O cron de lembrete de tarefa (#2529) avisou RESPONSÁVEIS nesta rodada —
   // só quando houve efeito, como manda a lei do §Audit log. O metadata traz
   // quantas tarefas, quantas puladas e por quê; nunca o número de WhatsApp de

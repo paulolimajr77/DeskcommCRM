@@ -34,6 +34,7 @@
  */
 import type { ToolSet } from "ai";
 
+import { criarAuditarEmpresa } from "./auditar-empresa";
 import { criarConsultarMetrica } from "./consultar-metrica";
 import { criarInstalarModeloDeFollowup } from "./instalar-modelo-de-followup";
 import { criarRascunhoDeAgente } from "./criar-rascunho-de-agente";
@@ -73,6 +74,7 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
     listar_telas: criarListarTelas(entrada),
     abrir_tela: criarAbrirTela(entrada),
     ler_guia: criarLerGuia(entrada),
+    auditar_empresa: criarAuditarEmpresa(entrada),
   };
   // As leituras de configuração e de follow-up SÓ para quem gerencia — o papel
   // vem DA SESSÃO. Leitura defensiva: se o papel lançar, monta só a leitura (o

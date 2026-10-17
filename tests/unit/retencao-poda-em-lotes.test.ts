@@ -375,8 +375,8 @@ describe("podarHistorico — o laço de lotes", () => {
     };
     const r = await podarHistorico(db, {});
 
-    // 16 drenos: 14 pelo rpc + a mídia + a décima poda (o DELETE do admin).
-    expect(r.falhas).toHaveLength(16);
+    // 17 drenos: 15 pelo rpc + a mídia + a décima poda (o DELETE do admin).
+    expect(r.falhas).toHaveLength(17);
     expect(r.falhas.some((f) => f.includes("conversation_drafts"))).toBe(true);
     expect(r.falhas.some((f) => f.includes("fn_enfileirar_midia_vencida"))).toBe(true);
     expect(r.jobs_apagados).toBe(0);
@@ -430,8 +430,8 @@ describe("podarHistorico — o laço de lotes", () => {
     };
     const r = await podarHistorico(db, {});
 
-    // Só os 14 drenos do rpc falham nesta rodada (mídia e rascunhos vão bem).
-    expect(r.falhas).toHaveLength(14);
+    // Só os 15 drenos do rpc falham nesta rodada (mídia e rascunhos vão bem).
+    expect(r.falhas).toHaveLength(15);
     for (const f of r.falhas) expect(f.length).toBeLessThanOrEqual(300);
   });
 });
@@ -616,6 +616,7 @@ describe("houveEfeito — as duas direções", () => {
     copias_enviadas_tem_resto: false,
     retencao_copias_enviadas_dias: 30,
     checkpoints_apagados: 0,
+    config_assistente_apagada: 0,
     lotes_checkpoints: 0,
     checkpoints_tem_resto: false,
     retencao_checkpoints_dias: 180,

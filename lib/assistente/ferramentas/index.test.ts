@@ -109,6 +109,7 @@ describe("montarFerramentasDoAssistente", () => {
 
       expect(Object.keys(ferramentas).sort()).toEqual([
         "abrir_tela",
+        "auditar_empresa",
         "consultar_metrica",
         "ler_guia",
         "listar_metricas",
@@ -122,6 +123,7 @@ describe("montarFerramentasDoAssistente", () => {
 
     expect(Object.keys(ferramentas).sort()).toEqual([
       "abrir_tela",
+      "auditar_empresa",
       "consultar_metrica",
       "ler_configuracao_de_ia",
       "ler_guia",
@@ -141,6 +143,7 @@ describe("montarFerramentasDoAssistente", () => {
     const { ferramentas: doAdmin } = montarParaTeste("admin");
     expect(Object.keys(doAdmin).sort()).toEqual([
       "abrir_tela",
+      "auditar_empresa",
       "consultar_metrica",
       "criar_rascunho_de_agente",
       "instalar_modelo_de_followup",

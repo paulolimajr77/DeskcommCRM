@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { ChatDoAssistente } from "@/components/assistente/ChatDoAssistente";
 import { PropostasDoAssistente } from "@/components/assistente/PropostasDoAssistente";
+import { AuditoriaDoAssistente } from "@/components/assistente/AuditoriaDoAssistente";
 import {
   ID_DO_PAINEL_DO_ASSISTENTE,
   useAssistentePainel,
@@ -47,7 +48,7 @@ export function PainelDoAssistente() {
   // A fila de propostas é decisão de admin (escrita só admin): quem não é
   // admin não vê a aba NEM o contador — a trava real continua nas rotas.
   const ehAdmin = org?.role === "admin";
-  const [aba, setAba] = useState<"conversa" | "propostas">("conversa");
+  const [aba, setAba] = useState<"conversa" | "propostas" | "auditoria">("conversa");
   const [pendentes, setPendentes] = useState(0);
   const aoContarPendentes = useCallback((n: number) => setPendentes(n), []);
   if (painel === null) return null;
@@ -121,6 +122,16 @@ export function PainelDoAssistente() {
               </span>
             ) : null}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={aba === "auditoria"}
+            onClick={() => setAba("auditoria")}
+            data-testid="assistente-aba-auditoria"
+            className="inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+          >
+            {t("Auditoria")}
+          </button>
         </div>
       ) : null}
       <div className={cn("flex min-h-0 flex-1 flex-col", (!ehAdmin || aba === "conversa") ? "flex" : "hidden")}>
@@ -136,6 +147,11 @@ export function PainelDoAssistente() {
       {ehAdmin ? (
         <div className={cn("flex min-h-0 flex-1 flex-col", aba === "propostas" ? "flex" : "hidden")}>
           <PropostasDoAssistente aberto={aberto} aoContarPendentes={aoContarPendentes} />
+        </div>
+      ) : null}
+      {ehAdmin ? (
+        <div className={cn("flex min-h-0 flex-1 flex-col", aba === "auditoria" ? "flex" : "hidden")}>
+          <AuditoriaDoAssistente aberto={aberto} ehAdmin={ehAdmin} />
         </div>
       ) : null}
     </aside>

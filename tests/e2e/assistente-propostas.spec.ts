@@ -155,6 +155,27 @@ test("rejeitar o roteador com motivo — e ele NUNCA cria nada (par com o GET di
   });
   const nomes = (roteadores.data?.routers ?? []).map((r) => r.name ?? "");
   expect(nomes).not.toContain(NOME_DO_ROTEADOR);
+
+  // F4, o laço de retorno — PAR: a rejeição vira sinal no painel de Evolução.
+  // Lado da ferramenta: o GET direto da rota de evolução conta a rejeição do roteador.
+  const doGet = await page.evaluate(async () => {
+    const r = await fetch("/api/v1/ai/evolution");
+    return (await r.json()) as {
+      data?: { config_loop?: { estado: string; por_kind: Array<{ kind: string; rejeitadas: number; propostas: number }> } };
+    };
+  });
+  expect(doGet.data?.config_loop?.estado).toBe("ok");
+  const roteadorGet = doGet.data?.config_loop?.por_kind.find((k) => k.kind === "roteador");
+  expect(roteadorGet?.rejeitadas ?? 0).toBeGreaterThanOrEqual(1);
+
+  // Lado da tela: o bloco do assistente em /app/ai/evolution mostra a MESMA contagem.
+  await page.goto("/app/ai/evolution");
+  const linha = page.getByTestId("bloco-assistente").getByTestId("config-loop-roteador");
+  await expect(linha).toBeVisible();
+  // Colunas da linha: tipo, sugeridas, aprovadas, aplicadas, recusadas, sem decisão, aprovadas e não aplicadas.
+  const celulas = await linha.locator("td").allTextContents();
+  expect(Number(celulas[4])).toBe(roteadorGet?.rejeitadas);
+  expect(Number(celulas[1])).toBe(roteadorGet?.propostas);
 });
 
 test("aprovar e aplicar a FAQ — a tela diz Aplicada E o GET direto mostra a fonte criada (par)", async ({ page }) => {

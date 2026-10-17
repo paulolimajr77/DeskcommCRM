@@ -16566,6 +16566,20 @@ export const DICIONARIO: Traducoes = {
   "Não consegui gravar o retrato da auditoria.": { es: "No pude guardar la foto de la auditoría." },
   "Não consegui listar os retratos.": { es: "No pude listar las fotos." },
   "Esta instalação não tem leitura de horário de atendimento configurável.": { es: "Esta instalación no tiene lectura de horario de atención configurable." },
+  "O que o assistente propôs": { es: "Lo que propuso el asistente" },
+  "As mudanças que o assistente de configuração sugeriu neste período e o que você fez com cada uma — é por aqui que se vê se as sugestões estão acertando.": { es: "Los cambios que el asistente de configuración sugirió en este período y lo que hiciste con cada uno: aquí se ve si las sugerencias están acertando." },
+  "Só quem administra a organização vê as propostas do assistente, porque elas podem trazer texto da sua operação.": { es: "Solo quien administra la organización ve las propuestas del asistente, porque pueden traer texto de tu operación." },
+  "Não conseguimos ler as propostas do assistente agora. Recarregue a página em alguns instantes.": { es: "No pudimos leer las propuestas del asistente ahora. Recarga la página en unos instantes." },
+  "O assistente não fez nenhuma proposta neste período. Quando ele sugerir uma mudança, ela aparece aqui com o que você decidiu.": { es: "El asistente no hizo ninguna propuesta en este período. Cuando sugiera un cambio, aparecerá aquí con lo que decidiste." },
+  "Propostas aprovadas, entre as que você decidiu": { es: "Propuestas aprobadas, entre las que decidiste" },
+  "Ainda não há proposta decidida neste período, então não dá para dizer se as sugestões estão acertando.": { es: "Aún no hay propuestas decididas en este período, así que no se puede decir si las sugerencias están acertando." },
+  "Das propostas que você aprovou ou recusou, quantas foram aprovadas. As que ainda esperam decisão não entram na conta.": { es: "De las propuestas que aprobaste o rechazaste, cuántas fueron aprobadas. Las que aún esperan decisión no cuentan." },
+  "Sugeridas": { es: "Sugeridas" },
+  "Aprovadas": { es: "Aprobadas" },
+  "Recusadas": { es: "Rechazadas" },
+  "Sem decisão": { es: "Sin decisión" },
+  "Aprovadas e não aplicadas": { es: "Aprobadas y sin aplicar" },
+  "Cada linha conta as propostas feitas neste período. Aprovar não muda nada sozinho: a mudança só vale quando é aplicada.": { es: "Cada fila cuenta las propuestas hechas en este período. Aprobar no cambia nada por sí solo: el cambio solo vale cuando se aplica." },
 };
 
 /**

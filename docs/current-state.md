@@ -403,3 +403,16 @@ passou a existir depois, medido na branch `feat/assistente-f1b-ia-leitura`:
   piso de 90 dentro da função). Antes só a conversa era expurgada.
 - Prova de banco (RLS dos retratos e expurgo) e de tela (par tela × GET direto): só no CI;
   nesta máquina rodaram as unidades.
+
+### Adendo 2026-10-17 — assistente interno, F4 (laço de retorno)
+
+- A página Evolução da IA ganhou o bloco "O que o assistente propôs": por tipo de proposta criada
+  no período, quantas foram aprovadas, aplicadas, recusadas e quantas ficaram sem decisão, mais a
+  taxa de aprovação entre as decididas. A leitura é `lib/ai/evolution/propostas-de-config.ts`
+  (só estado, nunca conteúdo) e a conta é `aggregate.ts`.
+- **O que NÃO existe, medido no schema:** arrependimento (desfazer depois de aplicar) — não há
+  estado nem coluna; e o sinal NÃO alimenta o matcher das skills (nenhuma proposta aponta para
+  skill). Quem disser o contrário está descrevendo o plano, não o produto.
+- Só admin vê os números (a RLS de `config_proposals` é admin); manager vê um aviso de acesso
+  restrito, e falha de leitura vira "indisponível" — nunca zero.
+- Prova: unidades locais; o par tela × GET direto (`assistente-propostas.spec.ts`) é do CI.

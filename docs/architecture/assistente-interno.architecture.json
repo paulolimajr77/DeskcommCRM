@@ -228,6 +228,30 @@
       "type": "route",
       "label": "cron data-retention → fn_expurgar_config_assistente_vencida",
       "sublabel": "apaga em lotes mensagens, conversas órfãs, propostas e retratos além da retenção; piso de 90 dias dentro da função; registra a rodada só quando houve efeito"
+    },
+    {
+      "id": "leitorPropostasEvolucao",
+      "lane": "leitura",
+      "col": 5,
+      "type": "lib",
+      "label": "lerPropostasDeConfig (F4)",
+      "sublabel": "o único leitor de config_proposals para a Evolução: só kind, status e carimbos (nunca payload nem motivo), sempre filtrado pela organização da sessão"
+    },
+    {
+      "id": "evolucaoRota",
+      "lane": "turno",
+      "col": 6,
+      "type": "route",
+      "label": "GET /v1/ai/evolution (config_loop)",
+      "sublabel": "manager+; só admin lê as propostas (a RLS da tabela é admin) — manager recebe 'restrito', falha vira 'indisponivel', nunca zero; agregação pura em aggregate.ts"
+    },
+    {
+      "id": "blocoEvolucao",
+      "lane": "pessoa",
+      "col": 3,
+      "type": "frontend",
+      "label": "bloco 'O que o assistente propôs' (Evolução)",
+      "sublabel": "por tipo: sugeridas, aprovadas, aplicadas, recusadas, sem decisão e aprovadas não aplicadas; taxa sobre o decidido; PT + ES"
     }
   ],
   "edges": [
@@ -494,6 +518,30 @@
       "from": "expurgoAssistente",
       "to": "auditoria",
       "label": "a rodada só audita quando apagou alguma coisa"
+    },
+    {
+      "id": "e45",
+      "from": "configProposals",
+      "to": "leitorPropostasEvolucao",
+      "label": "lê estado das propostas da organização, sem conteúdo"
+    },
+    {
+      "id": "e46",
+      "from": "leitorPropostasEvolucao",
+      "to": "evolucaoRota",
+      "label": "linhas já filtradas pela organização entram no agregador puro"
+    },
+    {
+      "id": "e47",
+      "from": "evolucaoRota",
+      "to": "blocoEvolucao",
+      "label": "config_loop: por tipo, o que foi aprovado, aplicado e recusado"
+    },
+    {
+      "id": "e48",
+      "from": "blocoEvolucao",
+      "to": "telaPropostas",
+      "label": "fecha o laço: a taxa de aprovação diz à pessoa se as sugestões acertam, e a aba Propostas é onde ela decide"
     }
   ],
   "cards": [
@@ -550,6 +598,16 @@
         "NÃO cria nem altera nada sozinha: cada item mostra o estado e, quando o assistente pode completar, o botão Pedir ao assistente só deixa a frase no chat para a pessoa conferir e enviar",
         "o retrato é guardado para mostrar a evolução; a retenção é executada pelo cron data-retention, com piso de 90 dias dentro da função",
         "laço de retorno: se a auditoria errar um estado, o que muda é a pessoa agir (ou deixar de agir) em cima de um retrato falso; por isso o texto de cada item diz o porquê e onde resolver"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F4: o laço de retorno — o que ele mede e o que NÃO mede",
+      "items": [
+        "mede, por tipo de proposta criada no período, quantas foram aprovadas, aplicadas, recusadas e quantas ficaram sem decisão; a taxa só olha o que alguém decidiu",
+        "NÃO mede arrependimento: o banco não guarda 'desfazer' (config_proposals termina em aplicada), e a tela não simula o que o schema não tem",
+        "NÃO alimenta nenhuma skill: o sinal fica na tela, para a pessoa; nenhuma peça do matcher das skills lê config_proposals",
+        "o manager vê 'restrito' em vez de zero porque a RLS só deixa admin ler a tabela; leitura falha vira 'indisponível'; o isolamento entre organizações é vigiado por teste de rota e a cerca laco-de-retorno-config-tem-um-leitor-so"
       ]
     }
   ]

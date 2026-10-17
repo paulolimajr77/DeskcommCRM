@@ -386,18 +386,22 @@ export async function POST(_req: NextRequest, ctx: RouteCtx): Promise<Response> 
     }
   } catch {
     resposta = fail("internal_error", t("Não consegui aplicar a proposta."), 500, { requestId });
-  } finally {
-    // A liberação é do MESMO cliente que travou, e acontece SEMPRE — inclusive
-    // quando o destino lançou ou a leitura falhou.
-    if (travado) {
-      try {
-        await cliente.query("select pg_advisory_unlock(hashtextextended('config_proposal:' || $1, 0))", [id]);
-      } catch {
-        // a liberação falhou: o cliente sai com erro, o pool o descarta e a
-        // trava morre com a sessão — nunca mascara a resposta.
-      }
-    }
-    cliente.release();
   }
+  // A liberação é do MESMO cliente que travou e acontece SEMPRE — o catch
+  // acima capturou qualquer exceção do caminho, então o fluxo chega aqui
+  // garantido. Se o UNLOCK lançar, o cliente NÃO pode voltar ao pool sem
+  // erro: voltaria COM A TRAVA PRESA, e a próxima tentativa da mesma proposta
+  // receberia 409 até a conexão morrer. O erro vai JUNTO no release(): o
+  // pg-pool descarta a conexão (client.end()), a trava morre com a sessão, e
+  // a resposta da aplicação não é mascarada.
+  if (travado) {
+    try {
+      await cliente.query("select pg_advisory_unlock(hashtextextended('config_proposal:' || $1, 0))", [id]);
+    } catch (erroDaLiberacao) {
+      cliente.release(erroDaLiberacao instanceof Error ? erroDaLiberacao : new Error(String(erroDaLiberacao)));
+      return resposta;
+    }
+  }
+  cliente.release();
   return resposta;
 }

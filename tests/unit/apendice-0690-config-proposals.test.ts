@@ -58,7 +58,7 @@ describe("o apêndice do baseline espelha a migration 0690", () => {
     const baseline = ler("supabase/baseline.sql");
     const rotulo = "-- ---- propostas de configuração do assistente (migration 0690) ----";
     // O rótulo aparece duas vezes por desenho (o do apêndice e o do cabeçalho do próprio
-    // corpo da migration, como nos blocos 0687/0688/0689): nunca mais que isso.
+    // corpo da migration, como nos blocos 0687/0692/0689): nunca mais que isso.
     expect(baseline.split(rotulo).length - 1).toBe(2);
     expect(baseline.split("create table if not exists public.config_proposals").length - 1).toBe(1);
   });

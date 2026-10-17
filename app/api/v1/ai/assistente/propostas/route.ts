@@ -11,8 +11,10 @@
  *
  * ## O que a ordem das linhas garante
  *
- *  1. `requireSupportWrite()` ANTES de qualquer efeito (gate
- *     `suporte-cobertura-de-efeitos`). É guarda de efeito, não de papel.
+ *  1. (POST e as três ações) `requireSupportWrite()` ANTES de qualquer efeito
+ *     (gate `suporte-cobertura-de-efeitos`). É guarda de efeito, não de papel —
+ *     e por isso o GET (só leitura) NÃO a tem: acompanhamento administrativo
+ *     em modo somente-leitura continua podendo ver a fila.
  *  2. `requireRole("admin")` — papel DA SESSÃO. manager/agent/viewer recebem 403.
  *  3. (POST) O corpo passa por `lib/assistente/propostas/payload.ts` (Zod
  *     estrito por tipo e operação). Chave de destino (`rota`, `url`, `path`,
@@ -65,9 +67,9 @@ const esquemaDaConsulta = z.strictObject({
 });
 
 export async function GET(req: NextRequest): Promise<Response> {
-  const supportDenied = await requireSupportWrite();
-  if (supportDenied) return supportDenied;
-
+  // SEM requireSupportWrite de propósito: é guarda de EFEITO, e este handler
+  // SÓ LÊ — acompanhamento administrativo em modo somente-leitura continua
+  // podendo ver a fila. A guarda segue nas três ações mutantes.
   const requestId = randomUUID();
   const authz = await requireRole("admin", { requestId, resource: "assistente_propostas" });
   if (!authz.ok) return authz.response;

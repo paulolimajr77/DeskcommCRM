@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0689 — mesma cerca da 0688.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0689 — mesma cerca da 0692.
  *
  * O kit self-host aplica SÓ o `baseline.sql`. Uma migration que não está no
  * apêndice não chega a quem instalou numa VPS; e as colunas novas de

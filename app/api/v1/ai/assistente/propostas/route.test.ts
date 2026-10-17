@@ -546,14 +546,18 @@ describe("GET /propostas (T20)", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("requireSupportWrite roda ANTES de qualquer efeito (também na leitura)", async () => {
+  it("leitura NÃO passa por requireSupportWrite (guarda de efeito): suporte somente-leitura LÊ a fila", async () => {
+    // C2 do julgamento: a guarda é de EFEITO e o GET só lê. Sabotagem: devolver a chamada
+    // no GET → `requireSupportWrite` volta a ser chamado e este caso fica vermelho.
     vi.mocked(requireSupportWrite).mockResolvedValue(fail("support_readonly", "somente leitura", 403, {}) as never);
+    estadoGet.propostas = [linhaDeTeste({})];
 
     const resposta = await GET(requisicaoGet());
 
-    expect(resposta.status).toBe(403);
-    expect(requireRole).not.toHaveBeenCalled();
-    expect(createClient).not.toHaveBeenCalled();
+    // A fila LÊ apesar do acompanhamento em modo somente-leitura.
+    expect(resposta.status).toBe(200);
+    expect(requireRole).toHaveBeenCalledTimes(1);
+    expect(estadoGet.ordens.some((o) => o.startsWith("from:config_proposals"))).toBe(true);
   });
 
   it("lê pelo cliente da SESSÃO, filtra a organização, ordena created_at desc e NUNCA escreve", async () => {

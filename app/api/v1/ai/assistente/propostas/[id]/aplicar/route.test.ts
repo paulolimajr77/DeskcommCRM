@@ -120,9 +120,13 @@ interface Estado {
   casAplicada: LinhaDeTeste | null;
   /** Lança na gravação do `aplicada` (a dívida descrita na rota). */
   erroNaGravacao: Error | null;
+  /** Lança na LIBERAÇÃO da trava (C1: o release precisa levar o erro). */
+  erroNoUnlock: Error | null;
   consultas: Consulta[];
   unlocks: Consulta[];
   releases: number;
+  /** O argumento do último release (null = sem erro = volta ao pool limpo). */
+  erroNoRelease: Error | null;
 }
 
 function poolFalso(estado: Estado) {
@@ -133,6 +137,7 @@ function poolFalso(estado: Estado) {
       return { rows: [{ travado: estado.travado }] };
     }
     if (s.includes("pg_advisory_unlock")) {
+      if (estado.erroNoUnlock) throw estado.erroNoUnlock;
       estado.unlocks.push({ sql, params });
       return { rows: [] };
     }
@@ -153,8 +158,9 @@ function poolFalso(estado: Estado) {
   }
   const cliente = {
     query: vi.fn(executar),
-    release: vi.fn(() => {
+    release: vi.fn((erro?: Error) => {
       estado.releases += 1;
+      estado.erroNoRelease = erro ?? null;
     }),
   };
   return { connect: vi.fn(async () => cliente), cliente };
@@ -171,9 +177,11 @@ beforeEach(() => {
     linhaAtual: null,
     casAplicada: null,
     erroNaGravacao: null,
+    erroNoUnlock: null,
     consultas: [],
     unlocks: [],
     releases: 0,
+    erroNoRelease: null,
   };
   const pool = poolFalso(estado);
   vi.mocked(getRequestPool).mockImplementation(() => pool as never);
@@ -306,8 +314,8 @@ describe("a trava consultiva", () => {
   });
 
   it("a trava é liberada MESMO quando o destino lança, e o cliente volta ao pool", async () => {
-    // Sabotagem (d) da ordem: tirar o `pg_advisory_unlock` do `finally` → este caso
-    // fica vermelho (unlocks vazio).
+    // Sabotagem: tirar o `pg_advisory_unlock` (a liberação garantida pós-catch) →
+    // este caso fica vermelho (unlocks vazio).
     estado.linhaAtual = linha();
     vi.mocked(chamarRotaPorDentro).mockResolvedValue({ falhou: "a chamada interna à rota falhou" });
 
@@ -320,6 +328,26 @@ describe("a trava consultiva", () => {
     expect(estado.unlocks[0]!.sql).toContain("pg_advisory_unlock");
     expect(estado.unlocks[0]!.params).toEqual([PROPOSTA_ID]);
     expect(estado.releases).toBe(1);
+    expect(estado.erroNoRelease).toBeNull();
+  });
+
+  it("o unlock lançando (C1): o cliente sai do pool COM erro — nunca volta preso — e a resposta da aplicação não é mascarada", async () => {
+    // Sabotagem: voltar a `cliente.release()` sem argumento quando o unlock lança →
+    // este caso fica vermelho (o release chegaria com erro null).
+    estado.linhaAtual = linha();
+    estado.casAplicada = linha({ status: "aplicada", applied_by: USER_ID, applied_at: "2026-10-16T10:00:00Z" });
+    estado.erroNoUnlock = new Error("conexão caiu no unlock");
+
+    const resposta = await post(PROPOSTA_ID);
+
+    // A aplicação RESOLVEU no destino e gravou: a resposta segue 200.
+    expect(resposta.status).toBe(200);
+    const json = (await resposta.json()) as { data: { status: string } };
+    expect(json.data.status).toBe("aplicada");
+    // E o cliente sai do pool com erro: o pg-pool o descarta e a trava morre
+    // com a sessão — a próxima tentativa não fica presa em 409.
+    expect(estado.releases).toBe(1);
+    expect(estado.erroNoRelease).toBeInstanceOf(Error);
   });
 });
 

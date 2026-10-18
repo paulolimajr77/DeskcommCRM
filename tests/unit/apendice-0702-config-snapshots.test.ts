@@ -57,7 +57,7 @@ describe("o apêndice do baseline espelha a migration 0702", () => {
   it("o bloco 0702 vem DEPOIS do bloco 0698 e ANTES da varredura de anon", () => {
     const baseline = ler("supabase/baseline.sql");
     const bloco0696 = baseline.lastIndexOf("-- ---- snapshots de auditoria do assistente (migration 0702) ----");
-    const bloco0687 = baseline.indexOf("-- ---- chat do assistente interno: config_threads/messages (migration 0698) ----");
+    const bloco0687 = baseline.lastIndexOf("-- ---- chat do assistente interno: config_threads/messages (migration 0698) ----");
     const varredura = baseline.indexOf("-- ---- VARREDURA anon:");
     expect(bloco0687).toBeGreaterThan(-1);
     expect(bloco0696).toBeGreaterThan(bloco0687);

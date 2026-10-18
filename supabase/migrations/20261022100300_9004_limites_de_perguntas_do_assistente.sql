@@ -1,6 +1,6 @@
 -- manifest: **Limites de perguntas do assistente interno, definidos pelo administrador (spec 2026-10-14-agente-interno-planos, T6).** Duas colunas em `ai_budgets` — `assistant_questions_per_user_day` (padrão 60) e `assistant_questions_per_org_day` (null = sem limite) — com CHECK de faixa, e o índice `config_messages_contagem_idx` (organization_id, created_at) que sustenta a contagem das últimas 24 h. Escrita só pela rota `PATCH ai/budget` (service role). Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- limites de perguntas do assistente interno (migration 0701) ----
+-- ---- limites de perguntas do assistente interno (migration 9004) ----
 -- Duas colunas, e a decisão de cada uma:
 --   * por pessoa, por dia: NOT NULL com padrão 60. As linhas que já existem
 --     ganham 60 no mesmo comando (o Postgres preenche o padrão), então não há

@@ -596,7 +596,7 @@ beforeAll(() => {
             (v_org, v_sess, timestamptz '2030-01-01 03:00:00+00', timestamptz '2030-01-01 05:00:00+00');
         end if;
 
-        -- migration 0698 — o histórico do chat do assistente interno. Guarda o
+        -- migration 9001 — o histórico do chat do assistente interno. Guarda o
         -- que a pessoa perguntou sobre a operação e o que o assistente
         -- respondeu: sem contact_id de propósito (config + agregados, nunca
         -- titular), então vazar a linha entrega ao vizinho a deliberação sobre
@@ -640,11 +640,11 @@ beforeAll(() => {
              'RLS invariant resposta de outra pessoa da mesma organização');
         end if;
 
-        -- migration 0702 — o retrato da auditoria da empresa (F3): estado de cada
+        -- migration 9005 — o retrato da auditoria da empresa (F3): estado de cada
         -- verificação e a contagem de pendências. Leitura org-flat (qualquer
         -- membro; o agent semeado é controle positivo legítimo); a escrita pela
         -- sessão é só do admin e é medida no describe dedicado
-        -- ("config_snapshots (migration 0702)"). Select-then-insert, como as irmãs.
+        -- ("config_snapshots (migration 9005)"). Select-then-insert, como as irmãs.
         if not exists (select 1 from public.config_snapshots where organization_id = v_org) then
           insert into public.config_snapshots (organization_id, resultado, pendencias)
           values (v_org, '{"itens":[]}'::jsonb, 0);
@@ -839,13 +839,13 @@ export const TABLES = [
   // RPC. Vazar a linha entrega ao vizinho quando o outro vai mexer nas
   // conexões dele — e a retomada programada passaria a ser do vizinho.
   "channel_schedules",
-  // migration 0698 — o histórico do chat do assistente interno (F1). Leitura
+  // migration 9001 — o histórico do chat do assistente interno (F1). Leitura
   // org-scoped com gate de papel `viewer` (o usuário semeado aqui é `agent`,
   // então é controle positivo legítimo); a ESCRITA é do servidor e não é
   // medida aqui — quem mede a escrita são as rotas, em teste de rota.
   "config_threads",
   "config_messages",
-  // migration 0702 — o retrato da auditoria da empresa (F3). Org-flat: o agent
+  // migration 9005 — o retrato da auditoria da empresa (F3). Org-flat: o agent
   // semeado lê o da própria organização (controle positivo) e zero o da outra.
   "config_snapshots",
   // migration 0665 (#2796, fatia 1) — o vínculo versão↔número: em quais números
@@ -867,11 +867,11 @@ export const TABLES = [
   // motivo de `webhook_lead_captures`: a leitura é só do `admin` e o usuário
   // semeado aqui é `agent`, então o controle positivo falharia por ACERTO. A
   // prova vive em `tests/invariants/cobranca-isolamento.test.ts`.
-  // ⚠️ `config_proposals` (migration 0699) também NÃO entra, pelo mesmo motivo: o
+  // ⚠️ `config_proposals` (migration 9002) também NÃO entra, pelo mesmo motivo: o
   // payload da proposta pode carregar prompt, texto de conhecimento e memória, então
   // a leitura é só do `admin` (diferente do chat, que é `viewer`+) e o `agent`
   // semeado aqui leria ZERO. A prova vive no `describe` dedicado mais abaixo
-  // ("config_proposals (migration 0699)"), neste mesmo arquivo, e a tabela está
+  // ("config_proposals (migration 9002)"), neste mesmo arquivo, e a tabela está
   // declarada em PROVA_PROPRIA de rls-completude-varredura.test.ts.
 ] as const;
 
@@ -944,7 +944,7 @@ describe("RLS tenant isolation (fn_user_org_ids pattern)", () => {
 });
 
 /**
- * config_proposals (migration 0699) — as propostas de configuração do assistente.
+ * config_proposals (migration 9002) — as propostas de configuração do assistente.
  *
  * Fora de `TABLES` de propósito (ver o comentário no fim dela): a leitura é só do
  * `admin`, e o usuário semeado lá é `agent`. Aqui há dois tenants com um usuário de
@@ -954,7 +954,7 @@ describe("RLS tenant isolation (fn_user_org_ids pattern)", () => {
  * o privilégio (a sessão NUNCA atualiza nem apaga — aprovar e aplicar são do
  * servidor) e o gatilho de transição ("aplicar exige aprovada", conteúdo imutável).
  */
-describe("config_proposals (migration 0699)", () => {
+describe("config_proposals (migration 9002)", () => {
   const P = "c0690000-0000-4000-8000";
   const u = (n: number) => `${P}-${String(n).padStart(12, "0")}`;
   const ADMIN_A = u(11);
@@ -1241,14 +1241,14 @@ select count(*) from public.config_proposals;`);
 });
 
 /**
- * config_snapshots (migration 0702) — o retrato da auditoria da empresa.
+ * config_snapshots (migration 9005) — o retrato da auditoria da empresa.
  *
  * Medidos aqui: o isolamento nas duas direções (com controle positivo), a escrita
  * pela sessão (só o admin da PRÓPRIA organização, assinando como ele mesmo), o
  * privilégio (authenticated nunca atualiza nem apaga; anon não lê) e o expurgo
  * (a função apaga o retrato velho, preserva o recente e só o service_role a executa).
  */
-describe("config_snapshots (migration 0702)", () => {
+describe("config_snapshots (migration 9005)", () => {
   const P = "c0696000-0000-4000-8000";
   const u = (n: number) => `${P}-${String(n).padStart(12, "0")}`;
   const ADMIN_A = u(11);

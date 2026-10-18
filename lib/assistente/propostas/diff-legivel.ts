@@ -12,7 +12,7 @@
  * gravaram no momento da proposta LENDO a rota de leitura correspondente por
  * dentro (`proposta-comum.ts`: "o texto de terceiros é DADO: vai para o
  * `antes`"). A tela não repete o GET por card: o retrato é o que o schema da
- * 0699 documenta para este fim. Onde não há `antes` (criação), só o "vai criar".
+ * 9002 documenta para este fim. Onde não há `antes` (criação), só o "vai criar".
  *
  * Os avisos carregam as notas da T20 que a tela precisa dizer ANTES do clique:
  * roteador nasce ativo; `membros` substitui a lista inteira; credencial do

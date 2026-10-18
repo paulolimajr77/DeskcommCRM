@@ -21,7 +21,7 @@
  *     `method`, `metodo`) em qualquer nível do `payload` é recusada: o destino
  *     é do código (`operacoes.ts`), nunca do dado.
  *  4. (POST) O INSERT usa o cliente da SESSÃO (`createClient`), nunca o de
- *     serviço: é a RLS da 0699 que prende `requested_by = auth.uid()`,
+ *     serviço: é a RLS da 9002 que prende `requested_by = auth.uid()`,
  *     `status = 'pendente'` e o papel admin. `organization_id` sai da sessão;
  *     se vier no corpo, o esquema estrito recusa. O `risk` sai do código, por
  *     tipo. (GET) O select também é pelo cliente da SESSÃO — a RLS já limita
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
   const { status, limit, cursor } = parsed.data;
 
-  // Leitura pelo cliente da SESSÃO: a RLS da 0699 só deixa admin ler, e o
+  // Leitura pelo cliente da SESSÃO: a RLS da 9002 só deixa admin ler, e o
   // filtro de organização é redundância defensiva — nunca da query string.
   const supabase = await createClient();
   let consulta = supabase

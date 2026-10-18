@@ -10,7 +10,7 @@
  *     não um dado gravado. GET não escreve nada — então nada marca
  *     expirada por efeito de uma leitura.
  *  2. O payload VIA INTEIRO na resposta: quem lê a fila é `admin` (a RLS da
- *     0699 limita o select), e a tela da T21 precisa do diff (antes/depois).
+ *     9002 limita o select), e a tela da T21 precisa do diff (antes/depois).
  *     PII de cliente não existe no payload por construção (o `payload.ts`
  *     curou os campos); prompt, FAQ e memória da EMPRESA podem.
  */

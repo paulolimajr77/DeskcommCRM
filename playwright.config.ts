@@ -123,7 +123,10 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: "./tests/e2e",
   globalTeardown: "./tests/e2e/global-teardown.ts",
+  // Repositório PRIVADO: o runner gratuito (2 vCPU) é ~2x mais lento; a main do Rafael falha as
+  // mesmas specs ali com o expect de 5 s (medido no PR de diagnóstico #5).
   timeout: 30_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   /**
    * UM worker. `fullyParallel: false` serializa apenas DENTRO de cada arquivo —

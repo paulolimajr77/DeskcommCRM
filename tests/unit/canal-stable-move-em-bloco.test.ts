@@ -83,7 +83,9 @@ function corpo(yml: string, nome: string): string {
 function imagensDaMatriz(): string[] {
   const t = job(publish, "build-and-push");
   const bloco = /matrix:\s*\n\s+include:\s*\n([\s\S]*?)(?=\n {4}steps:)/.exec(t)?.[1] ?? "";
-  return [...bloco.matchAll(/^\s*-\s+name:\s*([A-Za-z0-9._-]+)\s*$/gm)]
+  // Repositório PRIVADO: o que os laços de promover-stable e cortar-tag endereçam é o
+  // nome PUBLICADO no GHCR (`publicado:`), não o `name:` da matriz (que o kit cobra).
+  return [...bloco.matchAll(/^\s*publicado:\s*([A-Za-z0-9._-]+)\s*$/gm)]
     .map((m) => m[1]!)
     .sort();
 }

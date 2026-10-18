@@ -194,15 +194,19 @@ jobs:
         include:
           - name: deskcommcrm
             dockerfile: Dockerfile
+            publicado: deskcomm-privado-app
             title: DeskcommCRM
           - name: deskcomm-worker
             dockerfile: Dockerfile.worker
+            publicado: deskcomm-privado-worker
             title: DeskcommCRM worker
           - name: deskcomm-scheduler
             dockerfile: Dockerfile.scheduler
+            publicado: deskcomm-privado-scheduler
             title: DeskcommCRM scheduler
           - name: deskcomm-voice-agent
             dockerfile: Dockerfile.voice-agent
+            publicado: deskcomm-privado-voice-agent
             title: DeskcommCRM voice agent
         name: [deskcommcrm, deskcomm-worker, deskcomm-scheduler, deskcomm-voice-agent]
         arch: [amd64, arm64]
@@ -234,7 +238,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.publicado }}
           flavor: |
             latest=false
             suffix=-${{ matrix.arch }},onlatest=true
@@ -326,10 +330,10 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcommcrm
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-worker
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-scheduler
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-voice-agent
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-privado-app
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-privado-worker
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-privado-scheduler
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/deskcomm-privado-voice-agent
           flavor: latest=false
           tags: |
             type=ref,event=branch
@@ -558,11 +562,11 @@ jobs:
           # Confere o conjunto INTEIRO antes de mover QUALQUER ponteiro. Conferir
           # dentro do laço de mover deixava uma falha na 3ª imagem com app e
           # worker já em `stable` — o canal dividido da #488.
-          for img in deskcommcrm deskcomm-worker deskcomm-scheduler deskcomm-voice-agent; do
+          for img in deskcomm-privado-app deskcomm-privado-worker deskcomm-privado-scheduler deskcomm-privado-voice-agent; do
             manifesto_tem_plataforma "${REGISTRY}/${dono}/${img}:${numero}" linux/amd64
             manifesto_tem_plataforma "${REGISTRY}/${dono}/${img}:${numero}" linux/arm64
           done
-          for img in deskcommcrm deskcomm-worker deskcomm-scheduler deskcomm-voice-agent; do
+          for img in deskcomm-privado-app deskcomm-privado-worker deskcomm-privado-scheduler deskcomm-privado-voice-agent; do
             echo "::group::${img}"
             docker buildx imagetools create \
               --tag "${REGISTRY}/${dono}/${img}:stable" \

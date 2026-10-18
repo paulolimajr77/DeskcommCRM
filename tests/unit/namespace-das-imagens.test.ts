@@ -302,7 +302,7 @@ describe("o kit aponta para o que o CI realmente publica", () => {
     // Se esta linha virar um literal, o namespace passa a ter três donos e um
     // fork perde a única parte que já funcionava sozinha para ele.
     expect(PUBLICA).toContain(
-      "images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}",
+      "images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.publicado }}",
     );
   });
 

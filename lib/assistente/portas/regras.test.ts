@@ -13,6 +13,7 @@ import {
   ESCRITA_PERMITIDA,
   PREFIXOS_PROIBIDOS,
   PORTAS_PROIBIDAS,
+  SUFIXOS_PROIBIDOS,
   casaComPrefixo,
   escritaPermitida,
   portaDeLeituraPermitida,
@@ -55,6 +56,54 @@ describe("portaDeLeituraPermitida", () => {
 
   it("settings/api-tokens não é legível (prefixo proibido)", () => {
     expect(portaDeLeituraPermitida("settings/api-tokens")).toBe(false);
+  });
+
+  it("as 8 portas com efeito colateral não são legíveis", () => {
+    const proibidas = [
+      "agenda/google/connect",
+      "agenda/google/callback",
+      "plataformas-de-anuncio/google/connect",
+      "plataformas-de-anuncio/google/callback",
+      "integrations/nuvemshop/callback",
+      "contacts/export",
+      "contacts/:id/avatar",
+      "conversations/:id/notes/:noteId/media",
+    ];
+    for (const id of proibidas) {
+      expect(portaDeLeituraPermitida(id)).toBe(false);
+    }
+  });
+
+  it("CARREGADORES não tem nenhuma das 8 portas com efeito colateral", () => {
+    const proibidas = [
+      "agenda/google/connect",
+      "agenda/google/callback",
+      "plataformas-de-anuncio/google/connect",
+      "plataformas-de-anuncio/google/callback",
+      "integrations/nuvemshop/callback",
+      "contacts/export",
+      "contacts/:id/avatar",
+      "conversations/:id/notes/:noteId/media",
+    ];
+    for (const id of proibidas) {
+      expect(CARREGADORES).not.toHaveProperty(id);
+    }
+  });
+
+  it("toda porta cujo id termina em /connect ou /callback não é lida nem escrita", () => {
+    for (const p of CATALOGO_DE_PORTAS) {
+      const sufixo = SUFIXOS_PROIBIDOS.some((s) => p.id.endsWith(s));
+      if (sufixo) {
+        expect(portaDeLeituraPermitida(p.id)).toBe(false);
+        for (const m of ["POST", "PATCH", "PUT"] as const) {
+          expect(escritaPermitida(p.id, m)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("pipelines/:id/board continua legível", () => {
+    expect(portaDeLeituraPermitida("pipelines/:id/board")).toBe(true);
   });
 
   it("toda porta com prefixo proibido é falsa", () => {

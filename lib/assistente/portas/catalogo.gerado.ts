@@ -3876,14 +3876,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/agenda/google/calendarios/route");
     return { GET: mod.GET };
   },
-  "agenda/google/callback": async () => {
-    const mod = await import("@/app/api/v1/agenda/google/callback/route");
-    return { GET: mod.GET };
-  },
-  "agenda/google/connect": async () => {
-    const mod = await import("@/app/api/v1/agenda/google/connect/route");
-    return { GET: mod.GET };
-  },
   "agenda/horarios-livres": async () => {
     const mod = await import("@/app/api/v1/agenda/horarios-livres/route");
     return { GET: mod.GET };
@@ -4240,10 +4232,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/contacts/[id]/route");
     return { GET: mod.GET };
   },
-  "contacts/:id/avatar": async () => {
-    const mod = await import("@/app/api/v1/contacts/[id]/avatar/route");
-    return { GET: mod.GET };
-  },
   "contacts/:id/carteira": async () => {
     const mod = await import("@/app/api/v1/contacts/[id]/carteira/route");
     return { GET: mod.GET };
@@ -4276,10 +4264,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/contacts/duplicates/route");
     return { GET: mod.GET };
   },
-  "contacts/export": async () => {
-    const mod = await import("@/app/api/v1/contacts/export/route");
-    return { GET: mod.GET };
-  },
   "conversation-tags": async () => {
     const mod = await import("@/app/api/v1/conversation-tags/route");
     return { GET: mod.GET };
@@ -4310,10 +4294,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "conversations/:id/notes": async () => {
     const mod = await import("@/app/api/v1/conversations/[id]/notes/route");
-    return { GET: mod.GET };
-  },
-  "conversations/:id/notes/:noteId/media": async () => {
-    const mod = await import("@/app/api/v1/conversations/[id]/notes/[noteId]/media/route");
     return { GET: mod.GET };
   },
   "conversations/:id/passagens": async () => {
@@ -4390,10 +4370,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "imports/:id": async () => {
     const mod = await import("@/app/api/v1/imports/[id]/route");
-    return { GET: mod.GET };
-  },
-  "integrations/nuvemshop/callback": async () => {
-    const mod = await import("@/app/api/v1/integrations/nuvemshop/callback/route");
     return { GET: mod.GET };
   },
   "lead-captures": async () => {
@@ -4506,14 +4482,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "pipelines/default": async () => {
     const mod = await import("@/app/api/v1/pipelines/default/route");
-    return { GET: mod.GET };
-  },
-  "plataformas-de-anuncio/google/callback": async () => {
-    const mod = await import("@/app/api/v1/plataformas-de-anuncio/google/callback/route");
-    return { GET: mod.GET };
-  },
-  "plataformas-de-anuncio/google/connect": async () => {
-    const mod = await import("@/app/api/v1/plataformas-de-anuncio/google/connect/route");
     return { GET: mod.GET };
   },
   "products": async () => {

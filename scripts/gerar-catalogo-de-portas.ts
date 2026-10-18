@@ -19,33 +19,20 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  casaComPrefixo,
+  ehProibida,
+  PREFIXOS_PROIBIDOS,
+  PORTAS_PROIBIDAS,
+  SUFIXOS_PROIBIDOS,
+} from "../lib/assistente/portas/listas";
+
 const ROOT = "D:/PROJETOS VIBE CODING/DeskcommCRM-agente-interno";
 const API_DIR = path.join(ROOT, "app", "api", "v1");
 const OUT = path.join(ROOT, "lib", "assistente", "portas", "catalogo.gerado.ts");
 
 type Metodo = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 const METODOS: Metodo[] = ["GET", "POST", "PATCH", "PUT", "DELETE"];
-
-/** Segmentos sob app/api/v1/ que nunca sao lidos pelo assistente operador. */
-const PREFIXOS_PROIBIDOS: string[] = [
-  "cron/",
-  "admin/",
-  "auth/",
-  "webhooks/",
-  "webhook-sources/",
-  "lgpd/",
-  "ai/credentials/",
-  "mcp/",
-  "system/",
-  "tenants/",
-  "onboarding/",
-  "extensions/",
-  "health/",
-  "settings/api-tokens/",
-];
-
-/** Portas exatas que nunca entram nos carregadores de leitura. */
-const PORTAS_PROIBIDAS: string[] = ["team/invites", "messages/:id/media"];
 
 function segmentoSobApiV1(arquivoAbsoluto: string): string[] {
   const rel = path.relative(API_DIR, String(arquivoAbsoluto)).split(path.sep);
@@ -84,18 +71,6 @@ function resumoDoCabecalho(conteudo: string): string {
   const fim = texto.search(/\.(?=\s|$)/);
   if (fim === -1) return texto;
   return texto.slice(0, fim + 1).trim();
-}
-
-function casaComPrefixo(id: string, prefixo: string): boolean {
-  const semBarra = prefixo.endsWith("/") ? prefixo.slice(0, -1) : prefixo;
-  return id === semBarra || id.startsWith(prefixo);
-}
-
-function ehProibida(id: string): boolean {
-  return (
-    PREFIXOS_PROIBIDOS.some((p) => casaComPrefixo(id, p)) ||
-    PORTAS_PROIBIDAS.includes(id)
-  );
 }
 
 interface Porta {

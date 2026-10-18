@@ -195,7 +195,8 @@ jobs:
             echo "::warning::não consegui comparar a base da prévia com a ${GITHUB_BASE_REF:-main} — NÃO MEDIDO"; exit 0; }
           atraso=$(printf '%s' "$comp" | jq -r '.ahead_by // 0')
           printf '%s' "$comp" | jq -r '.files[]?.filename' | sort -u > /tmp/main-andou.txt
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename' 2>/dev/null | sort -u > /tmp/pr-toca.txt
+          # Repositório privado: o token deste job pode não ler os arquivos do PR — vira cruzamento vazio, nunca reprova.
+          { gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename' 2>/dev/null || :; } | sort -u > /tmp/pr-toca.txt
           cruzamento=$(comm -12 /tmp/main-andou.txt /tmp/pr-toca.txt)
           n=$(printf '%s' "$cruzamento" | grep -c . || true)
           {

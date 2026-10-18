@@ -155,9 +155,9 @@ jobs:
       # Sem fail-fast: um vermelho numa parte não esconde o da outra.
       fail-fast: false
       # Repositório PRIVADO: o runner gratuito tem 2 vCPU (o público, 4), então a unit foi
-      # repartida em 6 fatias (partes 1..6) e as cercas + kit ficaram na última (7).
+      # repartida em 9 fatias (partes 1..9) e as cercas + kit ficaram na última (10).
       matrix:
-        parte: [1, 2, 3, 4, 5, 6, 7]
+        parte: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v7
 
@@ -242,7 +242,7 @@ jobs:
       # Seleção e medições: o bloco `projects` de vitest.config.ts.
       # Na parte 4, junto do kit bash: o porquê e a conta estão no cabeçalho do job.
       - name: Cercas estruturais
-        if: matrix.parte == 7
+        if: matrix.parte == 10
         run: pnpm cercas
 
       - name: Typecheck
@@ -346,9 +346,9 @@ jobs:
       # são a suíte inteira, uma vez só. A parte 4 não roda unit: é cercas e kit
       # bash (cabeçalho do job). Localmente o comando continua sendo
       # `pnpm test:unit`, sem recorte.
-      - name: Unit tests (parte ${{ matrix.parte }}/6)
-        if: matrix.parte != 7
-        run: pnpm test:unit --project produto --shard=${{ matrix.parte }}/6
+      - name: Unit tests (parte ${{ matrix.parte }}/9)
+        if: matrix.parte != 10
+        run: pnpm test:unit --project produto --shard=${{ matrix.parte }}/9
 
       # O MAPA DA SKILL COBRE O MENU? — aviso, nunca reprova.
       #
@@ -406,7 +406,7 @@ jobs:
       # escolher OpenRouter travava o instalador num laço, escolher OpenAI
       # deixava o .env pela metade — passaram por todos os checks verdes. 15s.
       - name: Kit self-host (bash)
-        if: matrix.parte == 7
+        if: matrix.parte == 10
         run: pnpm test:shell
 
       - name: Orçamento de tempo do verify-parte

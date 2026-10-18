@@ -124,8 +124,8 @@ export default defineConfig({
   testDir: "./tests/e2e",
   globalTeardown: "./tests/e2e/global-teardown.ts",
   // Repositório PRIVADO: o runner gratuito (2 vCPU) é ~2x mais lento; a main do Rafael falha as
-  // mesmas specs ali com o expect de 5 s (medido no PR de diagnóstico #5).
-  timeout: 30_000,
+  // mesmas specs ali com o expect de 5 s e o teste de 30 s (medido no PR de diagnóstico #5).
+  timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
   /**

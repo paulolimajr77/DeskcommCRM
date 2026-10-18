@@ -55439,7 +55439,7 @@ end $$;
 -- Retenção (decisão §8.4 da spec, dívida assumida): `config_proposals` segue a
 -- retenção operacional do tenant e entra na mesma dívida de
 -- `fn_expurgar_config_assistente_vencida` — a função existe desde a F1 (migration
--- 0698) e NÃO tem chamador; a rota agendada que a chama entra na F3. Nenhuma
+-- 9001) e NÃO tem chamador; a rota agendada que a chama entra na F3. Nenhuma
 -- função de expurgo nova aqui, e a existente não é alterada.
 create table if not exists public.config_proposals (
   id                uuid primary key default gen_random_uuid(),
@@ -55465,7 +55465,7 @@ create table if not exists public.config_proposals (
   -- handlers existentes, nunca SQL direto.
   payload           jsonb not null check (jsonb_typeof(payload) = 'object'),
   status            text not null default 'pendente' check (status in ('pendente','aprovada','aplicada','rejeitada','expirada')),
-  -- Quem pediu a proposta; sem FK, como `created_by` da 0698 (a saída de uma
+  -- Quem pediu a proposta; sem FK, como `created_by` da 9001 (a saída de uma
   -- pessoa não apaga o que foi pedido).
   requested_by      uuid not null,
   decided_by        uuid,
@@ -55506,7 +55506,7 @@ create unique index if not exists config_proposals_turno_unico
 alter table public.config_proposals enable row level security;
 
 -- ── Privilégio: o login (sessão) só LÊ e INSERE ──────────────────────────
--- `revoke all` PRIMEIRO pelo mesmo motivo da 0698: o `ALTER DEFAULT
+-- `revoke all` PRIMEIRO pelo mesmo motivo da 9001: o `ALTER DEFAULT
 -- PRIVILEGES … GRANT ALL ON TABLES TO "authenticated"` do baseline vem ANTES
 -- de toda tabela de apêndice. Sem o revoke, a tabela nasceria com
 -- UPDATE/DELETE para `authenticated` e a policy seria a única coisa entre um
@@ -55520,7 +55520,7 @@ grant all on public.config_proposals to service_role;
 
 -- ── RLS: organização + ADMIN, policy POR COMANDO ─────────────────────────
 -- Só admin lê proposta (o payload pode ter prompt, texto de conhecimento e
--- memória). Decisão registrada: diferente do chat (0698), que é `viewer`+.
+-- memória). Decisão registrada: diferente do chat (9001), que é `viewer`+.
 drop policy if exists tenant_isolation_config_proposals_select on public.config_proposals;
 create policy tenant_isolation_config_proposals_select
   on public.config_proposals
@@ -55622,7 +55622,7 @@ begin
   return new;
 end;
 $$;
--- As DUAS origens de EXECUTE, como na 0698: o `ALTER DEFAULT PRIVILEGES … GRANT
+-- As DUAS origens de EXECUTE, como na 9001: o `ALTER DEFAULT PRIVILEGES … GRANT
 -- ALL ON FUNCTIONS TO anon` do baseline (que `revoke from public` não remove) e
 -- o grant implícito a PUBLIC de toda função nova (que `revoke from anon` não
 -- remove). Fechar uma só deixa a função exposta com o gate verde.
@@ -56302,13 +56302,13 @@ create policy tenant_isolation_config_snapshots_insert
     and taken_by = auth.uid()
   );
 
--- Trava de suporte (mesma razão da 0699: o baseline concede default privileges
+-- Trava de suporte (mesma razão da 9002: o baseline concede default privileges
 -- que dariam UPDATE/DELETE a authenticated sem este revoke).
 revoke all on public.config_snapshots from anon, authenticated;
 grant select, insert on public.config_snapshots to authenticated;
 
 -- ── Extensão do expurgo de config assistente (F3, dívida de retenção) ───────
--- `fn_expurgar_config_assistente_vencida` existe desde a 0698 (F1) e só
+-- `fn_expurgar_config_assistente_vencida` existe desde a 9001 (F1) e só
 -- apagava `config_messages` e `config_threads`. A F3 acrescenta
 -- `config_proposals` vencidas e `config_snapshots` além da retenção — mesmo
 -- corpo no baseline, para o kit self-host não divergir.
@@ -56326,7 +56326,7 @@ declare
   v_apagadas int := 0;
   v_n int;
 begin
-  -- config_messages (0698, existente — mantido)
+  -- config_messages (9001, existente — mantido)
   with vencidas as (
     select m.id from public.config_messages m
      where m.created_at < now() - make_interval(days => v_dias)
@@ -56337,7 +56337,7 @@ begin
   get diagnostics v_n = row_count;
   v_apagadas := v_apagadas + v_n;
 
-  -- config_threads órfãos (0698, existente — mantido)
+  -- config_threads órfãos (9001, existente — mantido)
   with orfas as (
     select t.id from public.config_threads t
      where t.created_at < now() - make_interval(days => v_dias)
@@ -56376,7 +56376,7 @@ begin
 end;
 $$;
 
--- As DUAS origens de EXECUTE (mesma razão da 0698: fechar ambas).
+-- As DUAS origens de EXECUTE (mesma razão da 9001: fechar ambas).
 revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
 grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
 

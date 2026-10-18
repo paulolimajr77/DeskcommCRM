@@ -18,7 +18,7 @@ const MIGRATION = join(
   "..",
   "supabase",
   "migrations",
-  "20261021100100_0699_config_proposals.sql",
+  "20261022100100_0699_config_proposals.sql",
 );
 
 const PERMITIDAS: ReadonlyArray<readonly [StatusDaProposta, StatusDaProposta]> = [

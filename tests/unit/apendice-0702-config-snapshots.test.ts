@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261021100400_0702_config_snapshots.sql";
+const MIGRATION = "supabase/migrations/20261022100400_0702_config_snapshots.sql";
 
 function ler(caminho: string): string {
   return readFileSync(join(RAIZ, caminho), "utf8");

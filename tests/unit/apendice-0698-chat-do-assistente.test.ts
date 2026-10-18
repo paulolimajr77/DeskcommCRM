@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
 const MIGRATION =
-  "supabase/migrations/20261021100000_0698_chat_do_assistente.sql";
+  "supabase/migrations/20261022100000_0698_chat_do_assistente.sql";
 
 describe("o apêndice do baseline espelha a migration 0698", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {

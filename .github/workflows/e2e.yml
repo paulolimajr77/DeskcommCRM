@@ -2362,10 +2362,11 @@ jobs:
     if: always()
     needs: [e2e-alcance, e2e-parte]
     runs-on: ubuntu-latest
-    # Nenhuma permissão: este job só lê o resultado de `needs` e escreve o
-    # summary. Sem o bloco, o token herdaria o default do REPOSITÓRIO, que vive
-    # fora do repo e muda num clique.
-    permissions: {}
+    # Só o resultado de `needs` e o summary; `contents: read` existe porque o passo de
+    # cobertura abaixo faz checkout, e num repositório PRIVADO o checkout sem essa
+    # permissão falha com "repository not found" (no público o clone anônimo basta).
+    permissions:
+      contents: read
     steps:
       - name: Falhar se qualquer parte não passou
         env:

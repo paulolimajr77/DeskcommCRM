@@ -52,6 +52,25 @@ caminho único e vira o modo avançado; o padrão passa a ser a receita pronta
 | D7 | Foto por URL | Guarda canônica de fetch externo: `assertUrlDeMidiaSegura` (`lib/messaging/media/url-de-midia-externa.ts:34`, CONFIRMADO — textual + destino resolvido, com exceção do Storage assinado) + teto de tamanho + timeout do C3; C6 é o gate. Sem igualdade de host (banco `localhost`/contêiner vs. fotos no domínio/CDN — igualdade mataria o caso do leigo); sem a guarda canônica, sem envio. Falha de mídia nunca derruba o texto (manda sem foto e registra). Legenda herda `LIMITE_DA_LEGENDA = 1024` (`lib/agent-engine/agent/fotos-do-produto.ts:23-24`, CONFIRMADO): estouro sai como texto antes da foto. WhatsApp não tem "card": foto com legenda é o formato. |
 | D8 | LGPD/rastro | O resultado da receita passa pelo rastro da execução (`ai_agent_runs.tool_calls`, redação por chave + corte — ponto levantado na triagem da #2527). A spec fixa: o que é redigido, o corte por campo e a retenção — explícitos antes da primeira fatia. |
 
+## Regra de escopo da D8 (escrita na R1)
+
+O que foi medido antes de escrever o código:
+
+- `lib/ai/runtime/serialize.ts:16-29` (`redactValue`): redige só pelas chaves `authorization`, `api_key`, `token`, `password`, `cpf` e corta string longa em 500 + `...[truncated]`. **Não cobre** `email`, `telefone`, `endereço`, `hash` — e **não cobre** o campo `linhas` de uma consulta de banco externo. Uma linha de produto com preço, SKU, estoque e título passaria inteira para `ai_agent_runs.tool_calls`.
+- `lib/ai/runtime/serialize.ts:53-76` (`serializeSteps`): grava `result: redactValue(result)` de cada tool. Se a tool `crm_consultar_receita` devolver as linhas, elas iriam para o rastro.
+- `lib/retencao/politica.ts`: não há expurgo por tempo de `ai_agent_runs` (a migration 0587 purga sete outras tabelas sem tocar `ai_agent_runs`, conferido no arquivo dela). O que existe é a redação por contato (`fn_lgpd_redigir_tool_calls`, baseline :43935-43960), que deixa o esqueleto (`{step, tool_name, redacted}`) e tira o conteúdo.
+
+A regra, escrita na R1:
+
+> O rastro de `crm_consultar_receita` guarda os argumentos **sem os valores dos parâmetros de busca** (só os nomes) e o resultado **SÓ como contagem de linhas + colunas + `truncado`. Nenhuma linha da origem vai para o rastro.**
+
+Como é implementado (não só no texto):
+
+- `lib/ai/runtime/serialize.ts` ganhou o conjunto `RESULTADO_RESUMIDO` com a chave `linhas` (`serialize.ts:16-17`). Qualquer resultado de tool com uma chave nesse conjunto tem o array substituído por `[N itens resumidos pelo rastro]` (`serialize.ts:23-27`), nunca o conteúdo. Isso vale para `crm_consultar_receita` e para qualquer outra tool que devolva `linhas`.
+- A tool `crm_consultar_receita` (`lib/mcp/tools/receitas-externas.ts`) devolve ao modelo as linhas já serializadas e truncadas pelo dialeto, mas no rastro (`serializeSteps`) o campo `linhas` é substituído pelo resumo — então o JSON serializado de `ai_agent_runs.tool_calls` **não contém nenhum valor de linha**.
+
+Teste: `lib/ai/runtime/serialize.test.ts` usa um valor sentinela único (`__SENTINELA_WOOCOMMERCE_42__`) numa linha e prova que ele **não** aparece no JSON serializado de `serializeSteps`.
+
 ## Revisões à Spec 23 (aceitas pelo mantenedor em 16/10/2026)
 
 Duas, explícitas — no precedente do bloco "Revisão da D6 da Spec 20" da própria
@@ -105,9 +124,21 @@ Spec 23:
 | R1 | Receita `woocommerce` + instância + tool (sem foto, sem funil; exige a regra de escopo da D8 escrita) |
 | R2 | Receita `acf-imoveis` (exige C1 ACF verde) |
 | R3 | Receita `jetengine-imoveis` (exige C1 JetEngine verde) + `tabela-direta` |
-| R4 | `imagem_url` no envio (exige C3/C6 verdes) |
-| R5 | Ida ao funil (D6: contrato, padrão de destino, dedup) + e2e do apartamento |
-| R6 | Runbook do leigo (a regra de escopo da D8 já entrou antes da R1) |
+| R4 | `imagem_url` no envio (exige C3/C6 verdes). **FEITA em código**: receitas devolvem `imagem_url` (WordPress: `_thumbnail_id` → `guid` do anexo, LEFT JOIN; `tabela-direta`: `colunas.imagem`; `jetengine-imoveis`: `campos.imagem`, valor só-dígitos resolve pelo `guid` do anexo — **INFERIDO**, não medido em JetEngine real) e `send_message` aceita `imagem_url` (só URL devolvida por `crm_consultar_receita` no mesmo turno; `assertUrlDeMidiaSegura` antes de qualquer fetch; `redirect: manual`, no máx. 2 saltos reconferidos; 8 s; 5 MB por contagem de bytes; jpeg/png/webp por `content-type` e bytes). **C3 segue NÃO MEDIDO no WAHA real**: 8 s / 5 MB / 3 tipos são a proposta, em constantes em `lib/agent-engine/agent/foto-da-receita.ts`. C6 coberto por teste unitário (fetch com zero chamadas). Residual declarado: janela de DNS-rebinding entre a guarda e o fetch (mesma de `outbound-ip.ts`). |
+| R5 | Ida ao funil (D6: contrato, padrão de destino, dedup) + e2e do apartamento. **FEITA em código**, ver "R5 entregue" abaixo |
+| R6 | Runbook do leigo (a regra de escopo da D8 já entrou antes da R1). **FEITA**: `docs/runbooks/banco-externo-guia-do-leigo.md` |
+
+## R5 entregue: o interesse vira lead (D6)
+
+- **Destino na instância:** `destino?: { pipeline_id, stage_id }` (Zod `.strict()`). Sem migration: a coluna `receitas` é jsonb. A rota `PUT .../recipes` confere, contra a organização DA SESSÃO, que o funil e a etapa existem, estão vivos, que a etapa é do funil e que não é de ganho/perda (`validarDestinoDaInstancia`); senão 422 `destino_invalido`. A mesma conferência roda de novo na execução.
+- **Ferramenta `crm_registrar_interesse_no_item`** (`{ instancia_id, item_id }`, módulo `banco_externo`): contato = `ctx.contatoDoTurno` (o modelo não tem campo para ele); organização = a do ctx; `item_id` só vale se `crm_consultar_receita` o devolveu neste turno (`ItensDaReceitaNoTurno`); título e preço da nota saem desse snapshot. Cria o lead por `crmCreateLead.handler` (mesmo caminho do `crm_create_lead`: régua da etapa, tenancy, `lead.created`), `source: "external"`, referência `<familia>:<id>` na `description` como `[ref:<familia>:<id>]`, e uma nota na linha do tempo.
+- **Sem destino** (ou destino que sumiu, ou etapa que exige campos que o cliente não deu): aviso na Central (`kind other`, `ref_kind contact`) e NENHUM lead.
+- **Regra de dedup (contato + referência):** lead da MESMA organização, do MESMO contato, `source = 'external'`, `status = 'open'` cuja `description` contenha o marcador exato `[ref:<familia>:<id>]`. Achou: não cria, acrescenta a nota "Interesse repetido em <data>". Lead GANHO ou PERDIDO não conta: interesse depois de fechado é nova oportunidade e cria lead novo. Limite: a referência não carrega a conexão; dois bancos da mesma família com o mesmo id para o mesmo contato colidiriam.
+- **Teto:** 3 interesses distintos por turno (`TETO_DE_INTERESSES_POR_TURNO`); repetir um item já tratado no turno devolve o mesmo desfecho sem gastar teto. O teto de envios (`DEFAULT_MAX_SENDS_PER_TURN`) não se aplica (a ferramenta não envia); o de passos (`AGENT_MAX_STEPS`) vale como para qualquer ferramenta.
+- **Contato bloqueado, anonimizado ou pessoal:** não vira lead nem aviso.
+- **Audit:** o lead audita `lead.created` pelo caminho de `crm_create_lead`; os demais desfechos emitem `external_db_recipes.interest_registered` só com ids, referência e desfecho.
+- **Defeito achado e corrigido junto:** `crm_consultar_receita` lia `receitas` da view `external_db_connections_safe`, que não tem essa coluna (0697); em produção respondia sempre "falha_na_leitura". Os testes com mock não viam. Agora lê a tabela, com `organization_id` no filtro.
+- **Não coberto:** o lado "pelo agente conversando" do par (não há dublê de modelo de agente nos e2e, nem MySQL no e2e fresco); a spec e2e cobre tela + ferramenta e **não foi executada** nesta sessão.
 
 ## Living System Checklist — receitas (resumo)
 
@@ -118,3 +149,73 @@ Spec 23:
 5. Informação com propósito: teto de itens/bytes do C2 — o modelo recebe o que cabe na decisão, não o banco.
 6. Configuração com superfície: parâmetros em português na tela; nada de SQL à vista do leigo.
 7. Todo laço se fecha: foto que não carrega, receita sem resultado e funil indisponível têm resposta e registro — os três.
+
+## R1 entregue: o que mudou
+
+A fatia R1 (receita `woocommerce` + instância + tool) entrega:
+
+- `lib/external-db/receitas/tipos.ts` — `DefinicaoDeReceita` e `InstanciaDeReceita`
+- `lib/external-db/receitas/woocommerce.ts` — receita `woocommerce-produtos` (JOIN posts+postmeta, parâmetros `busca`/`preco_max`/`so_em_estoque`/`limite`, teto 5)
+- `lib/external-db/receitas/registro.ts` — mapa `RECEITAS` e `receitaDe(id)`
+- `lib/external-db/receitas/validador.ts` — `validarConsultaDeReceita` (SELECT-only, sem `;`/`--`/`INTO`/`SLEEP(`/etc., tabelas permitidas)
+- `lib/external-db/receitas/instancias.ts` — `instanciaDeReceitaSchema`, `lerReceitasDoBanco`, `validarFixosDaReceita`
+- `lib/external-db/dialeto.ts` — `Dialeto.executarReceita` + checagem `tabelaLiberada` no `criarDialetoDeLeitura`
+- `lib/external-db/dialetos/mysql/dialeto.ts` + `leitura.ts` — `executarReceitaMysql` (armadura `consultarMysql`, serialização `0x`, corte por itens e bytes)
+- `supabase/migrations/20261021100000_0697_banco_externo_receitas.sql` — coluna `receitas jsonb`, CHECK de forma, view `_safe` com `receitas_count`
+- `supabase/baseline.sql` — apêndice idempotente da 0697 antes do fim
+- `lib/external-db/receitas/instancias.ts` + rotas `PUT /recipes` e `POST /recipes/preview` (admin, audit só contagens)
+- `lib/audit/actions.ts` — `external_db_recipes.updated` e `external_db_recipes.previewed`
+- `lib/mcp/tools/receitas-externas.ts` — tool `crm_consultar_receita` (listar/executar, organização do `ctx`)
+- `lib/mcp/tools/catalogo/receitas-externas.ts` + `index.ts` — entrada no catálogo com `modulo: "banco_externo"`
+- `lib/mcp/tools/index.ts` — `crmConsultarReceita` em `allTools`
+- `lib/ai/runtime/serialize.ts` — `RESULTADO_RESUMIDO` com `linhas` (regra D8)
+- `app/app/integracao-dados/[id]/_components/ReceitasProntas.tsx` — seção "Receitas prontas" (só MySQL)
+- `app/app/integracao-dados/[id]/page.tsx` — passa `db_type` e renderiza `ReceitasProntas`
+- `lib/i18n/dicionario.ts` — entradas em espanhol dos textos novos
+- `lib/hooks/external-db/useReceitasDaConexao.ts` — hook de leitura/salva/preview
+- `docs/architecture/banco-de-dados-externo.architecture.json` — peças novas com ≥2 arestas
+- `docs/threat-model.md` — entrada da superfície nova (preview + tool)
+- `.changes/banco-externo-receitas-woocommerce.md` — `impacto: capacidade_nova`, `secao: adicionado`
+- Testes: `validador.test.ts`, `woocommerce.test.ts`, `serialize.test.ts`, `receitas-externas.test.ts`, `dialeto.test.ts` (executarReceita não liberada), `apendice-0697-banco-externo-receitas.test.ts`
+- Spec 25: seção D8 escrita e esta lista
+- e2e: `tests/e2e/banco-externo-receitas.spec.ts` registrada em `SPECS_PARTE_1` do `.github/workflows/e2e.yml` (não rodada aqui — veredito do CI)
+
+Destino: núcleo, dentro do módulo de banco externo, que nasce desligado (revisão 1 da Spec 25, aceita pelo mantenedor).
+
+## R2 entregue: o que mudou
+
+A fatia R2 (receita `acf-imoveis`) entrega:
+
+- `lib/external-db/receitas/tipos.ts` — `FamiliaReceita` estendido com `"acf-imoveis"`
+- `lib/external-db/receitas/acf-imoveis.ts` — receita `acf-imoveis` (JOIN posts+postmeta, uma junção por campo mapeado; `meta_key` sempre como valor `?`, nunca identificador; conversão robusta de preço `"650.000,00"` / `"480000"` via `REPLACE(REPLACE(...))`; `post_type` válido pelo admin; teto 5)
+- `lib/external-db/receitas/acf-imoveis.unit.test.ts` — render de cada `?` com seu valor; nenhum `meta_key` no texto do SQL; contagem `?` = `valores.length`; Zod recusa `meta_key`/`post_type` inválidos
+- `lib/external-db/receitas/registro.ts` — receita `acf-imoveis` registrada no mapa `RECEITAS`
+- `lib/external-db/receitas/validador.test.ts` — consulta de sugestão passa; variações com `;` ou `INTO` não passam
+- `app/api/v1/external-db/connections/[id]/recipes/suggest/route.ts` — `POST /recipes/suggest` (admin, `requireSupportWrite`, org da sessão, consulta fixa `count(*)` sem `_*`, limitada a 50, validador, fontes liberadas, deteta JetEngine, audit só contagens)
+- `app/api/v1/external-db/connections/[id]/recipes/suggest/route.test.ts` — rotas de sugestão (admin, org da sessão, papel abaixo de admin barrado, validador, motor incompatível)
+- `hooks/external-db/useReceitasDaConexao.ts` — `sugerirCamposACF` (chamada à rota de sugestão)
+- `app/app/integracao-dados/[id]/_components/ReceitasProntas.tsx` — quando a receita é `acf-imoveis`, mostra "Tipo de post" + mapeamento (Preço, Quartos, Bairro, Cidade, Área) com rótulos ligados (`useId` + `htmlFor`); botão "Sugerir campos" preenche só os vazios sem sobrescrever; rótulos PT+ES no dicionário
+- `app/app/integracao-dados/[id]/_components/ReceitasProntas.acf.test.tsx` — componente ACF: campos aparecem, rótulos ligados, sugerir não sobrescreve, salvar envia fixos completos, canWrite=false bloqueia
+- `lib/i18n/dicionario.ts` — entradas em espanhol dos textos novos da R2
+- `lib/audit/actions.ts` — ação `external_db_recipes.suggested`
+- `tests/mysql/receita-acf-imoveis.test.ts` — C1 contra MySQL 8 de verdade (job `mysql-integracao`, não roda aqui): DDL `wp_posts`/`wp_postmeta`, 5 imóveis + 1 rascunho + 1 outro `post_type`, bairro case-insensitive, `quartos_min`, `preco_max` (os dois formatos), `limite`, rascunho invisível, outro `post_type` invisível, mapeamento com nomes diferentes, `fonte_nao_liberada` em modo `list`
+- `docs/architecture/banco-de-dados-externo.architecture.json` — rota de sugestão com ≥ 2 arestas
+- `.changes/banco-externo-receitas-acf-imoveis.md` — `impacto: capacidade_nova`, `secao: adicionado`
+
+Limitação declarada (D2/C1): bairro vem de campo ACF (`meta_key`); sem junção a taxonomia (`wp_terms`/`wp_term_taxonomy`/`wp_term_relationships`) nesta fatia — fica para o JetEngine/R3.
+
+Resultado esperado do C1: o CI roda `tests/mysql/receita-acf-imoveis.test.ts` no job `mysql-integracao` e o veredito do CI é a fonte da verdade.
+
+Destino: núcleo, dentro do módulo de banco externo, que nasce desligado (mesmo destino da R1).
+
+A fatia R3 (receitas `tabela-direta` e `jetengine-imoveis`) está FEITA no código:
+
+- `lib/external-db/receitas/tabela-direta.ts` — qualquer tabela plana: o admin mapeia id, título, preço, filtros de texto, filtro numérico, colunas exibidas e (opcional) coluna de status; só as colunas mapeadas entram no SELECT e todo valor vai por `?`
+- `lib/external-db/receitas/jetengine-imoveis.ts` — CCT do JetEngine (`<prefixo>jet_cct_<slug>`) como tabela-direta com predefinição (`_ID`, `cct_status = 'publish'`); filtro de cidade sem coluna mapeada é RECUSADO (`filtro_sem_coluna:cidade`), nunca ignorado em silêncio
+- `lib/external-db/receitas/preco.ts` — conversão de preço compartilhada com o `acf-imoveis`
+- `lib/external-db/dialeto.ts` — coluna que a receita usa e a tabela não tem vira `LeituraInvalidaError("coluna_inexistente:<tabela>.<coluna>")`, mostrado como erro legível (422 na prévia, `coluna_inexistente` na ferramenta do agente)
+- `lib/mcp/tools/receitas-externas.ts` — instância desligada (`ativa: false`) não executa (`nao_encontrada`)
+- tela: `ReceitasProntas.tsx` com os dois caminhos, rótulos ligados (`useId` + `htmlFor`) e "Sugerir campos" que só preenche vazios; PT+ES no dicionário
+- testes: unitários das duas receitas, de componente (`ReceitasProntas.tabela-direta.test.tsx`, `ReceitasProntas.jetengine.test.tsx`), da rota de prévia e da ferramenta; integração MySQL em `tests/mysql/receita-tabela-direta.test.ts` e `receita-jetengine-imoveis.test.ts` (job `mysql-integracao`)
+
+**NÃO MEDIDO (C1 JetEngine):** o DDL das colunas do JetEngine é INFERIDO da documentação 3.x. A medição numa instalação real (cópia de WP + JetEngine, versão fixada) segue pendente e é pré-requisito para liberar a `jetengine-imoveis` a cliente.

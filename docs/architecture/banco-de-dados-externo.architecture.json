@@ -28,16 +28,19 @@
     "migration0372",
     "credenciais",
     "acesso",
+    "drivers",
     "dialeto",
     "apiLeitura",
-    "telaExplorador"
+    "telaExplorador",
+    "apiReceitas",
+    "toolReceita"
   ],
   "nodes": [
     {
       "id": "migration0372",
       "lane": "dados",
       "label": "external_db_connections",
-      "sublabel": "migration 0372 · tenant-aware, RLS, senha AES-GCM",
+      "sublabel": "migration 0372 · tenant-aware, RLS, senha AES-GCM · 0691 soma db_type e last_test_aviso",
       "type": "table",
       "dot": "sky"
     },
@@ -45,7 +48,7 @@
       "id": "safeview",
       "lane": "dados",
       "label": "external_db_connections_safe",
-      "sublabel": "view sem as colunas cifradas · a única que a tela lê",
+      "sublabel": "view sem as colunas cifradas · a única que a tela lê · 0691 soma db_type e last_test_aviso",
       "type": "table",
       "dot": "sky"
     },
@@ -106,6 +109,14 @@
       "dot": "blue"
     },
     {
+      "id": "drivers",
+      "lane": "nucleo",
+      "label": "drivers.ts",
+      "sublabel": "escolhe o motor pela conexão: abre o dialeto, testa e fecha o pool",
+      "type": "lib",
+      "dot": "blue"
+    },
+    {
       "id": "dialeto",
       "lane": "nucleo",
       "label": "dialeto.ts",
@@ -154,10 +165,18 @@
       "dot": "green"
     },
     {
+      "id": "apiSuggest",
+      "lane": "api",
+      "label": "POST connections/[id]/recipes/suggest",
+      "sublabel": "sugere meta_key de um post_type (ACF): admin · validador + fontes liberadas",
+      "type": "api",
+      "dot": "green"
+    },
+    {
       "id": "telaLista",
       "lane": "ui",
       "label": "Lista de conexões",
-      "sublabel": "todos veem · card de cadastro/edição só para admin",
+      "sublabel": "todos veem · card de cadastro/edição só para admin · selo do motor e aviso do teste",
       "type": "route",
       "dot": "purple"
     },
@@ -190,6 +209,86 @@
       "lane": "agente",
       "label": "Ingressos: turno do agente e /api/mcp",
       "sublabel": "aplicam redigirParaAuditoria (tira os valores de filtro) e motivoDoVazio (erro não é sucesso)",
+      "type": "lib",
+      "dot": "amber"
+    },
+    {
+      "id": "receitasColuna",
+      "lane": "dados",
+      "label": "receitas (jsonb) em external_db_connections",
+      "sublabel": "migration 0697 · instâncias de receita por org · RLS herda da tabela · fora do _safe",
+      "type": "table",
+      "dot": "sky"
+    },
+    {
+      "id": "receitasCount",
+      "lane": "dados",
+      "label": "receitas_count na view _safe",
+      "sublabel": "jsonb_array_length(receitas) · última coluna da view · contagem só",
+      "type": "table",
+      "dot": "sky"
+    },
+    {
+      "id": "instanciaReceita",
+      "lane": "nucleo",
+      "label": "receitas/*.ts",
+      "sublabel": "DefinicaoDeReceita, registro, validador, instancias (Zod central)",
+      "type": "lib",
+      "dot": "blue"
+    },
+    {
+      "id": "toolReceita",
+      "lane": "agente",
+      "label": "crm_consultar_receita",
+      "sublabel": "listar/executar instâncias · organização do ctx · modulo banco_externo · rastro sem valores",
+      "type": "lib",
+      "dot": "amber"
+    },
+    {
+      "id": "apiReceitas",
+      "lane": "api",
+      "label": "PUT/POST connections/[id]/recipes",
+      "sublabel": "grava instâncias e pré-visualiza (admin) · auditoria só contagens",
+      "type": "api",
+      "dot": "green"
+    },
+    {
+      "id": "tabelaDireta",
+      "lane": "nucleo",
+      "label": "tabela-direta.ts",
+      "sublabel": "receita de qualquer tabela plana · coluna = dado · só colunas mapeadas, valores por ?",
+      "type": "lib",
+      "dot": "blue"
+    },
+    {
+      "id": "jetengineImoveis",
+      "lane": "nucleo",
+      "label": "jetengine-imoveis.ts",
+      "sublabel": "CCT do JetEngine = tabela-direta com predefinição · DDL INFERIDO da doc 3.x, medição C1 pendente",
+      "type": "lib",
+      "dot": "blue"
+    },
+    {
+      "id": "precoReceita",
+      "lane": "nucleo",
+      "label": "preco.ts",
+      "sublabel": "converte preço de texto (650.000,00 / 480000) em número no SQL da receita",
+      "type": "lib",
+      "dot": "blue"
+    },
+    {
+      "id": "fotoReceita",
+      "lane": "agente",
+      "label": "foto-da-receita.ts",
+      "sublabel": "send_message.imagem_url · só a URL que a receita devolveu no turno · guarda anti-SSRF antes do fetch · 8 s / 5 MB / jpeg-png-webp (C3 proposto, não medido no WAHA)",
+      "type": "lib",
+      "dot": "amber"
+    },
+    {
+      "id": "interesseNoItem",
+      "lane": "agente",
+      "label": "interesse-em-item.ts",
+      "sublabel": "crm_registrar_interesse_no_item · contato = o da conversa · item só se veio da consulta do turno · destino da instância conferido contra a organização · dedup contato + referência · sem destino = aviso na Central",
       "type": "lib",
       "dot": "amber"
     }
@@ -238,12 +337,6 @@
       "label": "valida no cadastro"
     },
     {
-      "id": "e10",
-      "from": "pool",
-      "to": "acesso",
-      "label": "pool da conexão"
-    },
-    {
       "id": "e11",
       "from": "pool",
       "to": "introspeccao",
@@ -290,6 +383,24 @@
       "from": "apiConnections",
       "to": "auditlog",
       "label": "audita mutação"
+    },
+    {
+      "id": "e40",
+      "from": "apiConnections",
+      "to": "apiSuggest",
+      "label": "sub-rota de sugestão"
+    },
+    {
+      "id": "e41",
+      "from": "apiSuggest",
+      "to": "dialeto",
+      "label": "consulta fixa de meta_key"
+    },
+    {
+      "id": "e42",
+      "from": "apiSuggest",
+      "to": "auditlog",
+      "label": "audita só contagens"
     },
     {
       "id": "e23",
@@ -346,12 +457,6 @@
       "label": "o que é visível"
     },
     {
-      "id": "e38",
-      "from": "acesso",
-      "to": "dialeto",
-      "label": "abre o pool e liga a regra"
-    },
-    {
       "id": "e39",
       "from": "dialeto",
       "to": "apiLeitura",
@@ -392,6 +497,162 @@
       "from": "telaFontes",
       "to": "telaExplorador",
       "label": "a grade passa a mostrar só o liberado"
+    },
+    {
+      "id": "e46",
+      "from": "acesso",
+      "to": "drivers",
+      "label": "abre o dialeto pelo motor da conexão"
+    },
+    {
+      "id": "e47",
+      "from": "drivers",
+      "to": "dialeto",
+      "label": "cria o dialeto do motor"
+    },
+    {
+      "id": "e48",
+      "from": "pool",
+      "to": "drivers",
+      "label": "pool do PostgreSQL"
+    },
+    {
+      "id": "e49",
+      "from": "apiTest",
+      "to": "drivers",
+      "label": "testa pelo driver do motor"
+    },
+    {
+      "id": "e50",
+      "from": "apiConnections",
+      "to": "drivers",
+      "label": "fecha o pool ao editar ou apagar"
+    },
+    {
+      "id": "e51",
+      "from": "migration0372",
+      "to": "receitasColuna",
+      "label": "coluna receitas (0697)"
+    },
+    {
+      "id": "e52",
+      "from": "receitasColuna",
+      "to": "receitasCount",
+      "label": "contagem exposta"
+    },
+    {
+      "id": "e53",
+      "from": "credenciais",
+      "to": "instanciaReceita",
+      "label": "linha com receitas"
+    },
+    {
+      "id": "e54",
+      "from": "instanciaReceita",
+      "to": "drivers",
+      "label": "abre o dialeto"
+    },
+    {
+      "id": "e55",
+      "from": "drivers",
+      "to": "toolReceita",
+      "label": "dialeto pronto"
+    },
+    {
+      "id": "e56",
+      "from": "toolReceita",
+      "to": "apiReceitas",
+      "label": "mesma conexão"
+    },
+    {
+      "id": "e57",
+      "from": "apiReceitas",
+      "to": "telaExplorador",
+      "label": "seção Receitas prontas"
+    },
+    {
+      "id": "e58",
+      "from": "telaFontes",
+      "to": "apiReceitas",
+      "label": "grava instâncias"
+    },
+    {
+      "id": "e59",
+      "from": "apiReceitas",
+      "to": "auditlog",
+      "label": "audita sem valores"
+    },
+    {
+      "id": "e60",
+      "from": "apiReceitas",
+      "to": "receitasCount",
+      "label": "contagem exposta pela API"
+    },
+    {
+      "id": "e61",
+      "from": "instanciaReceita",
+      "to": "tabelaDireta",
+      "label": "registra a receita"
+    },
+    {
+      "id": "e62",
+      "from": "tabelaDireta",
+      "to": "dialeto",
+      "label": "SQL montado vai ao dialeto"
+    },
+    {
+      "id": "e63",
+      "from": "instanciaReceita",
+      "to": "jetengineImoveis",
+      "label": "registra a receita"
+    },
+    {
+      "id": "e64",
+      "from": "jetengineImoveis",
+      "to": "tabelaDireta",
+      "label": "delega a montagem do SQL"
+    },
+    {
+      "id": "e65",
+      "from": "tabelaDireta",
+      "to": "precoReceita",
+      "label": "converte o preço"
+    },
+    {
+      "id": "e66",
+      "from": "precoReceita",
+      "to": "instanciaReceita",
+      "label": "usada também pelo acf-imoveis"
+    },
+    {
+      "id": "e67",
+      "from": "toolReceita",
+      "to": "fotoReceita",
+      "label": "imagem_url devolvida vira a lista do turno"
+    },
+    {
+      "id": "e68",
+      "from": "fotoReceita",
+      "to": "toolsAgente",
+      "label": "foto sai pelo envio do agente (enviarComFotos), texto = legenda"
+    },
+    {
+      "id": "e69",
+      "from": "toolReceita",
+      "to": "interesseNoItem",
+      "label": "itens devolvidos (id, título, preço) viram a lista do turno"
+    },
+    {
+      "id": "e70",
+      "from": "interesseNoItem",
+      "to": "instanciaReceita",
+      "label": "lê o destino (funil + etapa) da instância e o confere contra a organização"
+    },
+    {
+      "id": "e71",
+      "from": "interesseNoItem",
+      "to": "toolsAgente",
+      "label": "cria o lead por crm_create_lead (source external, referência na descrição) ou abre aviso na Central"
     }
   ],
   "cards": [

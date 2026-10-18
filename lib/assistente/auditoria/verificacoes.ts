@@ -46,6 +46,12 @@ export interface LeituraDeVerificacao {
     validated_at: string | null;
     is_active: boolean;
   }>;
+  /**
+   * GET /api/v1/ai/providers — `instalacaoTemChave`. A instalação pode trazer
+   * uma chave de IA própria (a que o self-host já instalou): quando ela existe,
+   * o agente publicado tem chave utilizável mesmo sem credencial cadastrada.
+   */
+  instalacaoTemChave: boolean;
   /** GET /api/v1/channel-sessions — sessões de canal (WhatsApp). */
   canaisWhatsApp: Array<{
     id: string;
@@ -179,13 +185,20 @@ function lerCredencialIA(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaAudi
   const temValida = leitura.provedoresIA.some(
     (c) => c.validated_at !== null && c.validated_at !== undefined && c.is_active !== false,
   );
-  if (temValida) {
+  // A instalação pode trazer a chave de IA (self-host): com ela, a IA responde
+  // e a verificação está pronta — o aviso "cadastre uma chave" seria falso.
+  if (temValida || leitura.instalacaoTemChave === true) {
     return {
       id: "credencial_ia",
       titulo: t("Credencial de IA validada"),
       estado: "preenchido",
-      por_que: t("Há uma chave de provedor validada e ativa nesta organização."),
-      dados: { quantidade: leitura.provedoresIA.length },
+      por_que: temValida
+        ? t("Há uma chave de provedor validada e ativa nesta organização.")
+        : t("A instalação tem uma chave de IA própria, e o atendimento usa essa chave."),
+      dados: {
+        quantidade: leitura.provedoresIA.length,
+        da_instalacao: temValida ? false : true,
+      },
       onde_resolver: "/app/ai/providers",
       ferramenta: null,
       depende_de: [],
@@ -284,20 +297,65 @@ function lerFunilEtapas(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaAudit
 // 4. agente_publicado — posso_completar (publicar é do humano)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function lerAgentePublicado(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaAuditoria {
-  const publicado = leitura.agentes.some(
-    (a) => a.published_version_id !== null && a.published_version_id !== undefined && a.is_active === true && a.archived_at === null,
+/**
+ * O agente tem CHAVE UTILIZÁVEL? Publicar sem chave é agente que não responde:
+ *  - vale a chave da INSTALAÇÃO (`instalacaoTemChave`), que cobre todo provedor; ou
+ *  - vale uma credencial VALIDADA e ATIVA do MESMO provedor da versão publicada.
+ *
+ * A versão publicada vem do join `ai_agent_versions!fk(provider, model)`, que não
+ * traz `credential_id` — por isso a comparação é por provedor.
+ */
+function temChaveUtilizavel(
+  leitura: LeituraDeVerificacao,
+  agente: LeituraDeVerificacao["agentes"][number],
+): boolean {
+  if (leitura.instalacaoTemChave === true) return true;
+  const provider = agente.versao_publicada?.provider ?? "";
+  if (provider === "") return false;
+  return leitura.provedoresIA.some(
+    (c) => c.provider === provider && c.validated_at !== null && c.validated_at !== undefined && c.is_active !== false,
   );
-  if (publicado) {
+}
+
+function lerAgentePublicado(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaAuditoria {
+  const publicado = leitura.agentes.find(
+    (a) =>
+      a.published_version_id !== null &&
+      a.published_version_id !== undefined &&
+      a.is_active === true &&
+      a.archived_at === null,
+  );
+  if (publicado !== undefined) {
+    const provider = publicado.versao_publicada?.provider ?? "";
+    if (temChaveUtilizavel(leitura, publicado)) {
+      return {
+        id: "agente_publicado",
+        titulo: t("Agente publicado e ativo"),
+        estado: "preenchido",
+        por_que: t("Há um agente de IA publicado e ativo, com chave de IA utilizável nesta organização."),
+        dados: { quantidade: leitura.agentes.length, provedor: provider },
+        onde_resolver: "/app/ai/agents",
+        ferramenta: null,
+        depende_de: [],
+      };
+    }
+    // Publicado, mas sem chave: é agente que não responde. O humano decide.
     return {
       id: "agente_publicado",
       titulo: t("Agente publicado e ativo"),
-      estado: "preenchido",
-      por_que: t("Há um agente de IA publicado e ativo nesta organização."),
-      dados: { quantidade: leitura.agentes.length },
-      onde_resolver: "/app/ai/agents",
+      estado: "preciso_confirmar",
+      por_que:
+        provider === ""
+          ? t(
+              "Há um agente publicado, mas ele não chegou com provedor definido e não há chave de IA validada. Cadastre uma chave para a IA responder.",
+            )
+          : t(
+              "Há um agente publicado com o provedor {provedor}, mas não há chave validada desse provedor (nem a chave da instalação). A IA não responde até alguém cadastrar a chave.",
+            ).replace("{provedor}", provider),
+      dados: { quantidade: leitura.agentes.length, provedor: provider },
+      onde_resolver: "/app/ai/providers",
       ferramenta: null,
-      depende_de: [],
+      depende_de: ["credencial_ia"],
     };
   }
   const temRascunho = leitura.agentes.some((a) => a.published_version_id === null && a.archived_at === null);

@@ -1,6 +1,11 @@
 /**
- * Assistente interno, F2b (T21) — a fila de propostas no painel, decisão de
- * ponta a ponta.
+ * Assistente interno — os CARTÕES DE PROPOSTA DENTRO DA CONVERSA (decisão do
+ * dono, 18/10/2026: o painel deixou de ter abas).
+ *
+ * Antes existia uma aba "Propostas", com contador, filtro e um formulário de
+ * rejeição em dois passos. Agora a mudança esperando decisão chega como MENSAGEM
+ * na conversa — "Tem N mudanças esperando você." com os cartões ao lado — e a
+ * decisão é um clique: **Aplicar** (aprova e aplica em sequência) ou **Não**.
  *
  * SEED: duas propostas `pendente` (uma de conhecimento/FAQ, uma de roteador)
  * gravadas pelo service role NO MESMO caminho das specs `assistente-*`
@@ -25,7 +30,6 @@ const RESUMO_FAQ = "E2E Propostas: FAQ da clínica";
 const RESUMO_ROTEADOR = "E2E Propostas: roteador do número";
 const NOME_DA_FONTE = "E2E Propostas FAQ";
 const NOME_DO_ROTEADOR = "E2E Propostas Roteador";
-const MOTIVO = "O número já tem roteador ativo — não é isto que a operação precisa.";
 
 const creds: CredsE2E = lerCreds();
 let organizacaoId: string | null = null;
@@ -101,23 +105,35 @@ test.afterAll(async () => {
   await admin.from("config_proposals").delete().eq("organization_id", organizacaoId).like("resumo", "E2E Propostas:%");
 });
 
+/**
+ * Abre o painel. Sem aba para clicar: o admin que abre com pendências vê o
+ * ANÚNCIO e os cartões na própria conversa.
+ */
 async function abrirPropostas(page: import("./helpers/test").Page): Promise<void> {
   await page.getByTestId("assistente-link").click();
   await expect(page.getByRole("complementary", { name: "Assistente" })).toBeVisible();
-  await page.getByTestId("assistente-aba-propostas").click();
+  // O número depende de quantas já foram decididas por testes anteriores desta
+  // sequência (a rejeitada sai da contagem); o anúncio existe enquanto houver pendente.
+  await expect(page.getByText(/^Tem (1 mudança|\d+ mudanças) esperando você\.$/)).toBeVisible();
 }
 
-function propostaDaTela(page: import("./helpers/test").Page, resumo: string) {
-  return page.locator("li[data-status]", { hasText: resumo });
+/**
+ * O cartão de uma proposta: é o único `data-testid` que começa por `proposta-`,
+ * TEM `data-status` e contém o resumo. Os filhos (`proposta-risco`,
+ * `proposta-prazo`, `proposta-aplicar-…`) não têm `data-status`.
+ */
+function cartaDaTela(page: import("./helpers/test").Page, resumo: string) {
+  return page.locator('[data-testid^="proposta-"][data-status]', { hasText: resumo });
 }
 
-test("a fila mostra as duas pendentes com prazo, risco com texto e o contador marca 2", async ({ page }) => {
+test("o anúncio marca 2 e os cartões mostram prazo, risco com texto e o aviso", async ({ page }) => {
   await loginComoAdmin(page, creds);
   await abrirPropostas(page);
+  // Primeiro caso da sequência: nada foi decidido ainda, então são as duas.
+  await expect(page.getByText("Tem 2 mudanças esperando você.", { exact: true })).toBeVisible();
 
-  await expect(page.getByTestId("assistente-propostas-contador")).toHaveText("2");
-  const faq = propostaDaTela(page, RESUMO_FAQ);
-  const roteador = propostaDaTela(page, RESUMO_ROTEADOR);
+  const faq = cartaDaTela(page, RESUMO_FAQ);
+  const roteador = cartaDaTela(page, RESUMO_ROTEADOR);
   await expect(faq).toBeVisible();
   await expect(roteador).toBeVisible();
   // Prazo (item 4 do sistema vivo: pendente visível com responsável e prazo)…
@@ -130,23 +146,24 @@ test("a fila mostra as duas pendentes com prazo, risco com texto e o contador ma
   await expect(roteador.getByTestId("proposta-risco")).toHaveText("Atenção");
   // O aviso obrigatório: roteador NASCE ATIVO, dito ANTES de aplicar.
   await expect(roteador).toContainText("nasce ativo");
+  // E os dois caminhos de decisão, no cartão.
+  await expect(faq.getByTestId(/^proposta-aplicar-/)).toBeVisible();
+  await expect(faq.getByTestId(/^proposta-nao-/)).toBeVisible();
 });
 
-test("rejeitar o roteador com motivo — e ele NUNCA cria nada (par com o GET direto)", async ({ page }) => {
+test("Não no cartão rejeita — e a proposta rejeitada NUNCA cria nada (par com o GET direto)", async ({ page }) => {
   await loginComoAdmin(page, creds);
   await abrirPropostas(page);
 
-  const roteador = propostaDaTela(page, RESUMO_ROTEADOR);
-  await roteador.getByTestId(/^proposta-rejeitar-/).click();
-  await roteador.getByTestId(/^proposta-motivo-/).fill(MOTIVO);
-  await roteador.getByTestId(/^proposta-confirmar-rejeicao-/).click();
+  const roteador = cartaDaTela(page, RESUMO_ROTEADOR);
+  await roteador.getByTestId(/^proposta-nao-/).click();
 
-  // A visão padrão é "esperando decisão": a rejeitada sai dela e o contador cai.
-  await expect(page.getByTestId("assistente-propostas-contador")).toHaveText("1");
-  await page.getByTestId("propostas-filtro").selectOption("rejeitada");
-  const rejeitada = propostaDaTela(page, RESUMO_ROTEADOR);
-  await expect(rejeitada).toBeVisible();
-  await expect(rejeitada).toContainText(MOTIVO);
+  // A decisão vira MENSAGEM na conversa, e o cartão muda de estado na hora.
+  await expect(page.getByText("Não apliquei: nada mudou.", { exact: true })).toBeVisible();
+  await expect(cartaDaTela(page, RESUMO_ROTEADOR)).toHaveAttribute("data-status", "rejeitada");
+  await expect(cartaDaTela(page, RESUMO_ROTEADOR).getByTestId("proposta-prazo")).toHaveText("Rejeitada");
+  // Rejeitada não tem mais botão nenhum.
+  await expect(cartaDaTela(page, RESUMO_ROTEADOR).getByTestId(/^proposta-nao-/)).toHaveCount(0);
 
   // PAR, lado da ferramenta: o roteador proposto NÃO existe no CRM.
   const roteadores = await page.evaluate(async () => {
@@ -178,23 +195,21 @@ test("rejeitar o roteador com motivo — e ele NUNCA cria nada (par com o GET di
   expect(Number(celulas[1])).toBe(roteadorGet?.propostas);
 });
 
-test("aprovar e aplicar a FAQ — a tela diz Aplicada E o GET direto mostra a fonte criada (par)", async ({ page }) => {
+test("Aplicar aprova e aplica num clique — a tela diz Aplicada E o GET direto mostra a fonte criada (par)", async ({
+  page,
+}) => {
   await loginComoAdmin(page, creds);
   await abrirPropostas(page);
 
-  const faq = propostaDaTela(page, RESUMO_FAQ);
-  await faq.getByTestId(/^proposta-aprovar-/).click();
-  const aplicar = faq.getByTestId(/^proposta-aplicar-/);
-  await expect(aplicar).toBeVisible();
-  await aplicar.click();
+  const faq = cartaDaTela(page, RESUMO_FAQ);
+  await faq.getByTestId(/^proposta-aplicar-/).click();
 
-  // PAR, lado da tela: o cartão diz Aplicada (e sai da fila de decisão).
-  // Sem pendência o contador some (não mostra "0"): o par é "nenhum contador".
-  await expect(page.getByTestId("assistente-propostas-contador")).toHaveCount(0);
-  await page.getByTestId("propostas-filtro").selectOption("aplicada");
-  const aplicada = propostaDaTela(page, RESUMO_FAQ);
-  await expect(aplicada).toBeVisible();
-  await expect(aplicada).toContainText("Aplicada");
+  // PAR, lado da tela: a conversa anuncia o desfecho e o cartão diz Aplicada.
+  await expect(page.getByText(`Pronto: ${RESUMO_FAQ}`, { exact: true })).toBeVisible();
+  await expect(cartaDaTela(page, RESUMO_FAQ)).toHaveAttribute("data-status", "aplicada");
+  await expect(cartaDaTela(page, RESUMO_FAQ).getByTestId("proposta-prazo")).toHaveText("Aplicada");
+  // Aplicada também não tem mais botão.
+  await expect(cartaDaTela(page, RESUMO_FAQ).getByTestId(/^proposta-aplicar-/)).toHaveCount(0);
 
   // PAR, lado da ferramenta: a fonte EXISTE, com o nome proposto.
   const fontes = await page.evaluate(async () => {

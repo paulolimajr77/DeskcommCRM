@@ -857,6 +857,11 @@ export const AUDIT_ACTIONS = [
    */
   "ai.assistente_asked",
   /**
+   * O áudio gravado no campo do chat do assistente foi transcrito. Metadata: só
+   * a origem da transcrição e o tamanho — nunca o áudio nem o texto.
+   */
+  "ai.assistente_transcribed",
+  /**
    * O aviso de caso no WhatsApp da equipe (migration 0292).
    *
    * Três códigos e não um: "saiu", "não saiu em definitivo" e "alguém mudou a

@@ -53,7 +53,10 @@ import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { responderComoAssistente, type TurnoDoAssistente } from "@/lib/agent-engine/agent/assistente-turn";
+import {
+  responderComoAssistente,
+  type TurnoDoAssistente,
+} from "@/lib/agent-engine/agent/assistente-turn";
 import { montarSystemDoAssistente } from "@/lib/agent-engine/agent/assistente/prompt";
 import { fusoDaOrganizacao } from "@/lib/agent-engine/agent/fuso-da-org";
 import { requestTurnDeps } from "@/lib/agent-engine/agent/request-deps";
@@ -70,6 +73,9 @@ import {
   MAXIMO_DE_PASSOS_DO_ASSISTENTE,
   montarFerramentasDoAssistente,
 } from "@/lib/assistente/ferramentas";
+import type { AcaoDoChat } from "@/lib/assistente/ferramentas/tipos";
+import { comandoDaPergunta } from "@/lib/assistente/comandos";
+import { executarComando } from "@/lib/assistente/comandos/executar";
 import { agenteVistoNaTela } from "@/lib/assistente/contexto-da-tela";
 import { verificarLimiteDePerguntas } from "@/lib/assistente/limites";
 import type { ContextoDeConsulta, Papel } from "@/lib/assistente/metricas";
@@ -109,9 +115,13 @@ type MotivoDoPiso = "llm_nao_configurada" | "limite_de_gasto" | "erro_do_modelo"
 function avisoDoPiso(motivo: MotivoDoPiso, t: (texto: string) => string): string {
   switch (motivo) {
     case "llm_nao_configurada":
-      return t("Conecte uma chave de IA em IA › Provedores para o assistente responder com inteligência.");
+      return t(
+        "Conecte uma chave de IA em IA › Provedores para o assistente responder com inteligência.",
+      );
     case "limite_de_gasto":
-      return t("O limite de gasto com IA foi atingido; por enquanto respondo só com resumos e guias.");
+      return t(
+        "O limite de gasto com IA foi atingido; por enquanto respondo só com resumos e guias.",
+      );
     case "erro_do_modelo":
     case "resposta_vazia":
       return t("Não consegui usar a IA agora; respondi só com resumos e guias.");
@@ -175,7 +185,11 @@ export async function POST(req: NextRequest): Promise<Response> {
   const { thread_id, turn_id, pergunta, contexto } = parsed.data;
 
   // ─── Limite por minuto: vale para toda chamada, replay inclusive ─────────
-  const porPessoa = await checkRateLimit(`assistente:u:${userId}`, TETO_POR_USUARIO_POR_MINUTO, JANELA_SEGUNDOS);
+  const porPessoa = await checkRateLimit(
+    `assistente:u:${userId}`,
+    TETO_POR_USUARIO_POR_MINUTO,
+    JANELA_SEGUNDOS,
+  );
   const porOrganizacao = await checkRateLimit(
     `assistente:o:${orgId}`,
     TETO_POR_ORGANIZACAO_POR_MINUTO,
@@ -218,13 +232,25 @@ export async function POST(req: NextRequest): Promise<Response> {
     const humano = turno.rows.find((r) => r.author_kind === "human");
     if (humano !== undefined) {
       retomada = true;
-      if (typeof humano.body === "string" && humano.body.trim() !== "") perguntaEfetiva = humano.body;
+      if (typeof humano.body === "string" && humano.body.trim() !== "")
+        perguntaEfetiva = humano.body;
     }
   }
 
+  // ─── O texto é um COMANDO? ("/resumo" e irmãos) ──────────────────────────
+  //
+  // Sai do texto JÁ EFETIVO (na retomada é o gravado). Comando não chama o
+  // modelo: é resposta determinística, lida com a sessão, e por isso também
+  // não entra no limite DIÁRIO de perguntas (que conta chamada paga ao modelo).
+  const comando = comandoDaPergunta(perguntaEfetiva);
+
   // ─── Pergunta NOVA: passa pelo limite diário, antes de gravar qualquer coisa ─
-  if (!retomada) {
-    const veredito = await verificarLimiteDePerguntas(createAdminClient(), { orgId, userId, idioma });
+  if (!retomada && comando === null) {
+    const veredito = await verificarLimiteDePerguntas(createAdminClient(), {
+      orgId,
+      userId,
+      idioma,
+    });
     if (!veredito.ok) {
       return fail("rate_limited", veredito.mensagem, 429, {
         details: { escopo: veredito.escopo, limite: veredito.limite },
@@ -271,6 +297,9 @@ export async function POST(req: NextRequest): Promise<Response> {
   let textoDoModelo = "";
   let callId: string | null = null;
   let motivoDoPiso: MotivoDoPiso | null = null;
+  // Os cartões de um COMANDO (o retrato do `/checkup`). Comando não passa pelo
+  // modelo, então o coletor do turno fica vazio e estes são os cartões da vez.
+  let acoesDoComando: AcaoDoChat[] = [];
   try {
     const fuso = await fusoDaOrganizacao(pool, orgId);
     const agoraIso = new Date().toISOString();
@@ -284,21 +313,37 @@ export async function POST(req: NextRequest): Promise<Response> {
       // Só para os interruptores de módulo da instalação (sem policy para a sessão).
       bancoDaInstalacao: createAdminClient(),
     };
-    const skills = (await loadSkills(pool, orgId)).filter((s) => s.name.startsWith("assistente-"));
-    // `turno`: a conversa e o turno desta pergunta, para as ferramentas `propor_*`
-    // não duplicarem a proposta num reenvio. Ids da rota, nunca do modelo.
-    const tools = montarFerramentasDoAssistente({ ctx, skills, coletor, turno: { threadId, turnId: turn_id } });
-    // Contexto da tela: o agente que a pessoa está vendo, só se for desta organização.
-    // Não vai para a auditoria, não entra no limite nem no replay.
-    const agenteEmTela = await agenteVistoNaTela(pool, orgId, contexto?.caminho);
-    // O bloco "Regras de conduta" do `system` só entra para `admin` — o papel
-    // vem DA SESSÃO (nunca do corpo), como as ferramentas de escrita.
-    const system = montarSystemDoAssistente({ idioma, fuso, agoraIso, papel, agenteEmTela });
+    if (comando !== null) {
+      // COMANDO: o servidor responde sozinho, lendo com a sessão. Nenhuma
+      // chamada de modelo, nenhum passo de ferramenta. O cartão do `/checkup`
+      // volta em `acoes`; os outros comandos só devolvem texto.
+      const saida = await executarComando(comando, ctx, t);
+      textoDoModelo = saida.resposta;
+      acoesDoComando = saida.acoes;
+    }
+    if (comando === null) {
+      const skills = (await loadSkills(pool, orgId)).filter((s) =>
+        s.name.startsWith("assistente-"),
+      );
+      // `turno`: a conversa e o turno desta pergunta, para as ferramentas `propor_*`
+      // não duplicarem a proposta num reenvio. Ids da rota, nunca do modelo.
+      const tools = montarFerramentasDoAssistente({
+        ctx,
+        skills,
+        coletor,
+        turno: { threadId, turnId: turn_id },
+      });
+      // Contexto da tela: o agente que a pessoa está vendo, só se for desta organização.
+      // Não vai para a auditoria, não entra no limite nem no replay.
+      const agenteEmTela = await agenteVistoNaTela(pool, orgId, contexto?.caminho);
+      // O bloco "Regras de conduta" do `system` só entra para `admin` — o papel
+      // vem DA SESSÃO (nunca do corpo), como as ferramentas de escrita.
+      const system = montarSystemDoAssistente({ idioma, fuso, agoraIso, papel, agenteEmTela });
 
-    // As mensagens ANTERIORES a este turno. Pegamos as mais recentes (desc) e
-    // devolvemos em ordem cronológica; o recorte por caracteres vem depois.
-    const anteriores = await pool.query<{ author_kind: "human" | "ai"; body: string | null }>(
-      `select author_kind, body from (
+      // As mensagens ANTERIORES a este turno. Pegamos as mais recentes (desc) e
+      // devolvemos em ordem cronológica; o recorte por caracteres vem depois.
+      const anteriores = await pool.query<{ author_kind: "human" | "ai"; body: string | null }>(
+        `select author_kind, body from (
          select author_kind, body, created_at, id from public.config_messages
          where organization_id = $1 and thread_id = $2 and turn_id <> $3
            and body is not null and btrim(body) <> ''
@@ -306,37 +351,40 @@ export async function POST(req: NextRequest): Promise<Response> {
          limit $4
        ) recentes
        order by created_at asc, id asc`,
-      [orgId, threadId, turn_id, MAXIMO_DE_MENSAGENS_NO_HISTORICO],
-    );
-    const historico = recortarHistorico(
-      anteriores.rows.flatMap((r) => (r.body === null ? [] : [{ author_kind: r.author_kind, body: r.body }])),
-    );
+        [orgId, threadId, turn_id, MAXIMO_DE_MENSAGENS_NO_HISTORICO],
+      );
+      const historico = recortarHistorico(
+        anteriores.rows.flatMap((r) =>
+          r.body === null ? [] : [{ author_kind: r.author_kind, body: r.body }],
+        ),
+      );
 
-    const deps = requestTurnDeps();
-    const saida = await responderComoAssistente(
-      pool,
-      deps.llmCfg,
-      {
-        tenantId: orgId,
-        system,
-        historico,
-        pergunta: perguntaEfetiva,
-        tools,
-        maxSteps: MAXIMO_DE_PASSOS_DO_ASSISTENTE,
-      },
-      { registry: deps.registry, log: deps.log },
-    );
-    if (saida.texto.trim() === "") {
-      motivoDoPiso = "resposta_vazia";
-      logger.warn("assistente.chat.modelo_nao_respondeu", {
-        requestId,
-        organization_id: orgId,
-        motivo: motivoDoPiso,
-        erro: "texto_vazio",
-      });
-    } else {
-      textoDoModelo = saida.texto;
-      callId = saida.callId;
+      const deps = requestTurnDeps();
+      const saida = await responderComoAssistente(
+        pool,
+        deps.llmCfg,
+        {
+          tenantId: orgId,
+          system,
+          historico,
+          pergunta: perguntaEfetiva,
+          tools,
+          maxSteps: MAXIMO_DE_PASSOS_DO_ASSISTENTE,
+        },
+        { registry: deps.registry, log: deps.log },
+      );
+      if (saida.texto.trim() === "") {
+        motivoDoPiso = "resposta_vazia";
+        logger.warn("assistente.chat.modelo_nao_respondeu", {
+          requestId,
+          organization_id: orgId,
+          motivo: motivoDoPiso,
+          erro: "texto_vazio",
+        });
+      } else {
+        textoDoModelo = saida.texto;
+        callId = saida.callId;
+      }
     }
   } catch (erro) {
     motivoDoPiso = motivoDoErro(erro);
@@ -353,7 +401,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
-  const fonte: "modelo" | "piso" = motivoDoPiso === null ? "modelo" : "piso";
+  // `comando`: a resposta veio do servidor, sem modelo (determinística).
+  const fonte: "modelo" | "comando" | "piso" =
+    comando !== null ? "comando" : motivoDoPiso === null ? "modelo" : "piso";
   let aviso: string | null = null;
   let resposta = textoDoModelo;
   if (motivoDoPiso !== null) {
@@ -362,7 +412,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     resposta = `${aviso}\n\n${piso}`;
   }
   const metricas = fonte === "modelo" ? coletor.metricas : [];
-  const acoes = fonte === "modelo" ? coletor.acoes : [];
+  const acoes = fonte === "modelo" ? coletor.acoes : acoesDoComando;
 
   try {
     await pool.query(
@@ -384,10 +434,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
     throw e;
   }
-  await pool.query("update public.config_threads set last_message_at = now() where id = $1 and organization_id = $2", [
-    threadId,
-    orgId,
-  ]);
+  await pool.query(
+    "update public.config_threads set last_message_at = now() where id = $1 and organization_id = $2",
+    [threadId, orgId],
+  );
 
   // SEM a pergunta e SEM a resposta: `api_audit_log` é append-only e o que
   // entra ali não sai pela cascata de LGPD.
@@ -401,5 +451,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     requestId,
   });
 
-  return ok({ thread_id: threadId, turn_id, resposta, fonte, aviso, acoes, metricas, replay: false }, { requestId });
+  return ok(
+    { thread_id: threadId, turn_id, resposta, fonte, aviso, acoes, metricas, replay: false },
+    { requestId },
+  );
 }

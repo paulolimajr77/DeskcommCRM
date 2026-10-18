@@ -255,6 +255,124 @@ Não avaliado por falta de execução/instância:
 - Escopo do service role key no Supabase e rotação de chaves.
 - Efetividade do `beforeSend` do Sentry contra PII real.
 
+### T9 — Assistente interno: o modelo lê por dentro e recebe agregado 🟢 MITIGADO — CONFIRMADO
+
+`POST /api/v1/ai/assistente/chat` (F1b) é superfície **com sessão**: cookie, `requireRole("viewer")`,
+corpo Zod `.strict()`, sem entrada em `public-paths.ts` — a auth de borda vale. O risco não é
+quem entra, e sim o que o turno faz lá dentro:
+
+1. **Chamadas por dentro.** Os adaptadores chamam rotas `GET` na mesma requisição, herdando
+   login, papel e organização (`lib/assistente/metricas/chamar-rota.ts`). O modelo nunca enxerga
+   além do que a pessoa já vê — exceto `ctx.bancoDaInstalacao` (service role, só para os
+   interruptores de módulo sem policy para a sessão). A cerca é propositalmente estreita: só 4
+   arquivos citam o campo e nenhuma métrica o usa (`tests/unit/assistente-banco-da-instalacao-so-para-modulos.test.ts`).
+2. **Dado que vai ao modelo.** Só agregado, por lista positiva por métrica + varredura de chaves
+   proibidas (`lib/assistente/metricas/projecao.ts`): e-mail, telefone, nome de contato, título
+   de negócio, motivo livre e prévia de mensagem nunca passam. **Residual honesto:** o ponto de IA
+   aceita `base_url` arbitrária, então o agregado pode ir a servidor terceiro — a contenção é a
+   lista positiva, não o destino. O `board` do funil foi excluído do catálogo exatamente por
+   carregar `last_message_preview`.
+3. **Contexto da tela.** O painel manda caminho + id do objeto aberto; o servidor valida que o id
+   pertence à org da sessão antes de usar (`lib/assistente/contexto-da-tela.ts`). O assistente
+   nunca navega sozinho e nunca publica: `abrir_tela` devolve botão com destino do catálogo.
+4. **Abuso de custo (insider).** 12/min por pessoa e 60/min por organização (`checkRateLimit`),
+   mais teto diário configurável (padrão 60 por pessoa, org sem limite — IA-12) e teto mensal em
+   dinheiro por cima. Replay do mesmo `turn_id` não conta nem chama o modelo. **Residual:** uma
+   pessoa legítima ainda consegue gastar a chave da org até o teto — é limite, não prevenção.
+5. **Auditoria e erro.** `ai.assistente_asked` grava `turn_id`, fonte, métricas e `call_id`, nunca
+   o texto (`lib/audit/actions.ts`). A mensagem do erro nunca vai à resposta, ao aviso, à linha
+   gravada nem ao log — só o nome (`assistente.chat.modelo_nao_respondeu`).
+6. **Piso.** Sem chave, teto estourado, erro ou texto vazio, a resposta é o determinístico da F1
+   (resumo + guia, mesmos dados com RLS) com aviso do motivo e `error_code` na linha.
+
+### T10 — Assistente interno com ferramentas de escrita (F2a) 🟢 MITIGADO — CONFIRMADO
+
+A F2a dá ao turno do assistente 5 ferramentas que ESCREVEM (`criar_rascunho_de_agente`,
+`instalar_modelo_de_followup`, `montar_pacote_do_nicho`, `montar_followup_de_nicho`,
+`testar_agente`), só quando o papel DA SESSÃO é `admin` — os outros papéis continuam
+só com as de leitura. As 5 regras de conduta (§12.C) valem para TODO papel; o admin
+recebe a regra 3 com "ler de volta o que executou" (`prompt.test.ts` vigia os dois
+lados):
+
+1. **Superfície.** As ferramentas chamam as rotas `POST` por dentro
+   (`chamarRotaPorDentro`, mesma requisição, herdando login, papel e
+   organização). Nenhuma escrita direta em tabela de negócio, nenhum service
+   role no turno, nenhum `organization_id` vindo do modelo (os esquemas são
+   `.strict()` e recusam org/papel/URL/SQL).
+2. **O que nasce é rascunho.** Agente nasce `v1 draft`, follow-up por modelo
+   nasce rascunho, nada é ligado a agente e nada é publicado — publicar
+   continua sendo clique do administrador na tela (o cartão leva o botão
+   "Abrir o agente"). `testar_agente` só roda versão em rascunho e declara o
+   custo (chama o modelo e consome crédito).
+3. **Conduta em código, não só em prompt.** Provedor/modelo/credencial vêm da
+   configuração lida por dentro (nunca do que o modelo digita); sem credencial
+   validada a ferramenta devolve PRECISO CONFIRMAR com o link da tela.
+   Credencial, canal, billing, usuários e exclusões não têm ferramenta —
+   viram "PRECISO CONFIRMAR" com o link. Toda escrita é lida de volta (id,
+   nome, estado) antes de devolver, e o cartão tem `href` montado no servidor.
+4. **Tenant da sessão.** As rotas de aplicar já filtram `organization_id` da
+   sessão; o par do e2e (`assistente-rascunho-de-agente`: cartão na tela ×
+   `GET ai/agents` direto, mesma sessão) prova que o rascunho nasceu na org
+   certa e que `published_version_id` segue nulo.
+5. **Propostas (F2b, T19): conteúdo e ids, nunca destino.** As 5 ferramentas
+   `propor_*` (só `admin`) gravam uma linha `pendente` em `config_proposals`; o
+   `payload` guarda `{ operacao, ids alvo, corpo }` num subconjunto curado e
+   estrito, e rota/método/URL moram em `lib/assistente/propostas/operacoes.ts`
+   — chave `rota`/`url`/`path`/`method`/`metodo` em qualquer nível é recusada.
+   Nenhuma delas chama rota de escrita de roteador, conhecimento, memória,
+   provedor ou funil (só GET e o POST de propostas); `credential_id` não existe.
+6. **Insert pela sessão do admin, aplicação só na T20.** O POST de propostas usa
+   o cliente da SESSÃO (RLS da 0699: `requested_by = auth.uid()`, `status =
+   'pendente'`, papel admin), nunca service role; `organization_id` e `risk`
+   saem da sessão e do código. O audit (`assistente.proposta_criada`) leva só
+   tipo, operação e risco, sem o texto. Nada muda no negócio até o clique de
+   aprovar e a rota de aplicar (T20).
+7. **Rotas de ação (T20): só admin, CAS, trava, destino fixo, credencial
+   preservada.** O GET da fila e as três ações (`aprovar`, `rejeitar`,
+   `aplicar` em `propostas/[id]/…`) são sessão-cookie, `requireSupportWrite`
+   antes de qualquer efeito e `requireRole("admin")` da SESSÃO; `[id]` é
+   validado como uuid. O GET nunca escreve (`vencida` é CALCULADO, nunca
+   coluna). A mudança de estado é exclusiva do servidor (a 0699 tirou
+   `update` de `authenticated`): compare-and-swap no pool de serviço com o
+   estado esperado na PRÓPRIA condição e `organization_id` da sessão como
+   parâmetro — nunca do corpo; zero linhas lê a linha (com org) para explicar
+   404 / expirada / estado inválido. O aplicar toma trava consultiva não
+   bloqueante por proposta (`pg_try_advisory_lock`, liberada no `finally`),
+   revalida o payload com `payload.ts` (linha antiga no banco não aplicada) e
+   chama EXATAMENTE o destino do mapa (`operacoes.ts`) por dentro, na sessão
+   do admin — o RBAC, a validação e o audit do handler valem; o dado nunca
+   escolhe rota. `definir_ponto` preserva o `credential_id` que o binding do
+   ponto já tinha (o PUT sem `credential_id` o apagaria); a proposta nunca
+   escolhe credencial. Falha do destino deixa a proposta `aprovada`
+   (`proposta_falhou_ao_aplicar`, 422/502) — o audit leva só kind, operacao,
+   risk e `http_status`/`codigo_do_destino`, nunca o texto do payload nem o
+   motivo da rejeição.
+
+8. **Follow-up de nicho: o texto é do modelo, o desenho é nosso.** Em
+   `montar_followup_de_nicho` o modelo escreve só os textos e as esperas dos
+   toques (1 a 4); o grafo vem de `montarEscada` e é conferido por
+   `flowGraphSchema` + `validateFlowForPublish` antes de gravar — o modelo nunca
+   escreve JSON de grafo nem escolhe rota. O texto com chaves `{}` é recusado
+   (o modo texto não preenche marcador e a chave sairia LITERAL para o cliente).
+   A etapa do gatilho é conferida na organização da SESSÃO (RLS + `organization_id`
+   da sessão), nunca aceita só pelo id. O que o texto escrito pelo modelo pode
+   causar só existe depois do clique de Publicar, que é do administrador, que
+   lê o texto no construtor; nada é ligado a agente. **Residual:** se o PATCH
+   falha depois do POST fica um rascunho vazio (a resposta diz o nome; nenhuma
+   ferramenta do assistente apaga).
+9. **Prompts dos 7 nichos.** O texto que vira `system_prompt` é fixo no código
+   (`lib/assistente/nichos`, igual ao `nichos.md` por teste), só com três
+   marcadores — o modelo da conversa não reescreve o prompt do nicho. Os 5
+   prompts novos foram escritos pelo assistente de código e **aguardam revisão
+   do Paulo** antes de qualquer uso com cliente; saem como rascunho, e preço,
+   prazo e política ficam por conta dos materiais da empresa, nunca do prompt.
+
+**Residual honesto:** um admin legítimo ainda consegue criar rascunhos à
+vontade até o teto de perguntas (IA-12) — é limite, não prevenção; e o
+`testar_agente` gasta a chave da org a cada mensagem (o custo é declarado na
+resposta, mas o teto diário conta perguntas ao assistente, não testes — ver
+§4, pergunta 6).
+
 ---
 
 ## 3. Sumário de prioridade
@@ -268,6 +386,8 @@ Não avaliado por falta de execução/instância:
 | T5 | 3 secrets fora do `.env.example` | 🟠 | trivial |
 | T7 | Sem scan de secret no CI + 116 PNGs de evidência sem revisão de PII | 🟡 | baixo |
 | T6 | Guard de SSRF existe; o E2E que o prova não roda no CI | 🟢 | baixo |
+| T9 | Assistente interno manda agregado ao modelo; residual é destino e gasto insider | 🟢 | — (construído com as cercas) |
+| T10 | Assistente com escrita cria só rascunho (só admin); residual é gasto do Testar fora do teto diário | 🟢 | — (travas nas rotas + par no e2e) |
 
 **Conclusão honesta:** os *mecanismos* de segurança deste projeto são acima da média para
 um CRM open-source — HMAC em tempo constante em toda borda, fail-closed nos crons, hash de
@@ -291,3 +411,9 @@ construídas.
 4. Existe branch protection exigindo os dois checks do CI verdes no merge? (não é visível
    no checkout)
 5. Há intenção de pedir pentest externo antes de divulgar a v1.0.0 mais amplamente?
+6. O gasto do `testar_agente` do assistente (F2a) entra no teto diário de perguntas
+   (IA-12)? Hoje não: o teto conta linhas `human` em `config_messages`, e o Testar
+   roda dentro de um turno já contado — cada mensagem de teste chama o modelo sem
+   passar pelo limite. Se a resposta for "deve entrar", vira tarefa nova (contar
+   testes no limite ou teto próprio); por enquanto o custo é só declarado na
+   resposta da ferramenta.

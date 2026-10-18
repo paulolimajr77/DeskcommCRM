@@ -194,6 +194,9 @@ export interface ResultadoDaRetencao {
   lotes_checkpoints: number;
   checkpoints_tem_resto: boolean;
   retencao_checkpoints_dias: number;
+  /** O expurgo do assistente (F3): config_messages, config_threads,
+   *  config_proposals vencidas e config_snapshots além da retenção. */
+  config_assistente_apagada: number;
   retencao_fila_dias: number;
   retencao_auditoria_dias: number;
   retencao_espelho_dias: number;
@@ -234,7 +237,8 @@ export interface PodaDb {
       | "fn_expurgar_telemetria_de_ia_vencida"
       | "fn_expurgar_ritmo_de_envio_vencido"
       | "fn_expurgar_copias_enviadas_vencidas"
-      | "fn_expurgar_checkpoints_superados",
+      | "fn_expurgar_checkpoints_superados"
+      | "fn_expurgar_config_assistente_vencida",
     args: { p_retencao_dias: number; p_limite: number },
   ): Promise<{ data: number | null; error: { message: string } | null }>;
   /**
@@ -301,7 +305,8 @@ async function drenar(
     | "fn_expurgar_telemetria_de_ia_vencida"
     | "fn_expurgar_ritmo_de_envio_vencido"
     | "fn_expurgar_copias_enviadas_vencidas"
-    | "fn_expurgar_checkpoints_superados",
+    | "fn_expurgar_checkpoints_superados"
+    | "fn_expurgar_config_assistente_vencida",
   dias: number,
 ): Promise<{ apagadas: number; lotes: number; temResto: boolean }> {
   let apagadas = 0;
@@ -632,6 +637,10 @@ export async function podarHistorico(
   const ritmoDrenado = await executarDreno(falhas, "fn_expurgar_ritmo_de_envio_vencido", () => drenar(db, "fn_expurgar_ritmo_de_envio_vencido", ritmoDeEnvio.dias), zerado);
   const copiasDrenadas = await executarDreno(falhas, "fn_expurgar_copias_enviadas_vencidas", () => drenar(db, "fn_expurgar_copias_enviadas_vencidas", copiasEnviadas.dias), zerado);
   const checkpointsDrenados = await executarDreno(falhas, "fn_expurgar_checkpoints_superados", () => drenar(db, "fn_expurgar_checkpoints_superados", checkpoints.dias), zerado);
+  // Décima sétima poda (F3, migration 0702): o expurgo do assistente — config_messages,
+  // config_threads (0698, existente) mais config_proposals vencidas e
+  // config_snapshots além da retenção. O piso de 90 dias mora no CORPO da função.
+  const configAssistente = await executarDreno(falhas, "fn_expurgar_config_assistente_vencida", () => drenar(db, "fn_expurgar_config_assistente_vencida", 365), zerado);
 
   return {
     jobs_apagados: jobs.apagadas,
@@ -682,6 +691,7 @@ export async function podarHistorico(
     copias_enviadas_tem_resto: copiasDrenadas.temResto,
     retencao_copias_enviadas_dias: copiasEnviadas.dias,
     checkpoints_apagados: checkpointsDrenados.apagadas,
+    config_assistente_apagada: configAssistente.apagadas,
     lotes_checkpoints: checkpointsDrenados.lotes,
     checkpoints_tem_resto: checkpointsDrenados.temResto,
     retencao_checkpoints_dias: checkpoints.dias,
@@ -774,7 +784,8 @@ export function houveEfeito(resultado: ResultadoDaRetencao): boolean {
     resultado.telemetria_de_ia_apagada > 0 ||
     resultado.ritmo_de_envio_apagado > 0 ||
     resultado.copias_enviadas_apagadas > 0 ||
-    resultado.checkpoints_apagados > 0
+    resultado.checkpoints_apagados > 0 ||
+    resultado.config_assistente_apagada > 0
   );
 }
 

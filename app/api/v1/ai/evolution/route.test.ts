@@ -218,3 +218,87 @@ describe('GET /api/v1/ai/evolution', () => {
     expect(JSON.stringify(chamada![1])).toContain(r.headers.get('X-Request-Id'));
   });
 });
+
+describe('laço de retorno do assistente (F4): config_proposals', () => {
+  const A = 'org-1';
+  const B = 'org-2';
+  const linha = (organization_id: string, kind: string, status: string, decided: boolean, applied: boolean) => ({
+    organization_id,
+    kind,
+    status,
+    decided_at: decided ? '2026-07-02T10:00:00Z' : null,
+    applied_at: applied ? '2026-07-02T11:00:00Z' : null,
+  });
+
+  /** Fake que HONRA `.eq('organization_id', …)` na tabela — o isolamento é o que se mede. */
+  function dbComIsolamento(linhas: Array<ReturnType<typeof linha>>): void {
+    from.mockImplementation((tabela: string) => {
+      let filtroOrg: unknown;
+      const b: Record<string, unknown> = {};
+      for (const m of ['not', 'limit', 'in', 'order', 'gte', 'lte']) b[m] = () => b;
+      b.select = () => b;
+      b.eq = (col: string, val: unknown) => {
+        if (col === 'organization_id') filtroOrg = val;
+        return b;
+      };
+      b.then = (resolve: (v: unknown) => void) =>
+        resolve({
+          data: tabela === 'config_proposals' ? linhas.filter((l) => filtroOrg === undefined || l.organization_id === filtroOrg) : [],
+          count: 0,
+          error: null,
+        });
+      return b;
+    });
+  }
+
+  function comoAdmin(): void {
+    requireRole.mockResolvedValue({ ok: true, org: { orgId: A, role: 'admin' }, user: { idioma: 'pt-BR' } });
+  }
+
+  it('admin: conta aprovadas, aplicadas e rejeitadas por kind — só da própria organização', async () => {
+    comoAdmin();
+    dbComIsolamento([
+      linha(A, 'roteador', 'rejeitada', true, false),
+      linha(A, 'roteador', 'aplicada', true, true),
+      linha(A, 'conhecimento', 'pendente', false, false),
+      // Organização B: 40 propostas que NUNCA podem aparecer para a A.
+      ...Array.from({ length: 40 }, () => linha(B, 'funil', 'aplicada', true, true)),
+    ]);
+    const r = await GET(req('?from=2026-07-01&to=2026-07-03'));
+    const { config_loop } = (await r.json()).data;
+    expect(config_loop.estado).toBe('ok');
+    expect(config_loop.total).toBe(3);
+    expect(config_loop.por_kind.map((k: { kind: string }) => k.kind).sort()).toEqual(['conhecimento', 'roteador']);
+    const roteador = config_loop.por_kind.find((k: { kind: string }) => k.kind === 'roteador');
+    expect(roteador).toMatchObject({ propostas: 2, aprovadas: 1, aplicadas: 1, rejeitadas: 1, sem_decisao: 0 });
+    expect(config_loop.taxa_aprovacao).toBe(0.5);
+  });
+
+  it('a leitura filtra a organização da sessão e a janela', async () => {
+    comoAdmin();
+    const espiao = fakeDb({ config_proposals: [] });
+    await GET(req('?from=2026-07-01&to=2026-07-03'));
+    expect(espiao.tabelas).toContain('config_proposals');
+    const orgFilters = espiao.eq.filter(([c]) => c === 'organization_id');
+    expect(orgFilters.length).toBe(espiao.tabelas.length);
+    expect(orgFilters.every(([, v]) => v === A)).toBe(true);
+    expect(espiao.gte.length).toBe(espiao.tabelas.length - 1);
+  });
+
+  it('manager: NÃO lê a tabela e o payload diz "restrito" (zero seria mentira)', async () => {
+    requireRole.mockResolvedValue({ ok: true, org: { orgId: A, role: 'manager' }, user: { idioma: 'pt-BR' } });
+    const espiao = fakeDb({ config_proposals: [{ kind: 'funil', status: 'aplicada', decided_at: 'x', applied_at: 'y' }] });
+    const body = await (await GET(req('?from=2026-07-01&to=2026-07-03'))).json();
+    expect(espiao.tabelas).not.toContain('config_proposals');
+    expect(body.data.config_loop).toEqual({ estado: 'restrito', total: 0, taxa_aprovacao: null, por_kind: [] });
+  });
+
+  it('falha na leitura vira "indisponivel" com aviso, não um zero', async () => {
+    comoAdmin();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fakeDb({}, { config_proposals: 'boom' });
+    const body = await (await GET(req('?from=2026-07-01&to=2026-07-03'))).json();
+    expect(body.data.config_loop.estado).toBe('indisponivel');
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('config_proposals'))).toBe(true);
+  });
+});

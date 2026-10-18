@@ -154,8 +154,10 @@ jobs:
     strategy:
       # Sem fail-fast: um vermelho numa parte não esconde o da outra.
       fail-fast: false
+      # Repositório PRIVADO: o runner gratuito tem 2 vCPU (o público, 4), então a unit foi
+      # repartida em 9 fatias (partes 1..9) e as cercas + kit ficaram na última (10).
       matrix:
-        parte: [1, 2, 3, 4]
+        parte: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@v7
 
@@ -195,7 +197,8 @@ jobs:
             echo "::warning::não consegui comparar a base da prévia com a ${GITHUB_BASE_REF:-main} — NÃO MEDIDO"; exit 0; }
           atraso=$(printf '%s' "$comp" | jq -r '.ahead_by // 0')
           printf '%s' "$comp" | jq -r '.files[]?.filename' | sort -u > /tmp/main-andou.txt
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename' 2>/dev/null | sort -u > /tmp/pr-toca.txt
+          # Repositório privado: o token deste job pode não ler os arquivos do PR — vira cruzamento vazio, nunca reprova.
+          { gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" --jq '.[].filename' 2>/dev/null || :; } | sort -u > /tmp/pr-toca.txt
           cruzamento=$(comm -12 /tmp/main-andou.txt /tmp/pr-toca.txt)
           n=$(printf '%s' "$cruzamento" | grep -c . || true)
           {
@@ -239,7 +242,7 @@ jobs:
       # Seleção e medições: o bloco `projects` de vitest.config.ts.
       # Na parte 4, junto do kit bash: o porquê e a conta estão no cabeçalho do job.
       - name: Cercas estruturais
-        if: matrix.parte == 4
+        if: matrix.parte == 10
         run: pnpm cercas
 
       - name: Typecheck
@@ -254,9 +257,9 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
 
-      # Na parte 2, não na 1: o porquê e a conta estão no cabeçalho do job.
+      # Na parte 6 (a mais curta; a 2 estourava o orçamento no runner de 2 vCPU do repositório PRIVADO).
       - name: Lint
-        if: matrix.parte == 2
+        if: matrix.parte == 6
         run: pnpm lint
 
       # Invariante 1 de docs/doctrine/restricao-de-canal.md: nenhuma feature
@@ -343,9 +346,9 @@ jobs:
       # são a suíte inteira, uma vez só. A parte 4 não roda unit: é cercas e kit
       # bash (cabeçalho do job). Localmente o comando continua sendo
       # `pnpm test:unit`, sem recorte.
-      - name: Unit tests (parte ${{ matrix.parte }}/3)
-        if: matrix.parte != 4
-        run: pnpm test:unit --project produto --shard=${{ matrix.parte }}/3
+      - name: Unit tests (parte ${{ matrix.parte }}/9)
+        if: matrix.parte != 10
+        run: pnpm test:unit --project produto --shard=${{ matrix.parte }}/9
 
       # O MAPA DA SKILL COBRE O MENU? — aviso, nunca reprova.
       #
@@ -403,7 +406,7 @@ jobs:
       # escolher OpenRouter travava o instalador num laço, escolher OpenAI
       # deixava o .env pela metade — passaram por todos os checks verdes. 15s.
       - name: Kit self-host (bash)
-        if: matrix.parte == 4
+        if: matrix.parte == 10
         run: pnpm test:shell
 
       - name: Orçamento de tempo do verify-parte

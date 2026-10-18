@@ -97,7 +97,7 @@ describe("o apêndice do baseline espelha a migration 0702", () => {
   it("o desenho de segurança está no SQL: RLS ligada, só select+insert à sessão, função só do service_role", () => {
     const migration = ler(MIGRATION);
     expect(migration).toContain("alter table public.config_snapshots enable row level security;");
-    expect(migration).toContain("grant select on public.config_snapshots to authenticated;");
+    expect(migration).toContain("grant select, insert on public.config_snapshots to authenticated;");
     expect(migration).toContain("grant all on public.config_snapshots to service_role;");
     expect(migration).not.toMatch(/grant[^;]*\b(update|delete|all)\b[^;]*to authenticated/i);
     expect(migration).toContain(

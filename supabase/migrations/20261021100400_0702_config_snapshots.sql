@@ -22,7 +22,7 @@ alter table public.config_snapshots enable row level security;
 
 -- ── Privilégio: o login (sessão) só LÊ e INSERE ──────────────────────────
 revoke all on public.config_snapshots from anon, authenticated;
-grant select on public.config_snapshots to authenticated;
+grant select, insert on public.config_snapshots to authenticated;
 grant all on public.config_snapshots to service_role;
 
 -- ── RLS: qualquer membro da org lê os snapshots dela; só admin insere ─────
@@ -46,7 +46,7 @@ create policy tenant_isolation_config_snapshots_insert
 -- Trava de suporte (mesma razão da 0699: o baseline concede default privileges
 -- que dariam UPDATE/DELETE a authenticated sem este revoke).
 revoke all on public.config_snapshots from anon, authenticated;
-grant select on public.config_snapshots to authenticated;
+grant select, insert on public.config_snapshots to authenticated;
 
 -- ── Extensão do expurgo de config assistente (F3, dívida de retenção) ───────
 -- `fn_expurgar_config_assistente_vencida` existe desde a 0698 (F1) e só

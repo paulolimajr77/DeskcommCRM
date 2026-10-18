@@ -13,6 +13,7 @@ import {
   CartaoDeProposta,
   type PropostaNaTela,
 } from "@/components/assistente/CartaoDeProposta";
+import { BotaoDeAudio } from "@/components/assistente/BotaoDeAudio";
 import { MenuDeComandos } from "@/components/assistente/MenuDeComandos";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
@@ -707,6 +708,17 @@ export function ChatDoAssistente({
     campo.current?.focus();
   }
 
+  /**
+   * O áudio virou texto: vai para o CAMPO, ao fim do que já estava escrito, para a
+   * pessoa conferir. NUNCA envia — quem envia é a pessoa.
+   */
+  function textoTranscrito(texto: string) {
+    setErro(null);
+    setPergunta((atual) => `${atual.trim() === "" ? "" : `${atual.trim()} `}${texto}`.slice(0, 1000));
+    setMenuDispensado(true);
+    campo.current?.focus();
+  }
+
   /** Deixa no campo a frase que o cartão de checkup pediu (a pessoa confere e envia). */
   function pedirAoAssistente(frase: string) {
     setPergunta(frase);
@@ -921,6 +933,11 @@ export function ChatDoAssistente({
             aria-label={t("Pergunta")}
             data-testid="assistente-pergunta"
             className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <BotaoDeAudio
+            desabilitado={enviando}
+            aoTranscrever={textoTranscrito}
+            aoErro={(mensagem) => setErro(mensagem)}
           />
           <button
             type="submit"

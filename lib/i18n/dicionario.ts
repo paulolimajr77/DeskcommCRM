@@ -16696,6 +16696,21 @@ export const DICIONARIO: Traducoes = {
   "Há um agente de IA publicado e ativo, com chave de IA utilizável nesta organização.": { es: "Hay un agente de IA publicado y activo, con una clave de IA utilizable en esta organización." },
   "Há um agente publicado, mas ele não chegou com provedor definido e não há chave de IA validada. Cadastre uma chave para a IA responder.": { es: "Hay un agente publicado, pero no llegó con proveedor definido y no hay una clave de IA validada. Registra una clave para que la IA responda." },
   "Há um agente publicado com o provedor {provedor}, mas não há chave validada desse provedor (nem a chave da instalação). A IA não responde até alguém cadastrar a chave.": { es: "Hay un agente publicado con el proveedor {provedor}, pero no hay una clave validada de ese proveedor (ni la clave de la instalación). La IA no responde hasta que alguien registre la clave." },
+  // Botão de áudio do chat do assistente
+  "Muitas transcrições seguidas. Tente em um minuto.": { es: "Demasiadas transcripciones seguidas. Inténtalo en un minuto." },
+  "O áudio é grande demais.": { es: "El audio es demasiado grande." },
+  "Envie o áudio gravado.": { es: "Envía el audio grabado." },
+  "Esse tipo de áudio não é aceito.": { es: "Ese tipo de audio no es aceptado." },
+  "O áudio veio vazio.": { es: "El audio llegó vacío." },
+  "O áudio veio vazio. Tente gravar de novo.": { es: "El audio llegó vacío. Intenta grabar de nuevo." },
+  "A transcrição precisa de uma chave da OpenAI em Credenciais.": { es: "La transcripción necesita una clave de OpenAI en Credenciales." },
+  "Não ouvi fala nesse áudio. Tente gravar de novo.": { es: "No escuché voz en ese audio. Intenta grabar de nuevo." },
+  "O serviço de transcrição da instalação não foi aceito como destino. Avise quem administra.": { es: "El servicio de transcripción de la instalación no fue aceptado como destino. Avisa a quien administra." },
+  "Não consegui transcrever agora. Tente de novo.": { es: "No pude transcribir ahora. Inténtalo de nuevo." },
+  "A transcrição demorou demais. Tente de novo.": { es: "La transcripción tardó demasiado. Inténtalo de nuevo." },
+  "Este navegador não grava áudio.": { es: "Este navegador no graba audio." },
+  "Libere o microfone no navegador para gravar.": { es: "Permite el micrófono en el navegador para grabar." },
+  "Parar a gravação": { es: "Detener la grabación" },
 };
 
 /**

@@ -1,12 +1,16 @@
 /**
- * Assistente interno, F3 — a aba Auditoria no painel, de ponta a ponta.
+ * Assistente interno, F3 — o CHECKUP dentro da conversa, de ponta a ponta.
  *
- * O PAR (`docs/doctrine/prova-em-par.md`): (a) pela tela, a aba Auditoria
- * mostra a contagem por estado de cada item do retrato; (b) fora da tela,
+ * Antes isto era uma aba ("Auditoria") com o botão "Rodar agora". Agora é o
+ * comando `/checkup`: quem administra roda uma rodada nova e recebe o retrato
+ * como CARTÃO na conversa; quem não administra vê a última.
+ *
+ * O PAR (`docs/doctrine/prova-em-par.md`): (a) pela tela, o cartão mostra a
+ * contagem por estado de cada item do retrato; (b) fora da tela,
  * `GET /api/v1/ai/assistente/auditoria` (mesma sessão) devolve o MESMO retrato.
- * As duas contagens têm de concordar. A rodada nova é o botão "Rodar agora"
- * (POST, limitado a 1 por minuto por organização — por isso o estado é
- * limpo antes de cada caso e a repetição é provada como 409 legível).
+ * As duas contagens têm de concordar. A rodada nova é limitada a 1 por minuto por
+ * organização — por isso o estado é limpo antes de cada caso e a repetição é
+ * provada como 409 legível.
  *
  * Banco de teste do baseline, organização `e2e-test-org`; os retratos que a
  * spec cria são apagados no fim (service role, filtrando a organização).
@@ -46,21 +50,22 @@ test.beforeAll(async () => {
 test.beforeEach(limparRetratos);
 test.afterAll(limparRetratos);
 
-async function abrirAuditoria(page: Page): Promise<void> {
+/** Abre o painel (sem aba para clicar) e manda o comando pelo campo. */
+async function mandarComando(page: Page, comando: string): Promise<void> {
   await page.getByTestId("assistente-link").click();
   await expect(page.getByRole("complementary", { name: "Assistente" })).toBeVisible();
-  await page.getByTestId("assistente-aba-auditoria").click();
+  await page.getByTestId("assistente-pergunta").fill(comando);
+  await page.getByTestId("assistente-perguntar").click();
 }
 
-test("sem retrato a aba convida a rodar; rodar mostra os itens e a tela concorda com o GET direto (par)", async ({ page }) => {
+test("/checkup roda a rodada e o cartão concorda com o GET direto (par)", async ({ page }) => {
   await loginComoAdmin(page, creds);
-  await abrirAuditoria(page);
+  await mandarComando(page, "/checkup");
 
-  await expect(page.getByTestId("auditoria-vazia")).toBeVisible();
-  await page.getByTestId("auditoria-rodar").click();
-
-  // Lado (a) — pela tela: a contagem de cada estado.
-  await expect(page.getByTestId("auditoria-rodar-de-novo")).toBeVisible();
+  // Lado (a) — pela tela: o cartão, com a rodada que acabou de acontecer.
+  const cartao = page.getByTestId("assistente-cartao-checkup");
+  await expect(cartao).toBeVisible();
+  await expect(cartao).toHaveAttribute("data-rodou", "sim");
   const naTela: Record<string, number> = {};
   for (const estado of ESTADOS) {
     const texto = await page.getByTestId(`auditoria-contagem-${estado}`).innerText();
@@ -80,6 +85,9 @@ test("sem retrato a aba convida a rodar; rodar mostra os itens e a tela concorda
   expect(naTela).toEqual(noGet);
   expect(itensNaTela).toBe(retrato.itens.length);
   expect(retrato.pendencias).toBe(noGet.posso_completar! + noGet.preciso_confirmar!);
+
+  // E o que a conversa diz bate com a mesma contagem.
+  await expect(page.getByTestId("checkup-pendencias")).toContainText(String(retrato.pendencias));
 });
 
 test("rodar duas vezes seguidas: a segunda é recusada com 409 legível e nada novo é gravado", async ({ page }) => {
@@ -94,4 +102,19 @@ test("rodar duas vezes seguidas: a segunda é recusada com 409 legível e nada n
   const lista = await page.request.get("/api/v1/ai/assistente/auditoria");
   const retratos = ((await lista.json()) as { data: unknown[] }).data;
   expect(retratos).toHaveLength(1);
+});
+
+test("com a rodada do minuto já gasta, o /checkup mostra a ÚLTIMA auditoria em vez de erro", async ({ page }) => {
+  await loginComoAdmin(page, creds);
+  // Gasta o minuto por fora (a rota é a mesma que o comando usa).
+  const primeira = await page.request.post("/api/v1/ai/assistente/auditoria");
+  expect(primeira.status()).toBe(201);
+
+  await mandarComando(page, "/checkup");
+
+  const cartao = page.getByTestId("assistente-cartao-checkup");
+  await expect(cartao).toBeVisible();
+  // Não rodou agora — caiu para a leitura — e o cartão DIZ isso.
+  await expect(cartao).toHaveAttribute("data-rodou", "nao");
+  await expect(cartao).toContainText("Esta é a última auditoria da configuração.");
 });

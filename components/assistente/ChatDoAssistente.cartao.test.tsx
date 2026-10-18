@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { ChatDoAssistente } from "@/components/assistente/ChatDoAssistente";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -63,6 +64,19 @@ async function perguntar(texto: string) {
   return usuario;
 }
 
+/**
+ * O chat usa `useQuery` (a fila de propostas), então precisa do provider — é o
+ * que o app real tem em `app/providers.tsx`.
+ */
+function montar(props: { aoAbrirTela: () => void }) {
+  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={cliente}>
+      <ChatDoAssistente aberto aoAbrirTela={props.aoAbrirTela} />
+    </QueryClientProvider>,
+  );
+}
+
 const CARTAO_AGENTE = {
   tipo: "artefato",
   artefato: "agente",
@@ -89,7 +103,7 @@ describe("cartão de rascunho no painel", () => {
 
   it("E. cartão aparece com título, tipo, nome, aviso e botão", async () => {
     rede.chat = async () => respostaDoChat([CARTAO_AGENTE, CARTAO_FOLLOWUP]);
-    render(<ChatDoAssistente aberto aoAbrirTela={() => {}} />);
+    montar({ aoAbrirTela: () => {} });
     await perguntar("crie o atendimento");
     await screen.findByText("Pronto!");
 
@@ -114,7 +128,7 @@ describe("cartão de rascunho no painel", () => {
         { tipo: "artefato", artefato: "agente", nome: 123, rotulo: "Abrir", href: "/app/ai/agents/ag-novo" },
         CARTAO_AGENTE,
       ]);
-    render(<ChatDoAssistente aberto aoAbrirTela={() => {}} />);
+    montar({ aoAbrirTela: () => {} });
     await perguntar("crie o atendimento");
     await screen.findByText("Pronto!");
 
@@ -125,7 +139,7 @@ describe("cartão de rascunho no painel", () => {
   it("E3. o clique no botão do cartão navega e chama aoAbrirTela", async () => {
     rede.chat = async () => respostaDoChat([CARTAO_AGENTE]);
     const aoAbrirTela = vi.fn();
-    render(<ChatDoAssistente aberto aoAbrirTela={aoAbrirTela} />);
+    montar({ aoAbrirTela });
     const usuario = await perguntar("crie o atendimento");
     await screen.findByText("Pronto!");
 
@@ -143,7 +157,7 @@ describe("cartão de rascunho no painel", () => {
         { ...CARTAO_AGENTE, rotulo: "Abrir el agente" },
         { ...CARTAO_FOLLOWUP, rotulo: "Abrir el seguimiento" },
       ]);
-    render(<ChatDoAssistente aberto aoAbrirTela={() => {}} />);
+    montar({ aoAbrirTela: () => {} });
     await perguntar("crie o atendimento");
     await screen.findByText("Pronto!");
 

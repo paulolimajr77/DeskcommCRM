@@ -483,10 +483,16 @@ describe("(e) não existe página em tela cheia", () => {
   });
 });
 
-// O chat sozinho (sem painel em volta) continua montável: nada nele exige o provedor.
+// O chat sozinho (sem painel em volta) continua montável: nada nele exige o
+// provedor DO PAINEL. O de consultas é do APP (`app/providers.tsx`) — a fila de
+// propostas lê por ele, e é o mesmo provider sob o qual o painel real vive.
 describe("o chat não depende do provedor do painel", () => {
   it("monta fora do painel", () => {
-    render(<ChatDoAssistente aberto={false} aoAbrirTela={() => {}} />);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ChatDoAssistente aberto={false} aoAbrirTela={() => {}} />
+      </QueryClientProvider>,
+    );
     expect(screen.getByTestId("assistente-pergunta")).toBeTruthy();
   });
 });

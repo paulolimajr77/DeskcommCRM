@@ -31,7 +31,33 @@ export interface CartaoDeArtefato {
 }
 
 /** O botão existente continua exatamente como é; o cartão é o segundo tipo. */
-export type AcaoDoChat = AcaoDeTela | CartaoDeArtefato;
+export type AcaoDoChat = AcaoDeTela | CartaoDeArtefato | CartaoDeProposta | CartaoDeCheckup;
+
+/** O botão de tela e o cartão de rascunho: as ações que a tela desenha COMO LINK. */
+export type AcaoComLink = AcaoDeTela | CartaoDeArtefato;
+
+/** Só as ações com `href` — a proposta e o checkup não têm link. */
+export function acoesComLink(acoes: readonly AcaoDoChat[]): AcaoComLink[] {
+  return acoes.filter((acao): acao is AcaoComLink => "href" in acao);
+}
+
+/**
+ * O cartão de UMA proposta criada neste turno. O servidor manda só o `id`: o
+ * conteúdo (antes → depois, risco, prazo, quem pediu) é lido da fila oficial
+ * pela tela, que é `admin` — o mesmo dado que a rota de propostas já governa.
+ */
+export interface CartaoDeProposta {
+  tipo: "proposta";
+  id: string;
+}
+
+/** O retrato da auditoria, para o `/checkup` mostrar na conversa. */
+export interface CartaoDeCheckup {
+  tipo: "checkup";
+  rodou: boolean;
+  snapshot: { id: string; taken_at: string; pendencias: number; itens: unknown[] } | null;
+  anterior: { id: string; taken_at: string; pendencias: number } | null;
+}
 
 /** Onde as ferramentas anotam o que aconteceu no turno (a rota lê no fim). */
 export interface ColetorDoTurno {
@@ -59,7 +85,7 @@ export function anotarCartaoDeArtefato(
   idioma: ContextoDeConsulta["idioma"],
   cartao: { artefato: "agente" | "followup"; nome: string; href: string },
 ): void {
-  if (coletor.acoes.some((acao) => acao.href === cartao.href)) return;
+  if (acoesComLink(coletor.acoes).some((acao) => acao.href === cartao.href)) return;
   const cartoes = coletor.acoes.filter((acao) => acao.tipo === "artefato").length;
   if (cartoes >= MAXIMO_DE_CARTOES_POR_TURNO) return;
   coletor.acoes.push({
@@ -73,6 +99,12 @@ export function anotarCartaoDeArtefato(
 
 /** O que `loadSkills` devolve, já filtrado por quem chama (`name` começa com "assistente-"). */
 export type SkillDoAssistente = Awaited<ReturnType<typeof loadSkills>>[number];
+
+/** Anota o cartão da proposta recém-criada. `id` vem da rota; nunca do modelo. */
+export function anotarCartaoDeProposta(coletor: ColetorDoTurno, id: string): void {
+  if (coletor.acoes.some((acao) => acao.tipo === "proposta" && acao.id === id)) return;
+  coletor.acoes.push({ tipo: "proposta", id });
+}
 
 /** A conversa e o turno em andamento — só a rota do chat os conhece (ids dela, nunca do modelo). */
 export interface TurnoDoChat {
@@ -94,5 +126,4 @@ export interface EntradaDasFerramentas {
 
 /** O que uma ferramenta devolve quando não pôde trabalhar — sem a mensagem do erro. */
 export type FalhaDeFerramenta =
-  | { ok: false; motivo: "indisponivel" }
-  | { ok: false; motivo: "parametro_invalido" };
+  { ok: false; motivo: "indisponivel" } | { ok: false; motivo: "parametro_invalido" };

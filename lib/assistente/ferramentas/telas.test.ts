@@ -11,6 +11,7 @@ import { NAV_DESTINATIONS, searchable } from "@/lib/navigation/registry";
 
 import { chamar, montarParaTeste, ORG } from "./auxiliar-de-teste";
 import { MAXIMO_DE_ACOES_POR_TURNO, MAXIMO_DE_TELAS_LISTADAS } from "./telas";
+import { acoesComLink } from "./tipos";
 
 interface Tela {
   destino: string;
@@ -141,7 +142,7 @@ describe("abrir_tela", () => {
 
     expect(saida).toEqual({ ok: true, mensagem: "O botão será mostrado; a pessoa decide se clica." });
     expect(coletor.acoes).toEqual([{ tipo: "abrir_tela", rotulo: "Abrir Prospecção", href: "/app/prospecting" }]);
-    expect(coletor.acoes[0]?.href).toBe(doCatalogo?.href);
+    expect(acoesComLink(coletor.acoes)[0]?.href).toBe(doCatalogo?.href);
   });
 
   it("em espanhol o rótulo do botão sai em espanhol", async () => {
@@ -203,7 +204,11 @@ describe("abrir_tela", () => {
     expect(MAXIMO_DE_ACOES_POR_TURNO).toBe(3);
     expect(resultados.map((r) => r.ok)).toEqual([true, true, true, false]);
     expect(resultados[3]).toEqual({ ok: false, motivo: "muitas_acoes" });
-    expect(coletor.acoes.map((acao) => acao.href)).toEqual(["/app/inbox", "/app/agenda", "/app/prospecting"]);
+    expect(acoesComLink(coletor.acoes).map((acao) => acao.href)).toEqual([
+      "/app/inbox",
+      "/app/agenda",
+      "/app/prospecting",
+    ]);
   });
 
   it("pedir o mesmo destino duas vezes não duplica o botão", async () => {
@@ -214,7 +219,7 @@ describe("abrir_tela", () => {
 
     expect(primeira.ok).toBe(true);
     expect(segunda.ok).toBe(true);
-    expect(coletor.acoes.map((acao) => acao.href)).toEqual(["/app/inbox"]);
+    expect(acoesComLink(coletor.acoes).map((acao) => acao.href)).toEqual(["/app/inbox"]);
   });
 
   it("a organização da sessão é a única lida para decidir o que é visível", async () => {

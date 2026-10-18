@@ -300,3 +300,227 @@ describe("GET /auditoria", () => {
     expect(audit).not.toHaveBeenCalled();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A LEITURA NO FORMATO REAL DAS ROTAS INTERNAS (defeito medido em 18/10/2026)
+//
+// O defeito: `extrairDados()` só aceitava `data` sendo ARRAY, mas duas rotas
+// devolvem `data` como ENVELOPE — `/api/v1/ai/providers` devolve
+// `{ data: { credenciais: [...] } }` e `/api/v1/ai/routers` devolve
+// `{ data: { routers: [...] } }`. Com a chave da OpenAI validada e cadastrada a
+// auditoria dizia "sem chave"; com o roteador ativo, dizia "sem roteador".
+//
+// Os dublês abaixo têm a forma EXATA de cada resposta (colunas reais do
+// SELECT de cada rota), para que o teste reprove se a leitura voltar a ser
+// feita no formato errado.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ItemDoRetrato {
+  id: string;
+  estado: string;
+  por_que: string;
+}
+
+/**
+ * Dublês com o formato REAL das oito rotas que a auditoria lê:
+ *
+ *  - ai/providers        → `{ data: { credenciais: [...], instalacaoTemChave } }`  (route.ts:297)
+ *  - channel-sessions    → `data` array, com `phone_number`                       (route.ts:66)
+ *  - pipelines           → `data` array                                           (route.ts:43)
+ *  - pipelines/[id]/stages → `data` array                                         (route.ts:88)
+ *  - ai/agents           → `data` array, com `versao_publicada` (sem credential_id) (route.ts:142)
+ *  - ai/routers          → `{ data: { routers: [...] } }`                         (route.ts:84)
+ *  - ai/knowledge/sources→ `data` array, com `source_type`                        (route.ts:102)
+ *  - ai/followup-flows   → `data` array, com `status`                             (route.ts:56)
+ */
+function rotasComFormatoReal(opcoes?: { instalacaoTemChave?: boolean; provedorDoAgente?: string }) {
+  const provedorDoAgente = opcoes?.provedorDoAgente ?? "openai";
+  const instalacaoTemChave = opcoes?.instalacaoTemChave ?? false;
+  vi.mocked(chamarRotaPorDentro).mockImplementation(async (_handler, caminho) => {
+    if (caminho === "/api/v1/ai/providers") {
+      return {
+        status: 200,
+        corpo: {
+          data: {
+            papeis: [],
+            pontos: [],
+            padrao: null,
+            provedores: ["openai", "anthropic"],
+            modelos: [],
+            podeEditar: true,
+            credenciais: [
+              {
+                id: "c1",
+                provider: "openai",
+                label: "Chave OpenAI",
+                api_key_last4: "4242",
+                validated_at: "2026-10-01T00:00:00Z",
+                is_active: true,
+              },
+            ],
+            instalacaoTemChave,
+          },
+        },
+      };
+    }
+    if (caminho === "/api/v1/ai/routers") {
+      return {
+        status: 200,
+        corpo: {
+          data: {
+            routers: [
+              {
+                id: "rt1",
+                name: "Roteador PLJR",
+                channel_session_id: "s1",
+                is_active: true,
+                fallback_agent_id: null,
+                updated_at: "2026-10-16T09:00:00Z",
+              },
+            ],
+          },
+        },
+      };
+    }
+    if (caminho === "/api/v1/channel-sessions") {
+      return {
+        status: 200,
+        corpo: {
+          data: [
+            {
+              id: "s1",
+              provider: "waha",
+              waha_session_name: "sessao",
+              display_name: "Atendimento",
+              phone_number: "+5511999999999",
+              status: "WORKING",
+              status_reason: null,
+              last_health_check_at: null,
+              last_status_change_at: null,
+              daily_message_limit: null,
+              is_warmup_complete: true,
+              created_at: "2026-10-01T09:00:00Z",
+              metadata: { disabled: false },
+            },
+          ],
+        },
+      };
+    }
+    if (caminho === "/api/v1/ai/agents") {
+      return {
+        status: 200,
+        corpo: {
+          data: [
+            {
+              id: "a1",
+              organization_id: ORG_ID,
+              name: "Agente de vendas",
+              description: null,
+              model: "gpt-5",
+              system_prompt: "Atenda bem.",
+              is_active: true,
+              is_default: true,
+              kind: "atendimento",
+              priority: 0,
+              published_version_id: "v1",
+              paused_at: null,
+              operation_mode: "automatic",
+              operation_revision: 1,
+              archived_at: null,
+              config: {},
+              guardrails: {},
+              active_kb_version_id: null,
+              created_at: "2026-10-01T09:00:00Z",
+              updated_at: "2026-10-01T09:00:00Z",
+              // O join REAL da listagem: sem `credential_id`.
+              versao_publicada: { provider: provedorDoAgente, model: "gpt-5" },
+            },
+          ],
+        },
+      };
+    }
+    if (caminho === "/api/v1/pipelines") {
+      return { status: 200, corpo: { data: [{ id: "p1", name: "Vendas" }] } };
+    }
+    if (caminho === "/api/v1/pipelines/p1/stages") {
+      return { status: 200, corpo: { data: [{ id: "e1", name: "Prospecção" }] } };
+    }
+    if (caminho === "/api/v1/ai/knowledge/sources") {
+      return {
+        status: 200,
+        corpo: { data: [{ id: "k1", name: "FAQ", source_type: "faq", status: "ready" }] },
+      };
+    }
+    if (caminho === "/api/v1/ai/followup-flows") {
+      return {
+        status: 200,
+        corpo: { data: [{ id: "fl1", name: "Boas-vindas", status: "ativo" }] },
+      };
+    }
+    return { status: 200, corpo: { data: [] } };
+  });
+}
+
+async function itensDaRodada(): Promise<ItemDoRetrato[]> {
+  const resposta = await POST(requisicaoPost());
+  expect(resposta.status).toBe(201);
+  const corpo = (await resposta.json()) as { data: { snapshot: { itens: ItemDoRetrato[] } } };
+  return corpo.data.snapshot.itens;
+}
+
+function estadoDe(itens: ItemDoRetrato[], id: string): string {
+  return itens.find((i) => i.id === id)?.estado ?? "ausente";
+}
+
+describe("auditoria lê o formato REAL das rotas internas", () => {
+  it("acha a chave validada em `data.credenciais` (não em `data`) — 'tem chave validada'", async () => {
+    rotasComFormatoReal();
+    const itens = await itensDaRodada();
+    expect(estadoDe(itens, "credencial_ia")).toBe("preenchido");
+  });
+
+  it("acha o roteador em `data.routers` (não em `data`) — 'tem roteador'", async () => {
+    rotasComFormatoReal();
+    const itens = await itensDaRodada();
+    expect(estadoDe(itens, "canal_whatsapp")).toBe("preenchido");
+    expect(estadoDe(itens, "agente_publicado")).toBe("preenchido");
+    expect(estadoDe(itens, "roteador")).toBe("preenchido");
+  });
+
+  it("lê `versao_publicada` do agente (não `versao`) para achar a chave do provedor", async () => {
+    // O agente é do provedor openai e só há chave validada openai: com o campo
+    // certo, o agente é `preenchido`. Lendo `versao`, ficaria `preciso_confirmar`.
+    rotasComFormatoReal({ provedorDoAgente: "openai" });
+    const itens = await itensDaRodada();
+    expect(estadoDe(itens, "agente_publicado")).toBe("preenchido");
+  });
+
+  it("agente publicado sem chave utilizável → preciso_confirmar com o motivo", async () => {
+    rotasComFormatoReal({ provedorDoAgente: "anthropic" });
+    const itens = await itensDaRodada();
+    expect(estadoDe(itens, "agente_publicado")).toBe("preciso_confirmar");
+    expect(itens.find((i) => i.id === "agente_publicado")?.por_que).toContain("anthropic");
+  });
+
+  it("com a chave da INSTALAÇÃO, o agente publicado é pronto mesmo sem credencial", async () => {
+    rotasComFormatoReal({ instalacaoTemChave: true, provedorDoAgente: "anthropic" });
+    const itens = await itensDaRodada();
+    expect(estadoDe(itens, "credencial_ia")).toBe("preenchido");
+    expect(estadoDe(itens, "agente_publicado")).toBe("preenchido");
+  });
+
+  it("lê `phone_number` do canal (o campo `numero` não existe)", async () => {
+    vi.mocked(chamarRotaPorDentro).mockImplementation(async (_handler, caminho) => {
+      if (caminho === "/api/v1/channel-sessions") {
+        return { status: 200, corpo: { data: [{ id: "s1", status: "WORKING", phone_number: "+5511888888888" }] } };
+      }
+      return { status: 200, corpo: { data: [] } };
+    });
+    const resposta = await POST(requisicaoPost());
+    expect(resposta.status).toBe(201);
+    // Sem canal reconhecido, `canal_whatsapp` fica pendente: é o sinal de que a
+    // leitura olhou `status`/`phone_number` do objeto real.
+    const corpo = (await resposta.json()) as { data: { snapshot: { itens: ItemDoRetrato[] } } };
+    expect(estadoDe(corpo.data.snapshot.itens, "canal_whatsapp")).toBe("preenchido");
+  });
+});

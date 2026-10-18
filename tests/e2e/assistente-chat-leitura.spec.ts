@@ -2,8 +2,9 @@
  * Assistente interno, F1 leitura. Prova, na perspectiva do usuário real:
  * (1) o ícone no topo abre o PAINEL LATERAL do assistente (a URL não muda: não
  * existe página em tela cheia); (2) o painel acompanha a pessoa na troca de
- * página; (3) o ⌘K abre o mesmo painel; (4) o botão de resumo devolve números
- * da operação; (5) uma pergunta de guia devolve trecho do guia.
+ * página; (3) o ⌘K abre o mesmo painel; (4) o comando `/resumo` devolve números
+ * da operação — e o menu de comandos abre com "/"; (5) uma pergunta de guia
+ * devolve trecho do guia.
  * Login como agent (papel mínimo do chat).
  *
  * O PAR (T9): a pergunta sobre a fila desce até `consultar_metrica` de verdade
@@ -50,14 +51,27 @@ async function abrirAssistente(page: Page): Promise<void> {
   expect(page.url()).toBe(urlAntes);
 }
 
-// As respostas daqui vêm do DUBLÊ do modelo (`INTERNAL_AGENT_RUN_STUB`): provam o caminho
-// painel → rota → modelo → tela. Os NÚMEROS (par chat × leitura direta) entram na T9.
-test("o atalho no topo abre o assistente e o resumo recebe a resposta", async ({ page }) => {
+// As respostas daqui vêm do DUBLÊ do modelo (`INTERNAL_AGENT_RUN_STUB`) — salvo o
+// `/resumo`, que o SERVIDOR responde sozinho: mesmo texto, mesmo formato, sem
+// chamar o modelo. Os NÚMEROS (par chat × leitura direta) entram na T9.
+test("o atalho no topo abre o assistente; '/' abre o menu e o /resumo responde sozinho", async ({ page }) => {
   await login(page, creds.users.agent!.email);
   await abrirAssistente(page);
 
-  await page.getByTestId("assistente-resumo").click();
-  await expect(page.getByTestId("assistente-mensagens")).toContainText("Resposta de teste do assistente.");
+  // O menu abre com a barra; a primeira opção é o /resumo, e o Enter a escolhe.
+  await page.getByTestId("assistente-pergunta").fill("/");
+  await expect(page.getByTestId("assistente-menu-comandos")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("assistente-pergunta")).toHaveValue("/resumo");
+
+  // O segundo Enter envia (escolher não envia: o menu é atalho, não pedágio).
+  await page.keyboard.press("Enter");
+
+  const mensagens = page.getByTestId("assistente-mensagens");
+  await expect(mensagens).toContainText("Resumo de hoje");
+  await expect(mensagens).toContainText("Conversas abertas:");
+  // O comando NÃO passa pelo modelo: a resposta do dublê não aparece.
+  await expect(mensagens).not.toContainText("Resposta de teste do assistente.");
 });
 
 test("uma pergunta digitada recebe resposta, não silêncio", async ({ page }) => {

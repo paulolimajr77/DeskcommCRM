@@ -1,10 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
-
 import { ChatDoAssistente } from "@/components/assistente/ChatDoAssistente";
-import { PropostasDoAssistente } from "@/components/assistente/PropostasDoAssistente";
-import { AuditoriaDoAssistente } from "@/components/assistente/AuditoriaDoAssistente";
 import {
   ID_DO_PAINEL_DO_ASSISTENTE,
   useAssistentePainel,
@@ -18,6 +14,15 @@ import { cn } from "@/lib/utils";
 /**
  * O painel lateral do assistente — a ÚNICA superfície dele (decisão do dono,
  * 14/10/2026; spec 2026-10-14, F1b, "Painel que acompanha a pessoa").
+ *
+ * ─── UMA CONVERSA SÓ, SEM ABAS (decisão do dono, 18/10/2026) ─────────────────
+ *
+ * Havia três abas — "Conversa", "Propostas" e "Auditoria" — e o defeito era de
+ * desenho: a pessoa perguntava na conversa, a resposta ficava numa aba e a
+ * decisão em outra. Agora tudo acontece DENTRO da conversa: proposta é cartão
+ * com Aplicar/Não, checkup é cartão com o retrato da configuração, e as
+ * pendências são anunciadas quando o administrador abre o painel. Sobrou uma
+ * superfície, e é por isso que este componente não tem mais estado.
  *
  * ─── Montado SEMPRE ─────────────────────────────────────────────────────────
  *
@@ -45,17 +50,11 @@ export function PainelDoAssistente() {
   const painel = useAssistentePainel();
   const ehCelular = useEhCelular();
   const org = useActiveOrg();
-  // A fila de propostas é decisão de admin (escrita só admin): quem não é
-  // admin não vê a aba NEM o contador — a trava real continua nas rotas.
+  // Mudar configuração (agente, roteador, conhecimento, memória, funil,
+  // follow-up, modelo) é decisão de administrador. A tela usa isto para NÃO
+  // oferecer o que a pessoa não pode decidir — e o comando `/pendentes` e a
+  // rota de propostas recusam de novo, NO SERVIDOR, com o papel da sessão.
   const ehAdmin = org?.role === "admin";
-  const [aba, setAba] = useState<"conversa" | "propostas" | "auditoria">("conversa");
-  const [pendentes, setPendentes] = useState(0);
-  const [rascunho, setRascunho] = useState<{ texto: string; n: number } | null>(null);
-  const aoPedirAoAssistente = useCallback((texto: string) => {
-    setRascunho((atual) => ({ texto, n: (atual?.n ?? 0) + 1 }));
-    setAba("conversa");
-  }, []);
-  const aoContarPendentes = useCallback((n: number) => setPendentes(n), []);
   if (painel === null) return null;
   const { aberto, fechar } = painel;
 
@@ -97,74 +96,15 @@ export function PainelDoAssistente() {
           <X size={16} aria-hidden />
         </button>
       </header>
-      {ehAdmin ? (
-        <div role="tablist" aria-label={t("Seções do assistente")} className="flex shrink-0 gap-1 border-b px-3">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={aba === "conversa"}
-            onClick={() => setAba("conversa")}
-            data-testid="assistente-aba-conversa"
-            className="border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
-          >
-            {t("Conversa")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={aba === "propostas"}
-            onClick={() => setAba("propostas")}
-            data-testid="assistente-aba-propostas"
-            className="inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
-          >
-            {t("Propostas")}
-            {pendentes > 0 ? (
-              <span
-                data-testid="assistente-propostas-contador"
-                className="rounded-full bg-destructive px-1.5 py-0.5 text-xs font-medium text-destructive-foreground"
-              >
-                {pendentes}
-              </span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={aba === "auditoria"}
-            onClick={() => setAba("auditoria")}
-            data-testid="assistente-aba-auditoria"
-            className="inline-flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
-          >
-            {t("Auditoria")}
-          </button>
-        </div>
-      ) : null}
-      <div className={cn("flex min-h-0 flex-1 flex-col", (!ehAdmin || aba === "conversa") ? "flex" : "hidden")}>
-        <ChatDoAssistente
-          aberto={aberto}
-          rascunho={rascunho}
-          aoAbrirTela={() => {
-            // No celular o painel cobre a tela: sem sair da frente, a pessoa clicaria
-            // em "Abrir X" e não veria nada acontecer. No desktop ele fica onde está.
-            if (ehCelular) fechar();
-          }}
-        />
-      </div>
-      {ehAdmin ? (
-        <div className={cn("flex min-h-0 flex-1 flex-col", aba === "propostas" ? "flex" : "hidden")}>
-          <PropostasDoAssistente aberto={aberto} aoContarPendentes={aoContarPendentes} />
-        </div>
-      ) : null}
-      {ehAdmin ? (
-        <div className={cn("flex min-h-0 flex-1 flex-col", aba === "auditoria" ? "flex" : "hidden")}>
-          <AuditoriaDoAssistente
-            aberto={aberto}
-            abaAtiva={aba === "auditoria"}
-            ehAdmin={ehAdmin}
-            aoPedir={aoPedirAoAssistente}
-          />
-        </div>
-      ) : null}
+      <ChatDoAssistente
+        aberto={aberto}
+        ehAdmin={ehAdmin}
+        aoAbrirTela={() => {
+          // No celular o painel cobre a tela: sem sair da frente, a pessoa clicaria
+          // em "Abrir X" e não veria nada acontecer. No desktop ele fica onde está.
+          if (ehCelular) fechar();
+        }}
+      />
     </aside>
   );
 }

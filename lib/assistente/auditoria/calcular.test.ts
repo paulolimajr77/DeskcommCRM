@@ -12,6 +12,7 @@ const t = (texto: string) => traduzir(texto, "pt-BR");
 
 const leituraVazia = {
   provedoresIA: [],
+  instalacaoTemChave: false,
   canaisWhatsApp: [],
   funis: [],
   etapasDoFunil: [],
@@ -35,6 +36,9 @@ const leituraTudoPreenchido = {
       paused_at: null,
       archived_at: null,
       published_version_id: "v1",
+      // A versão publicada tem provedor com chave validada — sem isto o agente
+      // publicado conta como "sem chave utilizável" (regra de 18/10/2026).
+      versao_publicada: { provider: "anthropic", model: "claude-sonnet-5", credential_id: null },
     },
   ],
   roteadores: [{ id: "r1", name: "Roteador", is_active: true, channel_session_id: "s1", fallback_agent_id: null }],
@@ -109,6 +113,11 @@ describe("calcularAuditoria — dependências", () => {
     const leitura = {
       ...leituraVazia,
       canaisWhatsApp: [{ id: "s1", status: "WORKING", numero: "+5511999999999" }],
+      // "Agente pronto" desde 18/10/2026 = publicado E com chave utilizável do
+      // provedor da versão publicada.
+      provedoresIA: [
+        { id: "c1", provider: "anthropic", label: "Chave", validated_at: "2026-10-01T00:00:00Z", is_active: true },
+      ],
       agentes: [
         {
           id: "a1",
@@ -117,6 +126,7 @@ describe("calcularAuditoria — dependências", () => {
           paused_at: null,
           archived_at: null,
           published_version_id: "v1",
+          versao_publicada: { provider: "anthropic", model: "claude-3", credential_id: null },
         },
       ],
       roteadores: [],

@@ -12,6 +12,7 @@ const t = (texto: string) => traduzir(texto, "pt-BR");
 
 const leituraVazia = {
   provedoresIA: [],
+  instalacaoTemChave: false,
   canaisWhatsApp: [],
   funis: [],
   etapasDoFunil: [],
@@ -102,9 +103,15 @@ describe("lerVerificacao — funil_etapas", () => {
 });
 
 describe("lerVerificacao — agente_publicado", () => {
-  it("preenchido quando há agente publicado e ativo", () => {
+  it("preenchido quando há agente publicado e ativo COM chave utilizável do provedor", () => {
     const leitura = {
       ...leituraVazia,
+      // O agente publicado só responde se o provedor da versão tem chave
+      // validada (ou se a chave é a da instalação). Sem esta linha, a chave
+      // utilizável não existe e o estado vira `preciso_confirmar`.
+      provedoresIA: [
+        { id: "c1", provider: "anthropic", label: "Minha chave", validated_at: "2026-10-01T00:00:00Z", is_active: true },
+      ],
       agentes: [
         {
           id: "a1",
@@ -119,6 +126,52 @@ describe("lerVerificacao — agente_publicado", () => {
     };
     const item = lerVerificacao(t, "agente_publicado", leitura, new Map());
     expect(item.estado).toBe("preenchido");
+    expect(item.ferramenta).toBeNull();
+  });
+
+  it("preenchido quando a chave veio da INSTALAÇÃO, mesmo sem credencial cadastrada", () => {
+    const leitura = {
+      ...leituraVazia,
+      instalacaoTemChave: true,
+      agentes: [
+        {
+          id: "a1",
+          name: "Agente de vendas",
+          is_active: true,
+          paused_at: null,
+          archived_at: null,
+          published_version_id: "v1",
+          versao_publicada: { provider: "anthropic", model: "claude-3", credential_id: null },
+        },
+      ],
+    };
+    const item = lerVerificacao(t, "agente_publicado", leitura, new Map());
+    expect(item.estado).toBe("preenchido");
+  });
+
+  it("preciso_confirmar quando o agente está publicado mas não há chave utilizável", () => {
+    const leitura = {
+      ...leituraVazia,
+      provedoresIA: [
+        // Chave de OUTRO provedor: não serve para a versão publicada.
+        { id: "c1", provider: "openai", label: "Chave OpenAI", validated_at: "2026-10-01T00:00:00Z", is_active: true },
+      ],
+      agentes: [
+        {
+          id: "a1",
+          name: "Agente de vendas",
+          is_active: true,
+          paused_at: null,
+          archived_at: null,
+          published_version_id: "v1",
+          versao_publicada: { provider: "anthropic", model: "claude-3", credential_id: null },
+        },
+      ],
+    };
+    const item = lerVerificacao(t, "agente_publicado", leitura, new Map());
+    expect(item.estado).toBe("preciso_confirmar");
+    expect(item.por_que).toContain("anthropic");
+    expect(item.onde_resolver).toBe("/app/ai/providers");
   });
 
   it("posso_completar via criar_rascunho_de_agente quando não há agente", () => {

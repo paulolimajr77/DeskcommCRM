@@ -20,6 +20,7 @@ import { esquemaDoCorpoDaProposta } from "@/lib/assistente/propostas/payload";
 import type { TipoDeProposta } from "@/lib/assistente/propostas/tipos";
 
 import type { EntradaDasFerramentas } from "./tipos";
+import { anotarCartaoDeProposta } from "./tipos";
 
 /** O texto que toda proposta traz: o título para leigo e o porquê. */
 export const camposDeTexto = {
@@ -134,7 +135,11 @@ export function idsDe(linhas: Record<string, unknown>[]): Set<string> {
 
 /** Corta texto lido de terceiros para caber no "antes" (limite de 32 KB da proposta). */
 export function cortar(valor: unknown, maximo: number): string | null {
-  return typeof valor === "string" ? (valor.length > maximo ? valor.slice(0, maximo) : valor) : null;
+  return typeof valor === "string"
+    ? valor.length > maximo
+      ? valor.slice(0, maximo)
+      : valor
+    : null;
 }
 
 // ─── resultado ──────────────────────────────────────────────────────────────
@@ -144,7 +149,14 @@ export type ResultadoDaProposta =
   | {
       ok: true;
       mensagem: string;
-      proposta: { id: string; tipo: TipoDeProposta; operacao: string; risco: string; resumo: string; expira_em: string | null };
+      proposta: {
+        id: string;
+        tipo: TipoDeProposta;
+        operacao: string;
+        risco: string;
+        resumo: string;
+        expira_em: string | null;
+      };
       avisos?: string[];
     }
   | { ok: false; motivo: "preciso_confirmar"; detalhe: string }
@@ -162,8 +174,12 @@ export function parametroInvalido(detalhe: string): ResultadoDaProposta {
 export const INDISPONIVEL: ResultadoDaProposta = { ok: false, motivo: "indisponivel" };
 
 /** Uma leitura que falhou: 404 não é "fora do ar" (o id não é desta organização), o resto é. */
-export function falhaDeLeitura(leitura: Extract<Leitura, { ok: false }>, oQue: string): ResultadoDaProposta {
-  if (leitura.status === 404) return precisoConfirmar(`${oQue} não foi encontrado(a) nesta organização.`);
+export function falhaDeLeitura(
+  leitura: Extract<Leitura, { ok: false }>,
+  oQue: string,
+): ResultadoDaProposta {
+  if (leitura.status === 404)
+    return precisoConfirmar(`${oQue} não foi encontrado(a) nesta organização.`);
   return INDISPONIVEL;
 }
 
@@ -213,7 +229,9 @@ export async function enviarProposta(
   );
   if (!("status" in resposta)) return INDISPONIVEL;
   if (resposta.status === 403) {
-    return precisoConfirmar("só o administrador pode registrar propostas de mudança.");
+    return precisoConfirmar(
+      "só um administrador pode mudar a configuração. Diga isso à pessoa e não proponha nada.",
+    );
   }
   if (resposta.status === 404 || resposta.status === 422 || resposta.status === 400) {
     return parametroInvalido("a rota de propostas recusou o pedido.");
@@ -221,8 +239,12 @@ export async function enviarProposta(
   if (resposta.status !== 200 && resposta.status !== 201) return INDISPONIVEL;
 
   const dados = eObjeto(resposta.corpo) ? (resposta.corpo as { data?: unknown }).data : undefined;
-  if (!eObjeto(dados) || typeof dados.id !== "string" || typeof dados.resumo !== "string") return INDISPONIVEL;
-  const operacao = typeof dados.operacao === "string" ? dados.operacao : (validacao.data.payload.operacao as string);
+  if (!eObjeto(dados) || typeof dados.id !== "string" || typeof dados.resumo !== "string")
+    return INDISPONIVEL;
+  const operacao =
+    typeof dados.operacao === "string"
+      ? dados.operacao
+      : (validacao.data.payload.operacao as string);
 
   // Mesmo turno e mesmo tipo: a rota devolve a proposta que JÁ existia (idempotência).
   // Se não é a que acabamos de descrever, a nova NÃO foi criada — e dizer o contrário seria mentir.
@@ -232,6 +254,10 @@ export async function enviarProposta(
         "Peça à pessoa para continuar na próxima mensagem.",
     );
   }
+
+  // O cartão que a conversa mostra: o id vem da ROTA (nunca do modelo) e a
+  // tela lê o conteúdo da fila oficial.
+  anotarCartaoDeProposta(entrada.coletor, dados.id);
 
   return {
     ok: true,

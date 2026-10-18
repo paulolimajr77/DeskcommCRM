@@ -31,7 +31,7 @@ import { capacidadesLigadas } from "@/lib/organizacao/capacidades";
 import type { ContextoDeConsulta } from "@/lib/assistente/metricas";
 
 import { protegida } from "./protegida";
-import type { EntradaDasFerramentas } from "./tipos";
+import { acoesComLink, type EntradaDasFerramentas } from "./tipos";
 
 export const MAXIMO_DE_TELAS_LISTADAS = 40;
 export const MAXIMO_DE_ACOES_POR_TURNO = 3;
@@ -112,7 +112,7 @@ export function criarAbrirTela(entrada: EntradaDasFerramentas): Tool {
       const tela = visiveis.find((candidata) => candidata.href === destino);
       if (!tela) return { ok: false as const, motivo: "tela_inexistente" as const };
 
-      const jaTem = entrada.coletor.acoes.some((acao) => acao.href === tela.href);
+      const jaTem = acoesComLink(entrada.coletor.acoes).some((acao) => acao.href === tela.href);
       if (!jaTem) {
         if (entrada.coletor.acoes.length >= MAXIMO_DE_ACOES_POR_TURNO) {
           return { ok: false as const, motivo: "muitas_acoes" as const };

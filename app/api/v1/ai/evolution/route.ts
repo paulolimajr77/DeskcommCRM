@@ -24,7 +24,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateEvolution, type EvolutionInput } from "@/lib/ai/evolution/aggregate";
 import { lerPropostasDeConfig } from "@/lib/ai/evolution/propostas-de-config";
-import { ROLE_RANK } from "@/lib/auth/types";
+import { roleAtLeast } from "@/lib/auth/types";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -219,7 +219,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // `restrito` em vez de um zero. A leitura mora em `propostas-de-config.ts`
   // (cerca: laco-de-retorno-config-tem-um-leitor-so) — esta rota não toca a tabela.
   let configLoop: EvolutionInput["configLoop"];
-  if ((ROLE_RANK[authz.org.role] ?? 0) < ROLE_RANK.admin) {
+  if (!roleAtLeast(authz.org.role, "admin")) {
     configLoop = { estado: "restrito" };
   } else {
     const lido = await lerPropostasDeConfig(supabase, orgId, fromIso, toIso);

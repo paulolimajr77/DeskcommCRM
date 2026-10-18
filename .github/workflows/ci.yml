@@ -257,9 +257,9 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm typecheck
 
-      # Na parte 2, não na 1: o porquê e a conta estão no cabeçalho do job.
+      # Na parte 6 (a mais curta; a 2 estourava o orçamento no runner de 2 vCPU do repositório PRIVADO).
       - name: Lint
-        if: matrix.parte == 2
+        if: matrix.parte == 6
         run: pnpm lint
 
       # Invariante 1 de docs/doctrine/restricao-de-canal.md: nenhuma feature

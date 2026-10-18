@@ -41,11 +41,11 @@ const PREFIXOS_PROIBIDOS: string[] = [
   "onboarding/",
   "extensions/",
   "health/",
-  "messages/",
-  "campaigns/",
-  "team/",
   "settings/api-tokens/",
 ];
+
+/** Portas exatas que nunca entram nos carregadores de leitura. */
+const PORTAS_PROIBIDAS: string[] = ["team/invites", "messages/:id/media"];
 
 function segmentoSobApiV1(arquivoAbsoluto: string): string[] {
   const rel = path.relative(API_DIR, String(arquivoAbsoluto)).split(path.sep);
@@ -86,8 +86,16 @@ function resumoDoCabecalho(conteudo: string): string {
   return texto.slice(0, fim + 1).trim();
 }
 
+function casaComPrefixo(id: string, prefixo: string): boolean {
+  const semBarra = prefixo.endsWith("/") ? prefixo.slice(0, -1) : prefixo;
+  return id === semBarra || id.startsWith(prefixo);
+}
+
 function ehProibida(id: string): boolean {
-  return PREFIXOS_PROIBIDOS.some((p) => id.startsWith(p));
+  return (
+    PREFIXOS_PROIBIDOS.some((p) => casaComPrefixo(id, p)) ||
+    PORTAS_PROIBIDAS.includes(id)
+  );
 }
 
 interface Porta {

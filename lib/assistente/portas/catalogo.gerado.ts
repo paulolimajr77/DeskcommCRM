@@ -3972,10 +3972,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/ai/cases/alerta/route");
     return { GET: mod.GET };
   },
-  "ai/credentials": async () => {
-    const mod = await import("@/app/api/v1/ai/credentials/route");
-    return { GET: mod.GET };
-  },
   "ai/evolution": async () => {
     const mod = await import("@/app/api/v1/ai/evolution/route");
     return { GET: mod.GET };
@@ -4146,6 +4142,18 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "campaigns": async () => {
     const mod = await import("@/app/api/v1/campaigns/route");
+    return { GET: mod.GET };
+  },
+  "campaigns/:id": async () => {
+    const mod = await import("@/app/api/v1/campaigns/[id]/route");
+    return { GET: mod.GET };
+  },
+  "campaigns/:id/metrics": async () => {
+    const mod = await import("@/app/api/v1/campaigns/[id]/metrics/route");
+    return { GET: mod.GET };
+  },
+  "campaigns/:id/recipients": async () => {
+    const mod = await import("@/app/api/v1/campaigns/[id]/recipients/route");
     return { GET: mod.GET };
   },
   "channel-schedules": async () => {
@@ -4320,10 +4328,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/conversations/counts/route");
     return { GET: mod.GET };
   },
-  "extensions": async () => {
-    const mod = await import("@/app/api/v1/extensions/route");
-    return { GET: mod.GET };
-  },
   "external-db/connections": async () => {
     const mod = await import("@/app/api/v1/external-db/connections/route");
     return { GET: mod.GET };
@@ -4370,10 +4374,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "financeiro/lancamentos": async () => {
     const mod = await import("@/app/api/v1/financeiro/lancamentos/route");
-    return { GET: mod.GET };
-  },
-  "health": async () => {
-    const mod = await import("@/app/api/v1/health/route");
     return { GET: mod.GET };
   },
   "honorarios/contratos": async () => {
@@ -4568,10 +4568,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/reports/tags/route");
     return { GET: mod.GET };
   },
-  "settings/api-tokens": async () => {
-    const mod = await import("@/app/api/v1/settings/api-tokens/route");
-    return { GET: mod.GET };
-  },
   "settings/assinatura": async () => {
     const mod = await import("@/app/api/v1/settings/assinatura/route");
     return { GET: mod.GET };
@@ -4624,6 +4620,10 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
     const mod = await import("@/app/api/v1/team/route");
     return { GET: mod.GET };
   },
+  "team/assignable": async () => {
+    const mod = await import("@/app/api/v1/team/assignable/route");
+    return { GET: mod.GET };
+  },
   "voice/calls/history": async () => {
     const mod = await import("@/app/api/v1/voice/calls/history/route");
     return { GET: mod.GET };
@@ -4642,10 +4642,6 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   },
   "voip/trunk": async () => {
     const mod = await import("@/app/api/v1/voip/trunk/route");
-    return { GET: mod.GET };
-  },
-  "webhook-sources": async () => {
-    const mod = await import("@/app/api/v1/webhook-sources/route");
     return { GET: mod.GET };
   },
 };

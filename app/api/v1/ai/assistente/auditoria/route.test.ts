@@ -389,8 +389,6 @@ function rotasComFormatoReal(opcoes?: { instalacaoTemChave?: boolean; provedorDo
           data: [
             {
               id: "s1",
-              provider: "waha",
-              waha_session_name: "sessao",
               display_name: "Atendimento",
               phone_number: "+5511999999999",
               status: "WORKING",

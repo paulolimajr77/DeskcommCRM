@@ -22,20 +22,12 @@ function job(yml: string, nome: string): string {
   return linhas.slice(inicio, fim === -1 ? undefined : fim).join("\n");
 }
 
-function imagensDaMatriz(yml = publish, chave: "name" | "publicado" = "name"): string[] {
+function imagensDaMatriz(yml = publish): string[] {
   const corpo = job(yml, "build-and-push");
   const bloco = /matrix:\s*\n\s+include:\s*\n([\s\S]*?)(?=\n {4}steps:)/.exec(corpo)?.[1] ?? "";
-  const padrao =
-    chave === "name"
-      ? /^\s*-\s+name:\s*([A-Za-z0-9._-]+)\s*$/gm
-      : /^\s*publicado:\s*([A-Za-z0-9._-]+)\s*$/gm;
-  return [...bloco.matchAll(padrao)].map((match) => match[1]!).sort();
-}
-
-// Repositório PRIVADO: a matriz tem `name:` (o que o kit cobra) e `publicado:` (o nome real no
-// GHCR, deskcomm-privado-*). A guarda da tag endereça o nome PUBLICADO.
-function imagensPublicadasDaMatriz(yml = publish): string[] {
-  return imagensDaMatriz(yml, "publicado");
+  return [...bloco.matchAll(/^\s*-\s+name:\s*([A-Za-z0-9._-]+)\s*$/gm)]
+    .map((match) => match[1]!)
+    .sort();
 }
 
 function palavrasDaLista(texto: string): string[] {
@@ -96,8 +88,8 @@ describe("listas de imagens Docker seguem a matriz de publicação", () => {
   it("a guarda de criação de tag usa exatamente as imagens publicadas", () => {
     expect(
       imagensDoTesteDaTag(),
-      "tag-so-nasce-da-main ficou com uma cópia diferente da matriz de imagens (nomes publicados)",
-    ).toEqual(imagensPublicadasDaMatriz());
+      "tag-so-nasce-da-main ficou com uma cópia diferente da matriz de imagens",
+    ).toEqual(IMAGENS);
   });
 
   it("a guarda do artefato do cliente usa exatamente as imagens publicadas", () => {

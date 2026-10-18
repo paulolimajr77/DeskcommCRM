@@ -10,10 +10,16 @@
 
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { montarConteudoCatalogo, varrerRotas } from "../../scripts/gerar-catalogo-de-portas";
 
-const CAMINHO_GERADO =
-  "D:/PROJETOS VIBE CODING/DeskcommCRM-agente-interno/lib/assistente/portas/catalogo.gerado.ts";
+const CAMINHO_GERADO = path.join(
+  process.cwd(),
+  "lib",
+  "assistente",
+  "portas",
+  "catalogo.gerado.ts",
+);
 
 describe("catalogo de portas em dia", () => {
   it("o arquivo commitado coincide com a saida pura do gerador", () => {

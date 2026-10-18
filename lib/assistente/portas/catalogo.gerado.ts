@@ -3,273 +3,8 @@
 
 import type { Metodo, PortaDoCatalogo } from "./tipos";
 
-// Todas as portas do catalogo (inclusive as proibidas, para a regra
-// poder recusar por nome).
+// Todas as portas do catalogo (apenas as nao proibidas).
 export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
-  {
-    id: "admin/audit",
-    caminho: "admin/audit",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/audit/:entryId",
-    caminho: "admin/audit/[entryId]",
-    metodos: ["GET"],
-    parametros: ["entryId"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/cobranca/conexao",
-    caminho: "admin/cobranca/conexao",
-    metodos: ["POST"],
-    parametros: [],
-    area: "admin",
-    resumo: "POST /api/v1/admin/cobranca/conexao — a ÚNICA escritora do provedor e das\n credenciais da cobrança (spec da cobrança do revendedor §7a, §10).",
-  },
-  {
-    id: "admin/cobranca/planos",
-    caminho: "admin/cobranca/planos",
-    metodos: ["POST"],
-    parametros: [],
-    area: "admin",
-    resumo: "POST /api/v1/admin/cobranca/planos — o dono da instalação cria um plano de\n cobrança (spec da cobrança do revendedor §2.2, §7g).",
-  },
-  {
-    id: "admin/cobranca/planos/:id",
-    caminho: "admin/cobranca/planos/[id]",
-    metodos: ["PATCH"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "PATCH /api/v1/admin/cobranca/planos/[id] — editar, marcar como plano do\n cadastro, arquivar e desarquivar (spec da cobrança do revendedor §2.2, §7g).",
-  },
-  {
-    id: "admin/cobranca/regua",
-    caminho: "admin/cobranca/regua",
-    metodos: ["PATCH"],
-    parametros: [],
-    area: "admin",
-    resumo: "PATCH /api/v1/admin/cobranca/regua — a única escritora de\n `COBRANCA_TOLERANCIA_DIAS` (spec da cobrança do revendedor §7g, §10, D-5).",
-  },
-  {
-    id: "admin/dashboard/kpis",
-    caminho: "admin/dashboard/kpis",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/impersonate/end",
-    caminho: "admin/impersonate/end",
-    metodos: ["POST"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/inbox/conversations",
-    caminho: "admin/inbox/conversations",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/inbox/conversations/:id",
-    caminho: "admin/inbox/conversations/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/incidents",
-    caminho: "admin/incidents",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "GET /api/v1/admin/incidents (S-11.11)\n  Lists incidents cross-tenant.",
-  },
-  {
-    id: "admin/incidents/:id",
-    caminho: "admin/incidents/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "GET /api/v1/admin/incidents/[id] (S-11.11)\n  Returns incident detail + tenant info + audit trail.",
-  },
-  {
-    id: "admin/incidents/:id/resolve",
-    caminho: "admin/incidents/[id]/resolve",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/lgpd/requests",
-    caminho: "admin/lgpd/requests",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "GET /api/v1/admin/lgpd/requests\n  Cross-tenant list of lgpd_requests — platform admin only.",
-  },
-  {
-    id: "admin/lgpd/requests/:id",
-    caminho: "admin/lgpd/requests/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "GET /api/v1/admin/lgpd/requests/[id]\n  Detail of a single lgpd_request cross-tenant — platform admin only.",
-  },
-  {
-    id: "admin/platform-admins",
-    caminho: "admin/platform-admins",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants",
-    caminho: "admin/tenants",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/:id",
-    caminho: "admin/tenants/[id]",
-    metodos: ["GET", "PATCH"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/:id/agents",
-    caminho: "admin/tenants/[id]/agents",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "O agente publicado de um tenant — a única leitura que faltava para a carteira.",
-  },
-  {
-    id: "admin/tenants/:id/assinatura",
-    caminho: "admin/tenants/[id]/assinatura",
-    metodos: ["POST", "PATCH", "DELETE"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "/api/v1/admin/tenants/[id]/assinatura — o dono da instalação decide se esta\n empresa paga, e por qual plano (spec da cobrança do revendedor §7g).",
-  },
-  {
-    id: "admin/tenants/:id/assinatura/checkout",
-    caminho: "admin/tenants/[id]/assinatura/checkout",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "POST /api/v1/admin/tenants/[id]/assinatura/checkout — \"Gerar link de\n pagamento\" (spec da cobrança do revendedor §7g, D-15).",
-  },
-  {
-    id: "admin/tenants/:id/assinatura/prazo",
-    caminho: "admin/tenants/[id]/assinatura/prazo",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "POST /api/v1/admin/tenants/[id]/assinatura/prazo — \"Dar prazo até DD/MM\"\n (spec da cobrança do revendedor §7g, D-6).",
-  },
-  {
-    id: "admin/tenants/:id/delete",
-    caminho: "admin/tenants/[id]/delete",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "POST /api/v1/admin/tenants/[id]/delete — exclusão DEFINITIVA de um tenant.",
-  },
-  {
-    id: "admin/tenants/:id/health",
-    caminho: "admin/tenants/[id]/health",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/:id/impersonate",
-    caminho: "admin/tenants/[id]/impersonate",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/:id/members",
-    caminho: "admin/tenants/[id]/members",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "GET /api/v1/admin/tenants/[id]/members — quem pertence ao tenant, com o\n e-mail de LOGIN de cada pessoa.",
-  },
-  {
-    id: "admin/tenants/:id/members/:userId/email",
-    caminho: "admin/tenants/[id]/members/[userId]/email",
-    metodos: ["PATCH"],
-    parametros: ["id", "userId"],
-    area: "admin",
-    resumo: "PATCH /api/v1/admin/tenants/[id]/members/[userId]/email — o admin da\n plataforma corrige o e-mail de LOGIN de um membro do tenant.",
-  },
-  {
-    id: "admin/tenants/:id/reactivate",
-    caminho: "admin/tenants/[id]/reactivate",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/:id/suspend",
-    caminho: "admin/tenants/[id]/suspend",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/tenants/export",
-    caminho: "admin/tenants/export",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "GET /api/v1/admin/tenants/export — o inventário das instalações em CSV\n (issue #2777).",
-  },
-  {
-    id: "admin/usage",
-    caminho: "admin/usage",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/users",
-    caminho: "admin/users",
-    metodos: ["GET"],
-    parametros: [],
-    area: "admin",
-    resumo: "",
-  },
-  {
-    id: "admin/users/:id",
-    caminho: "admin/users/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "admin",
-    resumo: "",
-  },
   {
     id: "ads/meta/accounts",
     caminho: "ads/meta/accounts",
@@ -378,22 +113,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     id: "agenda/google/calendarios/atualizar",
     caminho: "agenda/google/calendarios/atualizar",
     metodos: ["POST"],
-    parametros: [],
-    area: "agenda",
-    resumo: "",
-  },
-  {
-    id: "agenda/google/callback",
-    caminho: "agenda/google/callback",
-    metodos: ["GET"],
-    parametros: [],
-    area: "agenda",
-    resumo: "",
-  },
-  {
-    id: "agenda/google/connect",
-    caminho: "agenda/google/connect",
-    metodos: ["GET"],
     parametros: [],
     area: "agenda",
     resumo: "",
@@ -693,38 +412,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: [],
     area: "ai",
     resumo: "POST /api/v1/ai/cases/alerta/teste — \"enviar aviso de teste\".",
-  },
-  {
-    id: "ai/credentials",
-    caminho: "ai/credentials",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "ai",
-    resumo: "",
-  },
-  {
-    id: "ai/credentials/:id",
-    caminho: "ai/credentials/[id]",
-    metodos: ["PATCH", "DELETE"],
-    parametros: ["id"],
-    area: "ai",
-    resumo: "",
-  },
-  {
-    id: "ai/credentials/:id/revalidate",
-    caminho: "ai/credentials/[id]/revalidate",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "ai",
-    resumo: "",
-  },
-  {
-    id: "ai/credentials/test",
-    caminho: "ai/credentials/test",
-    metodos: ["POST"],
-    parametros: [],
-    area: "ai",
-    resumo: "",
   },
   {
     id: "ai/evolution",
@@ -1263,30 +950,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "GET /api/v1/audit/export — CSV export of audit entries (up to 10k rows).",
   },
   {
-    id: "auth/interface",
-    caminho: "auth/interface",
-    metodos: ["GET"],
-    parametros: [],
-    area: "auth",
-    resumo: "",
-  },
-  {
-    id: "auth/realtime-token",
-    caminho: "auth/realtime-token",
-    metodos: ["GET"],
-    parametros: [],
-    area: "auth",
-    resumo: "GET /api/v1/auth/realtime-token — o token que o canal Realtime precisa.",
-  },
-  {
-    id: "auth/support",
-    caminho: "auth/support",
-    metodos: ["GET"],
-    parametros: [],
-    area: "auth",
-    resumo: "",
-  },
-  {
     id: "automation-rules",
     caminho: "automation-rules",
     metodos: ["GET", "POST"],
@@ -1711,14 +1374,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "",
   },
   {
-    id: "contacts/:id/avatar",
-    caminho: "contacts/[id]/avatar",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "contacts",
-    resumo: "GET /api/v1/contacts/{id}/avatar — serve a foto de perfil do contato.",
-  },
-  {
     id: "contacts/:id/carteira",
     caminho: "contacts/[id]/carteira",
     metodos: ["GET", "PATCH"],
@@ -1821,14 +1476,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: [],
     area: "contacts",
     resumo: "GET /api/v1/contacts/duplicates — quem é a MESMA pessoa cadastrada duas vezes.",
-  },
-  {
-    id: "contacts/export",
-    caminho: "contacts/export",
-    metodos: ["GET"],
-    parametros: [],
-    area: "contacts",
-    resumo: "GET /api/v1/contacts/export — a base de contatos DE VOLTA para quem opera\n (issue #2759).",
   },
   {
     id: "contacts/import",
@@ -1967,14 +1614,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "",
   },
   {
-    id: "conversations/:id/notes/:noteId/media",
-    caminho: "conversations/[id]/notes/[noteId]/media",
-    metodos: ["GET"],
-    parametros: ["id", "noteId"],
-    area: "conversations",
-    resumo: "GET /api/v1/conversations/[id]/notes/[noteId]/media — acesso autenticado à\n mídia ANEXADA À NOTA INTERNA (issue #1863, F3).",
-  },
-  {
     id: "conversations/:id/notes/media",
     caminho: "conversations/[id]/notes/media",
     metodos: ["POST"],
@@ -2071,419 +1710,11 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "",
   },
   {
-    id: "cron/agenda-expira-pendentes",
-    caminho: "cron/agenda-expira-pendentes",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O PEDIDO QUE NINGUÉM DECIDIU LIBERA O HORÁRIO.",
-  },
-  {
-    id: "cron/agenda-google-push",
-    caminho: "cron/agenda-google-push",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "",
-  },
-  {
-    id: "cron/agenda-google-refresh",
-    caminho: "cron/agenda-google-refresh",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/agenda-google-refresh — o anti-morte da agenda conectada.",
-  },
-  {
-    id: "cron/agenda-google-sync",
-    caminho: "cron/agenda-google-sync",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "",
-  },
-  {
-    id: "cron/agenda-reminder",
-    caminho: "cron/agenda-reminder",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O LEMBRETE DO COMPROMISSO — o consumidor que faltava.",
-  },
-  {
-    id: "cron/agent-dispatcher",
-    caminho: "cron/agent-dispatcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/agent-dispatcher\n  @deprecated Fase 0 (convergência, spec 2026-07-23): o dispatch nativo\n (S-13.07, Spec 10 §5) foi aposentado — o agent-worker (drain) é o único\n consumidor de `ai_agent.dispatch_requested`.",
-  },
-  {
-    id: "cron/campaign-worker",
-    caminho: "cron/campaign-worker",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/campaign-worker — uma rodada de campanha.",
-  },
-  {
-    id: "cron/canal-mudo-watcher",
-    caminho: "cron/canal-mudo-watcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "canal-mudo-watcher — o canal que nasce mudo não fica mudo em silêncio.",
-  },
-  {
-    id: "cron/case-stale-watcher",
-    caminho: "cron/case-stale-watcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O CASO QUE NINGUÉM ABRIU VOLTA A PEDIR PASSAGEM.",
-  },
-  {
-    id: "cron/channel-health",
-    caminho: "cron/channel-health",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "channel-health — o vigia que PERGUNTA se a conexão está de pé.",
-  },
-  {
-    id: "cron/channel-pause-scheduler",
-    caminho: "cron/channel-pause-scheduler",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "channel-pause-scheduler — a janela de manutenção pausa sozinha e RETOMA sozinha.",
-  },
-  {
-    id: "cron/cobranca",
-    caminho: "cron/cobranca",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O CRON DA COBRANÇA DO REVENDEDOR (spec §8): de hora em hora, pelo scheduler.",
-  },
-  {
-    id: "cron/contact-avatars",
-    caminho: "cron/contact-avatars",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "contact-avatars — baixa e mantém atualizada a foto de perfil dos contatos.",
-  },
-  {
-    id: "cron/contact-birthdays",
-    caminho: "cron/contact-birthdays",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O ANIVERSÁRIO DO CONTATO — a data que estava guardada e não acionava nada.",
-  },
-  {
-    id: "cron/contact-phones",
-    caminho: "cron/contact-phones",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "contact-phones — descobre o telefone por trás da identidade opaca.",
-  },
-  {
-    id: "cron/contact-proposals-watcher",
-    caminho: "cron/contact-proposals-watcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "Cron — fecha as propostas de dado que ninguém decidiu (spec 17 §4b).",
-  },
-  {
-    id: "cron/data-retention",
-    caminho: "cron/data-retention",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/data-retention — issue #261.",
-  },
-  {
-    id: "cron/event-log-drain",
-    caminho: "cron/event-log-drain",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/event-log-drain\n  Cron entry point for the generic event_log drain (Task 2, spec\n webhooks/automação 2026-07-17), scheduled by the `scheduler` service\n (`docker/scheduler/entrypoint.sh`).",
-  },
-  {
-    id: "cron/followup-flow-worker",
-    caminho: "cron/followup-flow-worker",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/followup-flow-worker — Onda 4 (Task 4.2) + Onda 8\n (Task 8.1, gatilho de silêncio).",
-  },
-  {
-    id: "cron/followup-sem-agente",
-    caminho: "cron/followup-sem-agente",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O FLUXO PUBLICADO QUE NUNCA VAI DISPARAR.",
-  },
-  {
-    id: "cron/handoff-devolucao",
-    caminho: "cron/handoff-devolucao",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/handoff-devolucao — devolve ao agente de IA a conversa\n que ficou com uma pessoa e passou do prazo sem nenhum sinal dela.",
-  },
-  {
-    id: "cron/kb-conversations-batch",
-    caminho: "cron/kb-conversations-batch",
-    metodos: ["GET"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET /api/v1/cron/kb-conversations-batch\n  Daily cron entry point for the conversations RAG ingestion (S-06.07).",
-  },
-  {
-    id: "cron/lead-date-field-due",
-    caminho: "cron/lead-date-field-due",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "A DATA DO FUNIL AVISA QUANDO FALTAM N DIAS (issue #989) — a varredura.",
-  },
-  {
-    id: "cron/lead-time-triggers",
-    caminho: "cron/lead-time-triggers",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "OS DOIS GATILHOS POR TEMPO (issue #1540) — a varredura.",
-  },
-  {
-    id: "cron/lgpd-sla-watcher",
-    caminho: "cron/lgpd-sla-watcher",
-    metodos: ["GET"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET /api/v1/cron/lgpd-sla-watcher\n  Daily cron (09:00 BRT / 12:00 UTC) — scans active lgpd_requests and fires\n SLA alarms when requests are approaching / past their threshold:\n   - data_request  → alarm if received_at <= now - 5 days  (D+5)\n   - redact / store_redact → alarm if received_at <= now - 10 days (D+10)\n  Auth: `Authorization: Bearer <INTERNAL_CRON_SECRET|INTERNAL_SECRET>` (fail-closed).",
-  },
-  {
-    id: "cron/media-retention",
-    caminho: "cron/media-retention",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET /api/v1/cron/media-retention\n  A retenção de mídia EXECUTADA (migration 0432).",
-  },
-  {
-    id: "cron/proposal-acceptance-rate",
-    caminho: "cron/proposal-acceptance-rate",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "",
-  },
-  {
-    id: "cron/proposal-expiry",
-    caminho: "cron/proposal-expiry",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "Cron diário: propostas ENVIADAS cujo valid_until passou sem decisão viram\n VENCIDAS e abrem aviso na Central.",
-  },
-  {
-    id: "cron/proposal-promised-not-created",
-    caminho: "cron/proposal-promised-not-created",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "Fecha o sinal que originou a spec inteira: uma promessa de proposta\n (Tarefa 1) vence sem que NENHUMA proposta tenha sido criada para aquele\n negócio depois da promessa.",
-  },
-  {
-    id: "cron/proposta-travada",
-    caminho: "cron/proposta-travada",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/proposta-travada — D3.",
-  },
-  {
-    id: "cron/prospecting",
-    caminho: "cron/prospecting",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "",
-  },
-  {
-    id: "cron/recover-stuck-messages",
-    caminho: "cron/recover-stuck-messages",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/recover-stuck-messages — issue #129.",
-  },
-  {
-    id: "cron/recurring-entries",
-    caminho: "cron/recurring-entries",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "Gera os lançamentos dos moldes recorrentes.",
-  },
-  {
-    id: "cron/risk-watcher",
-    caminho: "cron/risk-watcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/risk-watcher — wave 7, peça 5 (o ciclo).",
-  },
-  {
-    id: "cron/routing-worker",
-    caminho: "cron/routing-worker",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/routing-worker — G5-02 (AT-03, spec 13 §5).",
-  },
-  {
-    id: "cron/snooze-watcher",
-    caminho: "cron/snooze-watcher",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/snooze-watcher — Onda 5.3 (snooze por conversa).",
-  },
-  {
-    id: "cron/storage-redaction",
-    caminho: "cron/storage-redaction",
-    metodos: ["GET"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET /api/v1/cron/storage-redaction\n  Drains the LGPD `storage_redaction_queue` (one batch per call).",
-  },
-  {
-    id: "cron/sync-model-catalog",
-    caminho: "cron/sync-model-catalog",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/sync-model-catalog — o catálogo que se atualiza sozinho.",
-  },
-  {
-    id: "cron/task-reminder",
-    caminho: "cron/task-reminder",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "O LEMBRETE DE PRAZO DA TAREFA (#2529) — a varredura.",
-  },
-  {
-    id: "cron/webhook-log-retention",
-    caminho: "cron/webhook-log-retention",
-    metodos: ["GET"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET /api/v1/cron/webhook-log-retention\n  Poda o arquivo do corpo cru dos webhooks (`webhook_events_log`).",
-  },
-  {
-    id: "cron/webhook-replay",
-    caminho: "cron/webhook-replay",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "cron",
-    resumo: "GET/POST /api/v1/cron/webhook-replay — a mensagem que o banco recusou por um\n instante volta a ser tentada.",
-  },
-  {
     id: "demandas/:id",
     caminho: "demandas/[id]",
     metodos: ["PATCH"],
     parametros: ["id"],
     area: "demandas",
-    resumo: "",
-  },
-  {
-    id: "extensions",
-    caminho: "extensions",
-    metodos: ["GET"],
-    parametros: [],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/:id",
-    caminho: "extensions/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/:id/configuration",
-    caminho: "extensions/[id]/configuration",
-    metodos: ["PUT"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/:id/open",
-    caminho: "extensions/[id]/open",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/:id/remove",
-    caminho: "extensions/[id]/remove",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/:id/revert",
-    caminho: "extensions/[id]/revert",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/catalogs",
-    caminho: "extensions/catalogs",
-    metodos: ["POST"],
-    parametros: [],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/install",
-    caminho: "extensions/install",
-    metodos: ["POST"],
-    parametros: [],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/operations/:id",
-    caminho: "extensions/operations/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "extensions",
-    resumo: "",
-  },
-  {
-    id: "extensions/operations/:id/cancel",
-    caminho: "extensions/operations/[id]/cancel",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "extensions",
     resumo: "",
   },
   {
@@ -2639,14 +1870,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "Um lançamento: pagar, ou apagar enquanto ainda não é dinheiro.",
   },
   {
-    id: "health",
-    caminho: "health",
-    metodos: ["GET"],
-    parametros: [],
-    area: "health",
-    resumo: "GET /api/v1/health — Supabase, Redis e WAHA respondem?\n  ─── Por que cada check diz a CAUSA, e não só \"down\" ─────────────────────────\n A versão anterior devolvia `error: \"fetch failed\"` — a mensagem que o `fetch`\n dá para causas opostas.",
-  },
-  {
     id: "honorarios/contratos",
     caminho: "honorarios/contratos",
     metodos: ["GET", "POST"],
@@ -2684,14 +1907,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     metodos: ["GET"],
     parametros: ["id"],
     area: "imports",
-    resumo: "",
-  },
-  {
-    id: "integrations/nuvemshop/callback",
-    caminho: "integrations/nuvemshop/callback",
-    metodos: ["GET"],
-    parametros: [],
-    area: "integrations",
     resumo: "",
   },
   {
@@ -2839,60 +2054,12 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "GET /api/v1/leads/reactivations — as propostas de retomada VIVAS da org.",
   },
   {
-    id: "lgpd/anonymize",
-    caminho: "lgpd/anonymize",
-    metodos: ["POST"],
-    parametros: [],
-    area: "lgpd",
-    resumo: "",
-  },
-  {
-    id: "lgpd/requests",
-    caminho: "lgpd/requests",
-    metodos: ["GET"],
-    parametros: [],
-    area: "lgpd",
-    resumo: "GET /api/v1/lgpd/requests\n  Lista paginada de lgpd_requests para o tenant ativo.",
-  },
-  {
-    id: "lgpd/requests/:id",
-    caminho: "lgpd/requests/[id]",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "lgpd",
-    resumo: "GET /api/v1/lgpd/requests/[id]\n  Detail of a single lgpd_request + audit trail entries for that request.",
-  },
-  {
-    id: "lgpd/requests/:id/approve",
-    caminho: "lgpd/requests/[id]/approve",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "lgpd",
-    resumo: "",
-  },
-  {
-    id: "lgpd/requests/:id/preview",
-    caminho: "lgpd/requests/[id]/preview",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "lgpd",
-    resumo: "GET /api/v1/lgpd/requests/[id]/preview\n  Dry-run preview: returns COUNTS + SAMPLE (10 rows per category) of the data\n that would be exported or redacted for this request.",
-  },
-  {
     id: "marca/logo",
     caminho: "marca/logo",
     metodos: ["POST", "DELETE"],
     parametros: [],
     area: "marca",
     resumo: "",
-  },
-  {
-    id: "mcp/tools",
-    caminho: "mcp/tools",
-    metodos: ["GET"],
-    parametros: [],
-    area: "mcp",
-    resumo: "GET /api/v1/mcp/tools\n  Catalogo de tools MCP serializado para a UI consumir (Spec 11 + EPIC-13\n S-13.03 AC).",
   },
   {
     id: "message-templates",
@@ -2949,14 +2116,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: ["id"],
     area: "messages",
     resumo: "Ocultar uma mensagem recebida apenas no CRM, sem prometer exclusão no WhatsApp do cliente.",
-  },
-  {
-    id: "messages/:id/media",
-    caminho: "messages/[id]/media",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "messages",
-    resumo: "",
   },
   {
     id: "metrics/atrito",
@@ -3028,22 +2187,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     metodos: ["GET", "PUT", "DELETE"],
     parametros: [],
     area: "notifications",
-    resumo: "",
-  },
-  {
-    id: "onboarding/whatsapp/qr",
-    caminho: "onboarding/whatsapp/qr",
-    metodos: ["GET"],
-    parametros: [],
-    area: "onboarding",
-    resumo: "",
-  },
-  {
-    id: "onboarding/whatsapp/session",
-    caminho: "onboarding/whatsapp/session",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "onboarding",
     resumo: "",
   },
   {
@@ -3149,22 +2292,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: [],
     area: "pipelines",
     resumo: "GET /api/v1/pipelines/default — pipeline padrão da org ativa (o primeiro\n não-arquivado, se nenhum estiver marcado `is_default`), com estágios.",
-  },
-  {
-    id: "plataformas-de-anuncio/google/callback",
-    caminho: "plataformas-de-anuncio/google/callback",
-    metodos: ["GET"],
-    parametros: [],
-    area: "plataformas-de-anuncio",
-    resumo: "GET /api/v1/plataformas-de-anuncio/google/callback — a volta do\n consentimento do Google Ads.",
-  },
-  {
-    id: "plataformas-de-anuncio/google/connect",
-    caminho: "plataformas-de-anuncio/google/connect",
-    metodos: ["GET"],
-    parametros: [],
-    area: "plataformas-de-anuncio",
-    resumo: "GET /api/v1/plataformas-de-anuncio/google/connect — começa a conexão da\n organização com o Google Ads.",
   },
   {
     id: "products",
@@ -3367,22 +2494,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "GET /api/v1/reports/tags — o RELATÓRIO POR ETIQUETA (fatia F1 da #1833):\n qual assunto ocupou a operação neste período, e quanto tempo ele esperou.",
   },
   {
-    id: "settings/api-tokens",
-    caminho: "settings/api-tokens",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "settings",
-    resumo: "",
-  },
-  {
-    id: "settings/api-tokens/:id/revoke",
-    caminho: "settings/api-tokens/[id]/revoke",
-    metodos: ["POST"],
-    parametros: ["id"],
-    area: "settings",
-    resumo: "",
-  },
-  {
     id: "settings/art15",
     caminho: "settings/art15",
     metodos: ["PATCH"],
@@ -3469,46 +2580,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: [],
     area: "settings",
     resumo: "GET   /api/v1/settings/task-plans — os planos de tarefa da organização.",
-  },
-  {
-    id: "system/agent",
-    caminho: "system/agent",
-    metodos: ["POST"],
-    parametros: [],
-    area: "system",
-    resumo: "POST /api/v1/system/agent — endpoint ÚNICO do agente do host.",
-  },
-  {
-    id: "system/instalacao",
-    caminho: "system/instalacao",
-    metodos: ["GET"],
-    parametros: [],
-    area: "system",
-    resumo: "O RETRATO DA INSTALAÇÃO — o que já veio pronto e o que falta.",
-  },
-  {
-    id: "system/relogio/tick",
-    caminho: "system/relogio/tick",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "system",
-    resumo: "",
-  },
-  {
-    id: "system/update",
-    caminho: "system/update",
-    metodos: ["POST"],
-    parametros: [],
-    area: "system",
-    resumo: "",
-  },
-  {
-    id: "system/version",
-    caminho: "system/version",
-    metodos: ["GET"],
-    parametros: [],
-    area: "system",
-    resumo: "GET /api/v1/system/version — estado da atualização para a tela.",
   },
   {
     id: "tags/cores",
@@ -3607,14 +2678,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     resumo: "",
   },
   {
-    id: "team/invites",
-    caminho: "team/invites",
-    metodos: ["GET"],
-    parametros: [],
-    area: "team",
-    resumo: "GET /api/v1/team/invites — convites da organização ativa (migration 0238).",
-  },
-  {
     id: "team/invites/:id/resend",
     caminho: "team/invites/[id]/resend",
     metodos: ["POST"],
@@ -3629,14 +2692,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: ["id"],
     area: "team",
     resumo: "POST /api/v1/team/invites/[id]/revoke — cancela um convite pendente.",
-  },
-  {
-    id: "tenants/provision",
-    caminho: "tenants/provision",
-    metodos: ["POST"],
-    parametros: [],
-    area: "tenants",
-    resumo: "POST /api/v1/tenants/provision — um sistema externo cria (ou reencontra,\n idempotente por integração + id externo) uma organização e recebe uma chave\n de API `dsk_…` para operá-la.",
   },
   {
     id: "voice/calls",
@@ -3733,110 +2788,6 @@ export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [
     parametros: [],
     area: "voip",
     resumo: "GET /api/v1/voip/trunk — configuração do trunk SIP da org ativa (manager+),\n                           via view segura (nunca expõe a senha cifrada).",
-  },
-  {
-    id: "webhook-sources",
-    caminho: "webhook-sources",
-    metodos: ["GET", "POST"],
-    parametros: [],
-    area: "webhook-sources",
-    resumo: "",
-  },
-  {
-    id: "webhook-sources/:id",
-    caminho: "webhook-sources/[id]",
-    metodos: ["PATCH", "DELETE"],
-    parametros: ["id"],
-    area: "webhook-sources",
-    resumo: "",
-  },
-  {
-    id: "webhook-sources/:id/events",
-    caminho: "webhook-sources/[id]/events",
-    metodos: ["GET"],
-    parametros: ["id"],
-    area: "webhook-sources",
-    resumo: "GET /api/v1/webhook-sources/[id]/events — feed de recebimentos da fonte\n (últimos 20), pra UI mostrar \"chegou / não chegou\" em tempo quase real\n depois do botão \"Enviar lead de teste\".",
-  },
-  {
-    id: "webhooks/channel/:token",
-    caminho: "webhooks/channel/[token]",
-    metodos: ["POST"],
-    parametros: ["token"],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/channel/[token] — entrada por token, para qualquer canal.",
-  },
-  {
-    id: "webhooks/cobranca/:provedor",
-    caminho: "webhooks/cobranca/[provedor]",
-    metodos: ["POST"],
-    parametros: ["provedor"],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/cobranca/[provedor] — o aviso do provedor de pagamento\n (spec da cobrança do revendedor §7c, §2.4).",
-  },
-  {
-    id: "webhooks/in/:token",
-    caminho: "webhooks/in/[token]",
-    metodos: ["POST"],
-    parametros: ["token"],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/in/[token] — captação pública de leads.",
-  },
-  {
-    id: "webhooks/meta/:token",
-    caminho: "webhooks/meta/[token]",
-    metodos: ["GET", "POST"],
-    parametros: ["token"],
-    area: "webhooks",
-    resumo: "GET|POST /api/v1/webhooks/meta/[token] — webhook da WhatsApp Cloud API.",
-  },
-  {
-    id: "webhooks/nuvemshop/:event",
-    caminho: "webhooks/nuvemshop/[event]",
-    metodos: ["POST"],
-    parametros: ["event"],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/nuvemshop/[event]\n  Catch-all receiver for the 8 mandatory Nuvemshop webhooks.",
-  },
-  {
-    id: "webhooks/nuvemshop/customer-data-request",
-    caminho: "webhooks/nuvemshop/customer-data-request",
-    metodos: ["POST"],
-    parametros: [],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/nuvemshop/customer-data-request\n  Receives Nuvemshop `customer/data_request` LGPD webhook.",
-  },
-  {
-    id: "webhooks/nuvemshop/customer-redact",
-    caminho: "webhooks/nuvemshop/customer-redact",
-    metodos: ["POST"],
-    parametros: [],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/nuvemshop/customer-redact\n  Receives Nuvemshop `customer/redact` LGPD webhook.",
-  },
-  {
-    id: "webhooks/nuvemshop/store-redact",
-    caminho: "webhooks/nuvemshop/store-redact",
-    metodos: ["POST"],
-    parametros: [],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/nuvemshop/store-redact\n  Receives Nuvemshop `store/redact` LGPD webhook — the \"nuclear\" webhook\n emitted when a merchant uninstalls the app.",
-  },
-  {
-    id: "webhooks/waha",
-    caminho: "webhooks/waha",
-    metodos: ["POST"],
-    parametros: [],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/waha — global webhook receiver (no path token).",
-  },
-  {
-    id: "webhooks/waha/:token",
-    caminho: "webhooks/waha/[token]",
-    metodos: ["POST"],
-    parametros: ["token"],
-    area: "webhooks",
-    resumo: "POST /api/v1/webhooks/waha/[token]\n  Rota per-tenant canônica de produção: cada channel_session tem um\n webhook_path_token único url-safe.",
   },
 ] as const;
 
@@ -4611,6 +3562,112 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
   "voip/trunk": async () => {
     const mod = await import("@/app/api/v1/voip/trunk/route");
     return { GET: mod.GET };
+  },
+};
+
+// Carregadores de escrita permitida (apenas ESCRITA_PERMITIDA).
+// O bundler nao aceita import com caminho variavel, entao cada um e um
+// import() de caminho literal, no padrao de proposta-comum.ts.
+export const CARREGADORES_DE_ESCRITA: Record<string, () => Promise<Record<string, unknown>>> = {
+  "agenda/agendamentos": async () => {
+    const mod = await import("@/app/api/v1/agenda/agendamentos/route");
+    return { POST: mod.POST };
+  },
+  "agenda/configuracao": async () => {
+    const mod = await import("@/app/api/v1/agenda/configuracao/route");
+    return { PATCH: mod.PATCH };
+  },
+  "ai/agents": async () => {
+    const mod = await import("@/app/api/v1/ai/agents/route");
+    return { POST: mod.POST };
+  },
+  "ai/agents/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/agents/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "ai/followup-flows": async () => {
+    const mod = await import("@/app/api/v1/ai/followup-flows/route");
+    return { POST: mod.POST };
+  },
+  "ai/followup-flows/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/followup-flows/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "ai/knowledge/sources": async () => {
+    const mod = await import("@/app/api/v1/ai/knowledge/sources/route");
+    return { POST: mod.POST };
+  },
+  "ai/knowledge/sources/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/knowledge/sources/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "ai/memory": async () => {
+    const mod = await import("@/app/api/v1/ai/memory/route");
+    return { POST: mod.POST };
+  },
+  "ai/routers": async () => {
+    const mod = await import("@/app/api/v1/ai/routers/route");
+    return { POST: mod.POST };
+  },
+  "ai/routers/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/routers/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "campaign-templates": async () => {
+    const mod = await import("@/app/api/v1/campaign-templates/route");
+    return { POST: mod.POST };
+  },
+  "campaign-templates/:id": async () => {
+    const mod = await import("@/app/api/v1/campaign-templates/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "contacts/:id": async () => {
+    const mod = await import("@/app/api/v1/contacts/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "contacts/:id/personal": async () => {
+    const mod = await import("@/app/api/v1/contacts/[id]/personal/route");
+    return { POST: mod.POST };
+  },
+  "leads": async () => {
+    const mod = await import("@/app/api/v1/leads/route");
+    return { POST: mod.POST };
+  },
+  "leads/:id": async () => {
+    const mod = await import("@/app/api/v1/leads/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "leads/:id/move": async () => {
+    const mod = await import("@/app/api/v1/leads/[id]/move/route");
+    return { POST: mod.POST };
+  },
+  "pipelines": async () => {
+    const mod = await import("@/app/api/v1/pipelines/route");
+    return { POST: mod.POST };
+  },
+  "pipelines/:id": async () => {
+    const mod = await import("@/app/api/v1/pipelines/[id]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "pipelines/:id/stages": async () => {
+    const mod = await import("@/app/api/v1/pipelines/[id]/stages/route");
+    return { POST: mod.POST };
+  },
+  "pipelines/:id/stages/:stageId": async () => {
+    const mod = await import("@/app/api/v1/pipelines/[id]/stages/[stageId]/route");
+    return { PATCH: mod.PATCH };
+  },
+  "tags/vocabulario": async () => {
+    const mod = await import("@/app/api/v1/tags/vocabulario/route");
+    return { POST: mod.POST };
+  },
+  "tasks": async () => {
+    const mod = await import("@/app/api/v1/tasks/route");
+    return { POST: mod.POST };
+  },
+  "tasks/:id": async () => {
+    const mod = await import("@/app/api/v1/tasks/[id]/route");
+    return { PATCH: mod.PATCH };
   },
 };
 

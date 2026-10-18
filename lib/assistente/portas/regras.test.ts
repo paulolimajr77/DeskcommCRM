@@ -106,14 +106,28 @@ describe("portaDeLeituraPermitida", () => {
     expect(portaDeLeituraPermitida("pipelines/:id/board")).toBe(true);
   });
 
-  it("toda porta com prefixo proibido é falsa", () => {
+  it("nenhuma porta do catalogo casa com PREFIXOS_PROIBIDOS", () => {
     for (const p of CATALOGO_DE_PORTAS) {
       const proibida = PREFIXOS_PROIBIDOS.some((pre) =>
         casaComPrefixo(p.id, pre),
       );
-      if (proibida) {
-        expect(portaDeLeituraPermitida(p.id)).toBe(false);
-      }
+      expect(proibida).toBe(false);
+    }
+  });
+
+  it("ids reais proibidos (fora do catalogo) sao false em leitura e escrita", () => {
+    const proibidosReais = [
+      "cron/agenda-expira-pendentes",
+      "admin/audit",
+      "admin/lgpd/requests",
+      "webhooks/channel",
+    ];
+    for (const id of proibidosReais) {
+      expect(portaDeLeituraPermitida(id)).toBe(false);
+      expect(escritaPermitida(id, "POST")).toBe(false);
+      expect(escritaPermitida(id, "PATCH")).toBe(false);
+      expect(escritaPermitida(id, "PUT")).toBe(false);
+      expect(escritaPermitida(id, "DELETE")).toBe(false);
     }
   });
 

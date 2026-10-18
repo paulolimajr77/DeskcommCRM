@@ -20,6 +20,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  AREAS_SO_LEITURA,
+  ESCRITA_PERMITIDA,
   casaComPrefixo,
   ehProibida,
   PREFIXOS_PROIBIDOS,
@@ -27,7 +29,7 @@ import {
   SUFIXOS_PROIBIDOS,
 } from "../lib/assistente/portas/listas";
 
-const ROOT = "D:/PROJETOS VIBE CODING/DeskcommCRM-agente-interno";
+const ROOT = process.cwd();
 const API_DIR = path.join(ROOT, "app", "api", "v1");
 const OUT = path.join(ROOT, "lib", "assistente", "portas", "catalogo.gerado.ts");
 
@@ -121,10 +123,15 @@ export function montarConteudoCatalogo(portas: readonly Porta[]): string {
   linhas.push("");
   linhas.push('import type { Metodo, PortaDoCatalogo } from "./tipos";');
   linhas.push("");
-  linhas.push("// Todas as portas do catalogo (inclusive as proibidas, para a regra");
-  linhas.push("// poder recusar por nome).");
+
+  // Portas proibidas (prefixo, exata ou sufixo OAuth) saem do catalogo por
+  // completo: id fora do catálogo já é recusado por portaDeLeituraPermitida e
+  // escritaPermitida.
+  const permitidas = ordenadas.filter((p) => !ehProibida(p.id));
+
+  linhas.push("// Todas as portas do catalogo (apenas as nao proibidas).");
   linhas.push("export const CATALOGO_DE_PORTAS: readonly PortaDoCatalogo[] = [");
-  for (const p of ordenadas) {
+  for (const p of permitidas) {
     linhas.push("  {");
     linhas.push("    id: " + JSON.stringify(p.id) + ",");
     linhas.push("    caminho: " + JSON.stringify(p.caminho) + ",");
@@ -159,6 +166,29 @@ export function montarConteudoCatalogo(portas: readonly Porta[]): string {
     const modulo = "@/app/api/v1/" + p.caminho + "/route";
     linhas.push("    const mod = await import(" + JSON.stringify(modulo) + ");");
     linhas.push("    return { GET: mod.GET };");
+    linhas.push("  },");
+  }
+  linhas.push("};");
+  linhas.push("");
+
+  // Carregadores de escrita: apenas as portas da lista branca ESCRITA_PERMITIDA,
+  // devolvendo o metodo aprovado. O bundler nao aceita import com caminho
+  // variavel, entao cada um e um import() de caminho literal.
+  const escrita = ordenadas.filter((p) =>
+    ESCRITA_PERMITIDA.some((e) => e.porta === p.id && p.metodos.includes(e.metodo)),
+  );
+  linhas.push("// Carregadores de escrita permitida (apenas ESCRITA_PERMITIDA).");
+  linhas.push("// O bundler nao aceita import com caminho variavel, entao cada um e um");
+  linhas.push("// import() de caminho literal, no padrao de proposta-comum.ts.");
+  linhas.push(
+    "export const CARREGADORES_DE_ESCRITA: Record<string, () => Promise<Record<string, unknown>>> = {",
+  );
+  for (const p of escrita) {
+    const metodo = ESCRITA_PERMITIDA.find((e) => e.porta === p.id)!.metodo;
+    linhas.push("  " + JSON.stringify(p.id) + ": async () => {");
+    const modulo = "@/app/api/v1/" + p.caminho + "/route";
+    linhas.push("    const mod = await import(" + JSON.stringify(modulo) + ");");
+    linhas.push("    return { " + metodo + ": mod." + metodo + " };");
     linhas.push("  },");
   }
   linhas.push("};");
@@ -219,12 +249,12 @@ function main() {
   }
   console.log("Portas por metodo: " + JSON.stringify(porMetodo));
 
-  const leitura = portas.filter(
-    (p) => p.metodos.includes("GET") && !ehProibida(p.id),
-  );
+  const permitidas = portas.filter((p) => !ehProibida(p.id));
+  const leitura = permitidas.filter((p) => p.metodos.includes("GET"));
   const proibidas = portas.filter((p) => ehProibida(p.id));
+  console.log("Portas no catalogo (nao proibidas): " + permitidas.length);
   console.log("Leitura permitidas: " + leitura.length);
-  console.log("Proibidas por prefixo: " + proibidas.length);
+  console.log("Proibidas (fora do catalogo): " + proibidas.length);
 
   const conteudo = montarConteudoCatalogo(portas);
   fs.mkdirSync(path.dirname(OUT), { recursive: true });

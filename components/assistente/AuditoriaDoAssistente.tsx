@@ -63,11 +63,19 @@ function corDoEstado(estado: string): string {
 
 export function AuditoriaDoAssistente({
   aberto,
+  abaAtiva,
   ehAdmin,
   aoPedir,
 }: {
-  /** O painel está aberto? Cada abertura recarrega a auditoria. */
+  /** O painel está aberto? */
   aberto: boolean;
+  /**
+   * A aba DA AUDITORIA está à vista? O painel monta as três abas de uma vez e
+   * esconde as inativas por CSS — sem esta prop a busca sairia no instante em que
+   * o painel abrisse, ainda na aba Conversa, e uma falha da rota viraria um
+   * `role="alert"` de erro no meio da conversa. Passa a buscar quando a aba abre.
+   */
+  abaAtiva: boolean;
   /** Só admin roda novamente (mutação POST). */
   ehAdmin: boolean;
   /** Deixa a frase pronta no chat do assistente (a pessoa confere e envia). */
@@ -79,7 +87,7 @@ export function AuditoriaDoAssistente({
 
   const query = useQuery({
     queryKey: QUERY_KEY,
-    enabled: aberto && ehAdmin,
+    enabled: aberto && abaAtiva && ehAdmin,
     queryFn: async () => {
       const r = await apiClient.get<{ data: RetratoNaTela[] }>(
         "/api/v1/ai/assistente/auditoria?limit=10"

@@ -74,11 +74,16 @@ const RETRATO_NOVO = {
 };
 const RETRATO_ANTIGO = { ...RETRATO_NOVO, id: "r1", taken_at: "2026-10-15T09:00:00Z", pendencias: 5 };
 
-function montar(props: { ehAdmin: boolean; aoPedir?: (f: string) => void }) {
+function montar(props: { ehAdmin: boolean; abaAtiva?: boolean; aoPedir?: (f: string) => void }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <AuditoriaDoAssistente aberto ehAdmin={props.ehAdmin} aoPedir={props.aoPedir} />
+      <AuditoriaDoAssistente
+        aberto
+        abaAtiva={props.abaAtiva ?? true}
+        ehAdmin={props.ehAdmin}
+        aoPedir={props.aoPedir}
+      />
     </QueryClientProvider>,
   );
 }
@@ -159,5 +164,15 @@ describe("a aba Auditoria", () => {
     expect(await screen.findByTestId("auditoria-vazia")).toBeTruthy();
     expect(screen.queryByTestId("auditoria-rodar")).toBeNull();
     expect(chamadas.lista).toEqual([]);
+  });
+
+  it("com a aba de OUTRA seção à vista, não busca nada — a falha da rota não vira alerta na conversa", async () => {
+    // O painel monta as três abas de uma vez e esconde as inativas por CSS. Sem
+    // `abaAtiva` a busca saía no instante em que o painel abria, ainda na aba
+    // Conversa, e o `role="alert"` de erro da auditoria aparecia no meio dela.
+    montar({ ehAdmin: true, abaAtiva: false });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(chamadas.lista).toEqual([]);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

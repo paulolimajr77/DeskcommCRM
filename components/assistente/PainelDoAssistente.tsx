@@ -157,7 +157,12 @@ export function PainelDoAssistente() {
       ) : null}
       {ehAdmin ? (
         <div className={cn("flex min-h-0 flex-1 flex-col", aba === "auditoria" ? "flex" : "hidden")}>
-          <AuditoriaDoAssistente aberto={aberto} ehAdmin={ehAdmin} aoPedir={aoPedirAoAssistente} />
+          <AuditoriaDoAssistente
+            aberto={aberto}
+            abaAtiva={aba === "auditoria"}
+            ehAdmin={ehAdmin}
+            aoPedir={aoPedirAoAssistente}
+          />
         </div>
       ) : null}
     </aside>

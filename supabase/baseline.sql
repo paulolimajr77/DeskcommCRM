@@ -52154,10 +52154,10 @@ begin
   return new;
 end;
 $fn$;
--- ---- chat do assistente interno: config_threads/messages (migration 0698) ----
+-- ---- chat do assistente interno: config_threads/messages (migration 9001) ----
 -- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel) + DONO da conversa (created_by = auth.uid(): a resposta carrega números de métricas com papel mínimo); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- chat do assistente interno: config_threads/messages (migration 0698) ----
+-- ---- chat do assistente interno: config_threads/messages (migration 9001) ----
 create table if not exists public.config_threads (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations(id) on delete cascade,
@@ -52290,10 +52290,10 @@ $$;
 revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
 grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
 
--- ---- skills do assistente interno: seed de plataforma (migration 0700) ----
+-- ---- skills do assistente interno: seed de plataforma (migration 9003) ----
 -- manifest: **Skills do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Semeia 4 skills de plataforma (`organization_id null`): assistente-operacao, assistente-metricas, assistente-prompt, assistente-cliente-novo — conteúdo operacional condensado das guias `.agents/skills/`, corpo com no máximo 200 linhas cada. Lidas pelo chat via loadSkills + matchSkills. Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- skills do assistente interno: seed de plataforma (migration 0700) ----
+-- ---- skills do assistente interno: seed de plataforma (migration 9003) ----
 do $seed$
 declare
   v_id uuid;
@@ -52458,10 +52458,10 @@ $body$,
 end
 $seed$;
 
--- ---- limites de perguntas do assistente interno (migration 0701) ----
+-- ---- limites de perguntas do assistente interno (migration 9004) ----
 -- manifest: **Limites de perguntas do assistente interno, definidos pelo administrador (spec 2026-10-14-agente-interno-planos, T6).** Duas colunas em `ai_budgets` — `assistant_questions_per_user_day` (padrão 60) e `assistant_questions_per_org_day` (null = sem limite) — com CHECK de faixa, e o índice `config_messages_contagem_idx` (organization_id, created_at) que sustenta a contagem das últimas 24 h. Escrita só pela rota `PATCH ai/budget` (service role). Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- limites de perguntas do assistente interno (migration 0701) ----
+-- ---- limites de perguntas do assistente interno (migration 9004) ----
 -- Duas colunas, e a decisão de cada uma:
 --   * por pessoa, por dia: NOT NULL com padrão 60. As linhas que já existem
 --     ganham 60 no mesmo comando (o Postgres preenche o padrão), então não há
@@ -55432,10 +55432,10 @@ begin
       )
     );
 end $$;
--- ---- propostas de configuração do assistente (migration 0699) ----
+-- ---- propostas de configuração do assistente (migration 9002) ----
 -- manifest: **Propostas de configuração do assistente interno, F2b (spec 2026-10-14-agente-interno-config-design §5/§7b).** Cria `config_proposals` (1 proposta = 1 artefato; propor não cria nada, o efeito nasce no `aplicar` depois do aprovar): 5 estados com coerência por CHECK, idempotência por turno, leitura e inserção só do admin pela sessão (update/delete exclusivos do servidor, na T20) e gatilho que só deixa `aplicar` sair de `aprovada`. Retenção = a do tenant, na MESMA dívida assumida de `fn_expurgar_config_assistente_vencida` (sem chamador até a F3). Idempotente; apêndice igual no `baseline.sql`.
 
--- ---- propostas de configuração do assistente (migration 0699) ----
+-- ---- propostas de configuração do assistente (migration 9002) ----
 -- Retenção (decisão §8.4 da spec, dívida assumida): `config_proposals` segue a
 -- retenção operacional do tenant e entra na mesma dívida de
 -- `fn_expurgar_config_assistente_vencida` — a função existe desde a F1 (migration
@@ -56262,7 +56262,7 @@ notify pgrst, 'reload schema';
 -- cada verificação, contagem de pendências), permitindo à tela mostrar a
 -- evolução ("ontem faltavam 5, hoje 3"). Retenção igual à do tenant; o expurgo
 -- é ligado no cron `data-retention` (F3). Apêndice idempotente no baseline.
--- ---- snapshots de auditoria do assistente (migration 0702) ----
+-- ---- snapshots de auditoria do assistente (migration 9005) ----
 create table if not exists public.config_snapshots (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations(id) on delete cascade,

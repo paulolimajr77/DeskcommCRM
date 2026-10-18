@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0701 — mesma cerca da 0700.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 9004 — mesma cerca da 9003.
  *
  * O kit self-host aplica SÓ o `baseline.sql`. Uma migration que não está no
  * apêndice não chega a quem instalou numa VPS; e as colunas novas de
@@ -13,9 +13,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261022100300_0701_limites_de_perguntas_do_assistente.sql";
+const MIGRATION = "supabase/migrations/20261022100300_9004_limites_de_perguntas_do_assistente.sql";
 
-describe("o apêndice do baseline espelha a migration 0701", () => {
+describe("o apêndice do baseline espelha a migration 9004", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {
     expect(existsSync(join(RAIZ, MIGRATION))).toBe(true);
     const migration = readFileSync(join(RAIZ, MIGRATION), "utf8");

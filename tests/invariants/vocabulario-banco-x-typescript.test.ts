@@ -512,7 +512,7 @@ const PARES: Array<{
     tabela: "config_proposals",
     coluna: "kind",
     // lib/assistente/propostas/tipos.ts → TIPOS_DE_PROPOSTA (tupla `as const`).
-    // Migration 0699 (assistente interno, F2b): o tipo que a ferramenta de propor
+    // Migration 9002 (assistente interno, F2b): o tipo que a ferramenta de propor
     // grava. Um tipo só no TypeScript viraria `23514` no INSERT da sessão do admin.
     arquivo: "lib/assistente/propostas/tipos.ts",
     simbolo: "TIPOS_DE_PROPOSTA",

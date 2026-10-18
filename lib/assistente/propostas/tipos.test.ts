@@ -18,7 +18,7 @@ const MIGRATION = join(
   "..",
   "supabase",
   "migrations",
-  "20261022100100_0699_config_proposals.sql",
+  "20261022100100_9002_config_proposals.sql",
 );
 
 const PERMITIDAS: ReadonlyArray<readonly [StatusDaProposta, StatusDaProposta]> = [
@@ -39,7 +39,7 @@ function listaDoCheck(coluna: string): string[] {
     sqlDaMigration(),
   );
   if (m === null) {
-    throw new Error(`não achei o CHECK de ${coluna} na migration 0699 — o instrumento ficou cego`);
+    throw new Error(`não achei o CHECK de ${coluna} na migration 9002 — o instrumento ficou cego`);
   }
   const valores = [...(m[1] as string).matchAll(/'([^']+)'/g)].map((x) => x[1] as string);
   if (valores.length === 0) throw new Error(`o CHECK de ${coluna} não rendeu literal nenhum`);
@@ -83,7 +83,7 @@ describe("podeTransitar — a máquina de estados da proposta", () => {
   });
 });
 
-describe("paridade com o banco: a migration 0699", () => {
+describe("paridade com o banco: a migration 9002", () => {
   it("TIPOS_DE_PROPOSTA = CHECK de kind", () => {
     expect([...TIPOS_DE_PROPOSTA].sort()).toEqual(listaDoCheck("kind").sort());
   });

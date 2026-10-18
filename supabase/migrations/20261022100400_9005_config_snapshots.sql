@@ -3,7 +3,7 @@
 -- cada verificação, contagem de pendências), permitindo à tela mostrar a
 -- evolução ("ontem faltavam 5, hoje 3"). Retenção igual à do tenant; o expurgo
 -- é ligado no cron `data-retention` (F3). Apêndice idempotente no baseline.
--- ---- snapshots de auditoria do assistente (migration 0702) ----
+-- ---- snapshots de auditoria do assistente (migration 9005) ----
 create table if not exists public.config_snapshots (
   id                uuid primary key default gen_random_uuid(),
   organization_id   uuid not null references public.organizations(id) on delete cascade,
@@ -43,13 +43,13 @@ create policy tenant_isolation_config_snapshots_insert
     and taken_by = auth.uid()
   );
 
--- Trava de suporte (mesma razão da 0699: o baseline concede default privileges
+-- Trava de suporte (mesma razão da 9002: o baseline concede default privileges
 -- que dariam UPDATE/DELETE a authenticated sem este revoke).
 revoke all on public.config_snapshots from anon, authenticated;
 grant select, insert on public.config_snapshots to authenticated;
 
 -- ── Extensão do expurgo de config assistente (F3, dívida de retenção) ───────
--- `fn_expurgar_config_assistente_vencida` existe desde a 0698 (F1) e só
+-- `fn_expurgar_config_assistente_vencida` existe desde a 9001 (F1) e só
 -- apagava `config_messages` e `config_threads`. A F3 acrescenta
 -- `config_proposals` vencidas e `config_snapshots` além da retenção — mesmo
 -- corpo no baseline, para o kit self-host não divergir.
@@ -67,7 +67,7 @@ declare
   v_apagadas int := 0;
   v_n int;
 begin
-  -- config_messages (0698, existente — mantido)
+  -- config_messages (9001, existente — mantido)
   with vencidas as (
     select m.id from public.config_messages m
      where m.created_at < now() - make_interval(days => v_dias)
@@ -78,7 +78,7 @@ begin
   get diagnostics v_n = row_count;
   v_apagadas := v_apagadas + v_n;
 
-  -- config_threads órfãos (0698, existente — mantido)
+  -- config_threads órfãos (9001, existente — mantido)
   with orfas as (
     select t.id from public.config_threads t
      where t.created_at < now() - make_interval(days => v_dias)
@@ -117,7 +117,7 @@ begin
 end;
 $$;
 
--- As DUAS origens de EXECUTE (mesma razão da 0698: fechar ambas).
+-- As DUAS origens de EXECUTE (mesma razão da 9001: fechar ambas).
 revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
 grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
 

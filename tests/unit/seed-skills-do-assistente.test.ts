@@ -1,5 +1,5 @@
 /**
- * SEED DAS SKILLS DO ASSISTENTE (migration 0700) — convenções medidas no arquivo.
+ * SEED DAS SKILLS DO ASSISTENTE (migration 9003) — convenções medidas no arquivo.
  *
  * As 4 skills `assistente-*` são lidas pelo chat via loadSkills+matchSkills.
  * Duas regras mecânicas: corpo com no máximo 200 linhas (teto de
@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261022100200_0700_skills_do_assistente.sql";
+const MIGRATION = "supabase/migrations/20261022100200_9003_skills_do_assistente.sql";
 
 function corpos(): string[] {
   const sql = readFileSync(join(RAIZ, MIGRATION), "utf8");

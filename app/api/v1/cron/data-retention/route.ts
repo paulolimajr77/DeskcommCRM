@@ -637,8 +637,8 @@ export async function podarHistorico(
   const ritmoDrenado = await executarDreno(falhas, "fn_expurgar_ritmo_de_envio_vencido", () => drenar(db, "fn_expurgar_ritmo_de_envio_vencido", ritmoDeEnvio.dias), zerado);
   const copiasDrenadas = await executarDreno(falhas, "fn_expurgar_copias_enviadas_vencidas", () => drenar(db, "fn_expurgar_copias_enviadas_vencidas", copiasEnviadas.dias), zerado);
   const checkpointsDrenados = await executarDreno(falhas, "fn_expurgar_checkpoints_superados", () => drenar(db, "fn_expurgar_checkpoints_superados", checkpoints.dias), zerado);
-  // Décima sétima poda (F3, migration 0702): o expurgo do assistente — config_messages,
-  // config_threads (0698, existente) mais config_proposals vencidas e
+  // Décima sétima poda (F3, migration 9005): o expurgo do assistente — config_messages,
+  // config_threads (9001, existente) mais config_proposals vencidas e
   // config_snapshots além da retenção. O piso de 90 dias mora no CORPO da função.
   const configAssistente = await executarDreno(falhas, "fn_expurgar_config_assistente_vencida", () => drenar(db, "fn_expurgar_config_assistente_vencida", 365), zerado);
 

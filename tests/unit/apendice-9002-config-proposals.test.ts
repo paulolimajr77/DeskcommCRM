@@ -1,5 +1,5 @@
 /**
- * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 0699 — mesma cerca da 0698.
+ * O APÊNDICE DO BASELINE É ESPELHO EXATO DA MIGRATION 9002 — mesma cerca da 9001.
  *
  * A migration cria `config_proposals` (propostas de configuração do assistente
  * interno, F2b). O kit self-host aplica SÓ o `baseline.sql`; sem espelho exato, o
@@ -12,13 +12,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
-const MIGRATION = "supabase/migrations/20261022100100_0699_config_proposals.sql";
+const MIGRATION = "supabase/migrations/20261022100100_9002_config_proposals.sql";
 
 function ler(caminho: string): string {
   return readFileSync(join(RAIZ, caminho), "utf8");
 }
 
-describe("o apêndice do baseline espelha a migration 0699", () => {
+describe("o apêndice do baseline espelha a migration 9002", () => {
   it("controle: os dois arquivos existem e não estão vazios", () => {
     expect(existsSync(join(RAIZ, MIGRATION))).toBe(true);
     expect(ler(MIGRATION).length).toBeGreaterThan(1000);
@@ -47,18 +47,18 @@ describe("o apêndice do baseline espelha a migration 0699", () => {
   it("o apêndice entra ANTES da varredura de anon (função nova não pode ficar abaixo dela)", () => {
     const baseline = ler("supabase/baseline.sql");
     // O rótulo repete (apêndice + corpo da migration): ancora na ÚLTIMA ocorrência.
-    const bloco = baseline.lastIndexOf("-- ---- propostas de configuração do assistente (migration 0699) ----");
+    const bloco = baseline.lastIndexOf("-- ---- propostas de configuração do assistente (migration 9002) ----");
     const varredura = baseline.indexOf("-- ---- VARREDURA anon:");
     expect(bloco).toBeGreaterThan(-1);
     expect(varredura).toBeGreaterThan(-1);
     expect(bloco).toBeLessThan(varredura);
   });
 
-  it("o baseline traz o bloco 0699 uma única vez", () => {
+  it("o baseline traz o bloco 9002 uma única vez", () => {
     const baseline = ler("supabase/baseline.sql");
-    const rotulo = "-- ---- propostas de configuração do assistente (migration 0699) ----";
+    const rotulo = "-- ---- propostas de configuração do assistente (migration 9002) ----";
     // O rótulo aparece duas vezes por desenho (o do apêndice e o do cabeçalho do próprio
-    // corpo da migration, como nos blocos 0698/0700/0701): nunca mais que isso.
+    // corpo da migration, como nos blocos 9001/9003/9004): nunca mais que isso.
     expect(baseline.split(rotulo).length - 1).toBe(2);
     expect(baseline.split("create table if not exists public.config_proposals").length - 1).toBe(1);
   });

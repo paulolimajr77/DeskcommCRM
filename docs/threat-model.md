@@ -322,7 +322,7 @@ lados):
    Nenhuma delas chama rota de escrita de roteador, conhecimento, memória,
    provedor ou funil (só GET e o POST de propostas); `credential_id` não existe.
 6. **Insert pela sessão do admin, aplicação só na T20.** O POST de propostas usa
-   o cliente da SESSÃO (RLS da 0699: `requested_by = auth.uid()`, `status =
+   o cliente da SESSÃO (RLS da 9002: `requested_by = auth.uid()`, `status =
    'pendente'`, papel admin), nunca service role; `organization_id` e `risk`
    saem da sessão e do código. O audit (`assistente.proposta_criada`) leva só
    tipo, operação e risco, sem o texto. Nada muda no negócio até o clique de
@@ -332,7 +332,7 @@ lados):
    `aplicar` em `propostas/[id]/…`) são sessão-cookie, `requireSupportWrite`
    antes de qualquer efeito e `requireRole("admin")` da SESSÃO; `[id]` é
    validado como uuid. O GET nunca escreve (`vencida` é CALCULADO, nunca
-   coluna). A mudança de estado é exclusiva do servidor (a 0699 tirou
+   coluna). A mudança de estado é exclusiva do servidor (a 9002 tirou
    `update` de `authenticated`): compare-and-swap no pool de serviço com o
    estado esperado na PRÓPRIA condição e `organization_id` da sessão como
    parâmetro — nunca do corpo; zero linhas lê a linha (com org) para explicar

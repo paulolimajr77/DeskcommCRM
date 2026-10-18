@@ -112,9 +112,9 @@ test.afterAll(async () => {
 async function abrirPropostas(page: import("./helpers/test").Page): Promise<void> {
   await page.getByTestId("assistente-link").click();
   await expect(page.getByRole("complementary", { name: "Assistente" })).toBeVisible();
-  await expect(
-    page.getByText("Tem 2 mudanças esperando você.", { exact: true }),
-  ).toBeVisible();
+  // O número depende de quantas já foram decididas por testes anteriores desta
+  // sequência (a rejeitada sai da contagem); o anúncio existe enquanto houver pendente.
+  await expect(page.getByText(/^Tem (1 mudança|\d+ mudanças) esperando você\.$/)).toBeVisible();
 }
 
 /**
@@ -129,6 +129,8 @@ function cartaDaTela(page: import("./helpers/test").Page, resumo: string) {
 test("o anúncio marca 2 e os cartões mostram prazo, risco com texto e o aviso", async ({ page }) => {
   await loginComoAdmin(page, creds);
   await abrirPropostas(page);
+  // Primeiro caso da sequência: nada foi decidido ainda, então são as duas.
+  await expect(page.getByText("Tem 2 mudanças esperando você.", { exact: true })).toBeVisible();
 
   const faq = cartaDaTela(page, RESUMO_FAQ);
   const roteador = cartaDaTela(page, RESUMO_ROTEADOR);

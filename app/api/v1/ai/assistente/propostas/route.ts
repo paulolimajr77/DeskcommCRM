@@ -118,7 +118,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 const COLUNAS_DA_RESPOSTA = "id, kind, risk, status, resumo, expires_at, payload";
 
 /** A resposta pública do POST: nunca devolve o payload, só a operação que ele carrega. */
-function dadosDaResposta(linha: LinhaDaProposta) {
+export function dadosDaResposta(linha: LinhaDaProposta) {
   const payload =
     linha.payload !== null && typeof linha.payload === "object"
       ? (linha.payload as { operacao?: unknown } | null)

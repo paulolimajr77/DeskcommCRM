@@ -81,11 +81,11 @@ async function proporMudanca(
     return { ok: false, motivo: "indisponivel" };
   }
 
-  const dados =
+  const corpoResposta =
     typeof resposta.corpo === "object" && resposta.corpo !== null
-      ? (resposta.corpo as { id?: string })
+      ? (resposta.corpo as { data?: { id?: string } })
       : undefined;
-  const propostaId = dados?.id;
+  const propostaId = corpoResposta?.data?.id;
   if (!propostaId) {
     return { ok: false, motivo: "indisponivel" };
   }

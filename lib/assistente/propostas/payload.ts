@@ -308,15 +308,20 @@ export const esquemaDoCorpoDaProposta = z
     z.strictObject({ ...campos, kind: z.literal("acao"), payload: esquemaDeAcao }),
   ])
   .superRefine((proposta, ctx) => {
-    // `acao` é exceção consciente: `porta`+`metodo` no payload são validados pela
-    // lista branca `escritaPermitida` (regras.ts), não são caminho livre. Não
-    // aplicamos `temChaveDeDestino` a `acao` — a porta já foi aprovada por quem
-    // escreveu as regras de escrita (T1), e o aplicar confere `escritaPermitida`
-    // de novo antes de escrever (rota de aplicar, T4).
+    // Cada esquema de tipo já é .strictObject(), então chaves extras são
+    // rejeitadas no nível do membro. A exceção consciente é `acao`: `porta` e
+    // `metodo` no payload são intencionais, não caminho livre — mas ainda são
+    // validados por `escritaPermitida` (regras.ts), que confere a lista branca.
+    // O aplicar confere `escritaPermitida` de novo antes de escrever (T4).
     if (proposta.kind !== "acao") {
       const destino = temChaveDeDestino(proposta.payload);
       if (destino !== null) {
         ctx.addIssue({ code: "custom", path: ["payload"], message: `O payload não escolhe destino (${destino}).` });
+      }
+    } else {
+      const p = proposta.payload as { porta: string; metodo: string };
+      if (!escritaPermitida(p.porta, p.metodo as "POST" | "PATCH" | "PUT")) {
+        ctx.addIssue({ code: "custom", path: ["payload"], message: "A porta não libera esse método de escrita." });
       }
     }
     if (bytesDe(proposta.payload) > LIMITE_DO_PAYLOAD_EM_BYTES) {

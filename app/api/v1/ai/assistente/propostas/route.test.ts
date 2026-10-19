@@ -23,10 +23,21 @@ vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async (
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+// Porta de escrita para as propostas `acao` usadas nos testes de idempotência.
+vi.mock("@/lib/assistente/portas/regras", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/assistente/portas/regras")>();
+  return {
+    ...actual,
+    escritaPermitida: vi.fn((id: string, metodo: string) =>
+      id === "contacts/:id" && metodo === "PATCH" ? true : id === "ai/agents" && metodo === "POST",
+    ),
+  };
+});
 
 const { POST } = await import("@/app/api/v1/ai/assistente/propostas/route");
 const { createClient } = await import("@/lib/supabase/server");
 const { createAdminClient } = await import("@/lib/supabase/admin");
+import { escritaPermitida } from "@/lib/assistente/portas/regras";
 
 const ORG_ID = "11111111-2222-4333-8444-555555555551";
 const OUTRA_ORG = "99999999-2222-4333-8444-555555555559";
@@ -156,6 +167,7 @@ beforeEach(() => {
   vi.mocked(createAdminClient).mockImplementation(() => {
     throw new Error("o cliente de serviço não pode ser usado para propor");
   });
+  vi.mocked(escritaPermitida).mockImplementation(() => true);
   sessao("admin");
 });
 
@@ -335,6 +347,111 @@ describe("idempotência do turno", () => {
         ["kind", "memoria"],
       ]),
     );
+  });
+
+  it("duas acao DIFERENTES no mesmo turno são aceitas em inserts separados (a unicidade é do índice 9006, provada no CI)", async () => {
+    const acao1 = {
+      kind: "acao",
+      resumo: "Renomear o contato principal",
+      motivo: "O cliente trocou de razão social.",
+      antes: null,
+      payload: { porta: "contacts/:id", metodo: "PATCH", valores: { id: ROTEADOR }, corpo: { name: "Novo" } },
+      turn_id: TURN_ID,
+    };
+    const acao2 = {
+      kind: "acao",
+      resumo: "Criar o agente de suporte",
+      motivo: "Falta um agente dedicado ao suporte.",
+      antes: null,
+      payload: { porta: "ai/agents", metodo: "POST", corpo: { name: "Suporte" } },
+      turn_id: TURN_ID,
+    };
+
+    const r1 = await POST(requisicao(acao1));
+    const r2 = await POST(requisicao(acao2));
+
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    expect(estado.insercoes).toHaveLength(2);
+  });
+
+  it("a MESMA acao repetida no mesmo turno devolve a já existente (23505), sem segundo audit", async () => {
+    const acao = {
+      kind: "acao",
+      resumo: "Renomear o contato principal",
+      motivo: "O cliente trocou de razão social.",
+      antes: null,
+      payload: { porta: "contacts/:id", metodo: "PATCH", valores: { id: ROTEADOR }, corpo: { name: "Novo" } },
+      turn_id: TURN_ID,
+    };
+    await POST(requisicao(acao));
+    expect(audit).toHaveBeenCalledTimes(1);
+    estado.erroNoInsert = { code: "23505", message: "duplicate key value violates unique constraint" };
+    estado.filtros = [];
+
+    const segunda = await POST(requisicao(acao));
+
+    expect(segunda.status).toBe(200);
+    const json = (await segunda.json()) as { data: { id: string; kind: string; status: string } };
+    expect(json.data).toMatchObject({ id: PROPOSTA_ID, kind: "acao", status: "pendente" });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(estado.propostas).toHaveLength(1);
+  });
+
+  it("acao com porta fora da lista branca é recusada com 422 (superRefine confere escritaPermitida)", async () => {
+    vi.mocked(escritaPermitida).mockReturnValue(false);
+
+    const acaoPortaProibida = {
+      kind: "acao",
+      resumo: "Tentar porta proibida",
+      motivo: "Não deve passar.",
+      antes: null,
+      payload: { porta: "cron/routing-worker", metodo: "POST", corpo: {} },
+      turn_id: TURN_ID,
+    };
+
+    const resposta = await POST(requisicao(acaoPortaProibida));
+
+    expect(resposta.status).toBe(422);
+    const json = (await resposta.json()) as { error: { code: string; message: string; details?: Array<{ message: string }> } };
+    expect(json.error.code).toBe("validation_failed");
+    expect(json.error.details?.[0]?.message).toContain("não libera esse método de escrita");
+  });
+
+  it("tipo NÃO-acao com url aninhada no payload continua recusado (sem regressão)", async () => {
+    const memoriaComUrl = {
+      kind: "memoria",
+      resumo: "Guardar link",
+      motivo: "Não deve passar url.",
+      antes: null,
+      payload: { operacao: "criar", corpo: { title: "x", body: "y", url: "https://exemplo.com" } },
+      turn_id: TURN_ID,
+    };
+
+    const resposta = await POST(requisicao(memoriaComUrl));
+
+    expect(resposta.status).toBe(422);
+    const json = (await resposta.json()) as { error: { code: string; message: string } };
+    expect(json.error.code).toBe("validation_failed");
+    expect(json.error.message).toBe("O conteúdo da proposta não pode escolher o destino.");
+  });
+
+  it("roteador com metodo no payload continua recusado (acao não contagia outros tipos)", async () => {
+    const roteadorComMetodo = {
+      kind: "roteador",
+      resumo: "Criar roteador",
+      motivo: "Não deve passar metodo no payload.",
+      antes: null,
+      payload: { operacao: "criar", corpo: { name: "x", channel_session_id: ROTEADOR, metodo: "DELETE" } },
+      turn_id: TURN_ID,
+    };
+
+    const resposta = await POST(requisicao(roteadorComMetodo));
+
+    expect(resposta.status).toBe(422);
+    const json = (await resposta.json()) as { error: { code: string; message: string } };
+    expect(json.error.code).toBe("validation_failed");
+    expect(json.error.message).toBe("O conteúdo da proposta não pode escolher o destino.");
   });
 
   it("outro erro do banco é 500 e não audita", async () => {

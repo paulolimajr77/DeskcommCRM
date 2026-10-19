@@ -173,6 +173,12 @@ export const contactListQuerySchema = z.object({
     .union([z.boolean(), z.enum(["true", "false"])])
     .optional()
     .transform((v) => v === true || v === "true"),
+  /**
+   * Filtra contatos cujo aniversário (mês/dia, coluna `birthday_md`) cai no
+   * período, no fuso da organização. Calculado no handler (`_handler.ts`),
+   * porque precisa do fuso da org — que só o banco sabe.
+   */
+  aniversario: z.enum(["hoje", "semana", "mes"]).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   order_by: z.enum(CONTACT_ORDER_BY).default("last_activity_at"),

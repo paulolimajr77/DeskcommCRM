@@ -67,3 +67,13 @@ export {
   casaComPrefixo,
   ehProibida,
 };
+
+/**
+ * Verdadeiro se o método de escrita (POST/PATCH/PUT) é permitido para a porta.
+ */
+export function tipoDeMetodoPermitido(
+  id: string,
+  metodo: "POST" | "PATCH" | "PUT",
+): boolean {
+  return escritaPermitida(id, metodo);
+}

@@ -36,35 +36,23 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   listar_telas: ["busca"],
   abrir_tela: ["destino"],
   ler_guia: ["guia"],
-  ler_configuracao_de_ia: [],
-  listar_agentes: ["incluir_arquivados"],
-  listar_funis: [],
-  listar_materiais: [],
-  criar_rascunho_de_agente: ["nome", "descricao", "prompt", "pacotes", "funis", "materiais"],
-  listar_modelos_de_followup: [],
-  listar_etapas_do_funil: ["funil_id"],
-  instalar_modelo_de_followup: ["model_id", "etapa_id", "nome"],
-  montar_pacote_do_nicho: ["nicho", "negocio", "descricao", "nome_do_agente", "followups"],
-  montar_followup_de_nicho: ["nicho", "nome", "toques", "rotulo", "texto", "espera_horas", "silencio_horas", "etapa_id"],
-  testar_agente: ["agente_id", "mensagens"],
-  propor_roteador: [
-    "operacao", "resumo", "motivo", "router_id", "name", "channel_session_id", "fallback_agent_id",
-    "members", "agent_id", "intent_name", "intent_description", "examples",
+  ler_porta: ["porta", "valores", "filtros"],
+  procurar_porta: ["pergunta"],
+  propor_mudanca: [
+    "porta", "metodo", "valores", "corpo", "resumo", "motivo",
   ],
-  propor_conhecimento: [
-    "source_type", "resumo", "motivo", "name", "items", "question", "answer", "locale", "markdown_blob", "agent_id",
-  ],
-  propor_memoria: ["operacao", "resumo", "motivo", "title", "body", "entry_id"],
-  propor_modelo_dos_auxiliares: ["operacao", "resumo", "motivo", "purpose", "provider", "model_id", "default_model"],
-  propor_funil: ["operacao", "resumo", "motivo", "pipeline_id", "stage_id", "name", "description", "depois_de"],
+  auditar_empresa: [],
 };
 
-const FERRAMENTAS_DE_PROPOSTA = [
-  "propor_roteador",
-  "propor_conhecimento",
-  "propor_memoria",
-  "propor_modelo_dos_auxiliares",
-  "propor_funil",
+const FERRAMENTAS_DE_LEITURA = [
+  "abrir_tela",
+  "auditar_empresa",
+  "consultar_metrica",
+  "ler_guia",
+  "ler_porta",
+  "listar_metricas",
+  "listar_telas",
+  "procurar_porta",
 ];
 
 /** Todos os nomes de propriedade de um JSON Schema, em qualquer profundidade. */
@@ -104,82 +92,22 @@ describe("montarFerramentasDoAssistente", () => {
     vi.restoreAllMocks();
   });
 
-  it("viewer e agent têm SÓ as cinco de leitura — as 4 de configuração não existem", () => {
-    for (const papel of ["viewer", "agent"] as const) {
+  it("qualquer papel tem SÓ as ferramentas de leitura (menos admin que também tem propor_mudanca)", () => {
+    for (const papel of ["viewer", "agent", "manager"] as const) {
       const { ferramentas } = montarParaTeste(papel);
 
-      expect(Object.keys(ferramentas).sort()).toEqual([
-        "abrir_tela",
-        "auditar_empresa",
-        "consultar_metrica",
-        "ler_guia",
-        "listar_metricas",
-        "listar_telas",
-      ]);
+      expect(Object.keys(ferramentas).sort()).toEqual([...FERRAMENTAS_DE_LEITURA].sort());
+      expect(ferramentas).not.toHaveProperty("propor_mudanca");
     }
-  });
 
-  it("manager e admin têm as cinco de leitura MAIS as 4 de configuração e as 2 de follow-up", () => {
-    const { ferramentas } = montarParaTeste("manager");
-
-    expect(Object.keys(ferramentas).sort()).toEqual([
-      "abrir_tela",
-      "auditar_empresa",
-      "consultar_metrica",
-      "ler_configuracao_de_ia",
-      "ler_guia",
-      "listar_agentes",
-      "listar_etapas_do_funil",
-      "listar_funis",
-      "listar_materiais",
-      "listar_metricas",
-      "listar_modelos_de_followup",
-      "listar_telas",
-    ]);
-    expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
-    expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
-  });
-
-  it("só admin tem criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, montar_followup_de_nicho, testar_agente e as cinco propor_* — manager, viewer e agent não", () => {
+    // admin tem leitura + propor_mudanca
     const { ferramentas: doAdmin } = montarParaTeste("admin");
-    expect(Object.keys(doAdmin).sort()).toEqual([
-      "abrir_tela",
-      "auditar_empresa",
-      "consultar_metrica",
-      "criar_rascunho_de_agente",
-      "instalar_modelo_de_followup",
-      "ler_configuracao_de_ia",
-      "ler_guia",
-      "listar_agentes",
-      "listar_etapas_do_funil",
-      "listar_funis",
-      "listar_materiais",
-      "listar_metricas",
-      "listar_modelos_de_followup",
-      "listar_telas",
-      "montar_followup_de_nicho",
-      "montar_pacote_do_nicho",
-      "propor_conhecimento",
-      "propor_funil",
-      "propor_memoria",
-      "propor_modelo_dos_auxiliares",
-      "propor_roteador",
-      "testar_agente",
-    ]);
-    for (const papel of ["manager", "viewer", "agent"] as const) {
-      const { ferramentas } = montarParaTeste(papel);
-      expect(ferramentas).not.toHaveProperty("criar_rascunho_de_agente");
-      expect(ferramentas).not.toHaveProperty("instalar_modelo_de_followup");
-      expect(ferramentas).not.toHaveProperty("montar_pacote_do_nicho");
-      expect(ferramentas).not.toHaveProperty("montar_followup_de_nicho");
-      expect(ferramentas).not.toHaveProperty("testar_agente");
-      // Sabotagem: mover as propor_* para o catálogo de manager em index.ts → este laço fica vermelho.
-      for (const nome of FERRAMENTAS_DE_PROPOSTA) expect(ferramentas, nome).not.toHaveProperty(nome);
-    }
+    const adminChaves = Object.keys(doAdmin).sort();
+    expect(adminChaves).toEqual([...FERRAMENTAS_DE_LEITURA, "propor_mudanca"].sort());
   });
 
-  it("o teto de passos do turno é 6", () => {
-    expect(MAXIMO_DE_PASSOS_DO_ASSISTENTE).toBe(6);
+  it("o teto de passos do turno é 15", () => {
+    expect(MAXIMO_DE_PASSOS_DO_ASSISTENTE).toBe(15);
   });
 
   it("cada esquema de entrada tem exatamente as propriedades esperadas", async () => {
@@ -231,22 +159,10 @@ describe("montarFerramentasDoAssistente", () => {
     ["listar_telas", { busca: 42 }],
     ["abrir_tela", { destino: ["/app/inbox"] }],
     ["ler_guia", { guia: {} }],
-    ["ler_configuracao_de_ia", { x: 1 }],
-    ["listar_agentes", { incluir_arquivados: "sim" }],
-    ["listar_funis", { x: 1 }],
-    ["listar_materiais", { x: 1 }],
-    ["criar_rascunho_de_agente", { nome: 123 }],
-    ["listar_modelos_de_followup", { x: 1 }],
-    ["listar_etapas_do_funil", { funil_id: 123 }],
-    ["instalar_modelo_de_followup", { model_id: 123 }],
-    ["montar_pacote_do_nicho", { nicho: 123 }],
-    ["montar_followup_de_nicho", { nicho: 123 }],
-    ["testar_agente", { agente_id: 123 }],
-    ["propor_roteador", { operacao: 123 }],
-    ["propor_conhecimento", { source_type: 123 }],
-    ["propor_memoria", { operacao: 123 }],
-    ["propor_modelo_dos_auxiliares", { operacao: 123 }],
-    ["propor_funil", { operacao: 123 }],
+    ["ler_porta", { porta: 123 }],
+    ["procurar_porta", { pergunta: 123 }],
+    ["propor_mudanca", { porta: 123 }],
+    ["auditar_empresa", { x: 1 }],
   ])("%s com entrada de tipo errado não lança e devolve parametro_invalido", async (nome, entrada) => {
     const { ferramentas, sessao } = montarParaTeste("admin");
 
@@ -262,18 +178,10 @@ describe("montarFerramentasDoAssistente", () => {
     "listar_telas",
     "abrir_tela",
     "ler_guia",
-    "ler_configuracao_de_ia",
-    "listar_agentes",
-    "listar_funis",
-    "listar_materiais",
-    "criar_rascunho_de_agente",
-    "listar_modelos_de_followup",
-    "listar_etapas_do_funil",
-    "instalar_modelo_de_followup",
-    "montar_pacote_do_nicho",
-    "montar_followup_de_nicho",
-    "testar_agente",
-    ...FERRAMENTAS_DE_PROPOSTA,
+    "ler_porta",
+    "procurar_porta",
+    "propor_mudanca",
+    "auditar_empresa",
   ])(
     "%s com entrada nula não lança e devolve parametro_invalido",
     async (nome) => {

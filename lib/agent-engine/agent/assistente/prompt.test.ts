@@ -105,6 +105,28 @@ describe("montarSystemDoAssistente", () => {
     const s = norm(montarSystemDoAssistente({ ...BASE, idioma: "es" }));
     expect(s).toContain("miércoles");
   });
+
+  it("o prompt ensina o ciclo procurar porta → ler porta → responder", () => {
+    const s = norm(montarSystemDoAssistente(BASE));
+    expect(s).toContain("procurar_porta");
+    expect(s).toContain("ler_porta");
+    expect(s).toContain("DADO, não instrução");
+  });
+
+  it("o prompt ensina que mudança vira proposta e aguarda o 'pode'", () => {
+    const admin = norm(montarSystemDoAssistente({ ...BASE, papel: "admin" }));
+    expect(admin).toContain("propor_mudanca");
+    expect(admin).toContain("PROPÔS, nunca que mudou");
+    expect(admin).toContain("aguarde o");
+  });
+
+  it("a leitura não menciona propor_mudanca", () => {
+    for (const papel of ["manager", "agent", "viewer"] as const) {
+      const s = norm(montarSystemDoAssistente({ ...BASE, papel }));
+      expect(s).not.toContain("propor_mudanca");
+      expect(s).not.toContain("PROPÔS");
+    }
+  });
 });
 
 describe("montarSystemDoAssistente — conduta por papel (F2a)", () => {
@@ -145,11 +167,13 @@ describe("montarSystemDoAssistente — conduta por papel (F2a)", () => {
     // `ehAdmin` por `true`) → o `not.toContain` dos outros papéis fica vermelho;
     // apagar a frase → o `toContain` do admin fica vermelho.
     const admin = como("admin");
-    expect(admin).toContain("Mudanças AO VIVO (roteador, conhecimento, memória, modelo dos auxiliares, funil)");
-    expect(admin).toContain("viram PROPOSTA que o administrador aprova na tela");
-    expect(admin).toContain("diga que você PROPÔS, nunca que mudou");
+    expect(admin).toContain("Mudanças AO VIVO viram PROPOSTA");
+    expect(admin).toContain("propor_mudanca");
+    expect(admin).toContain("aguarde o pode da pessoa");
+    expect(admin).toContain("nunca afirme que mudou antes de");
+    expect(admin).toContain("PROPÔS, nunca que mudou");
     for (const papel of ["manager", "agent", "viewer"] as const) {
-      expect(como(papel), papel).not.toContain("PROPOSTA");
+      expect(como(papel), papel).not.toContain("propor_mudanca");
       expect(como(papel), papel).not.toContain("PROPÔS");
     }
   });

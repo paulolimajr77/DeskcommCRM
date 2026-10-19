@@ -110,6 +110,7 @@ export const DESTINO_DAS_OPERACOES: Readonly<
       descricao: "Renomeia ou reposiciona uma etapa de um funil.",
     },
   },
+  acao: {},
 };
 
 /** Risco por TIPO — decidido pelo código; `critico` não existe (não há ferramenta de proposta para ele). */
@@ -119,6 +120,7 @@ export const RISCO_POR_TIPO: Readonly<Record<TipoDeProposta, RiscoDaProposta>> =
   memoria: "seguro",
   modelo_auxiliares: "atencao",
   funil: "atencao",
+  acao: "atencao",
 };
 
 export function riscoDoTipo(tipo: TipoDeProposta): RiscoDaProposta {

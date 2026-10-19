@@ -244,7 +244,9 @@ export async function enviarProposta(
   const operacao =
     typeof dados.operacao === "string"
       ? dados.operacao
-      : (validacao.data.payload.operacao as string);
+      : validacao.data.kind === "acao"
+        ? (validacao.data.payload as { metodo: string }).metodo
+        : (validacao.data.payload as { operacao: string }).operacao;
 
   // Mesmo turno e mesmo tipo: a rota devolve a proposta que JÁ existia (idempotência).
   // Se não é a que acabamos de descrever, a nova NÃO foi criada — e dizer o contrário seria mentir.

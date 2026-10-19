@@ -32,6 +32,7 @@
     "lint:role-rank": "tsx scripts/lint-role-rank.ts",
     "checar:colisao-de-migration": "bash scripts/checar-colisao-de-migration.sh",
     "skills:sync": "tsx scripts/sincronizar-skills.ts",
+    "portas:gerar": "tsx scripts/gerar-catalogo-de-portas.ts",
     "release:conferir": "tsx scripts/cortar-release.ts",
     "release:cortar": "tsx scripts/cortar-release.ts --escrever",
     "release:acervo-cabe": "tsx scripts/acervo-cabe-na-tela.ts",

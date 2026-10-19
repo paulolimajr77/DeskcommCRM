@@ -59159,3 +59159,72 @@ notify pgrst, 'reload schema';
 -- reconstruir a constraint num segundo bloco é o que
 -- `tests/unit/baseline-constraint-reconstruida.test.ts` reprova. Par de
 -- `MOTIVOS_DA_PASSAGEM`/`FRASE_DO_MOTIVO` em `lib/escalacao/passagem.ts`.
+
+-- ---- config_proposals acao (migration 9006) ----
+-- ---- config_proposals acao (migration 9006) ----
+
+-- O CHECK de kind é inline (sem nome explícito na 9002): o Postgres batiza `config_proposals_kind_check`. Trocamos para incluir 'acao'.
+alter table public.config_proposals drop constraint if exists config_proposals_kind_check;
+alter table public.config_proposals add constraint config_proposals_kind_check check (kind in ('roteador','conhecimento','memoria','modelo_auxiliares','funil','acao'));
+
+-- O índice de turno único vale só para kinds que não são 'acao': duas propostas de ação diferentes no mesmo turno podem coexistir.
+drop index if exists config_proposals_turno_unico;
+create unique index if not exists config_proposals_turno_unico
+  on public.config_proposals (organization_id, turn_id, kind)
+  where turn_id is not null and kind <> 'acao';
+
+-- Mesmo ação repetida no mesmo turno: o md5 do payload é a impressão digital da ação.
+create unique index if not exists config_proposals_acao_turno_unico
+  on public.config_proposals (organization_id, turn_id, md5(payload::text))
+  where turn_id is not null and kind = 'acao';
+
+-- ---- skill assistente-sistema-vivo (migration 9007) ----
+-- ---- skill assistente-sistema-vivo (migration 9007) ----
+do $seed$
+declare
+  v_id uuid;
+begin
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-sistema-vivo'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-sistema-vivo', 'Gate de arquitetura: nada é ilha, todo laço se fecha, o laço de retorno fecha quando o sistema erra.',
+      $corpo_sv$# Sistema Vivo — gate de arquitetura
+
+Toda peça do sistema é um polvo: recebe e distribui. Ninguém morre por falta de resposta, de resolução, ou porque ninguém viu.
+
+## Os 7 invariantes (responda ANTES de declarar pronto)
+
+1. **Nada é ilha**: ≥1 aresta de entrada e ≥1 de saída.
+2. **Continuidade nas duas direções**: IA→humano entrega contexto pronto; humano→IA deixa input estruturado.
+3. **Log universal e visível**: emite atividade E aparece na tela.
+4. **Nenhuma demanda sem próximo passo**: follow-up é o anti-morte.
+5. **Informação com propósito**: todo dado responde "e daí?".
+6. **Configuração tem superfície**: ver + mudar + falha visível.
+7. **Todo laço se fecha**: decisão automática tem retorno que altera decisão futura.
+
+## A regra do tempo
+
+- **Observar** em realtime é direito do humano: painel, inbox, fila, falha, conversa ao vivo.
+- **Agir** em realtime costuma ser errado: quanto mais irreversível o efeito, maior o intervalo entre decidir e consumar. Enviar mensagem a uma pessoa é irreversível.
+
+## Antes de propor mudança
+
+Conferir quem consome e quem alimenta. Toda peça nova entra com ≥2 arestas (entrada e saída).
+
+## No DeskcommCRM
+
+- Registro: `event_log`, `audit()` de `lib/audit/` → `api_audit_log`, `crm_lead_activities`.
+- Tela: Timeline no inbox, Radar de Risco (`/app/radar`), painéis em `app/app/`.
+- Porta: `lib/navigation/registry.ts` ou allowlist com justificativa escrita em `tests/unit/navegacao-completude.test.ts`.
+- Anti-morte: Motor de follow-up (`lib/followup/`, `lib/agent-engine/cron/`) + Radar de Risco.
+- Continuidade IA↔humano: `buildHandoffSummary()` em `lib/agent-engine/agent/human-handoff.ts`.
+- Mapa: `docs/architecture/*.json`.
+$corpo_sv$,
+      '{"any_keywords": ["sistema vivo", "invariante", "nada e ilha", "laço de retorno", "anti-morte", "continuidade", "configuração", "mapa", "porte", "registro", "tela", "gate de arquitetura"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-sistema-vivo', v_id);
+  end if;
+end
+$seed$;

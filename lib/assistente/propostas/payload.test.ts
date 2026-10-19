@@ -58,6 +58,11 @@ const EXEMPLOS = {
     criar_etapa: { operacao: "criar_etapa", pipeline_id: ID, corpo: { name: "Aguardando retorno" } },
     alterar_etapa: { operacao: "alterar_etapa", pipeline_id: ID, stage_id: ID_2, corpo: { name: "Em negociação" } },
   },
+  acao: {
+    // Exceção consciente: `metodo` no payload é permitido porque `porta`+`metodo`
+    // são validados pela lista branca `escritaPermitida`, não são caminho livre.
+    alterar_contato: { porta: "contacts/:id", metodo: "PATCH", valores: { id: ID }, corpo: { name: "Novo" } },
+  },
 } as const;
 
 function proposta(kind: string, payload: unknown, extra: Record<string, unknown> = {}) {
@@ -69,8 +74,8 @@ describe("esquemaDoCorpoDaProposta — o que entra", () => {
     Object.entries(ops).map(([operacao, payload]) => [kind, operacao, payload] as const),
   );
 
-  it("cobre as 11 operações curadas", () => {
-    expect(todas).toHaveLength(11);
+  it("cobre as 12 operações curadas (incluindo ação)", () => {
+    expect(todas).toHaveLength(12);
   });
 
   it.each(todas)("aceita %s/%s com um exemplo mínimo", (kind, _operacao, payload) => {
@@ -99,6 +104,8 @@ describe("esquemaDoCorpoDaProposta — o que NÃO entra", () => {
       corpo: { ...(payload.corpo as object), campo_inventado: "x" },
     });
     for (const [kind, ops] of Object.entries(EXEMPLOS)) {
+      // `acao` tem `corpo: z.unknown()` — corpo livre da chamada interna, sem `.strict()`.
+      if (kind === "acao") continue;
       for (const [operacao, payload] of Object.entries(ops)) {
         const r = esquemaDoCorpoDaProposta.safeParse(proposta(kind, comExtra(payload as Record<string, unknown>)));
         expect(r.success, `${kind}/${operacao} aceitou campo inventado no corpo`).toBe(false);
@@ -302,6 +309,8 @@ describe("o destino não mora no dado", () => {
     for (const [kind, ops] of Object.entries(EXEMPLOS)) {
       for (const [operacao, payload] of Object.entries(ops)) {
         expect(esquemaDoCorpoDaProposta.safeParse(proposta(kind, payload)).success).toBe(true);
+        // `acao` é exceção consciente: `metodo` no payload é válido (lista branca valida).
+        if (kind === "acao") continue;
         expect(temChaveDeDestino(payload), `${kind}/${operacao}`).toBeNull();
         for (const chave of ["rota", "url", "path", "method", "metodo"]) {
           const naRaiz = { ...payload, [chave]: "/api/v1/ai/routers" };
@@ -361,6 +370,7 @@ describe("OPERACOES_ACEITAS", () => {
       memoria: ["criar", "arquivar"],
       modelo_auxiliares: ["definir_ponto", "definir_padrao"],
       funil: ["criar_funil", "criar_etapa", "alterar_etapa"],
+      acao: [],
     });
     expect(Object.keys(ESQUEMA_DO_PAYLOAD_POR_TIPO).sort()).toEqual([...TIPOS_DE_PROPOSTA].sort());
   });

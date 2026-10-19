@@ -19,6 +19,7 @@ export const TIPOS_DE_PROPOSTA = [
   "memoria",
   "modelo_auxiliares",
   "funil",
+  "acao",
 ] as const;
 export type TipoDeProposta = (typeof TIPOS_DE_PROPOSTA)[number];
 

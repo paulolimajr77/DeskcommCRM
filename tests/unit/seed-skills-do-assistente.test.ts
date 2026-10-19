@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..");
 const MIGRATION = "supabase/migrations/20261022100200_9003_skills_do_assistente.sql";
+const MIGRATION_9007 = "supabase/migrations/20261022100600_9007_skill_assistente_sistema_vivo.sql";
 
 function corpos(): string[] {
   const sql = readFileSync(join(RAIZ, MIGRATION), "utf8");
@@ -26,7 +27,7 @@ function matchers(): unknown[] {
 }
 
 describe("seed das skills do assistente", () => {
-  it("semeia exatamente as 4 skills assistente-*", () => {
+  it("semeia exatamente as 4 skills assistente-* na 9003", () => {
     const sql = readFileSync(join(RAIZ, MIGRATION), "utf8");
     for (const nome of ["assistente-operacao", "assistente-metricas", "assistente-prompt", "assistente-cliente-novo"]) {
       expect(sql).toContain(`name = '${nome}'`);
@@ -34,10 +35,22 @@ describe("seed das skills do assistente", () => {
     expect(corpos()).toHaveLength(4);
   });
 
-  it("nenhum corpo passa de 200 linhas", () => {
+  it("semeia a skill assistente-sistema-vivo na 9007", () => {
+    const sql = readFileSync(join(RAIZ, MIGRATION_9007), "utf8");
+    expect(sql).toContain("name = 'assistente-sistema-vivo'");
+  });
+
+  it("nenhum corpo passa de 200 linhas (9003)", () => {
     for (const corpo of corpos()) {
       expect(corpo.split("\n").length).toBeLessThanOrEqual(200);
     }
+  });
+
+  it("o corpo da 9007 cabe em 200 linhas", () => {
+    const sql = readFileSync(join(RAIZ, MIGRATION_9007), "utf8");
+    const corpos = [...sql.matchAll(/\$corpo_sv\$([\s\S]*?)\$corpo_sv\$/g)].map((m) => m[1] ?? "");
+    expect(corpos).toHaveLength(1);
+    expect(corpos[0]!.split("\n").length).toBeLessThanOrEqual(200);
   });
 
   it("todo matcher tem any_keywords não vazio", () => {

@@ -86,6 +86,7 @@ describe("risco por tipo", () => {
       memoria: "seguro",
       modelo_auxiliares: "atencao",
       funil: "atencao",
+      acao: "atencao",
     });
     expect(Object.keys(RISCO_POR_TIPO).sort()).toEqual([...TIPOS_DE_PROPOSTA].sort());
     for (const tipo of TIPOS_DE_PROPOSTA) {

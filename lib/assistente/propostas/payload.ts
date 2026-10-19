@@ -21,6 +21,7 @@
 import { z } from "zod";
 
 import { ehProvedorSuportado } from "@/lib/ai/pontos/provedores";
+import { escritaPermitida } from "@/lib/assistente/portas/regras";
 
 import type { TipoDeProposta } from "./tipos";
 
@@ -216,6 +217,25 @@ const esquemaDeFunil = z.discriminatedUnion("operacao", [
   }),
 ]);
 
+// ─── ação ─────────────────────────────────────────────────────────────────────
+// Exceção consciente à regra do cabeçalho deste arquivo: a chave `metodo`
+// normalmente recusa porque daria ao dado o poder de escolher o destino. Para
+// `acao`, `porta` é um ID do catálogo (não caminho livre) e `metodo` é o
+// verbo da chamada interna — ambos são validados pela lista branca
+// `escritaPermitida` (regras.ts), que só libera o aprovado pelo Paulo. Não é
+// um destino livre: o código da aplicação confere `escritaPermitida` de novo
+// na hora de aplicar (rota de aplicar, T4) e nunca expõe rota/URL/path ao modelo.
+
+const esquemaDeAcao = z.strictObject({
+  porta: z.string().min(1).max(200),
+  metodo: z.enum(["POST", "PATCH", "PUT"]),
+  valores: z.record(z.string(), z.string()).optional(),
+  corpo: z.unknown().optional(),
+}).refine(
+  (dados) => escritaPermitida(dados.porta, dados.metodo),
+  { message: "A porta não libera esse método de escrita.", path: ["porta"] },
+);
+
 /** O esquema do `payload` de cada tipo de proposta. */
 export const ESQUEMA_DO_PAYLOAD_POR_TIPO = {
   roteador: esquemaDeRoteador,
@@ -223,6 +243,7 @@ export const ESQUEMA_DO_PAYLOAD_POR_TIPO = {
   memoria: esquemaDeMemoria,
   modelo_auxiliares: esquemaDeModeloAuxiliares,
   funil: esquemaDeFunil,
+  acao: esquemaDeAcao,
 } as const satisfies Record<TipoDeProposta, z.ZodType>;
 
 /** As operações que cada tipo aceita, lidas dos próprios esquemas (nenhuma lista paralela). */
@@ -232,6 +253,7 @@ export const OPERACOES_ACEITAS: Readonly<Record<TipoDeProposta, readonly string[
   memoria: esquemaDeMemoria.options.map((o) => o.shape.operacao.value),
   modelo_auxiliares: esquemaDeModeloAuxiliares.options.map((o) => o.shape.operacao.value),
   funil: esquemaDeFunil.options.map((o) => o.shape.operacao.value),
+  acao: [],
 };
 
 /** Chaves que dariam ao DADO o poder de escolher o destino. Nunca entram num payload. */
@@ -283,11 +305,24 @@ export const esquemaDoCorpoDaProposta = z
     z.strictObject({ ...campos, kind: z.literal("memoria"), payload: esquemaDeMemoria }),
     z.strictObject({ ...campos, kind: z.literal("modelo_auxiliares"), payload: esquemaDeModeloAuxiliares }),
     z.strictObject({ ...campos, kind: z.literal("funil"), payload: esquemaDeFunil }),
+    z.strictObject({ ...campos, kind: z.literal("acao"), payload: esquemaDeAcao }),
   ])
   .superRefine((proposta, ctx) => {
-    const destino = temChaveDeDestino(proposta.payload);
-    if (destino !== null) {
-      ctx.addIssue({ code: "custom", path: ["payload"], message: `O payload não escolhe destino (${destino}).` });
+    // Cada esquema de tipo já é .strictObject(), então chaves extras são
+    // rejeitadas no nível do membro. A exceção consciente é `acao`: `porta` e
+    // `metodo` no payload são intencionais, não caminho livre — mas ainda são
+    // validados por `escritaPermitida` (regras.ts), que confere a lista branca.
+    // O aplicar confere `escritaPermitida` de novo antes de escrever (T4).
+    if (proposta.kind !== "acao") {
+      const destino = temChaveDeDestino(proposta.payload);
+      if (destino !== null) {
+        ctx.addIssue({ code: "custom", path: ["payload"], message: `O payload não escolhe destino (${destino}).` });
+      }
+    } else {
+      const p = proposta.payload as { porta: string; metodo: string };
+      if (!escritaPermitida(p.porta, p.metodo as "POST" | "PATCH" | "PUT")) {
+        ctx.addIssue({ code: "custom", path: ["payload"], message: "A porta não libera esse método de escrita." });
+      }
     }
     if (bytesDe(proposta.payload) > LIMITE_DO_PAYLOAD_EM_BYTES) {
       ctx.addIssue({ code: "custom", path: ["payload"], message: "O payload passa de 64 KB." });

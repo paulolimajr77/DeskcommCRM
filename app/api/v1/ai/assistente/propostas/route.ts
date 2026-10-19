@@ -153,13 +153,18 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   // Mensagem própria para o erro mais perigoso: o dado tentando escolher o destino.
+  // `acao` é exceção consciente: `porta`+`metodo` no payload são validados pela
+  // lista branca `escritaPermitida`, não são caminho livre.
   const payloadBruto = bruto !== null && typeof bruto === "object" ? (bruto as { payload?: unknown }).payload : undefined;
-  const destino = temChaveDeDestino(payloadBruto);
-  if (destino !== null) {
-    return fail("validation_failed", t("O conteúdo da proposta não pode escolher o destino."), 422, {
-      requestId,
-      details: [{ path: destino, message: "chave de destino não permitida" }],
-    });
+  const ehAcao = bruto !== null && typeof bruto === "object" && (bruto as { kind?: unknown }).kind === "acao";
+  if (!ehAcao) {
+    const destino = temChaveDeDestino(payloadBruto);
+    if (destino !== null) {
+      return fail("validation_failed", t("O conteúdo da proposta não pode escolher o destino."), 422, {
+        requestId,
+        details: [{ path: destino, message: "chave de destino não permitida" }],
+      });
+    }
   }
 
   const parsed = esquemaDoCorpoDaProposta.safeParse(bruto);
@@ -172,7 +177,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   const proposta = parsed.data;
   // Defesa em profundidade: o esquema já amarra a operação ao tipo, mas o mapa
   // de destinos é o que a T20 vai ler — sem destino, a proposta nunca poderia ser aplicada.
-  if (destinoDaOperacao(proposta.kind, proposta.payload.operacao) === null) {
+  // `acao` não entra no mapa de destinos (ela chama a própria porta do catálogo).
+  if (proposta.kind !== "acao" && destinoDaOperacao(proposta.kind, proposta.payload.operacao) === null) {
     return fail("validation_failed", t("Proposta inválida."), 422, { requestId });
   }
 
@@ -239,7 +245,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     resourceId: linha.id,
     metadata: {
       kind: proposta.kind,
-      operacao: proposta.payload.operacao,
+      ...(proposta.kind === "acao"
+        ? { operacao: (proposta.payload as { metodo: string }).metodo }
+        : { operacao: proposta.payload.operacao }),
       risk: linha.risk,
     },
     requestId,

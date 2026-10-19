@@ -41,7 +41,7 @@ describe("propor_mudanca", () => {
     const { ferramentas } = montarParaTeste("admin");
     const saida = await chamar(ferramentas, "propor_mudanca", {
       porta: "contacts/:id",
-      metodo: "DELETE" as any,
+      metodo: "DELETE" as unknown as "POST",
       resumo: "teste",
       motivo: "teste",
     });
@@ -91,6 +91,21 @@ describe("propor_mudanca", () => {
     expect(saida).toEqual({ ok: true, propostaId: "proposta-123" });
     expect(mockAbrirPorta).toHaveBeenCalledWith("contacts/:id", "GET", { id: "abc" });
     expect(mockChamarRota).toHaveBeenCalled();
+  });
+
+  it("resposta 201 sem id → falha e nenhum cartão anotado", async () => {
+    mockChamarRota.mockResolvedValue({ status: 201, corpo: {} });
+    const { ferramentas, coletor } = montarParaTeste("admin");
+    const saida = await chamar(ferramentas, "propor_mudanca", {
+      porta: "ai/agents",
+      metodo: "POST",
+      valores: {},
+      corpo: { name: "Novo agente" },
+      resumo: "Criar agente de teste",
+      motivo: "Precisamos de um novo agente",
+    });
+    expect(saida).toEqual({ ok: false, motivo: "indisponivel" });
+    expect(coletor.acoes.some((a) => a.tipo === "proposta")).toBe(false);
   });
 
   it("entrada inválida é recusada", async () => {

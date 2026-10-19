@@ -60,7 +60,7 @@ describe("o apêndice do baseline espelha a migration 9007", () => {
 
   it("o corpo da skill cabe em 200 linhas", () => {
     const migration = ler(MIGRATION);
-    const corpos = [...migration.matchAll(/\$body\$([\s\S]*?)\$body\$/g)].map((m) => m[1] ?? "");
+    const corpos = [...migration.matchAll(/\$corpo_sv\$([\s\S]*?)\$corpo_sv\$/g)].map((m) => m[1] ?? "");
     expect(corpos).toHaveLength(1);
     expect(corpos[0]!.split("\n").length).toBeLessThanOrEqual(200);
   });

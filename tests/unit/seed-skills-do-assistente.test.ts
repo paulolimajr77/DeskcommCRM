@@ -48,7 +48,7 @@ describe("seed das skills do assistente", () => {
 
   it("o corpo da 9007 cabe em 200 linhas", () => {
     const sql = readFileSync(join(RAIZ, MIGRATION_9007), "utf8");
-    const corpos = [...sql.matchAll(/\$body\$([\s\S]*?)\$body\$/g)].map((m) => m[1] ?? "");
+    const corpos = [...sql.matchAll(/\$corpo_sv\$([\s\S]*?)\$corpo_sv\$/g)].map((m) => m[1] ?? "");
     expect(corpos).toHaveLength(1);
     expect(corpos[0]!.split("\n").length).toBeLessThanOrEqual(200);
   });

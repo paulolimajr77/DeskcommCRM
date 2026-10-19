@@ -10,7 +10,7 @@ begin
   ) then
     insert into skill_versions (organization_id, name, description, body, matcher)
     values (null, 'assistente-sistema-vivo', 'Gate de arquitetura: nada é ilha, todo laço se fecha, o laço de retorno fecha quando o sistema erra.',
-      $body$# Sistema Vivo — gate de arquitetura
+      $corpo_sv$# Sistema Vivo — gate de arquitetura
 
 Toda peça do sistema é um polvo: recebe e distribui. Ninguém morre por falta de resposta, de resolução, ou porque ninguém viu.
 
@@ -41,7 +41,7 @@ Conferir quem consome e quem alimenta. Toda peça nova entra com ≥2 arestas (e
 - Anti-morte: Motor de follow-up (`lib/followup/`, `lib/agent-engine/cron/`) + Radar de Risco.
 - Continuidade IA↔humano: `buildHandoffSummary()` em `lib/agent-engine/agent/human-handoff.ts`.
 - Mapa: `docs/architecture/*.json`.
-$body$,
+$corpo_sv$,
       '{"any_keywords": ["sistema vivo", "invariante", "nada e ilha", "laço de retorno", "anti-morte", "continuidade", "configuração", "mapa", "porte", "registro", "tela", "gate de arquitetura"]}'::jsonb)
     returning id into v_id;
     insert into skill_pointers (organization_id, name, version_id)

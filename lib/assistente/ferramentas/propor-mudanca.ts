@@ -85,7 +85,10 @@ async function proporMudanca(
     typeof resposta.corpo === "object" && resposta.corpo !== null
       ? (resposta.corpo as { id?: string })
       : undefined;
-  const propostaId = dados?.id ?? crypto.randomUUID();
+  const propostaId = dados?.id;
+  if (!propostaId) {
+    return { ok: false, motivo: "indisponivel" };
+  }
 
   anotarCartaoDeProposta(entrada.coletor, propostaId);
 

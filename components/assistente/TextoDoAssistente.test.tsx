@@ -52,6 +52,20 @@ describe("TextoDoAssistente", () => {
     expect(code.textContent).toBe("fn_x()");
   });
 
+  it("código em crase sai como texto puro, sem formatação inline dentro", () => {
+    const { container } = render(
+      <TextoDoAssistente texto={`\`a **b** _c_\``} />,
+    );
+    const code = screen.getByRole("code");
+    expect(code).toBeTruthy();
+    expect(code.textContent).toBe("a **b** _c_");
+    expect(code.querySelector("strong")).toBeNull();
+    expect(code.querySelector("em")).toBeNull();
+    const html = container.innerHTML;
+    expect(html).not.toContain("<strong>");
+    expect(html).not.toContain("<em>");
+  });
+
   it("_ênfase_ fora de palavra vira <em>", () => {
     render(<TextoDoAssistente texto="_destaque_ aqui" />);
     const em = screen.getByRole("emphasis");

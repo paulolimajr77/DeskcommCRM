@@ -779,19 +779,19 @@ export function ChatDoAssistente({
                   {m.body}
                 </p>
               ) : (
-                <p
+                <div
                   role={m.desfecho === "erro" ? "alert" : undefined}
                   data-testid={m.desfecho === undefined ? undefined : "assistente-desfecho"}
                   className={
                     m.desfecho === "erro"
-                      ? "max-w-[85%] rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm whitespace-pre-wrap"
+                      ? "max-w-[85%] rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm whitespace-pre-wrap space-y-2"
                       : m.desfecho === "ok"
-                        ? "max-w-[85%] rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm whitespace-pre-wrap"
-                        : "max-w-[85%] rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap"
+                        ? "max-w-[85%] rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm whitespace-pre-wrap space-y-2"
+                        : "max-w-[85%] rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap space-y-2"
                   }
                 >
                   <TextoDoAssistente texto={m.body} />
-                </p>
+                </div>
               )
             ) : null}
             {m.botoes !== undefined && m.botoes.length > 0 ? (

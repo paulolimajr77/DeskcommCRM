@@ -15,6 +15,7 @@ import {
 } from "@/components/assistente/CartaoDeProposta";
 import { BotaoDeAudio } from "@/components/assistente/BotaoDeAudio";
 import { MenuDeComandos } from "@/components/assistente/MenuDeComandos";
+import { TextoDoAssistente } from "@/components/assistente/TextoDoAssistente";
 import { useT } from "@/hooks/i18n/useT";
 import { apiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
@@ -773,19 +774,25 @@ export function ChatDoAssistente({
               </p>
             ) : null}
             {m.body !== "" ? (
-              <p
-                role={m.desfecho === "erro" ? "alert" : undefined}
-                data-testid={m.desfecho === undefined ? undefined : "assistente-desfecho"}
-                className={
-                  m.desfecho === "erro"
-                    ? "max-w-full rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm whitespace-pre-wrap"
-                    : m.desfecho === "ok"
-                      ? "max-w-full rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm whitespace-pre-wrap"
-                      : "max-w-full rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap"
-                }
-              >
-                {m.body}
-              </p>
+              m.author_kind === "human" ? (
+                <p className="max-w-[85%] rounded-md bg-primary/10 border border-primary/30 px-3 py-2 text-sm whitespace-pre-wrap">
+                  {m.body}
+                </p>
+              ) : (
+                <p
+                  role={m.desfecho === "erro" ? "alert" : undefined}
+                  data-testid={m.desfecho === undefined ? undefined : "assistente-desfecho"}
+                  className={
+                    m.desfecho === "erro"
+                      ? "max-w-[85%] rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm whitespace-pre-wrap"
+                      : m.desfecho === "ok"
+                        ? "max-w-[85%] rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2 text-sm whitespace-pre-wrap"
+                        : "max-w-[85%] rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap"
+                  }
+                >
+                  <TextoDoAssistente texto={m.body} />
+                </p>
+              )
             ) : null}
             {m.botoes !== undefined && m.botoes.length > 0 ? (
               <div className="flex flex-wrap gap-2">

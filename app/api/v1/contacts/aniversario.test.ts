@@ -154,6 +154,26 @@ describe("listContactsHandler - filtro aniversario", () => {
     expect(ids).not.toContain("c3");
   });
 
+  it("aniversario=semana: não depende do fuso da máquina (23h30 domingo 03/01 SP = 04/01 em UTC)", async () => {
+    // 23h30 de domingo 03/01/2027 em America/Sao_Paulo (UTC-3, sem horário de verão)
+    // = 02h30 de segunda 04/01/2027 em UTC. O fuso da máquina é irrelevante:
+    // a semana é 28/12 a 03/01 no calendário da org.
+    vi.setSystemTime(new Date("2027-01-04T02:30:00Z").getTime());
+
+    const { supabase } = supabaseMock(TZ_SAO_PAULO, [
+      { id: "c1", birthday_md: 1228, nome: "28/12 (dentro)" },
+      { id: "c2", birthday_md: 103, nome: "03/01 (dentro, hoje)" },
+      { id: "c3", birthday_md: 104, nome: "04/01 (fora da semana)" },
+    ]);
+
+    const resultado = await listContactsHandler(supabase as unknown as SupabaseClient, ctx as unknown as HandlerCtx, { aniversario: "semana" }, undefined);
+
+    const ids = (resultado.contacts as Array<{ id: string }>).map((c) => c.id);
+    expect(ids).toContain("c1");
+    expect(ids).toContain("c2");
+    expect(ids).not.toContain("c3");
+  });
+
   it("aniversario=mes: só contatos do mês atual", async () => {
     // 15/03/2026 em São Paulo → mês 3, dias 1..31.
     vi.setSystemTime(new Date("2026-03-15T10:00:00Z").getTime());

@@ -30,8 +30,8 @@ export const dynamic = "force-dynamic";
 const LIMITE_PADRAO = 50;
 const LIMITE_MAXIMO = 200;
 
-/** `contact_id` de filtro na listagem de comandas — uuid, inválido → 400. */
-const contactIdFiltroSchema = z.string().uuid("contact_id deve ser um uuid válido");
+/** `contact_id` de filtro na listagem de comandas (opcional): uuid, inválido → 400. */
+const contactIdFiltroSchema = z.string().uuid("contact_id deve ser um uuid válido").optional();
 
 export async function GET(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
@@ -47,8 +47,9 @@ export async function GET(req: NextRequest): Promise<Response> {
   const status = url.searchParams.get("status");
   const limite = Math.min(Number(url.searchParams.get("limit")) || LIMITE_PADRAO, LIMITE_MAXIMO);
 
+  const contactIdRaw = url.searchParams.get("contact_id") ?? undefined;
   const contactIdParsed = contactIdFiltroSchema.safeParse(
-    url.searchParams.get("contact_id") ?? undefined,
+    contactIdRaw === "" ? undefined : contactIdRaw,
   );
   if (!contactIdParsed.success) {
     return fail(
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       { requestId },
     );
   }
+  const contactId = contactIdParsed.data;
 
   const supabase = await createClient();
   let q = supabase
@@ -75,8 +77,8 @@ export async function GET(req: NextRequest): Promise<Response> {
     q = q.eq("status", status);
   }
 
-  if (contactIdParsed.success && contactIdParsed.data) {
-    q = q.eq("contact_id", contactIdParsed.data);
+  if (contactId) {
+    q = q.eq("contact_id", contactId);
   }
 
   const { data, error } = await q;

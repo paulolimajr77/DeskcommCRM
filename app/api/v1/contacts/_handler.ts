@@ -83,7 +83,11 @@ async function fusoDaOrgParaAniversario(
 /**
  * { mes, dia } de uma data instant, lida no fuso IANA informado.
  */
-function diaMesNoFuso(instante: Date, timeZone: string): { mes: number; dia: number } {
+function diaMesNoFuso(instante: Date, timeZone: string): {
+  mes: number;
+  dia: number;
+  ano: number;
+} {
   const partes = new Intl.DateTimeFormat("pt-BR", {
     timeZone,
     year: "numeric",
@@ -92,7 +96,7 @@ function diaMesNoFuso(instante: Date, timeZone: string): { mes: number; dia: num
   }).formatToParts(instante);
   const get = (tipo: string): number =>
     Number(partes.find((p) => p.type === tipo)?.value ?? 0);
-  return { mes: get("month"), dia: get("day") };
+  return { mes: get("month"), dia: get("day"), ano: get("year") };
 }
 
 /**
@@ -112,9 +116,7 @@ function valoresBirthdayMd(
 ): number[] {
   const agora = new Date();
   const hoje = diaMesNoFuso(agora, timeZone);
-  const partesAno = instanteParaPartes(agora, timeZone);
-  const ano = Number(partesAno.find((p) => p.type === "year")?.value ?? agora.getFullYear());
-  const anoBissexto = (ano % 4 === 0 && ano % 100 !== 0) || ano % 400 === 0;
+  const anoBissexto = (hoje.ano % 4 === 0 && hoje.ano % 100 !== 0) || hoje.ano % 400 === 0;
   const valores: number[] = [];
 
   const pushDia = (m: number, d: number) => {
@@ -126,32 +128,24 @@ function valoresBirthdayMd(
   if (periodo === "hoje") {
     pushDia(hoje.mes, hoje.dia);
   } else if (periodo === "mes") {
-    const ultimoDia = new Date(ano, hoje.mes, 0).getDate();
+    const ultimoDia = new Date(hoje.ano, hoje.mes, 0).getDate();
     for (let d = 1; d <= ultimoDia; d++) pushDia(hoje.mes, d);
   } else {
-    // semana: segunda a domingo da semana atual, no fuso da org.
-    const hojeDate = new Date(Date.UTC(ano, hoje.mes - 1, hoje.dia, 12, 0, 0));
-    const dow = hojeDate.getDay(); // domingo=0, segunda=1, ... sábado=6
+    // semana: segunda a domingo da semana atual, no calendário do fuso da org.
+    // Tudo em UTC para não depender do fuso da máquina; mês/dia vêm de
+    // diaMesNoFuso sobre o resultado (já no calendário da org).
+    const hojeDate = new Date(Date.UTC(hoje.ano, hoje.mes - 1, hoje.dia, 12, 0, 0));
+    const dow = hojeDate.getUTCDay(); // domingo=0, segunda=1, ... sábado=6
     const segundaOffset = dow === 0 ? -6 : 1 - dow;
     for (let i = 0; i < 7; i++) {
       const d = new Date(hojeDate);
-      d.setDate(hojeDate.getDate() + segundaOffset + i);
+      d.setUTCDate(hojeDate.getUTCDate() + segundaOffset + i);
       const { mes: m, dia: diaDia } = diaMesNoFuso(d, timeZone);
       pushDia(m, diaDia);
     }
   }
 
   return valores;
-}
-
-/** Converte partes {mes, dia} + ano de volta para Date (meio-dia UTC, só para derivar weekday). */
-function instanteParaPartes(instante: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(instante);
 }
 
 function actorAuditPayload(actor: Actor): {

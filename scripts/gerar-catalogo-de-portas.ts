@@ -172,23 +172,32 @@ export function montarConteudoCatalogo(portas: readonly Porta[]): string {
   linhas.push("");
 
   // Carregadores de escrita: apenas as portas da lista branca ESCRITA_PERMITIDA,
-  // devolvendo o metodo aprovado. O bundler nao aceita import com caminho
-  // variavel, entao cada um e um import() de caminho literal.
-  const escrita = ordenadas.filter((p) =>
-    ESCRITA_PERMITIDA.some((e) => e.porta === p.id && p.metodos.includes(e.metodo)),
-  );
+  // devolvendo TODOS os métodos aprovados para cada porta. O bundler nao aceita
+  // import com caminho variavel, entao cada um e um import() de caminho literal.
+  const escritaPorPorta = new Map<string, Metodo[]>();
+  for (const e of ESCRITA_PERMITIDA) {
+    if (!escritaPorPorta.has(e.porta)) escritaPorPorta.set(e.porta, []);
+    escritaPorPorta.get(e.porta)!.push(e.metodo);
+  }
   linhas.push("// Carregadores de escrita permitida (apenas ESCRITA_PERMITIDA).");
   linhas.push("// O bundler nao aceita import com caminho variavel, entao cada um e um");
   linhas.push("// import() de caminho literal, no padrao de proposta-comum.ts.");
   linhas.push(
     "export const CARREGADORES_DE_ESCRITA: Record<string, () => Promise<Record<string, unknown>>> = {",
   );
-  for (const p of escrita) {
-    const metodo = ESCRITA_PERMITIDA.find((e) => e.porta === p.id)!.metodo;
-    linhas.push("  " + JSON.stringify(p.id) + ": async () => {");
+  for (const [porta, metodos] of escritaPorPorta) {
+    const p = ordenadas.find((x) => x.id === porta);
+    if (!p) continue;
+    const metodosValidos = metodos.filter((m) => p.metodos.includes(m));
+    if (metodosValidos.length === 0) continue;
+    linhas.push("  " + JSON.stringify(porta) + ": async () => {");
     const modulo = "@/app/api/v1/" + p.caminho + "/route";
     linhas.push("    const mod = await import(" + JSON.stringify(modulo) + ");");
-    linhas.push("    return { " + metodo + ": mod." + metodo + " };");
+    linhas.push("    return {");
+    for (const m of metodosValidos) {
+      linhas.push("      " + m + ": mod." + m + ",");
+    }
+    linhas.push("    };");
     linhas.push("  },");
   }
   linhas.push("};");

@@ -3569,105 +3569,156 @@ export const CARREGADORES: Record<string, () => Promise<Record<string, unknown>>
 // O bundler nao aceita import com caminho variavel, entao cada um e um
 // import() de caminho literal, no padrao de proposta-comum.ts.
 export const CARREGADORES_DE_ESCRITA: Record<string, () => Promise<Record<string, unknown>>> = {
-  "agenda/agendamentos": async () => {
-    const mod = await import("@/app/api/v1/agenda/agendamentos/route");
-    return { POST: mod.POST };
-  },
-  "agenda/configuracao": async () => {
-    const mod = await import("@/app/api/v1/agenda/configuracao/route");
-    return { PATCH: mod.PATCH };
-  },
   "ai/agents": async () => {
     const mod = await import("@/app/api/v1/ai/agents/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
   },
   "ai/agents/:id": async () => {
     const mod = await import("@/app/api/v1/ai/agents/[id]/route");
-    return { PATCH: mod.PATCH };
-  },
-  "ai/followup-flows": async () => {
-    const mod = await import("@/app/api/v1/ai/followup-flows/route");
-    return { POST: mod.POST };
-  },
-  "ai/followup-flows/:id": async () => {
-    const mod = await import("@/app/api/v1/ai/followup-flows/[id]/route");
-    return { PATCH: mod.PATCH };
-  },
-  "ai/knowledge/sources": async () => {
-    const mod = await import("@/app/api/v1/ai/knowledge/sources/route");
-    return { POST: mod.POST };
-  },
-  "ai/knowledge/sources/:id": async () => {
-    const mod = await import("@/app/api/v1/ai/knowledge/sources/[id]/route");
-    return { PATCH: mod.PATCH };
-  },
-  "ai/memory": async () => {
-    const mod = await import("@/app/api/v1/ai/memory/route");
-    return { POST: mod.POST };
+    return {
+      PATCH: mod.PATCH,
+    };
   },
   "ai/routers": async () => {
     const mod = await import("@/app/api/v1/ai/routers/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
   },
   "ai/routers/:id": async () => {
     const mod = await import("@/app/api/v1/ai/routers/[id]/route");
-    return { PATCH: mod.PATCH };
+    return {
+      PATCH: mod.PATCH,
+    };
   },
-  "campaign-templates": async () => {
-    const mod = await import("@/app/api/v1/campaign-templates/route");
-    return { POST: mod.POST };
+  "ai/memory": async () => {
+    const mod = await import("@/app/api/v1/ai/memory/route");
+    return {
+      POST: mod.POST,
+    };
   },
-  "campaign-templates/:id": async () => {
-    const mod = await import("@/app/api/v1/campaign-templates/[id]/route");
-    return { PATCH: mod.PATCH };
+  "ai/knowledge/sources": async () => {
+    const mod = await import("@/app/api/v1/ai/knowledge/sources/route");
+    return {
+      POST: mod.POST,
+    };
   },
-  "contacts/:id": async () => {
-    const mod = await import("@/app/api/v1/contacts/[id]/route");
-    return { PATCH: mod.PATCH };
-  },
-  "contacts/:id/personal": async () => {
-    const mod = await import("@/app/api/v1/contacts/[id]/personal/route");
-    return { POST: mod.POST };
-  },
-  "leads": async () => {
-    const mod = await import("@/app/api/v1/leads/route");
-    return { POST: mod.POST };
-  },
-  "leads/:id": async () => {
-    const mod = await import("@/app/api/v1/leads/[id]/route");
-    return { PATCH: mod.PATCH };
-  },
-  "leads/:id/move": async () => {
-    const mod = await import("@/app/api/v1/leads/[id]/move/route");
-    return { POST: mod.POST };
+  "ai/knowledge/sources/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/knowledge/sources/[id]/route");
+    return {
+      PATCH: mod.PATCH,
+    };
   },
   "pipelines": async () => {
     const mod = await import("@/app/api/v1/pipelines/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
   },
   "pipelines/:id": async () => {
     const mod = await import("@/app/api/v1/pipelines/[id]/route");
-    return { PATCH: mod.PATCH };
+    return {
+      PATCH: mod.PATCH,
+    };
   },
   "pipelines/:id/stages": async () => {
     const mod = await import("@/app/api/v1/pipelines/[id]/stages/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
   },
   "pipelines/:id/stages/:stageId": async () => {
     const mod = await import("@/app/api/v1/pipelines/[id]/stages/[stageId]/route");
-    return { PATCH: mod.PATCH };
+    return {
+      PATCH: mod.PATCH,
+    };
   },
   "tags/vocabulario": async () => {
     const mod = await import("@/app/api/v1/tags/vocabulario/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
+  },
+  "contacts/:id": async () => {
+    const mod = await import("@/app/api/v1/contacts/[id]/route");
+    return {
+      PATCH: mod.PATCH,
+    };
+  },
+  "contacts/:id/personal": async () => {
+    const mod = await import("@/app/api/v1/contacts/[id]/personal/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "leads": async () => {
+    const mod = await import("@/app/api/v1/leads/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "leads/:id": async () => {
+    const mod = await import("@/app/api/v1/leads/[id]/route");
+    return {
+      PATCH: mod.PATCH,
+    };
+  },
+  "leads/:id/move": async () => {
+    const mod = await import("@/app/api/v1/leads/[id]/move/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "ai/followup-flows": async () => {
+    const mod = await import("@/app/api/v1/ai/followup-flows/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "ai/followup-flows/:id": async () => {
+    const mod = await import("@/app/api/v1/ai/followup-flows/[id]/route");
+    return {
+      PATCH: mod.PATCH,
+    };
   },
   "tasks": async () => {
     const mod = await import("@/app/api/v1/tasks/route");
-    return { POST: mod.POST };
+    return {
+      POST: mod.POST,
+    };
   },
   "tasks/:id": async () => {
     const mod = await import("@/app/api/v1/tasks/[id]/route");
-    return { PATCH: mod.PATCH };
+    return {
+      PATCH: mod.PATCH,
+    };
+  },
+  "agenda/agendamentos": async () => {
+    const mod = await import("@/app/api/v1/agenda/agendamentos/route");
+    return {
+      POST: mod.POST,
+      PATCH: mod.PATCH,
+    };
+  },
+  "agenda/configuracao": async () => {
+    const mod = await import("@/app/api/v1/agenda/configuracao/route");
+    return {
+      PATCH: mod.PATCH,
+    };
+  },
+  "campaign-templates": async () => {
+    const mod = await import("@/app/api/v1/campaign-templates/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "campaign-templates/:id": async () => {
+    const mod = await import("@/app/api/v1/campaign-templates/[id]/route");
+    return {
+      PATCH: mod.PATCH,
+    };
   },
 };
 

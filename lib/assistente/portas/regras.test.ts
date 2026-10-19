@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { Metodo } from "./tipos";
 import { CATALOGO_DE_PORTAS } from "./catalogo.gerado";
 import { CARREGADORES } from "./catalogo.gerado";
+import { CARREGADORES_DE_ESCRITA } from "./catalogo.gerado";
 import {
   AREAS_SO_LEITURA,
   ESCRITA_PERMITIDA,
@@ -18,7 +19,6 @@ import {
   escritaPermitida,
   portaDeLeituraPermitida,
 } from "./regras";
-
 describe("casaComPrefixo", () => {
   it("id igual ao prefixo sem barra é verdadeiro", () => {
     expect(casaComPrefixo("team", "team/")).toBe(true);
@@ -253,6 +253,24 @@ describe("CARREGADORES", () => {
       if (portaDeLeituraPermitida(p.id)) {
         expect(CARREGADORES).toHaveProperty(p.id);
       }
+    }
+  });
+});
+
+describe("CARREGADORES_DE_ESCRITA", () => {
+  it("para cada entrada de ESCRITA_PERMITIDA, o carregador devolve função no método", async () => {
+    for (const e of ESCRITA_PERMITIDA) {
+      const carregador = CARREGADORES_DE_ESCRITA[e.porta];
+      expect(carregador).toBeDefined();
+      if (!carregador) continue;
+      const modulo = await carregador();
+      expect(modulo[e.metodo as keyof typeof modulo]).toBeDefined();
+    }
+  });
+
+  it("toda chave de CARREGADORES_DE_ESCRITA está em ESCRITA_PERMITIDA", () => {
+    for (const porta of Object.keys(CARREGADORES_DE_ESCRITA)) {
+      expect(ESCRITA_PERMITIDA.some((e) => e.porta === porta)).toBe(true);
     }
   });
 });

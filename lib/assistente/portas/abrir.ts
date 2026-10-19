@@ -74,7 +74,7 @@ export async function abrirPorta(
   }
 
   // Valida cada valor.
-  for (const [chave, valor] of Object.entries(valores)) {
+  for (const [, valor] of Object.entries(valores)) {
     if (!VALOR_VALIDO.test(valor)) return null;
   }
 
@@ -98,11 +98,20 @@ export async function abrirPorta(
   const handlerDeRota = modulo[metodoResolvido] as HandlerDeRota | undefined;
   if (!handlerDeRota) return null;
 
-  // Constrói o caminho com os valores substituídos (:x -> valor).
-  let caminho = "/api/v1/" + id;
-  for (const [nome, valor] of Object.entries(valores)) {
-    caminho = caminho.replace(":" + nome, valor);
+  // Constrói o caminho segmento a segmento, trocando :nome pelo valor.
+  // Isso evita que ":id" case dentro de ":idX" (problema do String.replace).
+  const caminhoSegmentos: string[] = [];
+  for (const segmento of id.split("/")) {
+    const m = segmento.match(/^:(.+)$/);
+    if (m) {
+      const nome = m[1]!;
+      if (!(nome in valores)) return null;
+      caminhoSegmentos.push(valores[nome]!);
+    } else {
+      caminhoSegmentos.push(segmento);
+    }
   }
+  const caminho = "/api/v1/" + caminhoSegmentos.join("/");
 
   // Embrulha o handler entregando params.
   const handlerComParams: HandlerDeRota = async (req) => {

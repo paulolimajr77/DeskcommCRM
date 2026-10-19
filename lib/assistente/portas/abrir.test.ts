@@ -14,6 +14,13 @@ vi.mock("@/lib/assistente/portas/catalogo.gerado", () => ({
     messages: vi.fn(async () => ({
       POST: async () => new Response(JSON.stringify({ data: {} }), { status: 201 }),
     })),
+    "agenda/agendamentos": vi.fn(async () => ({
+      POST: async () => new Response(JSON.stringify({ data: {} }), { status: 201 }),
+      PATCH: async () => new Response(JSON.stringify({ data: {} }), { status: 200 }),
+    })),
+    "contatos/:id/:idItem": vi.fn(async () => ({
+      PATCH: async () => new Response(JSON.stringify({ data: {} }), { status: 200 }),
+    })),
   },
 }));
 
@@ -96,6 +103,37 @@ describe("abrirPorta", () => {
   it("POST em porta fora da lista branca devolve null", async () => {
     mockEscritaPermitida.mockReturnValue(false);
     expect(await abrirPorta("messages", "POST", {})).toBeNull();
+  });
+
+  it("mesma porta com POST e PATCH: abre ambos os métodos", async () => {
+    mockEscritaPermitida.mockReturnValue(true);
+    const resultadoPost = await abrirPorta("agenda/agendamentos", "POST", {});
+    expect(resultadoPost).not.toBeNull();
+    expect(resultadoPost!.caminho).toBe("/api/v1/agenda/agendamentos");
+
+    const resultadoPatch = await abrirPorta("agenda/agendamentos", "PATCH", {});
+    expect(resultadoPatch).not.toBeNull();
+    expect(resultadoPatch!.caminho).toBe("/api/v1/agenda/agendamentos");
+  });
+
+  it("dois parametros :id e :idItem: monta o caminho segmento a segmento", async () => {
+    mockEscritaPermitida.mockReturnValue(true);
+    const resultado = await abrirPorta("contatos/:id/:idItem", "PATCH", {
+      id: "abc",
+      idItem: "xyz",
+    });
+    expect(resultado).not.toBeNull();
+    expect(resultado!.caminho).toBe("/api/v1/contatos/abc/xyz");
+  });
+
+  it(":id nao case dentro de :idX", async () => {
+    mockEscritaPermitida.mockReturnValue(true);
+    const resultado = await abrirPorta("contatos/:id/:idItem", "PATCH", {
+      id: "abc",
+      idItem: "xyz",
+    });
+    expect(resultado!.caminho).not.toContain(":idX");
+    expect(resultado!.caminho).toBe("/api/v1/contatos/abc/xyz");
   });
 
   it("DELETE nao compila", async () => {

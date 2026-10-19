@@ -6,10 +6,10 @@
  *   listar_telas, abrir_tela           — a navegação do catálogo, por papel
  *   ler_guia                           — os guias `assistente-*`
  *   ler_porta, procurar_porta          — leitura e busca pelas portas do catálogo
- *   propor_mudanca                     — PROPÕEM mudança ao vivo via porta do catálogo
- *                                        (T3): só LEEM e gravam uma proposta `pendente`;
- *                                        quem aplica é a T4 após o clique do admin,
- *                                        SÓ para `admin`
+ *   propor_mudanca, montar_pacote_do_nicho, testar_agente
+ *                                        — escritas só para `admin`: propor_mudanca
+ *                                        (T3: grava proposta `acao`, quem aplica é T4),
+ *                                        montar_pacote_do_nicho (T14a), testar_agente (T13)
  *   auditar_empresa                    — o check-up da organização
  *
  * Quem monta é a rota do chat: ela entrega o `ContextoDeConsulta` com a
@@ -25,9 +25,11 @@ import { criarConsultarMetrica } from "./consultar-metrica";
 import { criarLerGuia } from "./ler-guia";
 import { criarListarMetricas } from "./listar-metricas";
 import { criarLerPorta } from "./ler-porta";
+import { criarMontarPacoteDoNicho } from "./montar-pacote-do-nicho";
 import { criarProcurarPorta } from "./procurar-porta";
 import { criarProporMudanca } from "./propor-mudanca";
 import { criarAbrirTela, criarListarTelas } from "./telas";
+import { criarTestarAgente } from "./testar-agente";
 import type { EntradaDasFerramentas } from "./tipos";
 
 export {
@@ -63,5 +65,7 @@ export function montarFerramentasDoAssistente(entrada: EntradaDasFerramentas): T
   return {
     ...leitura,
     propor_mudanca: criarProporMudanca(entrada),
+    montar_pacote_do_nicho: criarMontarPacoteDoNicho(entrada),
+    testar_agente: criarTestarAgente(entrada),
   };
 }

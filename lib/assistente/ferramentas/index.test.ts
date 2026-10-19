@@ -41,6 +41,10 @@ const PROPRIEDADES_ESPERADAS: Record<string, string[]> = {
   propor_mudanca: [
     "porta", "metodo", "valores", "corpo", "resumo", "motivo",
   ],
+  montar_pacote_do_nicho: [
+    "nicho", "negocio", "descricao", "nome_do_agente", "followups",
+  ],
+  testar_agente: ["agente_id", "mensagens"],
   auditar_empresa: [],
 };
 
@@ -53,6 +57,12 @@ const FERRAMENTAS_DE_LEITURA = [
   "listar_metricas",
   "listar_telas",
   "procurar_porta",
+];
+
+const FERRAMENTAS_SO_ADMIN = [
+  "propor_mudanca",
+  "montar_pacote_do_nicho",
+  "testar_agente",
 ];
 
 /** Todos os nomes de propriedade de um JSON Schema, em qualquer profundidade. */
@@ -92,18 +102,24 @@ describe("montarFerramentasDoAssistente", () => {
     vi.restoreAllMocks();
   });
 
-  it("qualquer papel tem SÓ as ferramentas de leitura (menos admin que também tem propor_mudanca)", () => {
+  it("viewer, agent e manager não recebem nenhuma das 3 ferramentas de escrita", () => {
     for (const papel of ["viewer", "agent", "manager"] as const) {
       const { ferramentas } = montarParaTeste(papel);
 
       expect(Object.keys(ferramentas).sort()).toEqual([...FERRAMENTAS_DE_LEITURA].sort());
-      expect(ferramentas).not.toHaveProperty("propor_mudanca");
+      for (const f of FERRAMENTAS_SO_ADMIN) {
+        expect(ferramentas).not.toHaveProperty(f);
+      }
     }
+  });
 
-    // admin tem leitura + propor_mudanca
+  it("admin recebe as 3 ferramentas de escrita + as de leitura", () => {
     const { ferramentas: doAdmin } = montarParaTeste("admin");
     const adminChaves = Object.keys(doAdmin).sort();
-    expect(adminChaves).toEqual([...FERRAMENTAS_DE_LEITURA, "propor_mudanca"].sort());
+    expect(adminChaves).toEqual([...FERRAMENTAS_DE_LEITURA, ...FERRAMENTAS_SO_ADMIN].sort());
+    for (const f of FERRAMENTAS_SO_ADMIN) {
+      expect(doAdmin).toHaveProperty(f);
+    }
   });
 
   it("o teto de passos do turno é 15", () => {
@@ -162,6 +178,8 @@ describe("montarFerramentasDoAssistente", () => {
     ["ler_porta", { porta: 123 }],
     ["procurar_porta", { pergunta: 123 }],
     ["propor_mudanca", { porta: 123 }],
+    ["montar_pacote_do_nicho", { nicho: 123 }],
+    ["testar_agente", { agente_id: "não-é-uuid" }],
     ["auditar_empresa", { x: 1 }],
   ])("%s com entrada de tipo errado não lança e devolve parametro_invalido", async (nome, entrada) => {
     const { ferramentas, sessao } = montarParaTeste("admin");
@@ -181,6 +199,8 @@ describe("montarFerramentasDoAssistente", () => {
     "ler_porta",
     "procurar_porta",
     "propor_mudanca",
+    "montar_pacote_do_nicho",
+    "testar_agente",
     "auditar_empresa",
   ])(
     "%s com entrada nula não lança e devolve parametro_invalido",

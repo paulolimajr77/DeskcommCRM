@@ -11,7 +11,7 @@ import {
   type StatusDaProposta,
 } from "./tipos";
 
-const MIGRATION = join(
+const MIGRATION_9002 = join(
   __dirname,
   "..",
   "..",
@@ -20,6 +20,40 @@ const MIGRATION = join(
   "migrations",
   "20261022100100_9002_config_proposals.sql",
 );
+const MIGRATION_9006 = join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "supabase",
+  "migrations",
+  "20261022100500_9006_config_proposals_acao.sql",
+);
+
+function sqlDaMigration9002(): string {
+  return readFileSync(MIGRATION_9002, "utf8");
+}
+
+function sqlDaMigration9006(): string {
+  return readFileSync(MIGRATION_9006, "utf8");
+}
+
+/** Os literais de `<coluna> text not null ... check (<coluna> in (...))`, na ordem do SQL. */
+function listaDoCheck(coluna: string): string[] {
+  // O CHECK de `kind` é trocado pela migration 9006 (acrescenta 'acao'), que usa
+  // `alter table ... add constraint config_proposals_kind_check check (...)`
+  // em vez de definição inline de coluna.
+  const sql = coluna === "kind" ? sqlDaMigration9006() : sqlDaMigration9002();
+  const m = coluna === "kind"
+    ? new RegExp(`check\\s*\\(\\s*${coluna}\\s+in\\s*\\(([^)]*)\\)\\)`).exec(sql)
+    : new RegExp(`\\b${coluna}\\s+text[^\\n]*?check \\(${coluna} in \\(([^)]*)\\)\\)`).exec(sql);
+  if (m === null) {
+    throw new Error(`não achei o CHECK de ${coluna} — o instrumento ficou cego`);
+  }
+  const valores = [...(m[1] as string).matchAll(/'([^']+)'/g)].map((x) => x[1] as string);
+  if (valores.length === 0) throw new Error(`o CHECK de ${coluna} não rendeu literal nenhum`);
+  return valores;
+}
 
 const PERMITIDAS: ReadonlyArray<readonly [StatusDaProposta, StatusDaProposta]> = [
   ["pendente", "aprovada"],
@@ -28,23 +62,6 @@ const PERMITIDAS: ReadonlyArray<readonly [StatusDaProposta, StatusDaProposta]> =
   ["aprovada", "aplicada"],
   ["aprovada", "expirada"],
 ];
-
-function sqlDaMigration(): string {
-  return readFileSync(MIGRATION, "utf8");
-}
-
-/** Os literais de `<coluna> text not null ... check (<coluna> in (...))`, na ordem do SQL. */
-function listaDoCheck(coluna: string): string[] {
-  const m = new RegExp(`\\b${coluna}\\s+text[^\\n]*?check \\(${coluna} in \\(([^)]*)\\)\\)`).exec(
-    sqlDaMigration(),
-  );
-  if (m === null) {
-    throw new Error(`não achei o CHECK de ${coluna} na migration 9002 — o instrumento ficou cego`);
-  }
-  const valores = [...(m[1] as string).matchAll(/'([^']+)'/g)].map((x) => x[1] as string);
-  if (valores.length === 0) throw new Error(`o CHECK de ${coluna} não rendeu literal nenhum`);
-  return valores;
-}
 
 describe("podeTransitar — a máquina de estados da proposta", () => {
   it("controle: a matriz cobre as 25 combinações", () => {
@@ -84,7 +101,9 @@ describe("podeTransitar — a máquina de estados da proposta", () => {
 });
 
 describe("paridade com o banco: a migration 9002", () => {
-  it("TIPOS_DE_PROPOSTA = CHECK de kind", () => {
+  const PERMITIDAS_TIPOS = ["roteador", "conhecimento", "memoria", "modelo_auxiliares", "funil", "acao"];
+
+  it("TIPOS_DE_PROPOSTA = CHECK de kind (9006)", () => {
     expect([...TIPOS_DE_PROPOSTA].sort()).toEqual(listaDoCheck("kind").sort());
   });
 
@@ -98,7 +117,7 @@ describe("paridade com o banco: a migration 9002", () => {
   });
 
   it("as transições do gatilho (bloco `-- transicoes:`) são as de podeTransitar", () => {
-    const m = /^-- transicoes:\s*(.+)$/m.exec(sqlDaMigration());
+    const m = /^-- transicoes:\s*(.+)$/m.exec(sqlDaMigration9002());
     if (m === null) throw new Error("bloco `-- transicoes:` não encontrado na função de transição");
     const doBanco = (m[1] as string)
       .split(",")

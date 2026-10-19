@@ -59159,3 +59159,21 @@ notify pgrst, 'reload schema';
 -- reconstruir a constraint num segundo bloco é o que
 -- `tests/unit/baseline-constraint-reconstruida.test.ts` reprova. Par de
 -- `MOTIVOS_DA_PASSAGEM`/`FRASE_DO_MOTIVO` em `lib/escalacao/passagem.ts`.
+
+-- ---- config_proposals acao (migration 9006) ----
+-- ---- config_proposals acao (migration 9006) ----
+
+-- O CHECK de kind é inline (sem nome explícito na 9002): o Postgres batiza `config_proposals_kind_check`. Trocamos para incluir 'acao'.
+alter table public.config_proposals drop constraint if exists config_proposals_kind_check;
+alter table public.config_proposals add constraint config_proposals_kind_check check (kind in ('roteador','conhecimento','memoria','modelo_auxiliares','funil','acao'));
+
+-- O índice de turno único vale só para kinds que não são 'acao': duas propostas de ação diferentes no mesmo turno podem coexistir.
+drop index if exists config_proposals_turno_unico;
+create unique index if not exists config_proposals_turno_unico
+  on public.config_proposals (organization_id, turn_id, kind)
+  where turn_id is not null and kind <> 'acao';
+
+-- Mesmo ação repetida no mesmo turno: o md5 do payload é a impressão digital da ação.
+create unique index if not exists config_proposals_acao_turno_unico
+  on public.config_proposals (organization_id, turn_id, md5(payload::text))
+  where turn_id is not null and kind = 'acao';

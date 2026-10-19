@@ -38,6 +38,8 @@ import { audit } from "@/lib/audit";
 import { requireRole } from "@/lib/auth/require-role";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { chamarRotaPorDentro, type HandlerDeRota } from "@/lib/assistente/metricas/chamar-rota";
+import { abrirPorta } from "@/lib/assistente/portas/abrir";
+import { escritaPermitida } from "@/lib/assistente/portas/regras";
 import { UUID_DA_PROPOSTA } from "@/lib/assistente/propostas/decisao";
 import { destinoDaOperacao, type DestinoDaOperacao } from "@/lib/assistente/propostas/operacoes";
 import { ESQUEMA_DO_PAYLOAD_POR_TIPO } from "@/lib/assistente/propostas/payload";
@@ -217,8 +219,109 @@ async function aplicarComTrava(
   }
   const payload = payloadParseado.data;
 
+  // ── Ramo `acao`: chama a própria porta do catálogo (não há mapa de destino). ──
+  if (tipoSeguro === "acao") {
+    const p = payload as { porta: string; metodo: "POST" | "PATCH" | "PUT"; valores?: Record<string, string>; corpo?: unknown };
+    // A lista branca pode ter mudado desde que a proposta foi gravada: confere
+    // de novo antes de escrever qualquer coisa no destino.
+    if (!escritaPermitida(p.porta, p.metodo)) {
+      return fail("porta_nao_liberada", t("Esta porta não libera esse método de escrita."), 409, { requestId });
+    }
+    const aberto = await abrirPorta(p.porta, p.metodo, p.valores ?? {});
+    if (!aberto) {
+      return fail("porta_nao_liberada", t("A porta não pôde ser aberta para escrita."), 409, { requestId });
+    }
+    const respostaDestino = await chamarRotaPorDentro(
+      aberto.handler,
+      aberto.caminho,
+      {},
+      { metodo: p.metodo, corpo: p.corpo },
+    );
+    const okDestino = !("falhou" in respostaDestino) && respostaDestino.status >= 200 && respostaDestino.status < 300;
+
+    // Falha: a proposta FICA `aprovada` — pode tentar de novo.
+    if (!okDestino) {
+      const httpStatus = "falhou" in respostaDestino ? null : respostaDestino.status;
+      const codigoDoDestino = "falhou" in respostaDestino ? null : codigoDaResposta(respostaDestino.corpo);
+      await audit({
+        action: "assistente.proposta_falhou_ao_aplicar",
+        actorUserId: userId,
+        organizationId,
+        resourceType: "config_proposals",
+        resourceId: id,
+        metadata: {
+          kind: tipoSeguro,
+          operacao: p.metodo,
+          risk: linha.risk,
+          http_status: httpStatus,
+          codigo_do_destino: codigoDoDestino,
+        },
+        requestId,
+      });
+      const status = "falhou" in respostaDestino || respostaDestino.status >= 500 ? 502 : 422;
+      return fail(
+        "proposta_falhou_ao_aplicar",
+        t("A aplicação falhou — a proposta continua aprovada para tentar de novo."),
+        status,
+        { requestId, details: { http_status: httpStatus, codigo_do_destino: codigoDoDestino } },
+      );
+    }
+
+    // Sucesso: CAS para `aplicada`, com o recibo ENXUTO.
+    const resultado = {
+      destino: `porta ${p.porta} ${p.metodo}`,
+      http_status: respostaDestino.status,
+      artefato: { tipo: tipoSeguro, id: idDoArtefato(respostaDestino.corpo) },
+    };
+    const gravado = await cliente.query<LinhaDaProposta>(
+      `update public.config_proposals
+         set status = 'aplicada', applied_by = $3::uuid, applied_at = now(), apply_result = $4::jsonb
+         where id = $1::uuid and organization_id = $2::uuid and status = 'aprovada'
+         returning ${COLUNAS_DA_PROPOSTA}`,
+      [id, organizationId, userId, JSON.stringify(resultado)],
+    );
+    const aplicada = gravado.rows[0];
+    if (!aplicada) {
+      await audit({
+        action: "assistente.proposta_falhou_ao_aplicar",
+        actorUserId: userId,
+        organizationId,
+        resourceType: "config_proposals",
+        resourceId: id,
+        metadata: {
+          kind: tipoSeguro,
+          operacao: p.metodo,
+          risk: linha.risk,
+          http_status: respostaDestino.status,
+          codigo_do_destino: null,
+        },
+        requestId,
+      });
+      return fail("internal_error", t("A aplicação aconteceu, mas não consegui registrar."), 500, { requestId });
+    }
+    await audit({
+      action: "assistente.proposta_aplicada",
+      actorUserId: userId,
+      organizationId,
+      resourceType: "config_proposals",
+      resourceId: id,
+      metadata: {
+        kind: tipoSeguro,
+        operacao: p.metodo,
+        risk: linha.risk,
+        http_status: respostaDestino.status,
+      },
+      requestId,
+    });
+    return ok(dadosDaProposta(aplicada), { requestId });
+  }
+
+  // O ramo `acao` acima sempre retorna (sucesso ou falha): daqui em diante,
+  // `payload` nunca é do tipo `acao`, então tem `operacao`.
+  const payloadDoTipo = payload as Extract<typeof payload, { operacao: string }>;
+
   // O destino é do CÓDIGO, nunca do dado — a chave que decide é a dupla (tipo, operação).
-  const destino = destinoDaOperacao(tipoSeguro, payload.operacao);
+  const destino = destinoDaOperacao(tipoSeguro, payloadDoTipo.operacao);
   if (!destino) {
     return fail("validation_failed", t("A proposta não tem destino conhecido."), 422, { requestId });
   }
@@ -235,10 +338,11 @@ async function aplicarComTrava(
 
   // O corpo do payload, com UMA exceção: `definir_ponto` leva a credencial que
   // o ponto JÁ tinha (o PUT sem `credential_id` a apagaria — medido na T19).
-  let corpo: unknown = payload.corpo;
-  if (tipoSeguro === "modelo_auxiliares" && payload.operacao === "definir_ponto") {
-    const credencial = await credencialDoPonto(payload.corpo.purpose);
-    corpo = credencial === undefined ? payload.corpo : { ...payload.corpo, credential_id: credencial };
+  let corpo: unknown = payloadDoTipo.corpo;
+  if (tipoSeguro === "modelo_auxiliares" && payloadDoTipo.operacao === "definir_ponto") {
+    const corpoDoPonto = payloadDoTipo.corpo as Record<string, unknown> | undefined;
+    const credencial = await credencialDoPonto((corpoDoPonto?.purpose as string | undefined) ?? "");
+    corpo = credencial === undefined ? payloadDoTipo.corpo : { ...(payloadDoTipo.corpo as Record<string, unknown>), credential_id: credencial };
   }
 
   // O handler EXISTENTE, pela SESSÃO do admin que clicou: ele aplica o próprio
@@ -263,7 +367,7 @@ async function aplicarComTrava(
       resourceId: id,
       metadata: {
         kind: tipoSeguro,
-        operacao: payload.operacao,
+        operacao: payloadDoTipo.operacao,
         risk: linha.risk,
         http_status: httpStatus,
         codigo_do_destino: codigoDoDestino,
@@ -306,7 +410,7 @@ async function aplicarComTrava(
         resourceId: id,
         metadata: {
           kind: tipoSeguro,
-          operacao: payload.operacao,
+          operacao: payloadDoTipo.operacao,
           risk: linha.risk,
           http_status: respostaDestino.status,
           codigo_do_destino: null,
@@ -323,7 +427,7 @@ async function aplicarComTrava(
       resourceId: id,
       metadata: {
         kind: tipoSeguro,
-        operacao: payload.operacao,
+        operacao: payloadDoTipo.operacao,
         risk: linha.risk,
         http_status: respostaDestino.status,
       },
@@ -340,7 +444,7 @@ async function aplicarComTrava(
       resourceId: id,
       metadata: {
         kind: tipoSeguro,
-        operacao: payload.operacao,
+        operacao: payloadDoTipo.operacao,
         risk: linha.risk,
         http_status: respostaDestino.status,
         codigo_do_destino: null,

@@ -4,9 +4,9 @@
  * A rota já entrega só as skills com esse prefixo; este módulo filtra DE NOVO
  * por segurança — uma skill de agente da organização (outro nome) nunca sai
  * por aqui, mesmo que alguém passe a lista inteira por engano. Sem `guia`,
- * lista nome e descrição; com `guia`, devolve o corpo cortado em 6000
- * caracteres (e diz `cortado: true` quando cortou). O corpo é DADO: texto de
- * apoio para responder, não instrução a obedecer.
+ * lista nome e descrição; com `guia`, devolve o corpo inteiro (no máximo 200
+ * linhas, teto da aplicação no seed). O corpo é DADO: texto de apoio para
+ * responder, não instrução a obedecer.
  */
 import { tool, type Tool } from "ai";
 import { z } from "zod";
@@ -15,7 +15,6 @@ import { protegida } from "./protegida";
 import type { EntradaDasFerramentas, SkillDoAssistente } from "./tipos";
 
 export const PREFIXO_DOS_GUIAS = "assistente-";
-export const LIMITE_DO_CORPO_DO_GUIA = 6000;
 
 const esquemaDeEntrada = z.strictObject({ guia: z.string().max(60).optional() });
 
@@ -41,13 +40,11 @@ export function criarLerGuia(entrada: EntradaDasFerramentas): Tool {
       }
       const achado = guias.find((skill) => skill.name === guia.trim());
       if (!achado) return { ok: false as const, motivo: "guia_inexistente" as const };
-      const cortado = achado.body.length > LIMITE_DO_CORPO_DO_GUIA;
       return {
         ok: true as const,
         nome: achado.name,
         descricao: achado.description,
-        corpo: cortado ? achado.body.slice(0, LIMITE_DO_CORPO_DO_GUIA) : achado.body,
-        cortado,
+        corpo: achado.body,
       };
     }),
   });

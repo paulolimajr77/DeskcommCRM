@@ -117,7 +117,7 @@ function processarInline(texto: string): React.ReactNode {
     elemento = <strong key="s">{processarInline(completo.slice(2, -2))}</strong>;
   } else if (completo.startsWith("`") && completo.endsWith("`")) {
     elemento = (
-      <code key="c" className="bg-muted px-1 rounded text-xs">
+      <code key="c" className="bg-muted px-1 rounded-md text-xs">
         {completo.slice(1, -1)}
       </code>
     );

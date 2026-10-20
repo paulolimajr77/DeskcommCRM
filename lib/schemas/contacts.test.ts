@@ -143,6 +143,23 @@ describe("contactListQuerySchema", () => {
     expect(r.order_by).toBe("display_name");
     expect(r.order_dir).toBe("asc");
   });
+
+  it("accepts aniversario hoje/semana/mes", () => {
+    for (const v of ["hoje", "semana", "mes"] as const) {
+      const r = contactListQuerySchema.parse({ aniversario: v });
+      expect(r.aniversario).toBe(v);
+    }
+  });
+
+  it("rejects aniversario fora do enum", () => {
+    const r = contactListQuerySchema.safeParse({ aniversario: "ano" });
+    expect(r.success).toBe(false);
+  });
+
+  it("aniversario é opcional", () => {
+    const r = contactListQuerySchema.parse({});
+    expect(r.aniversario).toBeUndefined();
+  });
 });
 
 describe("lgpdAnonymizeSchema", () => {

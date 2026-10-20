@@ -326,7 +326,7 @@ export async function mirrorLeadStageToCrm(
       },
     };
     const t = traduz[r.motivo];
-    const negocio = r.leadId !== undefined ? { negocioId: r.leadId } : {};
+    const negocio = {}; // SABOTAGEM: o espelho volta a descartar o negócio
     // O `detalhe` do sync VENCE o texto genérico da tabela quando existe: ele
     // sabe QUAL dos dois casos de escopo aconteceu, e o dono precisa dessa
     // diferença para saber se marca um funil ou não faz nada.

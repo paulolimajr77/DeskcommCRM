@@ -57,6 +57,9 @@ export const AUDIT_ACTIONS = [
   "lead.imported",
   "contact.created",
   "contact.updated",
+  // A varredura que copia o nome salvo na agenda do celular para a ficha.
+  // Uma linha por empresa, em cada rodada que preencheu alguém dela — não uma por contato.
+  "contact.address_book_name_filled",
   "contacts.imported",
   "contact.anonymized",
   "contact.merge_pending",
@@ -848,20 +851,6 @@ export const AUDIT_ACTIONS = [
    */
   "ai.case_chat_asked",
   /**
-   * A equipe perguntou ao assistente interno (migration 9001). Uma linha por
-   * PERGUNTA, respondida ou não.
-   *
-   * ⚠️ SEM O TEXTO. Nem a pergunta, nem a resposta: `api_audit_log` é
-   * append-only, sem UPDATE nem DELETE para papel nenhum — o que entra ali não
-   * sai pela cascata de LGPD.
-   */
-  "ai.assistente_asked",
-  /**
-   * O áudio gravado no campo do chat do assistente foi transcrito. Metadata: só
-   * a origem da transcrição e o tamanho — nunca o áudio nem o texto.
-   */
-  "ai.assistente_transcribed",
-  /**
    * O aviso de caso no WhatsApp da equipe (migration 0292).
    *
    * Três códigos e não um: "saiu", "não saiu em definitivo" e "alguém mudou a
@@ -1179,57 +1168,6 @@ export const AUDIT_ACTIONS = [
   // `removidas` no metadata) ou dentro do `template.deleted`, que são os atos
   // em que a imagem sai de fato.
   "template.media_added",
-  /**
-   * O assistente interno PROPÔS uma mudança ao vivo (F2b, migration 9002): uma
-   * linha `pendente` em `config_proposals`, gravada com a sessão do admin.
-   * Propor não muda nada no negócio; quem aplica é a rota da T20, depois do
-   * clique de aprovar.
-   *
-   * ⚠️ SEM O TEXTO. O metadata leva só `kind`, `operacao` e `risk` (e o id da
-   * proposta vai em `resource_id`): o `payload` carrega prompt, FAQ e memória
-   * da empresa, e `api_audit_log` é append-only — o que entra ali não sai pela
-   * cascata de LGPD.
-   */
-  "assistente.proposta_criada",
-  /**
-   * O admin APROVOU uma proposta do assistente (F2b, T20) — transição
-   * `pendente → aprovada`. Aprovar nunca executa efeito: quem aplica é a
-   * ação própria, depois.
-   *
-   * ⚠️ SEM O TEXTO: o metadata leva só `kind`, `operacao` e `risk` — o
-   * `payload` carrega prompt, FAQ e memória da empresa, e `api_audit_log` é
-   * append-only (o que entra ali não sai pela cascata de LGPD).
-   */
-  "assistente.proposta_aprovada",
-  /**
-   * O admin REJEITOU uma proposta do assistente (T20) — `pendente →
-   * rejeitada`, com `decision_reason`. O MOTIVO nunca entra no metadata (o
-   * texto fica na linha de `config_proposals`, que a RLS limita a admin);
-   * aqui vai só `kind`, `operacao` e `risk`. O motivo é insumo estruturado do
-   * laço de retorno (F4), não texto de trilha.
-   */
-  "assistente.proposta_rejeitada",
-  /**
-   * O admin APLICOU uma proposta aprovada (T20) — o destino fixo do mapa
-   * (`operacoes.ts`) recebeu o corpo pelo handler existente e respondeu 2xx.
-   * O metadata leva `kind`, `operacao`, `risk` e o `http_status` do destino —
-   * nunca o corpo da resposta (pode carregar texto do recurso criado).
-   */
-  "assistente.proposta_aplicada",
-  /**
-   * A APLICAÇÃO FALHOU (T20): o destino respondeu não-2xx (ou lançou). A
-   * proposta FICA `aprovada` — pode tentar de novo —, e esta linha é a que
-   * responde "por que ficou aprovada e nada mudou?". Metadata com `kind`,
-   * `operacao`, `risk`, `http_status` e `codigo_do_destino` (o `error.code` do
-   * envelope do destino, sem texto livre).
-   */
-  "assistente.proposta_falhou_ao_aplicar",
-  /**
-   * A auditoria da empresa rodou (F3): cada rodada grava um retrato em
-   * `config_snapshots` e emite esta linha. Metadata com apenas `pendencias` e
-   * a contagem por estado — nunca texto livre de itens.
-   */
-  "assistente.auditoria_rodada",
   // O cron de lembrete de tarefa (#2529) avisou RESPONSÁVEIS nesta rodada —
   // só quando houve efeito, como manda a lei do §Audit log. O metadata traz
   // quantas tarefas, quantas puladas e por quê; nunca o número de WhatsApp de

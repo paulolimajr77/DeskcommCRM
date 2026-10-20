@@ -1,12 +1,11 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { useAssistentePainel } from "@/components/assistente/AssistentePainelProvider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/auth/AuthProvider";
 import { useT } from "@/hooks/i18n/useT";
-import { MagnifyingGlass, Robot } from "@/lib/ui/icons";
+import { MagnifyingGlass } from "@/lib/ui/icons";
 import {
   NAV_GROUPS,
   searchable,
@@ -30,18 +29,6 @@ function normalizar(texto: string): string {
   return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-/**
- * O item "Conversar com o assistente" NÃO vem do catálogo de navegação, que é só
- * de telas: ele abre o painel lateral, não leva a lugar nenhum. É uma entrada
- * sintética, tratada à parte — fora de `visiveis`, do contador "Todas (N)" e das
- * categorias — e ocupa o índice `-1` do destaque, o que deixa a navegação por
- * setas dos itens do catálogo (0..N-1) exatamente como era.
- */
-const INDICE_DO_ASSISTENTE = -1;
-
-/** Palavras que fazem a busca achar o item além do texto que ele mostra. */
-const PALAVRAS_DO_ASSISTENTE = "assistente conversar perguntar ia";
-
 const ROTULO_GRUPO = new Map(NAV_GROUPS.map((g) => [g.id, g.label]));
 const ORDEM_GRUPO = new Map(NAV_GROUPS.map((g, i) => [g.id, i]));
 
@@ -53,10 +40,6 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useT();
-  // Escolher o assistente fecha a paleta e abre o painel. Sem isto o Radix
-  // devolveria o foco ao botão que abriu a paleta, brigando com o foco que o
-  // painel leva para o campo de pergunta.
-  const abriuOPainel = useRef(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/*
@@ -74,46 +57,23 @@ export function CommandPalette({
         notebook, passava do rodapé. Centralizada, a sobra se reparte nas duas
         pontas e o teto do `DialogContent` resolve o resto com rolagem.
       */}
-      <DialogContent
-        className="max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-3xl"
-        onCloseAutoFocus={(e) => {
-          if (!abriuOPainel.current) return;
-          abriuOPainel.current = false;
-          e.preventDefault();
-          // O Radix devolveria o foco ao botão que abriu a paleta: quem o recebe é o campo do painel.
-          document.querySelector<HTMLElement>('[data-testid="assistente-pergunta"]')?.focus();
-        }}
-      >
+      <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogTitle className="sr-only">{t("Buscar telas")}</DialogTitle>
         {/* O miolo é um componente à parte porque o Radix o DESMONTA ao fechar:
             busca e destaque nascem zerados na próxima abertura por construção,
             sem um efeito de reset para manter em sincronia. */}
-        <Resultados
-          aoEscolher={() => onOpenChange(false)}
-          aoEscolherOAssistente={() => {
-            abriuOPainel.current = true;
-            onOpenChange(false);
-          }}
-        />
+        <Resultados aoEscolher={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function Resultados({
-  aoEscolher,
-  aoEscolherOAssistente,
-}: {
-  aoEscolher: () => void;
-  aoEscolherOAssistente: () => void;
-}) {
+function Resultados({ aoEscolher }: { aoEscolher: () => void }) {
   const t = useT();
   const router = useRouter();
-  const painel = useAssistentePainel();
   const { user, activeOrg } = useAuth();
   const [busca, setBusca] = useState("");
-  // Sem painel montado (teste isolado) não há o que abrir: o item não é oferecido.
-  const [destacado, setDestacado] = useState(painel !== null ? INDICE_DO_ASSISTENTE : 0);
+  const [destacado, setDestacado] = useState(0);
   const [categoriaAtiva, setCategoriaAtiva] = useState<string>("todos");
 
   const visiveis = useMemo(
@@ -173,12 +133,6 @@ function Resultados({
     return map;
   }, [resultados]);
 
-  /** Fecha a paleta e abre o painel — e não navega. */
-  function abrirAssistente() {
-    aoEscolherOAssistente();
-    painel?.abrir();
-  }
-
   function navegar(destino: NavDestination) {
     aoEscolher();
     router.push(destino.href);
@@ -191,12 +145,12 @@ function Resultados({
    */
   function aoDigitar(valor: string) {
     setBusca(valor);
-    setDestacado(primeiroDestaque(valor, categoriaAtiva));
+    setDestacado(0);
   }
 
   function mudarCategoria(id: string) {
     setCategoriaAtiva(id);
-    setDestacado(primeiroDestaque(busca, id));
+    setDestacado(0);
   }
 
   function aoTeclar(e: React.KeyboardEvent) {
@@ -205,32 +159,15 @@ function Resultados({
       setDestacado((i) => Math.min(i + 1, resultados.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setDestacado((i) => Math.max(i - 1, assistenteVisivel ? INDICE_DO_ASSISTENTE : 0));
+      setDestacado((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (assistenteVisivel && destacado === INDICE_DO_ASSISTENTE) {
-        abrirAssistente();
-        return;
-      }
       const alvo = resultados[destacado];
       if (alvo) navegar(alvo);
     }
   }
 
   const emModoCatalogo = !busca.trim() && categoriaAtiva === "todos";
-
-  /** O item do assistente aparece em "Todas", e quando a busca (se houver) o descreve. */
-  function assistenteCasa(termoBruto: string, categoria: string): boolean {
-    if (painel === null || categoria !== "todos") return false;
-    const termo = normalizar(termoBruto.trim());
-    if (!termo) return true;
-    return normalizar(
-      `${t("Conversar com o assistente")} ${t("Pergunte sobre a operação, os números e as telas do CRM.")} ${PALAVRAS_DO_ASSISTENTE}`,
-    ).includes(termo);
-  }
-  const assistenteVisivel = assistenteCasa(busca, categoriaAtiva);
-  const primeiroDestaque = (termoBruto: string, categoria: string) =>
-    assistenteCasa(termoBruto, categoria) ? INDICE_DO_ASSISTENTE : 0;
 
   return (
     <>
@@ -241,13 +178,7 @@ function Resultados({
           role="combobox"
           aria-expanded
           aria-controls="palette-resultados"
-          aria-activedescendant={
-            assistenteVisivel && destacado === INDICE_DO_ASSISTENTE
-              ? "palette-assistente"
-              : resultados[destacado]
-                ? `palette-${destacado}`
-                : undefined
-          }
+          aria-activedescendant={resultados[destacado] ? `palette-${destacado}` : undefined}
           value={busca}
           onChange={(e) => aoDigitar(e.target.value)}
           onKeyDown={aoTeclar}
@@ -301,7 +232,7 @@ function Resultados({
         })}
       </div>
 
-      {resultados.length === 0 && !assistenteVisivel ? (
+      {resultados.length === 0 ? (
         <div className="px-4 py-12 text-center text-sm text-muted-foreground">
           <p className="font-medium text-foreground">
             {t("Nada encontrado para")} “{busca}”.
@@ -318,14 +249,6 @@ function Resultados({
           aria-label={t("Telas")}
           className="max-h-[60vh] space-y-5 overflow-y-auto p-4"
         >
-          {assistenteVisivel ? (
-            <OpcaoDoAssistente
-              como="div"
-              ativo={destacado === INDICE_DO_ASSISTENTE}
-              aoPassar={() => setDestacado(INDICE_DO_ASSISTENTE)}
-              aoEscolher={abrirAssistente}
-            />
-          ) : null}
           {Array.from(resultadosAgrupados.entries()).map(([grupoId, itens]) => {
             const rotuloGrupo = ROTULO_GRUPO.get(grupoId) ?? grupoId;
             return (
@@ -398,14 +321,6 @@ function Resultados({
           aria-label={t("Telas")}
           className="max-h-[60vh] overflow-y-auto p-2"
         >
-          {assistenteVisivel ? (
-            <OpcaoDoAssistente
-              como="li"
-              ativo={destacado === INDICE_DO_ASSISTENTE}
-              aoPassar={() => setDestacado(INDICE_DO_ASSISTENTE)}
-              aoEscolher={abrirAssistente}
-            />
-          ) : null}
           {resultados.map((d, i) => {
             const Icon = d.icon;
             const ativo = i === destacado;
@@ -463,56 +378,5 @@ function Resultados({
         <span>{t("ESC para fechar")}</span>
       </div>
     </>
-  );
-}
-
-/**
- * A linha do assistente na paleta. Mesmo par de cores do item de tela destacado:
- * a frente do destaque SEM opacidade, que herda o piso de 4,5:1 de
- * `lib/branding/contraste.ts`.
- */
-function OpcaoDoAssistente({
-  como,
-  ativo,
-  aoPassar,
-  aoEscolher,
-}: {
-  como: "div" | "li";
-  ativo: boolean;
-  aoPassar: () => void;
-  aoEscolher: () => void;
-}) {
-  const t = useT();
-  const Raiz = como;
-  const secundario = ativo ? "text-accent-foreground" : "text-muted-foreground";
-  return (
-    <Raiz
-      id="palette-assistente"
-      role="option"
-      aria-selected={ativo}
-      data-acao="abrir-assistente"
-      onMouseEnter={aoPassar}
-      onClick={aoEscolher}
-      className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-md px-3 py-2.5 transition-colors",
-        como === "div" && "border border-border/50",
-        ativo && "bg-accent text-accent-foreground",
-      )}
-    >
-      <div
-        className={cn(
-          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/40 bg-background/60",
-          ativo && "bg-primary text-primary-foreground",
-        )}
-      >
-        <Robot size={16} aria-hidden />
-      </div>
-      <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium">{t("Conversar com o assistente")}</span>
-        <p className={cn("line-clamp-2 text-xs", secundario)}>
-          {t("Pergunte sobre a operação, os números e as telas do CRM.")}
-        </p>
-      </div>
-    </Raiz>
   );
 }

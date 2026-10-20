@@ -49,8 +49,6 @@ export interface ChamadaDeIa {
    */
   cost_cents: number | null;
   latency_ms: number;
-  /** Degrau da escada que escolheu quem atendeu (ex.: transcrição). Ausente = não se aplica. */
-  origem_da_escolha?: string | null;
   /** Presente = a chamada falhou. `status` HTTP opcional, lido por `codigoDoErro`. */
   erro?: { message: string; status?: number } | null;
 }
@@ -72,7 +70,6 @@ export async function registrarChamadaDeIa(admin: Admin, chamada: ChamadaDeIa): 
       output_tokens: Math.max(0, Math.round(chamada.output_tokens)),
       cost_cents: chamada.cost_cents,
       latency_ms: Math.max(0, Math.round(chamada.latency_ms)),
-      ...(chamada.origem_da_escolha ? { origem_da_escolha: chamada.origem_da_escolha } : {}),
       status: erro ? "erro" : "ok",
       error_code: erro ? codigoDoErro({ ...erro }) : null,
       error_message: erro ? erro.message.slice(0, 500) : null,

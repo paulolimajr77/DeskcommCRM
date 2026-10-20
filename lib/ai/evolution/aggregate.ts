@@ -41,48 +41,6 @@ export interface EvolutionInput {
   inboundCount: number;
   handoffCount: number;
   pipelines: Array<{ name: string; hints: Array<string | null> }>;
-  /**
-   * Laço de retorno do assistente interno (F4): o que aconteceu com as propostas
-   * de configuração que ele fez. Ausente = a rota não trouxe a fonte
-   * (`indisponivel`). `restrito` = quem pede não é admin, e a RLS da tabela só
-   * deixa admin ler — mostrar zero ali seria mentir que ninguém propôs nada.
-   */
-  configLoop?: ConfigLoopInput;
-}
-
-/** Colunas de `config_proposals` que o laço lê. Nada de conteúdo. */
-export interface PropostaDeConfigLinha {
-  kind: string;
-  status: string;
-  decided_at: string | null;
-  applied_at: string | null;
-}
-
-export type ConfigLoopInput =
-  | { estado: 'ok'; rows: PropostaDeConfigLinha[] }
-  | { estado: 'restrito' }
-  | { estado: 'indisponivel' };
-
-export interface ConfigLoopPorKind {
-  kind: string;
-  /** Propostas criadas na janela. */
-  propostas: number;
-  /** Um humano aprovou (inclui as que depois foram aplicadas ou expiraram sem aplicar). */
-  aprovadas: number;
-  aplicadas: number;
-  rejeitadas: number;
-  /** Ninguém decidiu: pendente, ou expirou sem decisão. */
-  sem_decisao: number;
-  /** Aprovadas que não chegaram a ser aplicadas (ainda aprovada, ou expirou aprovada). */
-  aprovadas_sem_aplicar: number;
-}
-
-export interface ConfigLoopPayload {
-  estado: 'ok' | 'restrito' | 'indisponivel';
-  total: number;
-  /** aprovadas / (aprovadas + rejeitadas): só entra quem foi DECIDIDO. `null` se ninguém decidiu. */
-  taxa_aprovacao: number | null;
-  por_kind: ConfigLoopPorKind[];
 }
 
 export interface TimelineItem {
@@ -142,42 +100,6 @@ export interface EvolutionPayload {
     knowledge_empty: number;
     router_no_match: number;
     router_failed: number;
-  };
-  config_loop: ConfigLoopPayload;
-}
-
-/**
- * Laço de retorno: por kind, quantas propostas foram aprovadas, aplicadas e
- * rejeitadas. "Arrependimento" (desfazer depois de aplicar) NÃO existe: o banco
- * não tem estado nem coluna de desfazer (`config_proposals.status` termina em
- * `aplicada`), e este agregador não simula o que o schema não guarda.
- */
-function lacoDeConfig(entrada: ConfigLoopInput | undefined): ConfigLoopPayload {
-  if (!entrada || entrada.estado !== 'ok') {
-    return { estado: entrada?.estado ?? 'indisponivel', total: 0, taxa_aprovacao: null, por_kind: [] };
-  }
-  const porKind = new Map<string, ConfigLoopPorKind>();
-  for (const r of entrada.rows) {
-    const k =
-      porKind.get(r.kind) ??
-      { kind: r.kind, propostas: 0, aprovadas: 0, aplicadas: 0, rejeitadas: 0, sem_decisao: 0, aprovadas_sem_aplicar: 0 };
-    k.propostas += 1;
-    const decidida = r.decided_at !== null;
-    if (r.status === 'rejeitada') k.rejeitadas += 1;
-    else if (decidida) k.aprovadas += 1;
-    else k.sem_decisao += 1;
-    if (r.status === 'aplicada') k.aplicadas += 1;
-    else if (decidida && r.status !== 'rejeitada') k.aprovadas_sem_aplicar += 1;
-    porKind.set(r.kind, k);
-  }
-  const por_kind = [...porKind.values()].sort((a, b) => b.propostas - a.propostas || a.kind.localeCompare(b.kind));
-  const aprovadas = por_kind.reduce((a, k) => a + k.aprovadas, 0);
-  const rejeitadas = por_kind.reduce((a, k) => a + k.rejeitadas, 0);
-  return {
-    estado: 'ok',
-    total: entrada.rows.length,
-    taxa_aprovacao: aprovadas + rejeitadas > 0 ? aprovadas / (aprovadas + rejeitadas) : null,
-    por_kind,
   };
 }
 
@@ -318,6 +240,5 @@ export function aggregateEvolution(input: EvolutionInput): EvolutionPayload {
       router_no_match: input.routerDecisions.filter((r) => r.outcome === 'no_match').length,
       router_failed: input.routerDecisions.filter((r) => r.outcome === 'classifier_failed').length,
     },
-    config_loop: lacoDeConfig(input.configLoop),
   };
 }

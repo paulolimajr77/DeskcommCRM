@@ -16,6 +16,7 @@ vi.mock("@/lib/assistente/metricas/chamar-rota", () => ({
 import { abrirPorta } from "@/lib/assistente/portas/abrir";
 import { chamarRotaPorDentro } from "@/lib/assistente/metricas/chamar-rota";
 import { escritaPermitida } from "@/lib/assistente/portas/regras";
+import { dadosDaResposta } from "@/app/api/v1/ai/assistente/propostas/route";
 
 const mockAbrirPorta = abrirPorta as ReturnType<typeof vi.fn>;
 const mockChamarRota = chamarRotaPorDentro as ReturnType<typeof vi.fn>;
@@ -24,7 +25,10 @@ describe("propor_mudanca", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockAbrirPorta.mockReturnValue(null);
-    mockChamarRota.mockResolvedValue({ status: 201, corpo: { id: "proposta-123" } });
+    mockChamarRota.mockResolvedValue({
+      status: 201,
+      corpo: { data: { id: "proposta-123" } },
+    });
   });
 
   it("propor_mudanca é só para admin", () => {
@@ -93,8 +97,8 @@ describe("propor_mudanca", () => {
     expect(mockChamarRota).toHaveBeenCalled();
   });
 
-  it("resposta 201 sem id → falha e nenhum cartão anotado", async () => {
-    mockChamarRota.mockResolvedValue({ status: 201, corpo: {} });
+  it("resposta 201 sem data.id → falha e nenhum cartão anotado", async () => {
+    mockChamarRota.mockResolvedValue({ status: 201, corpo: { data: {} } });
     const { ferramentas, coletor } = montarParaTeste("admin");
     const saida = await chamar(ferramentas, "propor_mudanca", {
       porta: "ai/agents",
@@ -106,6 +110,33 @@ describe("propor_mudanca", () => {
     });
     expect(saida).toEqual({ ok: false, motivo: "indisponivel" });
     expect(coletor.acoes.some((a) => a.tipo === "proposta")).toBe(false);
+  });
+
+  it("proposta repetida (200) devolve o id existente e anota cartão", async () => {
+    const existente = {
+      id: "proposta-existente",
+      kind: "acao",
+      payload: { operacao: "criar" },
+      risk: "baixo",
+      status: "pendente",
+      resumo: "Criar agente",
+      expires_at: "2026-12-31T23:59:59Z",
+    };
+    mockChamarRota.mockResolvedValue({
+      status: 200,
+      corpo: { data: dadosDaResposta(existente as never) },
+    });
+    const { ferramentas, coletor } = montarParaTeste("admin");
+    const saida = await chamar(ferramentas, "propor_mudanca", {
+      porta: "ai/agents",
+      metodo: "POST",
+      valores: {},
+      corpo: { name: "Novo agente" },
+      resumo: "Criar agente de teste",
+      motivo: "Precisamos de um novo agente",
+    });
+    expect(saida).toEqual({ ok: true, propostaId: "proposta-existente" });
+    expect(coletor.acoes.some((a) => a.tipo === "proposta" && a.id === "proposta-existente")).toBe(true);
   });
 
   it("entrada inválida é recusada", async () => {

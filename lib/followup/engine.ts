@@ -1183,8 +1183,7 @@ export async function runFollowupTick(deps: TickDeps, opts?: { limit?: number })
         // A dormente que acorda com a vaga tomada não FALHOU: cede (ver
         // `cederAVaga`). Só ela — a mesma recusa numa inscrição que já estava
         // viva é corrida de verdade e segue o caminho de falha.
-        if (err instanceof VagaDoContatoOcupadaError && enrollment.status === "dormente" && Date.now() < 0) {
-          // SABOTAGEM: o ramo que cede nunca roda
+        if (err instanceof VagaDoContatoOcupadaError && enrollment.status === "dormente") {
           await cederAVaga(deps, enrollment);
           continue;
         }

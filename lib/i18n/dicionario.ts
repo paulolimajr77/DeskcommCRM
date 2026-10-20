@@ -15705,15 +15705,11 @@ export const DICIONARIO: Traducoes = {
   "Quando oferecer a opção de parar de receber": { es: "Cuándo ofrecer la opción de dejar de recibir" },
   "Na primeira mensagem (recomendado)": { es: "En el primer mensaje (recomendado)" },
   "A abertura já diz como parar: Se não quiser mais receber mensagens, responda PARAR.": {
-    es: "La apertura ya dice cómo detenerse: si no querés recibir más mensajes, respondé BAJA.",
+    es: "La apertura ya dice cómo detenerse: si no quieres recibir más mensajes, responde BAJA.",
   },
   "Atrasar para a 2ª mensagem": { es: "Postergar al 2.º mensaje" },
   "A abertura só cumprimenta e confirma se é a empresa certa, sem oferta. A instrução para parar vai na mensagem seguinte.": {
     es: "La apertura solo saluda y confirma si es la empresa correcta, sin oferta. La instrucción para detenerse va en el mensaje siguiente.",
-  },
-  "Atrasar para a 3ª mensagem": { es: "Postergar al 3.er mensaje" },
-  "As duas primeiras mensagens não fazem oferta: cumprimentar, depois apresentar-se e pedir permissão. A instrução para parar vai na terceira.": {
-    es: "Los dos primeros mensajes no hacen oferta: saludar, presentarse y pedir permiso. La instrucción para detenerse va en el tercero.",
   },
   "Exemplo de instrução para os atrasados: na primeira mensagem, só cumprimente e pergunte se é da empresa. Quando a pessoa responder, apresente-se e peça permissão para mostrar o serviço.": {
     es: "Ejemplo de instrucción para los postergados: en el primer mensaje, solo saluda y pregunta si es la empresa. Cuando la persona responda, preséntate y pide permiso para mostrar el servicio.",
@@ -16475,6 +16471,11 @@ export const DICIONARIO: Traducoes = {
   "A resposta ia mostrar um produto que não foi encontrado no cadastro. Confira o produto e gere de novo.": { es: "La respuesta iba a mostrar un producto que no se encontró en el registro. Revisa el producto y genera de nuevo." },
   "A sugestão tentou usar uma ação que a prévia não reconhece. Gere de novo; se repetir, revise as ferramentas ligadas no agente.": { es: "La sugerencia intentó usar una acción que la previsualización no reconoce. Genera de nuevo; si se repite, revisa las herramientas activadas en el agente." },
   "A geração da sugestão falhou, ou o contexto da conversa não pôde ser montado. Tente de novo; se repetir, o motivo ficou registrado no servidor.": { es: "La generación de la sugerencia falló, o no se pudo armar el contexto de la conversación. Inténtalo de nuevo; si se repite, el motivo quedó registrado en el servidor." },
+  "Lista de uma escolha": { es: "Lista de una elección" },
+  "Lista de várias escolhas": { es: "Lista de varias opciones" },
+  "Lista pesquisável": { es: "Lista con búsqueda" },
+  "Sim ou não": { es: "Sí o no" },
+  "Link (URL)": { es: "Enlace (URL)" },
   "O agente terminou sem propor uma resposta. Pode ter sido uma decisão (por exemplo, diante de uma mensagem automática) ou a geração ter parado antes da resposta. Se esperava uma, gere de novo; senão, não há nada a enviar.": { es: "El agente terminó sin proponer una respuesta. Pudo ser una decisión (por ejemplo, ante un mensaje automático) o que la generación se detuviera antes de la respuesta. Si esperabas una, genera de nuevo; si no, no hay nada que enviar." },
 };
 

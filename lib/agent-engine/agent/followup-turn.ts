@@ -1229,6 +1229,9 @@ async function sendFixedOutbound(
           // template (modelo) não conta nem leva: o corpo aprovado pelo canal não se altera.
           conversationId: modelo === undefined ? conversationId : null,
           via: "followup",
+          // A mesma intenção do `channel.send` abaixo: o `queued` lança no `switch`
+          // mais abaixo e o retry genérico da fila re-roda este job (gasta tentativa).
+          mensagem: { jobId: job.id, seq: 1 },
           avisar: (m, c) => runLog.warn(m, c),
         },
         finalBody,

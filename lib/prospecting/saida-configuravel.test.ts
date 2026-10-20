@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChannelSendResult } from "@/lib/agent-engine/channel-adapter";
 import { audit } from "@/lib/audit";
+import { campaignConfigSchema, prospectingInputSchema } from "@/lib/prospecting/schema";
 import {
   contarEnvioAutomatico,
   desfazerContagem,
@@ -99,6 +100,8 @@ describe("desfazerContagem", () => {
   });
 });
 
+const MSG = { jobId: "job-1", seq: 1 };
+
 describe("enviarComSaidaConfiguravel", () => {
   beforeEach(() => {
     auditMock.mockClear();
@@ -131,7 +134,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const enviar = envioFalso(resultadoEnvio);
     const avisar = vi.fn();
     const r = await enviarComSaidaConfiguravel(
-      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", avisar },
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar },
       "Oi, tudo bem?",
       enviar,
     );
@@ -172,7 +175,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const enviar = envioFalso(resultadoEnvio);
     const avisar = vi.fn();
     const r = await enviarComSaidaConfiguravel(
-      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "followup", avisar },
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "followup", mensagem: MSG, avisar },
       "só cumprimento",
       enviar,
     );
@@ -183,35 +186,80 @@ describe("enviarComSaidaConfiguravel", () => {
     // conferir que não houve audit e o corpo saiu intacto.
   });
 
-  it.each(["queued", "already_sent"] as const)(
-    "contou + envio %s → desfaz a contagem desta tentativa e não audita (o job reprocessa)",
-    async (kind) => {
-      const agora = "2026-10-21T14:00:00.000000Z";
-      const { query } = dbFalso({
-        "returning": [
-          {
-            candidato_id: "cand-4",
-            campanha_id: "camp-4",
-            exit_offered_at: agora,
-            leva_a_saida: true,
-            numero_da_mensagem: 3,
-            locale: "pt-BR",
-            reservada_em_texto: agora,
-          },
-        ],
-      });
-      const resultadoEnvio: ChannelSendResult = { kind, idempotencyKey: "k", messageId: "m" };
-      await enviarComSaidaConfiguravel(
-        { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", avisar: vi.fn() },
-        "texto",
-        envioFalso(resultadoEnvio),
-      );
-      const [sql, params] = query.mock.calls.at(-1)!;
-      expect(sql).toContain("greatest(automatic_sends - 1, 0)");
-      expect(params).toEqual(["org-a", "cand-4", agora]);
-      expect(auditMock).not.toHaveBeenCalled();
-    },
-  );
+  // Modo da 2ª: a 2ª mensagem reservou a saída e voltou `queued`. O corpo
+  // guardado, já com o PARAR, sai depois pelo watchdog sem passar por aqui —
+  // então a contagem, a reserva e a auditoria FICAM (prova recusada do #3091).
+  it("contou + envio queued → mantém a contagem e a reserva e audita", async () => {
+    const agora = "2026-10-21T14:00:00.000000Z";
+    const { query } = dbFalso({
+      "returning": [
+        {
+          candidato_id: "cand-4",
+          campanha_id: "camp-4",
+          exit_offered_at: agora,
+          leva_a_saida: true,
+          numero_da_mensagem: 2,
+          locale: "pt-BR",
+          reservada_em_texto: agora,
+        },
+      ],
+    });
+    const enviar = envioFalso({ kind: "queued", idempotencyKey: "k", messageId: "m" });
+    await enviarComSaidaConfiguravel(
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar: vi.fn() },
+      "texto",
+      enviar,
+    );
+    expect(enviar.mock.calls[0]?.[0]).toContain("PARAR");
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("greatest(automatic_sends - 1, 0)"))).toBe(false);
+    expect(auditMock).toHaveBeenCalledTimes(1);
+  });
+
+  // `already_sent` não transmitiu nada: se esta tentativa contou, desfaz.
+  it("contou + envio already_sent → desfaz a contagem desta tentativa e não audita", async () => {
+    const agora = "2026-10-21T14:00:00.000000Z";
+    const { query } = dbFalso({
+      "returning": [
+        {
+          candidato_id: "cand-4",
+          campanha_id: "camp-4",
+          exit_offered_at: agora,
+          leva_a_saida: true,
+          numero_da_mensagem: 2,
+          locale: "pt-BR",
+          reservada_em_texto: agora,
+        },
+      ],
+    });
+    await enviarComSaidaConfiguravel(
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar: vi.fn() },
+      "texto",
+      envioFalso({ kind: "already_sent", idempotencyKey: "k", messageId: "m" }),
+    );
+    const [sql, params] = query.mock.calls.at(-1)!;
+    expect(sql).toContain("greatest(automatic_sends - 1, 0)");
+    expect(params).toEqual(["org-a", "cand-4", agora]);
+    expect(auditMock).not.toHaveBeenCalled();
+  });
+
+  // Reprocesso da MESMA mensagem (job, seq) já guardada: não conta, não audita,
+  // e o corpo desta tentativa repete a decisão do corpo guardado.
+  it.each([
+    ["com", "Oi\n\nSe não quiser mais receber mensagens, responda PARAR.", true],
+    ["sem", "Oi", false],
+  ] as const)("mensagem já guardada %s o rodapé → não conta e repete a decisão", async (_, guardado, leva) => {
+    const { query } = dbFalso({ "send_ledger": [{ body: guardado, locale: "pt-BR" }] });
+    const enviar = envioFalso({ kind: "sent", idempotencyKey: "k", messageId: "m" });
+    await enviarComSaidaConfiguravel(
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "followup", mensagem: MSG, avisar: vi.fn() },
+      "Olá de novo",
+      enviar,
+    );
+    expect(String(enviar.mock.calls[0]?.[0]).includes("PARAR")).toBe(leva);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-a", "job-1", 1]);
+    expect(auditMock).not.toHaveBeenCalled();
+  });
 
   it("contou + envio failed → desfazer chamado com reservadaEm", async () => {
     const agora = "2026-10-21T13:00:00.000000Z";
@@ -232,7 +280,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const enviar = envioFalso(resultadoEnvio);
     const avisar = vi.fn();
     await enviarComSaidaConfiguravel(
-      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", avisar },
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar },
       "texto",
       enviar,
     );
@@ -243,6 +291,50 @@ describe("enviarComSaidaConfiguravel", () => {
     expect(sql).toContain("greatest(automatic_sends - 1, 0)");
     expect(sql).toContain("exit_offered_at = case when exit_offered_at = $3::timestamptz then null");
     expect(params).toEqual(["org-a", "cand-3", agora]);
+  });
+
+  // A reserva só fica se for amarrada à mensagem que leva o rodapé: sem linha
+  // amarrada (a mensagem já virou `failed`, ou o amarrar falhou), quem desfaz é
+  // esta tentativa — o gatilho do banco não teria ponteiro para seguir.
+  it.each([
+    ["a mensagem já falhou (nenhuma linha amarrada)", false],
+    ["o amarrar lança", true],
+  ] as const)("reservou + queued, mas %s → desfaz e não audita", async (_, lanca) => {
+    const agora = "2026-10-21T15:00:00.000000Z";
+    const { query } = dbFalso({
+      "exit_offer_message_id": [],
+      "returning": [
+        {
+          candidato_id: "cand-5",
+          campanha_id: "camp-5",
+          exit_offered_at: agora,
+          leva_a_saida: true,
+          numero_da_mensagem: 2,
+          locale: "pt-BR",
+          reservada_em_texto: agora,
+        },
+      ],
+    });
+    if (lanca) {
+      const original = query.getMockImplementation()!;
+      query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+        if (sql.includes("exit_offer_message_id")) throw new Error("banco caiu");
+        return original(sql, params);
+      });
+    }
+    const avisar = vi.fn();
+    await enviarComSaidaConfiguravel(
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar },
+      "texto",
+      envioFalso({ kind: "queued", idempotencyKey: "k", messageId: "m" }),
+    );
+    const amarrar = query.mock.calls.find(([sql]) => String(sql).includes("exit_offer_message_id"));
+    expect(amarrar?.[1]).toEqual(["org-a", "job-1", 1, "Se não quiser mais receber mensagens, responda PARAR.", "cand-5", agora]);
+    const [sql, params] = query.mock.calls.at(-1)!;
+    expect(sql).toContain("greatest(automatic_sends - 1, 0)");
+    expect(params).toEqual(["org-a", "cand-5", agora]);
+    expect(auditMock).not.toHaveBeenCalled();
+    expect(avisar).toHaveBeenCalledTimes(lanca ? 1 : 0);
   });
 
   it("enviar lança → desfazer chamado e o mesmo erro é relançado", async () => {
@@ -267,7 +359,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const avisar = vi.fn();
     await expect(
       enviarComSaidaConfiguravel(
-        { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "followup", avisar },
+        { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "followup", mensagem: MSG, avisar },
         "texto",
         enviar,
       ),
@@ -286,7 +378,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const enviar = envioFalso(resultadoEnvio);
     const avisar = vi.fn();
     const r = await enviarComSaidaConfiguravel(
-      { db: { query } as never, organizationId: "org-a", conversationId: null, via: "inbound_turn", avisar },
+      { db: { query } as never, organizationId: "org-a", conversationId: null, via: "inbound_turn", mensagem: MSG, avisar },
       "texto puro",
       enviar,
     );
@@ -304,7 +396,7 @@ describe("enviarComSaidaConfiguravel", () => {
     const enviar = envioFalso(resultadoEnvio);
     const avisar = vi.fn();
     const r = await enviarComSaidaConfiguravel(
-      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", avisar },
+      { db: { query } as never, organizationId: "org-a", conversationId: "conv-1", via: "inbound_turn", mensagem: MSG, avisar },
       "texto puro",
       enviar,
     );
@@ -316,3 +408,33 @@ describe("enviarComSaidaConfiguravel", () => {
   });
 });
 
+
+describe("modos aceitos: só a 1ª e a 2ª mensagem (doc 170)", () => {
+  const id = "0c110000-0000-4000-8000-000000000001";
+  const config = {
+    agent_id: id,
+    channel_session_id: id,
+    pipeline_id: id,
+    stage_id: id,
+    qualified_stage_id: id,
+    instruction: "Vender consultoria para clínicas.",
+    qualification: "Confirmou a necessidade e a decisão.",
+    legal_basis_ref: "LIA-teste",
+  };
+  // O POST /api/v1/prospecting valida com este schema e devolve 422 validation_failed.
+  const inicia = (extra: Record<string, unknown>) =>
+    prospectingInputSchema.safeParse({ action: "start", id, config: { ...config, ...extra } }).success;
+
+  it("recusa o modo da 3ª mensagem", () => {
+    expect(inicia({ exit_offer: "third_message" })).toBe(false);
+  });
+
+  it("aceita a 1ª e a 2ª", () => {
+    expect(inicia({ exit_offer: "first_message" })).toBe(true);
+    expect(inicia({ exit_offer: "second_message" })).toBe(true);
+  });
+
+  it("campanha sem a chave segue com a saída na 1ª mensagem", () => {
+    expect(campaignConfigSchema.parse(config).exit_offer).toBe("first_message");
+  });
+});

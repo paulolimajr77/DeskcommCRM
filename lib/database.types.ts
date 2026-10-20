@@ -2072,6 +2072,8 @@ export type Database = {
         Row: {
           action_at_100pct: string
           alarm_threshold_pct: number
+          assistant_questions_per_org_day: number | null
+          assistant_questions_per_user_day: number
           current_month_consumed_cents: number
           current_period_start: string
           enforcement_effective_at: string | null
@@ -2086,6 +2088,8 @@ export type Database = {
         Insert: {
           action_at_100pct?: string
           alarm_threshold_pct?: number
+          assistant_questions_per_org_day?: number | null
+          assistant_questions_per_user_day?: number
           current_month_consumed_cents?: number
           current_period_start?: string
           enforcement_effective_at?: string | null
@@ -2100,6 +2104,8 @@ export type Database = {
         Update: {
           action_at_100pct?: string
           alarm_threshold_pct?: number
+          assistant_questions_per_org_day?: number | null
+          assistant_questions_per_user_day?: number
           current_month_consumed_cents?: number
           current_period_start?: string
           enforcement_effective_at?: string | null

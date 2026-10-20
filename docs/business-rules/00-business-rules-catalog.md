@@ -148,6 +148,12 @@ owner: Rafael Melgaço
 - **Enforcement**: DB.
 - **Exceção**: Nenhuma.
 
+### L-10a — Retenção do assistente interno (conversas, propostas e retratos de auditoria)
+- **Origem**: F3 do assistente interno (migration 9005)
+- **Tipo**: Hard constraint
+- **Regra**: GIVEN dado do assistente interno (`config_messages`, `config_threads` órfãs, `config_proposals` vencidas e `config_snapshots`); WHEN passa da retenção (365 dias por padrão); THEN é apagado em lotes pelo cron diário `data-retention` via `public.fn_expurgar_config_assistente_vencida` (`security definer`, **piso de 90 dias dentro da função**, revogada de anon/authenticated, concedida só a `service_role`).
+- **Enforcement**: DB (a função e o piso) + cron `app/api/v1/cron/data-retention` (que audita só quando houve efeito). A sessão nunca atualiza nem apaga retrato.
+
 ### L-10 — Audit log é append-only e retém 5 anos por padrão
 - **Origem**: Sub-PRD 01 §3.5
 - **Tipo**: Hard constraint
@@ -462,6 +468,30 @@ owner: Rafael Melgaço
 - **Enforcement**: Worker RAG (pull-loop) + Sentry alerta se lag >5min.
 - **Exceção**: Nenhuma.
 
+### IA-12 — Perguntas ao assistente têm teto diário configurável pelo admin
+- **Origem**: `docs/superpowers/specs/2026-10-14-agente-interno-config-design.md` §12 + planos (F1b/T6)
+- **Tipo**: Default com override
+- **Regra**: GIVEN pergunta nova ao assistente interno; WHEN a contagem de perguntas `human` das últimas 24 h em `config_messages` alcança o teto; THEN a rota responde 429 em PT/ES, sem criar thread e sem gravar linha. Teto por pessoa padrão 60 (1–10000); teto por organização padrão sem limite (1–100000). Replay e retomada do mesmo `turn_id` não passam pelo teto.
+- **Enforcement**: Rota `POST /api/v1/ai/assistente/chat` via `lib/assistente/limites.ts` (cliente de serviço, `organization_id` da sessão em toda consulta); colunas em `ai_budgets` (migration 0689) editadas só pelo admin no cartão Orçamento (`PATCH /api/v1/ai/budget`, com auditoria de antes/depois).
+- **Override**: Admin da organização ajusta os dois tetos no cartão Orçamento. Sem linha em `ai_budgets`, valem os padrões do código.
+- **Estado**: construída na F1b. O teto em dinheiro do mesmo cartão continua valendo por cima, pelo `runModelCall`.
+
+### IA-13 — Orçamento mensal de IA nasce desligado
+- **Origem**: `docs/superpowers/specs/2026-10-14-agente-interno-config-design.md` §12 (medição F1b)
+- **Tipo**: Default com override
+- **Regra**: GIVEN organização sem linha em `ai_budgets` ou com `enforcement_mode = 'off'`; WHEN o gasto de IA do mês passa do teto; THEN nada é bloqueado. O bloqueio só vale para a chave da instalação depois de armado, com 72 h de carência.
+- **Enforcement**: `runModelCall` lê `ai_budgets.enforcement_mode` (`lib/agent-engine/edge/llm/orcamento.ts`); armar `bloquear` grava `enforcement_effective_at = now() + 72h` (`app/api/v1/ai/budget/route.ts`).
+- **Override**: Admin arma o modo (`off` → fiscalizar/bloquear) no cartão Orçamento.
+- **Estado**: comportamento vigente medido no código. Por isso o limite por pessoa do assistente (IA-12) é a proteção real, e é definido pelo administrador.
+
+### IA-14 — Proposta do assistente: só admin aprova/aplica/rejeita; vence em 7 dias; aplicar exige aprovada
+- **Origem**: `docs/superpowers/specs/2026-10-14-agente-interno-config-design.md` §6/§7b + T20
+- **Tipo**: Hard constraint
+- **Regra**: GIVEN proposta do assistente em `config_proposals`; WHEN qualquer uma das rotas `aprovar`/`rejeitar`/`aplicar` é chamada; THEN só sessão `admin` passa (manager/agent/viewer → 403), a mudança de estado é compare-and-swap com `organization_id` da sessão, e `aplicar` só executa com `status = 'aprovada'` dentro do prazo — proposta `pendente`, `rejeitada`, `expirada` ou vencida NUNCA gera escrita no negócio (guardrail 2 da spec). Proposta pendente sem decisão vence em 7 dias (`expires_at`, default da 9002); a marcação de `expirada` é efeito da ação negada, e `vencida` no GET é calculado, nunca coluna. Falha no destino deixa a proposta `aprovada` para nova tentativa.
+- **Enforcement**: Rotas `app/api/v1/ai/assistente/propostas/**` (pool de serviço com CAS, `requireSupportWrite` antes do efeito, audit `assistente.proposta_*` sem texto); gatilho `fn_config_proposals_transicao()` da migration 9002 como última trava no banco; RLS com `update`/`delete` exclusivos do servidor.
+- **Exceção**: Nenhuma.
+- **Estado**: construída na T20 (F2b), provada por testes locais (vitest); RLS real e banco real só no CI.
+
 ---
 
 ## 7. Billing & Uso (B)
@@ -516,7 +546,7 @@ owner: Rafael Melgaço
 | `02-prd-customer-360` | P-01, P-02, P-03, P-04, P-05, P-08; L-04, L-07, L-08 |
 | `03-prd-whatsapp-waha` | T-07; W-01 a W-12; AT-07 |
 | `04-prd-pipeline-attendance` | P-06, P-07; AT-01 a AT-08 |
-| `05-prd-ai-rag-handoff` | IA-01 a IA-11; B-02 |
+| `05-prd-ai-rag-handoff` | IA-01 a IA-13; B-02 |
 | `06-prd-nuvemshop-lgpd` | L-01, L-02, L-03, L-05, L-09; B-05 |
 
 ## Anexo B — Mapa de enforcement layer
@@ -524,9 +554,9 @@ owner: Rafael Melgaço
 | Layer | Regras |
 |---|---|
 | **DB** (RLS, trigger, check constraint) | T-01, T-04, T-06, T-07, T-08; L-04, L-06, L-07, L-09, L-10; W-05; P-01, P-02, P-03, P-04, P-05; AT-01, AT-02 |
-| **API** (middleware, interceptor) | T-02, T-03, T-05; L-05, L-08; W-04, W-08; P-06, P-07, P-08; AT-04, AT-06; B-04 |
+| **API** (middleware, interceptor) | T-02, T-03, T-05; L-05, L-08; W-04, W-08; P-06, P-07, P-08; AT-04, AT-06; B-04; IA-12 |
 | **UI** (frontend) | P-07; AT-04, AT-06 |
-| **Worker** (cron, queue consumer, event_log) | W-01, W-02, W-03, W-06, W-07, W-09, W-10, W-12; AT-03, AT-05, AT-07, AT-08; IA-03, IA-04, IA-05, IA-06, IA-10, IA-11; B-01, B-02, B-03, B-05 |
+| **Worker** (cron, queue consumer, event_log) | W-01, W-02, W-03, W-06, W-07, W-09, W-10, W-12; AT-03, AT-05, AT-07, AT-08; IA-03, IA-04, IA-05, IA-06, IA-10, IA-11, IA-13; B-01, B-02, B-03, B-05 |
 | **LLM-guardrail** (pós-processamento de resposta IA) | IA-01, IA-02, IA-07, IA-08, IA-09 |
 | **Cron** | W-11, W-12; B-03 |
 
@@ -545,6 +575,8 @@ owner: Rafael Melgaço
 | IA-05 | Tenant admin (desativar G2/G4) | Sim |
 | IA-06 | Atendente humano (passar pra IA) | Sim |
 | IA-10 | Tenant admin (continuar em throttle) | Sim |
+| IA-12 | Tenant admin (ajustar os tetos no cartão Orçamento) | Sim |
+| IA-13 | Tenant admin (armar fiscalizar/bloquear) | Sim |
 | B-03 | Tenant (config de retenção) | Não |
 | B-04 | Plano contratual | Sim |
 | L-01 | Admin + super-admin (delete forçado) | Sim |
@@ -552,7 +584,7 @@ owner: Rafael Melgaço
 
 ## Anexo D — Estatísticas
 
-- **Total de regras**: 60
-- **Por domínio**: Tenancy (8) · LGPD (10) · WhatsApp (12) · Pipeline (8) · Atendimento (8) · IA (11) · Billing (5)
-- **Por tipo**: Hard constraint (38) · Default com override (15) · Soft policy (7)
-- **Com override permitido**: 15
+- **Total de regras**: 62
+- **Por domínio**: Tenancy (8) · LGPD (10) · WhatsApp (12) · Pipeline (8) · Atendimento (8) · IA (13) · Billing (5)
+- **Por tipo**: Hard constraint (38) · Default com override (17) · Soft policy (7)
+- **Com override permitido**: 17

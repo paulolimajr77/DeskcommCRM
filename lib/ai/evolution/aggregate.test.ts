@@ -221,3 +221,60 @@ describe('aggregateEvolution', () => {
     expect(p.activity.by_skill['agendamento']).toBe(1);
   });
 });
+
+describe('aggregateEvolution — laço de retorno do assistente (config_loop)', () => {
+  const l = (kind: string, status: string, decided: boolean, applied: boolean) => ({
+    kind,
+    status,
+    decided_at: decided ? '2026-07-02T10:00:00Z' : null,
+    applied_at: applied ? '2026-07-02T11:00:00Z' : null,
+  });
+
+  it('conta aprovação, aplicação e rejeição por kind, com a taxa só sobre o que foi decidido', () => {
+    const r = aggregateEvolution({
+      ...base(),
+      configLoop: {
+        estado: 'ok',
+        rows: [
+          l('roteador', 'aplicada', true, true),
+          l('roteador', 'aprovada', true, false), // aprovada e parada
+          l('roteador', 'rejeitada', true, false),
+          l('roteador', 'pendente', false, false),
+          l('roteador', 'expirada', false, false), // ninguém decidiu
+          l('roteador', 'expirada', true, false), // aprovada que expirou sem aplicar
+          l('funil', 'rejeitada', true, false),
+        ],
+      },
+    });
+    const roteador = r.config_loop.por_kind.find((k) => k.kind === 'roteador');
+    expect(roteador).toEqual({
+      kind: 'roteador',
+      propostas: 6,
+      aprovadas: 3,
+      aplicadas: 1,
+      rejeitadas: 1,
+      sem_decisao: 2,
+      aprovadas_sem_aplicar: 2,
+    });
+    expect(r.config_loop.por_kind.map((k) => k.kind)).toEqual(['roteador', 'funil']);
+    expect(r.config_loop.total).toBe(7);
+    // 3 aprovadas, 2 rejeitadas (a do roteador e a do funil): 3 / 5.
+    expect(r.config_loop.taxa_aprovacao).toBeCloseTo(3 / 5);
+  });
+
+  it('ninguém decidiu ⇒ taxa null (não 0%, que leria como "tudo rejeitado")', () => {
+    const r = aggregateEvolution({ ...base(), configLoop: { estado: 'ok', rows: [l('memoria', 'pendente', false, false)] } });
+    expect(r.config_loop.taxa_aprovacao).toBeNull();
+    expect(r.config_loop.por_kind[0]).toMatchObject({ propostas: 1, sem_decisao: 1 });
+  });
+
+  it('sem a fonte ou sem permissão, não inventa zero: o estado diz por quê', () => {
+    expect(aggregateEvolution(base()).config_loop).toEqual({ estado: 'indisponivel', total: 0, taxa_aprovacao: null, por_kind: [] });
+    expect(aggregateEvolution({ ...base(), configLoop: { estado: 'restrito' } }).config_loop.estado).toBe('restrito');
+  });
+
+  it('kind com nome de chave herdada de Object conta como dado comum', () => {
+    const r = aggregateEvolution({ ...base(), configLoop: { estado: 'ok', rows: [l('__proto__', 'rejeitada', true, false)] } });
+    expect(r.config_loop.por_kind[0]).toMatchObject({ kind: '__proto__', propostas: 1, rejeitadas: 1 });
+  });
+});

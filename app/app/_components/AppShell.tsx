@@ -1,5 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
+import { AssistentePainelProvider } from "@/components/assistente/AssistentePainelProvider";
+import { PainelDoAssistente } from "@/components/assistente/PainelDoAssistente";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { BarraInferior } from "@/components/shell/BarraInferior";
@@ -51,6 +53,7 @@ export function AppShell({ sidebarCollapsed, podeAtender, children }: AppShellPr
       sumindo. Princípio 2 de `docs/design-system/screen-flow/07-responsive-strategy.md`,
       escrito em abril de 2026 e aplicado em 6 lugares de 33 até aqui.
     */
+    <AssistentePainelProvider>
     <div className="flex min-h-dvh w-full bg-background">
       <BarraDeProgressoNavegacao />
       <div className="hidden md:block">
@@ -119,6 +122,17 @@ export function AppShell({ sidebarCollapsed, podeAtender, children }: AppShellPr
         lateral aparece, logo acima.
       */}
       <BarraInferior />
+      {/*
+        O PAINEL DO ASSISTENTE, irmão da coluna de conteúdo e não filho dela.
+
+        Montado sempre (fechado fica escondido): a conversa, a rolagem e o texto
+        digitado sobrevivem à troca de página. Ao lado da tela, no desktop; em
+        tela cheia, acima da faixa do rodapé, no celular — ver
+        `components/assistente/PainelDoAssistente.tsx`. O provedor envolve a
+        casca inteira para que o ícone do topo e o ⌘K abram ESTE painel.
+      */}
+      <PainelDoAssistente />
     </div>
+    </AssistentePainelProvider>
   );
 }

@@ -38,6 +38,8 @@ jobs:
         run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+          # repositório privado: máquina menor (7 GB); sem teto o build estoura o heap
+          NODE_OPTIONS: "--max-old-space-size=6144"
           # "off", não vazio: vazio seleciona o Sentry DA COMUNIDADE
           # (lib/sentry/dsn.ts:8-10). A intenção aqui sempre foi desligar, e
           # com aspas vazias ela não era alcançada — o build seguia com o DSN

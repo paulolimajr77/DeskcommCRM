@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EvolutionConfigLoop } from "@/components/ai/EvolutionConfigLoop";
 import { EvolutionGaps } from "@/components/ai/EvolutionGaps";
 import { EvolutionTimeline } from "@/components/ai/EvolutionTimeline";
 import { useEvolution } from "@/hooks/ai/useEvolution";
@@ -403,7 +404,7 @@ export function EvolutionClient({ defaultRange }: { defaultRange: { from: string
 
 function Conteudo({ payload }: { payload: NonNullable<ReturnType<typeof useEvolution>["data"]> }) {
   const t = useT();
-  const { learned, activity, outcome, gaps } = payload;
+  const { learned, activity, outcome, gaps, config_loop } = payload;
 
   const soma = (s: Array<{ value: number }>) => s.reduce((a, p) => a + p.value, 0);
   // Contagens SEPARADAS, não um booleano só: cada frase de "nada travando" é uma
@@ -604,6 +605,16 @@ function Conteudo({ payload }: { payload: NonNullable<ReturnType<typeof useEvolu
             significa={t("O que você pagou aos provedores de IA para tudo isto acontecer.")}
           />
         </div>
+      </Bloco>
+
+      <Bloco
+        testId="bloco-assistente"
+        titulo={t("O que o assistente propôs")}
+        descricao={t(
+          "As mudanças que o assistente de configuração sugeriu neste período e o que você fez com cada uma — é por aqui que se vê se as sugestões estão acertando.",
+        )}
+      >
+        <EvolutionConfigLoop loop={config_loop} />
       </Bloco>
 
       <Bloco

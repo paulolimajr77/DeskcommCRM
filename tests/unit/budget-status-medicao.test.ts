@@ -43,6 +43,8 @@ const LINHA = {
   current_period_start: "2026-03-01",
   last_alarm_sent_at: null,
   updated_at: "2026-08-15T00:00:00.000Z",
+  assistant_questions_per_user_day: 60,
+  assistant_questions_per_org_day: null,
 };
 
 /**
@@ -58,6 +60,8 @@ function fazerAdmin(opts: {
   erroSemPreco?: string;
   /** Linhas de `llm_calls`: a contagem passa a ser a dos FILTROS aplicados a elas. */
   linhasDeLlmCalls?: LinhaDeLlmCalls[];
+  /** A linha de `ai_budgets`: omitida = `LINHA`; `null` = a organização não tem linha. */
+  linha?: Record<string, unknown> | null;
 }) {
   const filtros: Record<string, Filtro[]> = {};
 
@@ -75,7 +79,10 @@ function fazerAdmin(opts: {
       or: (...a: unknown[]) => registra("or", a),
       is: (...a: unknown[]) => registra("is", a),
       gte: (...a: unknown[]) => registra("gte", a),
-      maybeSingle: async () => ({ data: tabela === "ai_budgets" ? LINHA : null, error: null }),
+      maybeSingle: async () => ({
+        data: tabela === "ai_budgets" ? (opts.linha === undefined ? LINHA : opts.linha) : null,
+        error: null,
+      }),
       then: (res: (v: unknown) => unknown) =>
         Promise.resolve(
           tabela === "llm_calls"
@@ -282,5 +289,48 @@ describe("o número exibido é o número que decide", () => {
     expect(bloqueio.filter((f) => f.metodo === "or").map((f) => f.args[0])).toEqual([
       "ref_kind.is.null,ref_kind.eq.ai_budget",
     ]);
+  });
+});
+
+describe("limites de perguntas do assistente — os campos e seus padrões", () => {
+  it("sem linha em ai_budgets => 60 e null", async () => {
+    instalar({ linha: null });
+    const status = await getBudgetStatus(ORG);
+    expect(status.assistant_questions_per_user_day).toBe(60);
+    expect(status.assistant_questions_per_org_day).toBeNull();
+  });
+
+  it("com linha => os valores DELA (não os padrões)", async () => {
+    instalar({
+      linha: { ...LINHA, assistant_questions_per_user_day: 100, assistant_questions_per_org_day: 500 },
+    });
+    const status = await getBudgetStatus(ORG);
+    expect(status.assistant_questions_per_user_day).toBe(100);
+    expect(status.assistant_questions_per_org_day).toBe(500);
+  });
+
+  it("coluna da organização null => null, nunca 0 (Number(null) seria 0)", async () => {
+    instalar({ linha: { ...LINHA, assistant_questions_per_user_day: 40, assistant_questions_per_org_day: null } });
+    const status = await getBudgetStatus(ORG);
+    expect(status.assistant_questions_per_user_day).toBe(40);
+    expect(status.assistant_questions_per_org_day).toBeNull();
+  });
+
+  it("linha de antes da migration (sem as colunas) => padrões", async () => {
+    const antiga = Object.fromEntries(
+      Object.entries(LINHA).filter(([coluna]) => !coluna.startsWith("assistant_questions")),
+    );
+    instalar({ linha: antiga });
+    const status = await getBudgetStatus(ORG);
+    expect(status.assistant_questions_per_user_day).toBe(60);
+    expect(status.assistant_questions_per_org_day).toBeNull();
+  });
+
+  it("a leitura pede as duas colunas novas ao banco", async () => {
+    const filtros = instalar({});
+    await getBudgetStatus(ORG);
+    const selecaoDeBudgets = filtros["ai_budgets"]?.find((f) => f.metodo === "select");
+    expect(String(selecaoDeBudgets?.args[0])).toContain("assistant_questions_per_user_day");
+    expect(String(selecaoDeBudgets?.args[0])).toContain("assistant_questions_per_org_day");
   });
 });

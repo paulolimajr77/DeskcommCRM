@@ -120,7 +120,7 @@ export const crmConsultarReceita: McpToolDefinition<typeof consultaReceitaShape>
 
     const admin = ctx.supabase;
     const { data: conexoes, error } = await admin
-      .from("external_db_connections")
+      .from("external_db_connections_safe")
       .select("id, db_type, receitas, max_rows")
       .eq("organization_id", ctx.organizationId)
       .eq("enabled", true)

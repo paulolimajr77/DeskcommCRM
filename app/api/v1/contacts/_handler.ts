@@ -88,7 +88,7 @@ function diaMesNoFuso(instante: Date, timeZone: string): {
   dia: number;
   ano: number;
 } {
-  const partes = new Intl.DateTimeFormat("pt-BR", {
+  const partes = new Intl.DateTimeFormat("en-US", {
     timeZone,
     year: "numeric",
     month: "2-digit",

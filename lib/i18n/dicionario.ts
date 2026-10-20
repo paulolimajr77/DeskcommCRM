@@ -16605,7 +16605,7 @@ export const DICIONARIO: Traducoes = {
   "Funil com etapas": { es: "Embudo con etapas" },
   "Horário de atendimento": { es: "Horario de atención" },
   "Há um agente de IA publicado e ativo nesta organização.": { es: "Hay un agente de IA publicado y activo en esta organización." },
-  "Há um agente em rascunho, mas ainda não foi publicado. Publicar é clique do administrador na tela do agente.": { es: "Hay un agente en borrador, pero aún no fue publicado. Publicar es un clic del administrador en la pantalla del agente." },
+  "Há um agente em rascunho, mas ainda não foi publicado. Publicar é proposta do assistente: o administrador aprova no chat.": { es: "Hay un agente en borrador, pero aún no fue publicado. Publicar es una propuesta del asistente: el administrador la aprueba en el chat." },
   "Há um fluxo de follow-up instalado nesta organização.": { es: "Hay un flujo de seguimiento instalado en esta organización." },
   "Há um funil com pelo menos uma etapa cadastrada.": { es: "Hay un embudo con al menos una etapa registrada." },
   "Há um funil, mas ainda não tem etapas. Adicione a primeira etapa.": { es: "Hay un embudo, pero aún no tiene etapas. Agrega la primera etapa." },

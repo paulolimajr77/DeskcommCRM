@@ -1,0 +1,654 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Assistente interno de leitura — o painel, o turno e o catálogo",
+    "subtitle": "a F1b: o modelo responde lendo dados reais por ferramentas, com piso determinístico quando não pode; a F2a: rascunhos diretos (agente, follow-up por modelo e por nicho, pacote do nicho, testar) só para admin, com cartão e prova em par; a F2b (T20): propostas ao vivo com aprovação humana — aprovar/rejeitar/aplicar, CAS com org da sessão, destino fixo do mapa",
+    "output": "assistente-interno.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    {
+      "id": "pessoa",
+      "label": "Onde a pessoa pergunta e lê"
+    },
+    {
+      "id": "turno",
+      "label": "O turno de leitura (rota + emissor)"
+    },
+    {
+      "id": "leitura",
+      "label": "De onde sai o número"
+    },
+    {
+      "id": "limite",
+      "label": "Quem barra, e quem paga"
+    },
+    {
+      "id": "registro",
+      "label": "O que fica gravado"
+    }
+  ],
+  "mainPath": [
+    "painel",
+    "rotaChat",
+    "emissor",
+    "catalogo",
+    "rotasLeitura"
+  ],
+  "nodes": [
+    {
+      "id": "painel",
+      "lane": "pessoa",
+      "col": 0,
+      "type": "frontend",
+      "label": "PainelDoAssistente (AppShell)",
+      "sublabel": "única superfície: ícone do topo e ⌘K abrem o mesmo painel; sem página em tela cheia"
+    },
+    {
+      "id": "rotaChat",
+      "lane": "turno",
+      "col": 1,
+      "type": "route",
+      "label": "POST /v1/ai/assistente/chat",
+      "sublabel": "sessão cookie, requireRole viewer · Zod .strict() · replay/retomada antes do limite diário"
+    },
+    {
+      "id": "emissor",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "responderComoAssistente",
+      "sublabel": "ponto assistente_chat · herda o padrão da org, sem llmOverride · tools + maxSteps 6"
+    },
+    {
+      "id": "catalogo",
+      "lane": "leitura",
+      "col": 3,
+      "type": "lib",
+      "label": "catálogo de métricas (17)",
+      "sublabel": "listar/consultar · lista positiva por métrica · papel e módulo antes de executar · sem SQL livre"
+    },
+    {
+      "id": "rotasLeitura",
+      "lane": "leitura",
+      "col": 4,
+      "type": "route",
+      "label": "rotas GET por dentro",
+      "sublabel": "chamadas na mesma requisição, herdando login, papel e RLS · agregado, nunca PII"
+    },
+    {
+      "id": "piso",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "respostaDoPiso",
+      "sublabel": "sem chave, teto estourado, erro ou vazio: resumo/guia + aviso do motivo · error_code na linha"
+    },
+    {
+      "id": "limites",
+      "lane": "limite",
+      "col": 2,
+      "type": "lib",
+      "label": "verificarLimiteDePerguntas",
+      "sublabel": "60/dia por pessoa, org sem limite (padrão) · admin ajusta no cartão · conta no banco, 24h"
+    },
+    {
+      "id": "orcamento",
+      "lane": "limite",
+      "col": 3,
+      "type": "config",
+      "label": "cartão Orçamento (ai_budgets)",
+      "sublabel": "tetos de perguntas + teto mensal em dinheiro, que vale por cima via runModelCall"
+    },
+    {
+      "id": "threads",
+      "lane": "registro",
+      "col": 1,
+      "type": "table",
+      "label": "config_threads/messages",
+      "sublabel": "histórico do chat · idempotência por turn_id · RLS org + dono · escrita só service role"
+    },
+    {
+      "id": "llmCalls",
+      "lane": "registro",
+      "col": 3,
+      "type": "table",
+      "label": "llm_calls",
+      "sublabel": "o turno registra com purpose assistente_chat · call_id amarra a resposta à execução"
+    },
+    {
+      "id": "auditoria",
+      "lane": "registro",
+      "col": 4,
+      "type": "table",
+      "label": "api_audit_log",
+      "sublabel": "ai.assistente_asked com turn_id, fonte, métricas e call_id — nunca o texto"
+    },
+    {
+      "id": "escrita",
+      "lane": "turno",
+      "col": 2,
+      "type": "lib",
+      "label": "ferramentas de escrita (F2a + F2b)",
+      "sublabel": "rascunho: criar_rascunho_de_agente, instalar_modelo_de_followup, montar_pacote_do_nicho, montar_followup_de_nicho, testar_agente · propor_* (F2b): propor_roteador, propor_conhecimento, propor_memoria, propor_modelo_auxiliares, propor_funil — só quando o papel da sessão é admin; a trava real está nas rotas"
+    },
+    {
+      "id": "rascunhos",
+      "lane": "registro",
+      "col": 2,
+      "type": "table",
+      "label": "ai_agents / followup_flow_pointers (rascunho)",
+      "sublabel": "v1 draft e ponteiros rascunho via POST por dentro; published_version_id nulo — o assistente nunca publica"
+    },
+    {
+      "id": "cartao",
+      "lane": "pessoa",
+      "col": 1,
+      "type": "frontend",
+      "label": "cartão Criado como rascunho",
+      "sublabel": "tipo, nome e Abrir o agente/follow-up; href montado no servidor a partir do id lido de volta"
+    },
+    {
+      "id": "telaPropostas",
+      "lane": "pessoa",
+      "col": 1,
+      "type": "frontend",
+      "label": "aba Propostas do painel (T21)",
+      "sublabel": "só admin vê a aba; lê o GET da fila (nunca banco direto); antes/depois legível pelo formatador puro; aprovar/rejeitar/aplicar chamam as rotas da T20; contador de pendentes na aba"
+    },
+    {
+      "id": "propostasRota",
+      "lane": "turno",
+      "col": 3,
+      "type": "route",
+      "label": "rotas de propostas (F2b, T20)",
+      "sublabel": "GET fila + [id]/{aprovar,rejeitar,aplicar} · só admin + requireSupportWrite · CAS no pool com org da SESSÃO · trava consultiva por proposta · destino SÓ do mapa (operacoes.ts) · aplicar exige aprovada"
+    },
+    {
+      "id": "configProposals",
+      "lane": "registro",
+      "col": 3,
+      "type": "table",
+      "label": "config_proposals (9002)",
+      "sublabel": "5 estados com gatilho de transição (aplicar exige aprovada) · RLS: select/insert só admin pela sessão, update/delete só servidor · vence em 7 dias · vencida é CALCULADO na leitura"
+    },
+    {
+      "id": "destinosProposta",
+      "lane": "turno",
+      "col": 4,
+      "type": "route",
+      "label": "handlers existentes de destino",
+      "sublabel": "roteadores (+membros PUT), conhecimento, memória, provedores, funil/etapas — chamados por dentro na sessão do admin: o RBAC, a validação e o audit deles valem; nenhuma proposta apaga nada"
+    },
+    {
+      "id": "telaAuditoria",
+      "lane": "pessoa",
+      "col": 2,
+      "type": "frontend",
+      "label": "aba Auditoria (admin)",
+      "sublabel": "lista cada verificação com estado em palavras (Pronto, Posso completar, Preciso confirmar, Não se aplica), a evolução contra a rodada anterior e o botão Rodar de novo; Pedir ao assistente deixa a frase pronta no chat"
+    },
+    {
+      "id": "auditoriaRota",
+      "lane": "turno",
+      "col": 5,
+      "type": "route",
+      "label": "/api/v1/ai/assistente/auditoria",
+      "sublabel": "POST (admin, suporte somente-leitura recusa antes do efeito, 1 rodada por minuto por organização) e GET (membro); organização sempre a da sessão"
+    },
+    {
+      "id": "calculoAuditoria",
+      "lane": "leitura",
+      "col": 1,
+      "type": "lib",
+      "label": "calcularAuditoria + catálogo de verificações",
+      "sublabel": "função pura: recebe as leituras já feitas e devolve estado por item e pendências; dependência não pronta vira Preciso confirmar com o que falta"
+    },
+    {
+      "id": "ferramentaAuditar",
+      "lane": "turno",
+      "col": 1,
+      "type": "lib",
+      "label": "ferramenta auditar_empresa",
+      "sublabel": "o assistente roda o mesmo cálculo no chat, pelas rotas de leitura na sessão da pessoa; nunca SQL direto"
+    },
+    {
+      "id": "snapshots",
+      "lane": "registro",
+      "col": 0,
+      "type": "table",
+      "label": "config_snapshots",
+      "sublabel": "um retrato por rodada (resultado jsonb limitado, pendências); RLS org-flat na leitura, insert só admin assinando como ele mesmo, sem update nem delete para a sessão"
+    },
+    {
+      "id": "expurgoAssistente",
+      "lane": "limite",
+      "col": 4,
+      "type": "route",
+      "label": "cron data-retention → fn_expurgar_config_assistente_vencida",
+      "sublabel": "apaga em lotes mensagens, conversas órfãs, propostas e retratos além da retenção; piso de 90 dias dentro da função; registra a rodada só quando houve efeito"
+    },
+    {
+      "id": "leitorPropostasEvolucao",
+      "lane": "leitura",
+      "col": 5,
+      "type": "lib",
+      "label": "lerPropostasDeConfig (F4)",
+      "sublabel": "o único leitor de config_proposals para a Evolução: só kind, status e carimbos (nunca payload nem motivo), sempre filtrado pela organização da sessão"
+    },
+    {
+      "id": "evolucaoRota",
+      "lane": "turno",
+      "col": 6,
+      "type": "route",
+      "label": "GET /v1/ai/evolution (config_loop)",
+      "sublabel": "manager+; só admin lê as propostas (a RLS da tabela é admin) — manager recebe 'restrito', falha vira 'indisponivel', nunca zero; agregação pura em aggregate.ts"
+    },
+    {
+      "id": "blocoEvolucao",
+      "lane": "pessoa",
+      "col": 3,
+      "type": "frontend",
+      "label": "bloco 'O que o assistente propôs' (Evolução)",
+      "sublabel": "por tipo: sugeridas, aprovadas, aplicadas, recusadas, sem decisão e aprovadas não aplicadas; taxa sobre o decidido; PT + ES"
+    },
+    {
+      "id": "nichos",
+      "lane": "leitura",
+      "col": 2,
+      "type": "lib",
+      "label": "nichos como dado (lib/assistente/nichos)",
+      "sublabel": "7 nichos: prompt (esqueleto), funil, follow-ups, FAQ · fonte é o nichos.md, o teste compara byte a byte · só 3 marcadores (negócio, descrição, nome); preço e prazo vêm dos materiais"
+    },
+    {
+      "id": "escada",
+      "lane": "turno",
+      "col": 3,
+      "type": "lib",
+      "label": "montarEscada (lib/followup/modelos/escada.ts)",
+      "sublabel": "o modelo da conversa informa só os toques (texto + espera); o desenho do fluxo é montado aqui e conferido por flowGraphSchema + validateFlowForPublish antes de gravar"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "painel",
+      "to": "rotaChat",
+      "label": "pergunta + caminho da tela (o id do objeto é validado na org)"
+    },
+    {
+      "id": "e2",
+      "from": "rotaChat",
+      "to": "painel",
+      "label": "resposta + aviso + ações (botão Abrir tela, nunca navega sozinho)"
+    },
+    {
+      "id": "e3",
+      "from": "rotaChat",
+      "to": "emissor",
+      "label": "system (conduta só para admin) + histórico (20/8000) + ferramentas do papel"
+    },
+    {
+      "id": "e4",
+      "from": "emissor",
+      "to": "catalogo",
+      "label": "listar_metricas, consultar_metrica, listar_telas, abrir_tela, ler_guia"
+    },
+    {
+      "id": "e5",
+      "from": "catalogo",
+      "to": "rotasLeitura",
+      "label": "adaptador chama a rota · cliente de SESSÃO (RLS vale)"
+    },
+    {
+      "id": "e6",
+      "from": "rotasLeitura",
+      "to": "catalogo",
+      "label": "números + régua + avisos · PII cortada na projeção"
+    },
+    {
+      "id": "e7",
+      "from": "emissor",
+      "to": "llmCalls",
+      "label": "runModelCall registra a chamada com o purpose"
+    },
+    {
+      "id": "e8",
+      "from": "llmCalls",
+      "to": "auditoria",
+      "label": "call_id amarra a pergunta auditada à execução do modelo"
+    },
+    {
+      "id": "e9",
+      "from": "rotaChat",
+      "to": "limites",
+      "label": "pergunta nova passa no teto diário antes de gravar"
+    },
+    {
+      "id": "e10",
+      "from": "limites",
+      "to": "rotaChat",
+      "label": "estourou: 429 em PT/ES, sem thread e sem linha"
+    },
+    {
+      "id": "e11",
+      "from": "orcamento",
+      "to": "limites",
+      "label": "admin define os tetos no cartão · PATCH audita antes/depois"
+    },
+    {
+      "id": "e12",
+      "from": "orcamento",
+      "to": "emissor",
+      "label": "teto mensal em dinheiro vale por cima, no seam"
+    },
+    {
+      "id": "e13",
+      "from": "rotaChat",
+      "to": "piso",
+      "label": "modelo não pôde: cai no determinístico com o motivo"
+    },
+    {
+      "id": "e14",
+      "from": "piso",
+      "to": "rotaChat",
+      "label": "resumo da operação ou trecho de guia + aviso"
+    },
+    {
+      "id": "e15",
+      "from": "rotaChat",
+      "to": "threads",
+      "label": "grava human e ai (service role, org da sessão)"
+    },
+    {
+      "id": "e16",
+      "from": "threads",
+      "to": "painel",
+      "label": "relê o histórico: troca de página e nova aba mantêm a conversa"
+    },
+    {
+      "id": "e17",
+      "from": "rotaChat",
+      "to": "auditoria",
+      "label": "ai.assistente_asked — sem pergunta e sem resposta"
+    },
+    {
+      "id": "e18",
+      "from": "rotaChat",
+      "to": "escrita",
+      "label": "monta as 10 de escrita só quando o papel da sessão é admin (5 de rascunho + 5 propor_*)"
+    },
+    {
+      "id": "e19",
+      "from": "escrita",
+      "to": "rascunhos",
+      "label": "cria pela mesma rota da tela (POST por dentro, requireRole admin)"
+    },
+    {
+      "id": "e20",
+      "from": "rascunhos",
+      "to": "escrita",
+      "label": "lê de volta id, nome e estado antes de devolver (conduta 3)"
+    },
+    {
+      "id": "e21",
+      "from": "escrita",
+      "to": "rotaChat",
+      "label": "anota o cartão no coletor do turno"
+    },
+    {
+      "id": "e22",
+      "from": "rotaChat",
+      "to": "cartao",
+      "label": "resposta traz ações artefato com href do servidor"
+    },
+    {
+      "id": "e23",
+      "from": "cartao",
+      "to": "painel",
+      "label": "o painel mostra tipo, nome e o botão Abrir"
+    },
+    {
+      "id": "e24",
+      "from": "rascunhos",
+      "to": "auditoria",
+      "label": "a criação audita como a tela, sem texto do modelo"
+    },
+    {
+      "id": "e25",
+      "from": "escrita",
+      "to": "propostasRota",
+      "label": "as 5 propor_* gravam UMA linha pendente pelo POST por dentro (só admin; propor não cria nada)"
+    },
+    {
+      "id": "e26",
+      "from": "propostasRota",
+      "to": "configProposals",
+      "label": "aprovar/rejeitar/aplicar por CAS no pool de serviço — estado esperado na própria condição, org da SESSÃO, nunca do corpo"
+    },
+    {
+      "id": "e27",
+      "from": "configProposals",
+      "to": "propostasRota",
+      "label": "zero linhas do CAS lê a linha para explicar: 404, marca expirada e 409, ou 409 com o status"
+    },
+    {
+      "id": "e28",
+      "from": "propostasRota",
+      "to": "destinosProposta",
+      "label": "aplicar chama EXATAMENTE o destino do mapa, com o id trocado e o método do mapa; 1 proposta = 1 artefato; falha deixa a proposta aprovada"
+    },
+    {
+      "id": "e29",
+      "from": "propostasRota",
+      "to": "auditoria",
+      "label": "proposta_aprovada/rejeitada/aplicada/falhou_ao_aplicar — só kind, operacao, risk (+http_status); o motivo da rejeição nunca entra"
+    },
+    {
+      "id": "e30",
+      "from": "destinosProposta",
+      "to": "auditoria",
+      "label": "o handler do destino audita com a própria ação (ai.router_created, ai.router_members_updated, ai.purpose_binding_updated…)"
+    },
+    {
+      "id": "e31",
+      "from": "telaPropostas",
+      "to": "propostasRota",
+      "label": "lê a fila pelo GET (só admin; pendente primeiro, prazo/vencida do GET) e chama aprovar/rejeitar/aplicar no clique"
+    },
+    {
+      "id": "e32",
+      "from": "propostasRota",
+      "to": "telaPropostas",
+      "label": "devolve a proposta atualizada a cada ação; falha de aplicar volta legível no cartão (http_status + código do destino)"
+    },
+    {
+      "id": "e33",
+      "from": "telaAuditoria",
+      "to": "auditoriaRota",
+      "label": "lê os últimos retratos pelo GET e roda a auditoria pelo POST (só admin)"
+    },
+    {
+      "id": "e34",
+      "from": "auditoriaRota",
+      "to": "telaAuditoria",
+      "label": "devolve o retrato novo e o anterior para a tela mostrar a evolução; repetir em menos de 60 s volta 409 legível"
+    },
+    {
+      "id": "e35",
+      "from": "auditoriaRota",
+      "to": "rotasLeitura",
+      "label": "lê provedores, canais, funis, agentes, roteadores, conhecimento e follow-ups por dentro das rotas /api/v1, na sessão da pessoa"
+    },
+    {
+      "id": "e36",
+      "from": "auditoriaRota",
+      "to": "calculoAuditoria",
+      "label": "entrega as leituras e recebe itens + pendências"
+    },
+    {
+      "id": "e37",
+      "from": "auditoriaRota",
+      "to": "snapshots",
+      "label": "grava 1 retrato por rodada (organização da sessão)"
+    },
+    {
+      "id": "e38",
+      "from": "auditoriaRota",
+      "to": "auditoria",
+      "label": "assistente.auditoria_rodada — só pendências e contagem por estado; nunca texto de item"
+    },
+    {
+      "id": "e39",
+      "from": "ferramentaAuditar",
+      "to": "calculoAuditoria",
+      "label": "usa o mesmo cálculo puro da tela"
+    },
+    {
+      "id": "e40",
+      "from": "emissor",
+      "to": "ferramentaAuditar",
+      "label": "expõe auditar_empresa no catálogo de ferramentas de leitura"
+    },
+    {
+      "id": "e41",
+      "from": "ferramentaAuditar",
+      "to": "rotasLeitura",
+      "label": "lê pelas mesmas rotas, com o papel da pessoa"
+    },
+    {
+      "id": "e42",
+      "from": "snapshots",
+      "to": "expurgoAssistente",
+      "label": "retrato além da retenção é apagado em lote"
+    },
+    {
+      "id": "e43",
+      "from": "expurgoAssistente",
+      "to": "configProposals",
+      "label": "proposta vencida além da retenção é apagada junto"
+    },
+    {
+      "id": "e44",
+      "from": "expurgoAssistente",
+      "to": "auditoria",
+      "label": "a rodada só audita quando apagou alguma coisa"
+    },
+    {
+      "id": "e45",
+      "from": "configProposals",
+      "to": "leitorPropostasEvolucao",
+      "label": "lê estado das propostas da organização, sem conteúdo"
+    },
+    {
+      "id": "e46",
+      "from": "leitorPropostasEvolucao",
+      "to": "evolucaoRota",
+      "label": "linhas já filtradas pela organização entram no agregador puro"
+    },
+    {
+      "id": "e47",
+      "from": "evolucaoRota",
+      "to": "blocoEvolucao",
+      "label": "config_loop: por tipo, o que foi aprovado, aplicado e recusado"
+    },
+    {
+      "id": "e48",
+      "from": "blocoEvolucao",
+      "to": "telaPropostas",
+      "label": "fecha o laço: a taxa de aprovação diz à pessoa se as sugestões acertam, e a aba Propostas é onde ela decide"
+    },
+    {
+      "id": "e49",
+      "from": "escrita",
+      "to": "nichos",
+      "label": "montar_pacote_do_nicho lê o prompt e os marcadores do nicho; nunca inventa texto de atendimento"
+    },
+    {
+      "id": "e50",
+      "from": "nichos",
+      "to": "rascunhos",
+      "label": "o prompt preenchido vira system_prompt da versão rascunho do agente (v1 draft)"
+    },
+    {
+      "id": "e51",
+      "from": "escrita",
+      "to": "escada",
+      "label": "montar_followup_de_nicho entrega os toques; sem gatilho vira follow-up manual"
+    },
+    {
+      "id": "e52",
+      "from": "escada",
+      "to": "rascunhos",
+      "label": "o grafo validado é gravado como rascunho por POST + PATCH por dentro; nunca publica, nunca liga a agente"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "red",
+      "title": "Duas não-ligações DELIBERADAS",
+      "items": [
+        "o assistente NUNCA navega sozinho e nunca publica: `abrir_tela` devolve um botão com destino do catálogo, e Publicar é clique do admin na tela do agente",
+        "o modelo NUNCA escreve SQL: cada pergunta futura é uma métrica nova no catálogo, nunca uma consulta livre — o SQL livre sobre visões seguras ficou registrado como opção futura com revisão própria"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "O service role que quase vazou tudo (achado da revisão da T7)",
+      "items": [
+        "os interruptores de módulo moram em tabelas sem policy para a sessão: lidos pelo cliente da sessão, todo módulo pareceria desligado e as métricas de módulo responderiam 'não usa'",
+        "o conserto é `ctx.bancoDaInstalacao` (service role, OPCIONAL), usado SÓ por `modulosLigados` e `telas.ts` — e uma cerca prende que só 4 arquivos citam o campo e nenhuma métrica o usa",
+        "os DADOS seguem sempre pelo cliente de sessão: o que o modelo lê é o que a pessoa já vê"
+      ]
+    },
+    {
+      "dot": "green",
+      "title": "O par como unidade de prova",
+      "items": [
+        "todo aceite que atravessa o modelo vem em par com a medição direta da ferramenta, mesmo texto cru — e só conta quando os dois concordam",
+        "o e2e `assistente-chat-leitura` compara o número do chat com o GET `conversations/counts` direto, mesma sessão e mesmo escopo RLS",
+        "o e2e `assistente-rascunho-de-agente` (F2a) compara o cartão do chat com o GET `ai/agents` direto: o rascunho existe e `published_version_id` é nulo"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F2a: rascunho direto só admin, publicar nunca",
+      "items": [
+        "o bloco de conduta do prompt (§12.C) e as 4 ferramentas de escrita só entram quando o papel da sessão é admin; a trava real continua nas rotas",
+        "toda escrita é lida de volta antes de devolver; o cartão leva ao Botão Abrir e o clique de Publicar é do administrador",
+        "propostas ao vivo (F2b, T20): propor não cria nada; o admin aprova e a rota de aplicar executa pelo destino fixo do mapa — pendente, rejeitada, expirada e vencida NUNCA aplicam (guardrail 2)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F2b (T20): o que a aplicação faz — e o que ela NÃO faz",
+      "items": [
+        "o aplicar executa com trava consultiva por proposta (pg_try_advisory_lock) e CAS no pool de serviço: estado esperado na própria condição, organização da SESSÃO",
+        "o destino é do CÓDIGO (operacoes.ts): o payload só leva ids e corpo curado; chave rota/url/path/method no dado é recusada desde a proposta",
+        "definir_ponto PRESERVA a credencial que o binding do ponto já tinha (o PUT sem credential_id a apagaria); a proposta nunca escolhe credencial",
+        "credencial, canal, exclusão e demais críticos não têm proposta nenhuma — continuam 'PRECISO CONFIRMAR' com link da tela"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F3: a auditoria da empresa — o que ela faz e o que NÃO faz",
+      "items": [
+        "mede o que existe (credencial de IA, canal, funil e etapas, agente publicado, roteador, conhecimento, follow-up) lendo as rotas da casa na sessão da pessoa; não tem SQL próprio",
+        "NÃO cria nem altera nada sozinha: cada item mostra o estado e, quando o assistente pode completar, o botão Pedir ao assistente só deixa a frase no chat para a pessoa conferir e enviar",
+        "o retrato é guardado para mostrar a evolução; a retenção é executada pelo cron data-retention, com piso de 90 dias dentro da função",
+        "laço de retorno: se a auditoria errar um estado, o que muda é a pessoa agir (ou deixar de agir) em cima de um retrato falso; por isso o texto de cada item diz o porquê e onde resolver"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "F4: o laço de retorno — o que ele mede e o que NÃO mede",
+      "items": [
+        "mede, por tipo de proposta criada no período, quantas foram aprovadas, aplicadas, recusadas e quantas ficaram sem decisão; a taxa só olha o que alguém decidiu",
+        "NÃO mede arrependimento: o banco não guarda 'desfazer' (config_proposals termina em aplicada), e a tela não simula o que o schema não tem",
+        "NÃO alimenta nenhuma skill: o sinal fica na tela, para a pessoa; nenhuma peça do matcher das skills lê config_proposals",
+        "o manager vê 'restrito' em vez de zero porque a RLS só deixa admin ler a tabela; leitura falha vira 'indisponível'; o isolamento entre organizações é vigiado por teste de rota e a cerca laco-de-retorno-config-tem-um-leitor-so"
+      ]
+    }
+  ]
+}

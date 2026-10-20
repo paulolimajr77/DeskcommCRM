@@ -326,6 +326,38 @@ describe("mapas de arquitetura — coerência interna", () => {
     expect(liga("jevObservacoesRoteador", "jevCartaoRoteador"), "a concordância do roteador não volta ao cartão").toBe(true);
     expect(liga("jevCartaoRoteador", "jevRoteador"), "o cartão não muda o estado da tarefa").toBe(true);
   });
+
+  it("o assistente interno está no mapa, e nenhuma peça dele é ilha", () => {
+    // O caso concreto do DoD 13 para a F1b (T9). O genérico cobra ≥1 aresta; o
+    // invariante 1 do Sistema Vivo pede entrada E saída para cada peça — e as
+    // duas arestas que o plano exige (assistente → catálogo → rotas;
+    // assistente → llm_calls) são nomeadas abaixo, não só contadas.
+    const m = JSON.parse(
+      fs.readFileSync(path.join(DIR, "assistente-interno.architecture.json"), "utf8"),
+    ) as Mapa;
+    const arestas = m.edges ?? [];
+    const grau = (id: string) => arestas.filter((e) => e.from === id || e.to === id).length;
+    for (const peca of [
+      "painel",
+      "rotaChat",
+      "emissor",
+      "catalogo",
+      "rotasLeitura",
+      "llmCalls",
+      "auditoria",
+      "limites",
+      "orcamento",
+      "piso",
+      "threads",
+    ]) {
+      expect(grau(peca), `${peca} com menos de 2 arestas — é ilha pelo invariante 1`).toBeGreaterThanOrEqual(2);
+    }
+    const liga = (de: string, para: string) => arestas.some((e) => e.from === de && e.to === para);
+    expect(liga("emissor", "catalogo"), "o turno não consulta o catálogo de métricas").toBe(true);
+    expect(liga("catalogo", "rotasLeitura"), "o catálogo não lê as rotas por dentro").toBe(true);
+    expect(liga("emissor", "llmCalls"), "o turno não registra em llm_calls").toBe(true);
+    expect(liga("rotaChat", "auditoria"), "a pergunta não é auditada").toBe(true);
+  });
 });
 
 /**

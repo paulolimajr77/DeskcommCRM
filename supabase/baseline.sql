@@ -52154,6 +52154,355 @@ begin
   return new;
 end;
 $fn$;
+-- ---- chat do assistente interno: config_threads/messages (migration 9001) ----
+-- manifest: **Chat do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Cria `config_threads` + `config_messages` (histórico do chat de leitura do assistente). Leitura RLS por org + papel `viewer` (dúvida e leitura valem para qualquer papel) + DONO da conversa (created_by = auth.uid(): a resposta carrega números de métricas com papel mínimo); escrita SÓ via service_role nas rotas (revoke fecha o PostgREST); idempotência por `turn_id`; expurgo com piso. Sem `contact_id` de propósito: o chat fala de configuração e agregados, nunca de titular — a cascata de LGPD não é tocada. Idempotente; apêndice igual no `baseline.sql`.
+
+-- ---- chat do assistente interno: config_threads/messages (migration 9001) ----
+create table if not exists public.config_threads (
+  id                uuid primary key default gen_random_uuid(),
+  organization_id   uuid not null references public.organizations(id) on delete cascade,
+  kind              text not null default 'leitura'
+    check (kind in ('leitura')),
+  created_by        uuid,
+  last_message_at   timestamptz,
+  created_at        timestamptz not null default now()
+);
+
+create table if not exists public.config_messages (
+  id                uuid primary key default gen_random_uuid(),
+  thread_id         uuid not null references public.config_threads(id) on delete cascade,
+  organization_id   uuid not null references public.organizations(id) on delete cascade,
+  -- Agrupa pergunta + resposta. GERADO NO CLIENTE: dá a idempotência do POST
+  -- sem copiar corpo em `idempotency_keys` (fora da cascata de LGPD).
+  turn_id           uuid not null,
+  author_kind       text not null check (author_kind in ('human', 'ai')),
+  -- `on delete set null`: a saída de uma pessoa não apaga o que ela perguntou.
+  author_user_id    uuid,
+  -- null quando a resposta falhou. Sem coluna `status`: seria a segunda
+  -- representação do mesmo fato.
+  body              text,
+  error_code        text,
+  created_at        timestamptz not null default now(),
+  constraint config_messages_turno_unico
+    unique (organization_id, thread_id, turn_id, author_kind)
+);
+
+create index if not exists config_threads_org_idx
+  on public.config_threads (organization_id, created_at);
+create index if not exists config_messages_thread_idx
+  on public.config_messages (organization_id, thread_id, created_at);
+-- O expurgo ordena por `created_at`.
+create index if not exists config_messages_purga_idx
+  on public.config_messages (created_at);
+
+alter table public.config_threads enable row level security;
+alter table public.config_messages enable row level security;
+
+-- ── Privilégio: leitura pelo login, escrita SÓ pelo servidor ───────────────
+-- `revoke all` PRIMEIRO porque o `ALTER DEFAULT PRIVILEGES … GRANT ALL ON
+-- TABLES TO "authenticated"` do baseline vem ANTES de toda tabela de apêndice:
+-- sem o revoke, a tabela nasce com INSERT/UPDATE/DELETE para `authenticated` e
+-- a policy seria a única coisa entre um `viewer` e a escrita. Mesmo desenho da
+-- 0281 (`agent_case_chat_messages`).
+revoke all    on public.config_threads from anon, authenticated;
+grant  select on public.config_threads to authenticated;
+grant  all    on public.config_threads to service_role;
+revoke all    on public.config_messages from anon, authenticated;
+grant  select on public.config_messages to authenticated;
+grant  all    on public.config_messages to service_role;
+
+-- ── RLS: organização + papel + DONO ────────────────────────────────────────
+-- Policy POR COMANDO (`for select`), nunca `for all`: não existe caminho de
+-- escrita pelo PostgREST, porque o `revoke` acima o fechou. Leitura exige
+-- papel `viewer` ou acima (o chat de leitura e de dúvidas vale para qualquer papel)
+-- E ser o DONO da conversa (`created_by = auth.uid()`): a resposta do assistente
+-- carrega números de métricas que têm papel mínimo (financeiro, conversões, desempenho),
+-- e a trava de papel só vale na hora da consulta. Sem o dono, um `viewer` leria, pela
+-- tela ou direto pelo PostgREST, o que um gerente perguntou e o assistente respondeu.
+drop policy if exists tenant_isolation_config_threads_select on public.config_threads;
+create policy tenant_isolation_config_threads_select
+  on public.config_threads
+  for select to authenticated
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'viewer')
+    and created_by = auth.uid()
+  );
+drop policy if exists tenant_isolation_config_messages_select on public.config_messages;
+create policy tenant_isolation_config_messages_select
+  on public.config_messages
+  for select to authenticated
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'viewer')
+    and exists (
+      select 1 from public.config_threads t
+      where t.id = config_messages.thread_id
+        and t.organization_id = config_messages.organization_id
+        and t.created_by = auth.uid()
+    )
+  );
+
+-- ── Retenção: a tabela nasce com dono de piso ──────────────────────────────
+-- Piso 90 no corpo (não no argumento): knob não vira apagador de rastro
+-- recente. Segue a retenção operacional do tenant (decisão §8.4 da spec);
+-- o chamador (cron) passa `p_retencao_dias` do tenant.
+create or replace function public.fn_expurgar_config_assistente_vencida(
+  p_retencao_dias int default null,
+  p_limite int default null
+) returns int
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_dias int := greatest(coalesce(p_retencao_dias, 365), 90);
+  v_limite int := least(greatest(coalesce(p_limite, 1000), 1), 10000);
+  v_apagadas int := 0;
+  v_n int;
+begin
+  with vencidas as (
+    select m.id from public.config_messages m
+     where m.created_at < now() - make_interval(days => v_dias)
+     order by m.created_at
+     limit v_limite
+  )
+  delete from public.config_messages m using vencidas v where m.id = v.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+  with orfas as (
+    select t.id from public.config_threads t
+     where t.created_at < now() - make_interval(days => v_dias)
+       and not exists (select 1 from public.config_messages m where m.thread_id = t.id)
+     order by t.created_at
+     limit v_limite
+  )
+  delete from public.config_threads t using orfas o where t.id = o.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+  return v_apagadas;
+end;
+$$;
+-- As DUAS origens de EXECUTE: o `ALTER DEFAULT PRIVILEGES … GRANT ALL ON
+-- FUNCTIONS TO anon` do baseline (que `revoke from public` não remove) e o
+-- grant implícito a PUBLIC de toda função nova (que `revoke from anon` não
+-- remove). Fechar uma só deixa a função exposta com o gate verde.
+revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
+grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
+
+-- ---- skills do assistente interno: seed de plataforma (migration 9003) ----
+-- manifest: **Skills do assistente interno, F1 leitura (spec 2026-10-14-agente-interno-config-design).** Semeia 4 skills de plataforma (`organization_id null`): assistente-operacao, assistente-metricas, assistente-prompt, assistente-cliente-novo — conteúdo operacional condensado das guias `.agents/skills/`, corpo com no máximo 200 linhas cada. Lidas pelo chat via loadSkills + matchSkills. Idempotente; apêndice igual no `baseline.sql`.
+
+-- ---- skills do assistente interno: seed de plataforma (migration 9003) ----
+do $seed$
+declare
+  v_id uuid;
+begin
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-operacao'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-operacao', 'Uso diário do CRM: onde fica cada coisa e como fazer pela interface.',
+      $body$# Operar o CRM no dia a dia
+
+Responda dúvidas de uso pelo caminho da interface, como Grupo → Tela → Ação.
+Não invente campos, botões, estados ou permissões. Nunca peça segredo em chat.
+
+## Mapa Grupo → Tela
+
+- Inbox (Atendimento): conversas com o cliente, notas internas, rascunhos.
+- Funil (CRM): negócios por etapa, mover card, motivos de perda.
+- IA › Agentes: um agente por papel (prompt, provedor/modelo, canal, funis).
+- IA › Roteadores: só com 2+ agentes no mesmo número (intenções + fallback).
+- IA › Follow-ups: fluxos com gatilho, espera, mensagem e fim. Fluxo não publicado não roda.
+- IA › Conhecimento: FAQ e documentos. Aguarde o status pronto.
+- IA › Memória: regras da casa que valem para todos os atendimentos.
+- IA › Provedores/Credenciais: modelos e chaves. Publicar exige credencial validada.
+- Canais › Conexões: números e status. Publicar exige número WORKING.
+- Análise: Desempenho, Radar de risco, Uso e orçamento, Evolução da IA.
+- Organização: equipe, marca, funis, agenda, tags, modelos de mensagem.
+
+## Resposta padrão para onde fica
+
+1. Caminho: grupo → tela → ação. 2. Serve para: uma frase.
+3. Pré-requisito: somente se existir. 4. Depois disso: onde confirmar.
+5. Se não aparecer: qual permissão, configuração ou estado verificar.
+
+## Resposta padrão para como faço
+
+Confirme o objetivo, liste só os passos necessários pela UI, aponte o
+irreversível e diga como verificar que funcionou. Tarefa de infraestrutura,
+código ou nicho: encaminhe ao assunto dono (instalação, cliente novo,
+prompt, métricas), sem duplicar o procedimento aqui.
+$body$,
+      '{"any_keywords": ["onde fica", "onde vejo", "onde altero", "onde conecto", "onde configuro", "como faco", "como uso", "como configuro", "o que faz", "o que significa", "para que serve"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-operacao', v_id);
+  end if;
+
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-metricas'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-metricas', 'Leitura correta de números: régua ao lado de cada métrica, sem PII.',
+      $body$# Ler números sem concluir errado
+
+Cada tela tem a própria régua: handoff tem três definições diferentes,
+ganho é lead numa tela e transição noutra, dia é UTC numa e fuso da org
+noutra. Nunca some número de telas diferentes. Todo número vem com período
+fechado, fuso, definição (tabela e filtro) e o que ficou de fora.
+
+## Regras
+
+- Agregados, nunca texto: contagens, medianas, taxas. Nunca corpo de
+  mensagem, nome, telefone ou motivo em texto livre.
+- Null não é zero: sem dado mostra vazio, nunca zero fingindo medição.
+- Compare com referência: período anterior, outro agente ou funil.
+- Termine em ação: cada achado vira hipótese e próximo passo.
+
+## Sintoma e causa provável
+
+- Vende menos: etapa gargalo, motivo de perda concentrado, origem que caiu.
+- Demora: agente fora da janela no pico; humano assume e demora.
+- Passa tudo para pessoa: prompt manda encaminhar demais; portão vetando.
+- Gasta muito com IA: classificador em modelo caro; turno com prompt gigante.
+- Follow-up não funciona: esperas longas; mensagem genérica.
+- Base não responde: material não cobre; limiar apertado.
+
+## O que nunca fazer
+
+Não ler dado pessoal nem por amostra. Não escrever no banco. Não afirmar
+tendência com uma semana de dado. Não comparar telas sem declarar as réguas.
+$body$,
+      '{"any_keywords": ["conversao", "desempenho", "custo de ia", "relatorio", "taxa de ganho", "motivo de perda", "horario de pico", "atrito", "funil por origem"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-metricas', v_id);
+  end if;
+
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-prompt'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-prompt', 'Diagnóstico de agente que não performa, com dados — rascunho testa, pessoa publica.',
+      $body$# Afinar agente com dados, não achismo
+
+Agente ruim quase nunca é o prompt inteiro: pode ser roteador errando,
+portão vetando, base sem cobertura ou horário. Diagnostique antes de reescrever.
+
+## Sinais e causas
+
+- Vetos de vocabulário: prompt cita ferramenta, lead, etapa ou sistema.
+- Vetos de promessa: prompt permite o que a tabela não permite.
+- Passa tudo para pessoa: prompt manda encaminhar a alguém nomeado.
+- Base sem acerto com score perto do limiar: limiar apertado.
+- Base sem acerto com score baixo: falta material, não é prompt.
+- Agente errado respondeu: intenções do roteador.
+- Respostas longas e custo alto: prompt gigante repetindo o que o motor faz.
+- Some à noite: horário do agente.
+
+## Regras
+
+- Versão nova em rascunho, nunca edição. Testar antes e depois com o mesmo
+  roteiro; Publicar é da pessoa. Uma mudança por vez, medida.
+- Não repetir no prompt o que o motor impõe; sem nome de ferramenta, sem
+  placeholder, sem jargão interno (vira veto).
+- Conteúdo situacional (objeção de preço, reativação) vai para skill do
+  produto, não para o prompt.
+- Não trocar modelo, provedor ou credencial de brinde. Não concluir por um
+  cliente só: uma frase ruim é anedota, padrão é dado.
+$body$,
+      '{"any_keywords": ["prompt", "responde errado", "robotico", "passa tudo para humano", "nao usa a agenda", "inventa preco", "fala demais", "nao converte", "melhorar o prompt", "versao", "rascunho", "testar agente"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-prompt', v_id);
+  end if;
+
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-cliente-novo'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-cliente-novo', 'Montar o CRM por nicho: triagem, pacote, ordem pela tela, publicar é humano.',
+      $body$# Montar cliente por nicho
+
+O wizard para no funil e nos convites. O que faz vender (prompt do nicho,
+roteador, follow-ups, base, memória, capacidades) monta-se depois, pela
+tela e nesta ordem — o schema impõe, cada peça exige a anterior.
+
+## Ordem pela tela
+
+1. Conexões: número WORKING. 2. Credenciais: chave validada.
+3. Provedores: barato para auxiliares, com ferramentas para atendimento.
+4. Funil: exatamente uma etapa ganhou e uma perdeu.
+5. Conhecimento: FAQ e documentos, status pronto.
+6. Follow-ups: criar, montar e publicar. Não publicado não roda.
+7. Agentes: um por papel, em rascunho. 8. Testar no sandbox.
+9. Publicar: a pessoa clica. Só depois: roteadores, memória, skills, time.
+
+## Regras
+
+- Triagem antes de configurar: uma pergunta por vez, sem supor preço,
+  prazo ou política — o que não está escrito vira pergunta.
+- Montar como texto, aplicar pela tela. Nada por SQL: o motor lê versão
+  publicada, e direto pula auditoria, validação e indexação.
+- Publicar é ato humano. Sem preço no prompt se há catálogo ou base.
+- Sem jargão interno no prompt (vira veto). Nichos: clínica, imobiliária,
+  serviços, curso, loja, advocacia — fora deles, pacote genérico adaptado.
+$body$,
+      '{"any_keywords": ["criar agente", "montar", "clinica", "imobiliaria", "nicho", "roteador", "follow-up", "follow up", "base de conhecimento", "memoria da organizacao", "onboarding", "pacote do nicho"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-cliente-novo', v_id);
+  end if;
+end
+$seed$;
+
+-- ---- limites de perguntas do assistente interno (migration 9004) ----
+-- manifest: **Limites de perguntas do assistente interno, definidos pelo administrador (spec 2026-10-14-agente-interno-planos, T6).** Duas colunas em `ai_budgets` — `assistant_questions_per_user_day` (padrão 60) e `assistant_questions_per_org_day` (null = sem limite) — com CHECK de faixa, e o índice `config_messages_contagem_idx` (organization_id, created_at) que sustenta a contagem das últimas 24 h. Escrita só pela rota `PATCH ai/budget` (service role). Idempotente; apêndice igual no `baseline.sql`.
+
+-- ---- limites de perguntas do assistente interno (migration 9004) ----
+-- Duas colunas, e a decisão de cada uma:
+--   * por pessoa, por dia: NOT NULL com padrão 60. As linhas que já existem
+--     ganham 60 no mesmo comando (o Postgres preenche o padrão), então não há
+--     backfill a fazer nem linha nula para o código tratar.
+--   * por organização, por dia: NULL = sem limite. Só o administrador cria um;
+--     o teto em dinheiro do mesmo cartão já cobre a organização inteira.
+-- Quem lê e quem escreve: `lib/assistente/limites.ts` lê; só a rota
+-- `PATCH /api/v1/ai/budget` escreve (service role, `organization_id` do JWT) —
+-- a tabela segue sem policy de escrita para `authenticated`, como na 0160.
+alter table public.ai_budgets
+  add column if not exists assistant_questions_per_user_day integer not null default 60;
+alter table public.ai_budgets
+  add column if not exists assistant_questions_per_org_day integer;
+
+-- A faixa é do banco além de ser da rota: um valor fora dela escrito por outro
+-- caminho (SQL à mão, script) não pode nascer. O Postgres não aceita `if not exists`
+-- em constraint; drop + add é o que torna a REGRA idempotente. Os dados já
+-- satisfazem: 60 e null.
+alter table public.ai_budgets
+  drop constraint if exists ai_budgets_assistant_per_user_day_check;
+alter table public.ai_budgets
+  add constraint ai_budgets_assistant_per_user_day_check
+  check (assistant_questions_per_user_day between 1 and 10000);
+
+alter table public.ai_budgets
+  drop constraint if exists ai_budgets_assistant_per_org_day_check;
+alter table public.ai_budgets
+  add constraint ai_budgets_assistant_per_org_day_check
+  check (assistant_questions_per_org_day is null or assistant_questions_per_org_day between 1 and 100000);
+
+comment on column public.ai_budgets.assistant_questions_per_user_day is
+  'Quantas perguntas ao assistente interno CADA pessoa pode fazer nas últimas 24 h. Padrão 60; 1..10000. Passou disso: 429 com a orientação de pedir a um administrador.';
+comment on column public.ai_budgets.assistant_questions_per_org_day is
+  'Quantas perguntas ao assistente interno a organização inteira pode fazer nas últimas 24 h. NULL = sem limite (o teto em dinheiro continua valendo); 1..100000.';
+
+-- A contagem é "perguntas humanas da organização nas últimas 24 h" (e, para o
+-- limite por pessoa, só as da pessoa). O índice existente de `config_messages`
+-- começa por (organization_id, thread_id) e não serve a um filtro por janela de
+-- tempo sem thread; este serve, e a janela de 24 h toca poucas linhas.
+create index if not exists config_messages_contagem_idx
+  on public.config_messages (organization_id, created_at);
 
 -- ---- o telefone ganho alcança a origem (migration 0670, #2812) ----
 -- O gatilho `contact.phone_added` (#2812) é emitido pelo PATCH de contatos,
@@ -55083,6 +55432,214 @@ begin
       )
     );
 end $$;
+-- ---- propostas de configuração do assistente (migration 9002) ----
+-- manifest: **Propostas de configuração do assistente interno, F2b (spec 2026-10-14-agente-interno-config-design §5/§7b).** Cria `config_proposals` (1 proposta = 1 artefato; propor não cria nada, o efeito nasce no `aplicar` depois do aprovar): 5 estados com coerência por CHECK, idempotência por turno, leitura e inserção só do admin pela sessão (update/delete exclusivos do servidor, na T20) e gatilho que só deixa `aplicar` sair de `aprovada`. Retenção = a do tenant, na MESMA dívida assumida de `fn_expurgar_config_assistente_vencida` (sem chamador até a F3). Idempotente; apêndice igual no `baseline.sql`.
+
+-- ---- propostas de configuração do assistente (migration 9002) ----
+-- Retenção (decisão §8.4 da spec, dívida assumida): `config_proposals` segue a
+-- retenção operacional do tenant e entra na mesma dívida de
+-- `fn_expurgar_config_assistente_vencida` — a função existe desde a F1 (migration
+-- 9001) e NÃO tem chamador; a rota agendada que a chama entra na F3. Nenhuma
+-- função de expurgo nova aqui, e a existente não é alterada.
+create table if not exists public.config_proposals (
+  id                uuid primary key default gen_random_uuid(),
+  organization_id   uuid not null references public.organizations(id) on delete cascade,
+  -- A faxina de conversas não apaga o rastro da decisão: apagar a thread
+  -- zera o vínculo, mas a proposta (quem pediu, o quê, o que foi decidido) fica.
+  thread_id         uuid references public.config_threads(id) on delete set null,
+  -- Turno do chat que gerou a proposta; null se veio de outro lugar. A
+  -- idempotência do turno é o índice parcial abaixo, não esta coluna sozinha.
+  turn_id           uuid,
+  -- O que será mexido (1 proposta = 1 artefato). `critico` NÃO existe de
+  -- propósito (spec §6/§7b: crítico não tem ferramenta de proposta — vira
+  -- "PRECISO CONFIRMAR" da auditoria, com link para a tela onde o humano resolve).
+  kind              text not null check (kind in ('roteador','conhecimento','memoria','modelo_auxiliares','funil')),
+  risk              text not null check (risk in ('seguro','atencao')),
+  -- Título para leigo (o que a tela mostra na fila) e o porquê da IA.
+  resumo            text not null check (char_length(resumo) between 3 and 300),
+  motivo            text not null check (char_length(motivo) between 3 and 2000),
+  -- Retrato do estado atual para o "antes e depois"; null quando não há
+  -- "antes" (criação).
+  antes             jsonb,
+  -- O que será aplicado. Objeto sempre: a T20 aplica chave a chave pelos
+  -- handlers existentes, nunca SQL direto.
+  payload           jsonb not null check (jsonb_typeof(payload) = 'object'),
+  status            text not null default 'pendente' check (status in ('pendente','aprovada','aplicada','rejeitada','expirada')),
+  -- Quem pediu a proposta; sem FK, como `created_by` da 9001 (a saída de uma
+  -- pessoa não apaga o que foi pedido).
+  requested_by      uuid not null,
+  decided_by        uuid,
+  decided_at        timestamptz,
+  -- Motivo da rejeição com teto: vira insumo estruturado da F4 (laço de retorno).
+  decision_reason   text check (decision_reason is null or char_length(decision_reason) <= 1000),
+  applied_by        uuid,
+  applied_at        timestamptz,
+  -- O que foi criado/alterado: tipo + id do artefato.
+  apply_result      jsonb,
+  -- Proposta pendente sem decisão vira item visível com prazo — nunca some em
+  -- silêncio (anti-morte do sistema-vivo).
+  expires_at        timestamptz not null default (now() + interval '7 days'),
+  created_at        timestamptz not null default now(),
+  -- Coerência de estado: cada estado carrega os carimbos que o provam. `expirada`
+  -- não exige nada extra de propósito: a expiração é passagem do tempo, não decisão.
+  constraint config_proposals_estado_coerente check (
+    (status = 'pendente' and decided_by is null and decided_at is null and decision_reason is null
+      and applied_by is null and applied_at is null and apply_result is null)
+    or (status = 'aprovada' and decided_by is not null and decided_at is not null and applied_at is null)
+    or (status = 'aplicada' and decided_at is not null and applied_by is not null and applied_at is not null and apply_result is not null)
+    or (status = 'rejeitada' and decided_by is not null and decided_at is not null)
+    or (status = 'expirada')
+  )
+);
+
+-- A fila na tela (propostas da org por estado, as mais novas primeiro).
+create index if not exists config_proposals_fila_idx
+  on public.config_proposals (organization_id, status, created_at desc);
+create index if not exists config_proposals_thread_idx
+  on public.config_proposals (organization_id, thread_id);
+-- Reenvio do mesmo turno não duplica a proposta: o segundo insert do mesmo
+-- (org, turno, kind) bate no único e a rota devolve a que já existe.
+create unique index if not exists config_proposals_turno_unico
+  on public.config_proposals (organization_id, turn_id, kind)
+  where turn_id is not null;
+
+alter table public.config_proposals enable row level security;
+
+-- ── Privilégio: o login (sessão) só LÊ e INSERE ──────────────────────────
+-- `revoke all` PRIMEIRO pelo mesmo motivo da 9001: o `ALTER DEFAULT
+-- PRIVILEGES … GRANT ALL ON TABLES TO "authenticated"` do baseline vem ANTES
+-- de toda tabela de apêndice. Sem o revoke, a tabela nasceria com
+-- UPDATE/DELETE para `authenticated` e a policy seria a única coisa entre um
+-- admin logado e o "aprovar a si mesmo". `update` e `delete` são exclusivos do
+-- servidor (rotas que aprovam/aplicam/rejeitam, na T20): a ferramenta de propor
+-- grava com a SESSÃO do admin (nunca service role), e nenhum cliente PostgREST
+-- consegue aprovar ou aplicar sozinho.
+revoke all on public.config_proposals from anon, authenticated;
+grant select, insert on public.config_proposals to authenticated;
+grant all on public.config_proposals to service_role;
+
+-- ── RLS: organização + ADMIN, policy POR COMANDO ─────────────────────────
+-- Só admin lê proposta (o payload pode ter prompt, texto de conhecimento e
+-- memória). Decisão registrada: diferente do chat (9001), que é `viewer`+.
+drop policy if exists tenant_isolation_config_proposals_select on public.config_proposals;
+create policy tenant_isolation_config_proposals_select
+  on public.config_proposals
+  for select to authenticated
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'admin')
+  );
+-- Inserir exige: ser da org, ser admin, assinar como quem pede (`requested_by`
+-- = quem está logado) e nascer `pendente` sem nenhum carimbo de decisão ou
+-- aplicação (carimbo sem passar pelo gatilho não nasce).
+drop policy if exists tenant_isolation_config_proposals_insert on public.config_proposals;
+create policy tenant_isolation_config_proposals_insert
+  on public.config_proposals
+  for insert to authenticated
+  with check (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'admin')
+    and requested_by = auth.uid()
+    and status = 'pendente'
+    and decided_by is null
+    and decided_at is null
+    and applied_by is null
+    and applied_at is null
+    and apply_result is null
+  );
+
+-- ── Gatilho de transição: "aplicar exige aprovada" ───────────────────────
+-- A trava de verdade (spec §6.2). A rota da T20 confere antes; o gatilho
+-- garante depois — nem o servidor aplica sem aprovar antes. Violação = 23514,
+-- a mesma classe dos CHECKs: quem lê o erro trata igual.
+create or replace function public.fn_config_proposals_transicao()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+-- transicoes: pendente>aprovada, pendente>rejeitada, pendente>expirada, aprovada>aplicada, aprovada>expirada
+begin
+  -- 1. IMUTÁVEIS depois de criada (qualquer mudança reprova): aprovou A, aplica
+  -- A — nunca B. `decided_*`, `applied_*` e `decision_reason` ficam de fora de
+  -- propósito: são os carimbos das transições abaixo, e a regra 2 decide quando
+  -- cada um pode nascer.
+  if old.organization_id is distinct from new.organization_id
+    or old.thread_id is distinct from new.thread_id
+    or old.turn_id is distinct from new.turn_id
+    or old.kind is distinct from new.kind
+    or old.risk is distinct from new.risk
+    or old.resumo is distinct from new.resumo
+    or old.motivo is distinct from new.motivo
+    or old.antes is distinct from new.antes
+    or old.payload is distinct from new.payload
+    or old.requested_by is distinct from new.requested_by
+    or old.expires_at is distinct from new.expires_at
+    or old.created_at is distinct from new.created_at
+  then
+    raise exception 'config_proposals: o conteúdo da proposta é imutável depois de criada'
+      using errcode = '23514';
+  end if;
+
+  -- Sem mudança nenhuma, trata como no-op (ex.: UPDATE que reescreve os mesmos
+  -- valores). Qualquer mudança com o estado igual cai na regra 2 e reprova.
+  if old is not distinct from new then
+    return new;
+  end if;
+
+  -- 2. Só estas transições existem. Qualquer outra reprova — inclusive
+  -- pendente>aplicada, qualquer saída de aplicada/rejeitada/expirada e
+  -- aprovada>rejeitada.
+  if not ((old.status = 'pendente' and new.status in ('aprovada', 'rejeitada', 'expirada'))
+    or (old.status = 'aprovada' and new.status in ('aplicada', 'expirada'))) then
+    raise exception 'config_proposals: transição de estado % para % não permitida', old.status, new.status
+      using errcode = '23514';
+  end if;
+
+  -- 2b. O carimbo da decisão, depois de nascido, não se reescreve: quem decidiu,
+  -- quando e por quê ficam como foram, inclusive na passagem aprovada>aplicada.
+  if old.decided_at is not null
+    and (old.decided_by is distinct from new.decided_by
+      or old.decided_at is distinct from new.decided_at
+      or old.decision_reason is distinct from new.decision_reason)
+  then
+    raise exception 'config_proposals: o carimbo da decisão é imutável depois de nascido'
+      using errcode = '23514';
+  end if;
+
+  -- 3. Quem decide e quem aplica ficam carimbados na hora da transição.
+  if new.status in ('aprovada', 'rejeitada')
+    and (new.decided_by is null or new.decided_at is null) then
+    raise exception 'config_proposals: aprovar ou rejeitar exige decided_by e decided_at'
+      using errcode = '23514';
+  end if;
+  if new.status = 'aplicada'
+    and (new.applied_by is null or new.applied_at is null or new.apply_result is null) then
+    raise exception 'config_proposals: aplicar exige applied_by, applied_at e apply_result'
+      using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+-- As DUAS origens de EXECUTE, como na 9001: o `ALTER DEFAULT PRIVILEGES … GRANT
+-- ALL ON FUNCTIONS TO anon` do baseline (que `revoke from public` não remove) e
+-- o grant implícito a PUBLIC de toda função nova (que `revoke from anon` não
+-- remove). Fechar uma só deixa a função exposta com o gate verde.
+revoke all on function public.fn_config_proposals_transicao() from public, anon, authenticated;
+grant execute on function public.fn_config_proposals_transicao() to service_role;
+
+drop trigger if exists config_proposals_transicao_bu on public.config_proposals;
+create trigger config_proposals_transicao_bu
+  before update on public.config_proposals
+  for each row execute function public.fn_config_proposals_transicao();
+
+-- ── travas do suporte, depois de tabela nova (migration 0274) ────────────
+-- A tabela concede `insert` a `authenticated`; sem chamar de novo aqui, a cadeia
+-- de migrations/ (aplicada uma a uma, nunca reaplicando o arquivo inteiro como o
+-- baseline.sql) não plantaria as três travas support_write_* nesta tabela.
+-- Idempotente; no baseline.sql a função está definida bem antes deste bloco.
+do $f$ begin perform public.fn_aplicar_travas_de_suporte(); end $f$;
 
 -- ---- resposta do suporte ao caso pelo WhatsApp (migration 0687) ----
 alter table public.config_aviso_de_caso
@@ -55699,6 +56256,131 @@ end;$fn$;
 revoke all on function public.fn_reply_inbound_revision() from public,anon,authenticated;
 
 notify pgrst, 'reload schema';
+
+-- manifest: **Snapshots de auditoria do tenant (F3).** Cria `config_snapshots`
+-- para guardar um retrato por rodada da auditoria da organização (estado de
+-- cada verificação, contagem de pendências), permitindo à tela mostrar a
+-- evolução ("ontem faltavam 5, hoje 3"). Retenção igual à do tenant; o expurgo
+-- é ligado no cron `data-retention` (F3). Apêndice idempotente no baseline.
+-- ---- snapshots de auditoria do assistente (migration 9005) ----
+create table if not exists public.config_snapshots (
+  id                uuid primary key default gen_random_uuid(),
+  organization_id   uuid not null references public.organizations(id) on delete cascade,
+  taken_at          timestamptz not null default now(),
+  taken_by          uuid references auth.users(id) on delete set null,
+  resultado         jsonb not null check (jsonb_typeof(resultado) = 'object' and octet_length(resultado::text) <= 65536),
+  pendencias        int not null check (pendencias >= 0),
+  created_at        timestamptz not null default now()
+);
+
+-- A fila na tela (snapshots da org, do mais novo para o mais velho).
+create index if not exists config_snapshots_org_taken_idx
+  on public.config_snapshots (organization_id, taken_at desc);
+
+alter table public.config_snapshots enable row level security;
+
+-- ── Privilégio: o login (sessão) só LÊ e INSERE ──────────────────────────
+revoke all on public.config_snapshots from anon, authenticated;
+grant select, insert on public.config_snapshots to authenticated;
+grant all on public.config_snapshots to service_role;
+
+-- ── RLS: qualquer membro da org lê os snapshots dela; só admin insere ─────
+drop policy if exists tenant_isolation_config_snapshots_select on public.config_snapshots;
+create policy tenant_isolation_config_snapshots_select
+  on public.config_snapshots
+  for select to authenticated
+  using (
+    organization_id in (select public.fn_user_org_ids())
+  );
+drop policy if exists tenant_isolation_config_snapshots_insert on public.config_snapshots;
+create policy tenant_isolation_config_snapshots_insert
+  on public.config_snapshots
+  for insert to authenticated
+  with check (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'admin')
+    and taken_by = auth.uid()
+  );
+
+-- Trava de suporte (mesma razão da 9002: o baseline concede default privileges
+-- que dariam UPDATE/DELETE a authenticated sem este revoke).
+revoke all on public.config_snapshots from anon, authenticated;
+grant select, insert on public.config_snapshots to authenticated;
+
+-- ── Extensão do expurgo de config assistente (F3, dívida de retenção) ───────
+-- `fn_expurgar_config_assistente_vencida` existe desde a 9001 (F1) e só
+-- apagava `config_messages` e `config_threads`. A F3 acrescenta
+-- `config_proposals` vencidas e `config_snapshots` além da retenção — mesmo
+-- corpo no baseline, para o kit self-host não divergir.
+create or replace function public.fn_expurgar_config_assistente_vencida(
+  p_retencao_dias int default null,
+  p_limite int default null
+) returns int
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_dias int := greatest(coalesce(p_retencao_dias, 365), 90);
+  v_limite int := least(greatest(coalesce(p_limite, 1000), 1), 10000);
+  v_apagadas int := 0;
+  v_n int;
+begin
+  -- config_messages (9001, existente — mantido)
+  with vencidas as (
+    select m.id from public.config_messages m
+     where m.created_at < now() - make_interval(days => v_dias)
+     order by m.created_at
+     limit v_limite
+  )
+  delete from public.config_messages m using vencidas v where m.id = v.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+
+  -- config_threads órfãos (9001, existente — mantido)
+  with orfas as (
+    select t.id from public.config_threads t
+     where t.created_at < now() - make_interval(days => v_dias)
+       and not exists (select 1 from public.config_messages m where m.thread_id = t.id)
+     order by t.created_at
+     limit v_limite
+  )
+  delete from public.config_threads t using orfas o where t.id = o.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+
+  -- config_proposals expiradas (F3, nova — proposta vencida nunca se aplica)
+  with prop_vencidas as (
+    select p.id from public.config_proposals p
+     where p.expires_at < now() - make_interval(days => v_dias)
+     order by p.expires_at
+     limit v_limite
+  )
+  delete from public.config_proposals p using prop_vencidas v where p.id = v.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+
+  -- config_snapshots além da retenção (F3, nova — retrato guarda evolução,
+  -- mas não para sempre)
+  with snaps_velhos as (
+    select s.id from public.config_snapshots s
+     where s.taken_at < now() - make_interval(days => v_dias)
+     order by s.taken_at
+     limit v_limite
+  )
+  delete from public.config_snapshots s using snaps_velhos v where s.id = v.id;
+  get diagnostics v_n = row_count;
+  v_apagadas := v_apagadas + v_n;
+
+  return v_apagadas;
+end;
+$$;
+
+-- As DUAS origens de EXECUTE (mesma razão da 9001: fechar ambas).
+revoke all    on function public.fn_expurgar_config_assistente_vencida(int, int) from public, anon, authenticated;
+grant  execute on function public.fn_expurgar_config_assistente_vencida(int, int) to service_role;
+
+do $f$ begin perform public.fn_aplicar_travas_de_suporte(); end $f$;
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
@@ -58518,3 +59200,72 @@ create view public.external_db_connections_safe
 
 revoke all on public.external_db_connections_safe from anon;
 grant select on public.external_db_connections_safe to authenticated;
+
+-- ---- config_proposals acao (migration 9006) ----
+-- ---- config_proposals acao (migration 9006) ----
+
+-- O CHECK de kind é inline (sem nome explícito na 9002): o Postgres batiza `config_proposals_kind_check`. Trocamos para incluir 'acao'.
+alter table public.config_proposals drop constraint if exists config_proposals_kind_check;
+alter table public.config_proposals add constraint config_proposals_kind_check check (kind in ('roteador','conhecimento','memoria','modelo_auxiliares','funil','acao'));
+
+-- O índice de turno único vale só para kinds que não são 'acao': duas propostas de ação diferentes no mesmo turno podem coexistir.
+drop index if exists config_proposals_turno_unico;
+create unique index if not exists config_proposals_turno_unico
+  on public.config_proposals (organization_id, turn_id, kind)
+  where turn_id is not null and kind <> 'acao';
+
+-- Mesmo ação repetida no mesmo turno: o md5 do payload é a impressão digital da ação.
+create unique index if not exists config_proposals_acao_turno_unico
+  on public.config_proposals (organization_id, turn_id, md5(payload::text))
+  where turn_id is not null and kind = 'acao';
+
+-- ---- skill assistente-sistema-vivo (migration 9007) ----
+-- ---- skill assistente-sistema-vivo (migration 9007) ----
+do $seed$
+declare
+  v_id uuid;
+begin
+  if not exists (
+    select 1 from skill_pointers where organization_id is null and name = 'assistente-sistema-vivo'
+  ) then
+    insert into skill_versions (organization_id, name, description, body, matcher)
+    values (null, 'assistente-sistema-vivo', 'Gate de arquitetura: nada é ilha, todo laço se fecha, o laço de retorno fecha quando o sistema erra.',
+      $corpo_sv$# Sistema Vivo — gate de arquitetura
+
+Toda peça do sistema é um polvo: recebe e distribui. Ninguém morre por falta de resposta, de resolução, ou porque ninguém viu.
+
+## Os 7 invariantes (responda ANTES de declarar pronto)
+
+1. **Nada é ilha**: ≥1 aresta de entrada e ≥1 de saída.
+2. **Continuidade nas duas direções**: IA→humano entrega contexto pronto; humano→IA deixa input estruturado.
+3. **Log universal e visível**: emite atividade E aparece na tela.
+4. **Nenhuma demanda sem próximo passo**: follow-up é o anti-morte.
+5. **Informação com propósito**: todo dado responde "e daí?".
+6. **Configuração tem superfície**: ver + mudar + falha visível.
+7. **Todo laço se fecha**: decisão automática tem retorno que altera decisão futura.
+
+## A regra do tempo
+
+- **Observar** em realtime é direito do humano: painel, inbox, fila, falha, conversa ao vivo.
+- **Agir** em realtime costuma ser errado: quanto mais irreversível o efeito, maior o intervalo entre decidir e consumar. Enviar mensagem a uma pessoa é irreversível.
+
+## Antes de propor mudança
+
+Conferir quem consome e quem alimenta. Toda peça nova entra com ≥2 arestas (entrada e saída).
+
+## No DeskcommCRM
+
+- Registro: `event_log`, `audit()` de `lib/audit/` → `api_audit_log`, `crm_lead_activities`.
+- Tela: Timeline no inbox, Radar de Risco (`/app/radar`), painéis em `app/app/`.
+- Porta: `lib/navigation/registry.ts` ou allowlist com justificativa escrita em `tests/unit/navegacao-completude.test.ts`.
+- Anti-morte: Motor de follow-up (`lib/followup/`, `lib/agent-engine/cron/`) + Radar de Risco.
+- Continuidade IA↔humano: `buildHandoffSummary()` em `lib/agent-engine/agent/human-handoff.ts`.
+- Mapa: `docs/architecture/*.json`.
+$corpo_sv$,
+      '{"any_keywords": ["sistema vivo", "invariante", "nada e ilha", "laço de retorno", "anti-morte", "continuidade", "configuração", "mapa", "porte", "registro", "tela", "gate de arquitetura"]}'::jsonb)
+    returning id into v_id;
+    insert into skill_pointers (organization_id, name, version_id)
+    values (null, 'assistente-sistema-vivo', v_id);
+  end if;
+end
+$seed$;

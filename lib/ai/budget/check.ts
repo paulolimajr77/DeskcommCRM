@@ -40,6 +40,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { carregarComportamentoDaInstalacao } from "@/lib/instalacao/comportamento-servidor";
+import { PERGUNTAS_POR_PESSOA_PADRAO } from "@/lib/assistente/limites-padrao";
 
 export interface BudgetStatus {
   organization_id: string;
@@ -100,10 +101,14 @@ export interface BudgetStatus {
   current_period_start: string;
   last_alarm_sent_at: string | null;
   updated_at: string;
+  /** Limite de perguntas do assistente por pessoa por dia (padrão: 60). */
+  assistant_questions_per_user_day: number;
+  /** Limite de perguntas do assistente por organização por dia (`null` = sem limite). */
+  assistant_questions_per_org_day: number | null;
 }
 
 const COLUMNS =
-  "organization_id, monthly_limit_cents, current_month_consumed_cents, alarm_threshold_pct, enforcement_mode, enforcement_effective_at, current_period_start, last_alarm_sent_at, updated_at";
+  "organization_id, monthly_limit_cents, current_month_consumed_cents, alarm_threshold_pct, enforcement_mode, enforcement_effective_at, current_period_start, last_alarm_sent_at, updated_at, assistant_questions_per_user_day, assistant_questions_per_org_day";
 
 const DEFAULTS = {
   // Organização sem linha em `ai_budgets` cai em "sem teto", nunca em "teto
@@ -250,6 +255,8 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
       current_period_start: periodStart,
       last_alarm_sent_at: null,
       updated_at: new Date().toISOString(),
+      assistant_questions_per_user_day: PERGUNTAS_POR_PESSOA_PADRAO,
+      assistant_questions_per_org_day: null,
     };
   }
 
@@ -270,5 +277,7 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
     current_period_start: String(data.current_period_start),
     last_alarm_sent_at: (data.last_alarm_sent_at as string | null) ?? null,
     updated_at: String(data.updated_at),
+    assistant_questions_per_user_day: Number(data.assistant_questions_per_user_day ?? PERGUNTAS_POR_PESSOA_PADRAO),
+    assistant_questions_per_org_day: data.assistant_questions_per_org_day === null || data.assistant_questions_per_org_day === undefined ? null : Number(data.assistant_questions_per_org_day),
   };
 }

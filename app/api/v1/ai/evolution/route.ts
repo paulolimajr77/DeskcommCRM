@@ -23,6 +23,8 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { aggregateEvolution, type EvolutionInput } from "@/lib/ai/evolution/aggregate";
+import { lerPropostasDeConfig } from "@/lib/ai/evolution/propostas-de-config";
+import { roleAtLeast } from "@/lib/auth/types";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -210,6 +212,26 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   if (stages.error) fonteFalhou("crm_stages", stages.error);
 
+  // Laço de retorno do assistente interno (F4). A RLS de `config_proposals` só
+  // deixa o ADMIN ler (o payload pode ter prompt e texto de conhecimento), e esta
+  // rota é manager+: para o manager a sessão leria zero linhas e o painel diria
+  // "ninguém propôs nada". Por isso o papel decide ANTES, e o payload carrega
+  // `restrito` em vez de um zero. A leitura mora em `propostas-de-config.ts`
+  // (cerca: laco-de-retorno-config-tem-um-leitor-so) — esta rota não toca a tabela.
+  let configLoop: EvolutionInput["configLoop"];
+  if (!roleAtLeast(authz.org.role, "admin")) {
+    configLoop = { estado: "restrito" };
+  } else {
+    const lido = await lerPropostasDeConfig(supabase, orgId, fromIso, toIso);
+    if (lido.ok) {
+      if (lido.truncado) fonteFalhou("config_proposals", { message: "teto de propostas atingido — período truncado" });
+      configLoop = { estado: "ok", rows: lido.rows };
+    } else {
+      fonteFalhou("config_proposals", { message: lido.erro });
+      configLoop = { estado: "indisponivel" };
+    }
+  }
+
   const porPipeline = new Map<string, Array<string | null>>();
   for (const r of (stages.data ?? []) as Array<{
     agent_stage_hint: string | null;
@@ -238,6 +260,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     inboundCount,
     handoffCount: handoffInbox + handoffEvents,
     pipelines: [...porPipeline.entries()].map(([name, hints]) => ({ name, hints })),
+    configLoop,
   };
 
   return ok(aggregateEvolution(input), { requestId });

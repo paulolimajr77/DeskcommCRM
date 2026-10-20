@@ -33,7 +33,7 @@ name: e2e
 # executado. Verde que não distingue "passou" de "nem rodou" é pior que vermelho.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, assistente]
   push:
     branches: [main]
 
@@ -184,7 +184,7 @@ jobs:
       # uma rodada por parte.
       fail-fast: false
       matrix:
-        parte: [1, 2, 3, 4, 5, 6]
+        parte: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     # ─────────────────────────────────────────────────────────────────────────
     # A COBERTURA DEIXA DE SER PROSA DIGITADA À MÃO.
     #
@@ -643,24 +643,6 @@ jobs:
         confirmar-dado-do-contato.spec.ts
         credenciais-de-ia.spec.ts
         risk-radar.spec.ts invite-lifecycle.spec.ts system-update.spec.ts
-        agente-novo-e-uso.spec.ts
-        agente-papeis-operador.spec.ts
-        followup-linguagem.spec.ts followup-ramos.spec.ts
-        wizard-do-funcionario.spec.ts mfa-opcional.spec.ts inbox-responder-citando.spec.ts
-        agenda-tela-do-produto.spec.ts
-        notificacoes-diz-o-que-falta.spec.ts
-        cobranca-asaas.spec.ts
-        relogio-http-cron-externo.spec.ts
-        j20-elegibilidade-respondi.spec.ts j20-elegibilidade-followup.spec.ts
-        j20-elegibilidade-atendimento-manual.spec.ts
-        juntar-contatos-duplicados.spec.ts
-        lote-no-quadro-do-funil.spec.ts
-        motivos-de-perda-do-funil.spec.ts
-        importar-leads-planilha.spec.ts
-        relatorio-de-atividades.spec.ts
-        canal-mudo-avisa-na-central.spec.ts
-        qa-l12-troca-de-funil.spec.ts
-        qa-l12-agente-ia.spec.ts
       # ⚠️ A ORDEM DESTA LISTA NÃO DECIDE A ORDEM DE EXECUÇÃO. O Playwright
       # ordena os arquivos por CAMINHO, não pela ordem em que são passados na
       # linha de comando. Medido no run 31838253496: `marca-logo.spec.ts` estava
@@ -760,25 +742,6 @@ jobs:
         gatilho-de-etapa.spec.ts
         etapa-avisa-na-central.spec.ts
         gatilho-de-caso.spec.ts
-        conversa-do-caso.spec.ts
-        aviso-de-caso-no-whatsapp.spec.ts
-        agenda-ocupacao-do-google-na-grade.spec.ts
-        agenda-ocupacao-do-google-no-historico.spec.ts
-        followup-publicado-abre-no-construtor.spec.ts
-        automacao-diz-a-verdade.spec.ts
-        acervo-de-conhecimento.spec.ts
-        agenda-kit-visual.spec.ts
-        agenda-conectar-google.spec.ts
-        agenda-painel-cabe-na-tela.spec.ts
-        agenda-ver-na-agenda.spec.ts
-        agenda-escopo-da-organizacao.spec.ts
-        aba-e-cookie-divergentes.spec.ts
-        agenda-caminho-ate-os-horarios.spec.ts
-        agenda-google-volta-do-consentimento.spec.ts
-        agenda-google-volta-nao-desloga.spec.ts
-        navegacao.spec.ts
-        menu-por-empresa-e-a-porta-de-volta.spec.ts
-        icone-da-aba.spec.ts
       # `moeda-da-organizacao` entrou na PARTE_2 em 2026-09-04, ao lado de
       # `navegacao` — mesmo domínio (Configurações) e a mesma ausência de
       # dependência: sem WAHA, Resend, Nuvemshop ou Redis. Toca a organização
@@ -1007,28 +970,6 @@ jobs:
         organizacoes-criacao-convite-e-cache.spec.ts
         inbox-abas-espelham-o-comando.spec.ts
         busca-na-conversa.spec.ts
-        moeda-da-organizacao.spec.ts
-        zona-de-perigo-apaga-dados-de-teste.spec.ts
-        email-da-instalacao-pela-tela.spec.ts
-        central-avisos-resolver-em-lote.spec.ts
-        central-por-gravidade.spec.ts
-        voz-desligada-por-padrao.spec.ts
-        voz-primeiro-pareamento.spec.ts
-        qa-titulos-das-telas.spec.ts
-        qa-equipe-pinta-na-hora.spec.ts
-        qa-sugestao-rejeitada-e-motivo.spec.ts
-        qa-l12-agenda-contatos.spec.ts
-        qa-l12-tags-radar.spec.ts
-        extensoes-recuperacao.spec.ts
-        extensoes-portas-novas.spec.ts
-        motivo-do-publicar-na-tela.spec.ts
-        followup-cartoes.spec.ts
-        followup-modelos-de-clinica.spec.ts
-        presenca-do-atendente.spec.ts
-        trunk-sip-config.spec.ts
-        fotos-no-catalogo.spec.ts
-        catalogo-busca-no-catalogo-inteiro.spec.ts
-        relatorio-por-etiqueta.spec.ts
 
       # ─── PARTE 4 — a spec de VPS fresca, e quem pode entrar ao lado dela ───
       #
@@ -1175,20 +1116,6 @@ jobs:
         followup-dossie.spec.ts
         followup-queue.spec.ts
         fluxo-de-atendimento.spec.ts
-        qa-l12-funil.spec.ts
-        i18n-espanhol-na-tela.spec.ts
-        extensoes-declarativas.spec.ts
-        extensoes-versao.spec.ts
-        marca-logo.spec.ts
-        suporte-temporario.spec.ts
-        olhar-telas-do-epico.spec.ts
-        jev-decisoes-rapidas.spec.ts
-        jev-roteador.spec.ts
-        jev-pedidos.spec.ts
-        jev-followup.spec.ts
-        buffer-ssr-caixa-orfa.spec.ts
-        contadores-do-menu.spec.ts
-        honorarios-instalar-e-pagar.spec.ts
 
       # ─── PARTE 6 — nasceu em 2026-09-28, e o orçamento de 24 min a pediu ───
       #
@@ -1268,6 +1195,97 @@ jobs:
         inbox-busca-e-filtros-dizem-a-verdade.spec.ts
         mapas-em-provedores.spec.ts
         modulo-de-dados-na-ficha-do-contato.spec.ts
+      # Parte 7: metade final da lista que era só da parte 1. Repositório PRIVADO: o runner
+      # gratuito tem 2 vCPU e todas as partes estouravam o teto de 30 min com a divisão em 6.
+      SPECS_PARTE_7: >-
+        agente-novo-e-uso.spec.ts
+        agente-papeis-operador.spec.ts
+        assistente-chat-leitura.spec.ts
+        followup-linguagem.spec.ts followup-ramos.spec.ts
+        wizard-do-funcionario.spec.ts mfa-opcional.spec.ts inbox-responder-citando.spec.ts
+        agenda-tela-do-produto.spec.ts
+        notificacoes-diz-o-que-falta.spec.ts
+        cobranca-asaas.spec.ts
+        relogio-http-cron-externo.spec.ts
+        j20-elegibilidade-respondi.spec.ts j20-elegibilidade-followup.spec.ts
+        j20-elegibilidade-atendimento-manual.spec.ts
+        juntar-contatos-duplicados.spec.ts
+        lote-no-quadro-do-funil.spec.ts
+        motivos-de-perda-do-funil.spec.ts
+        importar-leads-planilha.spec.ts
+        relatorio-de-atividades.spec.ts
+        canal-mudo-avisa-na-central.spec.ts
+        qa-l12-troca-de-funil.spec.ts
+        qa-l12-agente-ia.spec.ts
+      # Parte 8: metade final da lista que era só da parte 2. Repositório PRIVADO: o runner
+      # gratuito tem 2 vCPU e todas as partes estouravam o teto de 30 min com a divisão em 6.
+      SPECS_PARTE_8: >-
+        conversa-do-caso.spec.ts
+        aviso-de-caso-no-whatsapp.spec.ts
+        agenda-ocupacao-do-google-na-grade.spec.ts
+        agenda-ocupacao-do-google-no-historico.spec.ts
+        followup-publicado-abre-no-construtor.spec.ts
+        automacao-diz-a-verdade.spec.ts
+        acervo-de-conhecimento.spec.ts
+        agenda-kit-visual.spec.ts
+        agenda-conectar-google.spec.ts
+        agenda-painel-cabe-na-tela.spec.ts
+        agenda-ver-na-agenda.spec.ts
+        agenda-escopo-da-organizacao.spec.ts
+        aba-e-cookie-divergentes.spec.ts
+        agenda-caminho-ate-os-horarios.spec.ts
+        agenda-google-volta-do-consentimento.spec.ts
+        agenda-google-volta-nao-desloga.spec.ts
+        navegacao.spec.ts
+        menu-por-empresa-e-a-porta-de-volta.spec.ts
+        icone-da-aba.spec.ts
+      # Parte 9: metade final da lista que era só da parte 3. Repositório PRIVADO: o runner
+      # gratuito tem 2 vCPU e todas as partes estouravam o teto de 30 min com a divisão em 6.
+      SPECS_PARTE_9: >-
+        moeda-da-organizacao.spec.ts
+        zona-de-perigo-apaga-dados-de-teste.spec.ts
+        email-da-instalacao-pela-tela.spec.ts
+        central-avisos-resolver-em-lote.spec.ts
+        central-por-gravidade.spec.ts
+        voz-desligada-por-padrao.spec.ts
+        voz-primeiro-pareamento.spec.ts
+        qa-titulos-das-telas.spec.ts
+        qa-equipe-pinta-na-hora.spec.ts
+        qa-sugestao-rejeitada-e-motivo.spec.ts
+        qa-l12-agenda-contatos.spec.ts
+        qa-l12-tags-radar.spec.ts
+        extensoes-recuperacao.spec.ts
+        extensoes-portas-novas.spec.ts
+        motivo-do-publicar-na-tela.spec.ts
+        followup-cartoes.spec.ts
+        followup-modelos-de-clinica.spec.ts
+        presenca-do-atendente.spec.ts
+        trunk-sip-config.spec.ts
+        fotos-no-catalogo.spec.ts
+        catalogo-busca-no-catalogo-inteiro.spec.ts
+        relatorio-por-etiqueta.spec.ts
+        assistente-propostas.spec.ts
+        assistente-auditoria.spec.ts
+      # Parte 10: metade final da lista que era só da parte 5. Repositório PRIVADO: o runner
+      # gratuito tem 2 vCPU e todas as partes estouravam o teto de 30 min com a divisão em 6.
+      SPECS_PARTE_10: >-
+        qa-l12-funil.spec.ts
+        i18n-espanhol-na-tela.spec.ts
+        extensoes-declarativas.spec.ts
+        extensoes-versao.spec.ts
+        marca-logo.spec.ts
+        suporte-temporario.spec.ts
+        olhar-telas-do-epico.spec.ts
+        jev-decisoes-rapidas.spec.ts
+        jev-roteador.spec.ts
+        jev-pedidos.spec.ts
+        jev-followup.spec.ts
+        buffer-ssr-caixa-orfa.spec.ts
+        contadores-do-menu.spec.ts
+        honorarios-instalar-e-pagar.spec.ts
+      # Parte 11: metade final da lista que era só da parte 6. Repositório PRIVADO: o runner
+      # gratuito tem 2 vCPU e todas as partes estouravam o teto de 30 min com a divisão em 6.
+      SPECS_PARTE_11: >-
         painel-de-configuracao-da-instalacao.spec.ts
         protecao-de-envio-nao-congela-o-padrao.spec.ts
         prova-painel-provedores.spec.ts
@@ -1278,6 +1296,7 @@ jobs:
         sons-dos-avisos.spec.ts
         suspensao-administrativa.spec.ts
         integracao-dados-fontes-liberadas.spec.ts
+        assistente-rascunho-de-agente.spec.ts
 
       # ─── FORA_DO_CI — as que ficaram fora, e o motivo de cada uma ───
       #
@@ -1750,6 +1769,8 @@ jobs:
         run: pnpm e2e:build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+          # repositório privado: máquina menor (7 GB); sem teto o build estoura o heap
+          NODE_OPTIONS: "--max-old-space-size=6144"
           # `off`, NÃO vazio. Vazio seleciona o Sentry DA COMUNIDADE — está
           # escrito em lib/sentry/dsn.ts:8-10, e é o default de propósito num
           # produto self-host. Só "off" desliga.
@@ -2091,6 +2112,11 @@ jobs:
             4) LISTA="$SPECS_PARTE_4" ;;
             5) LISTA="$SPECS_PARTE_5" ;;
             6) LISTA="$SPECS_PARTE_6" ;;
+            7) LISTA="$SPECS_PARTE_7" ;;
+            8) LISTA="$SPECS_PARTE_8" ;;
+            9) LISTA="$SPECS_PARTE_9" ;;
+            10) LISTA="$SPECS_PARTE_10" ;;
+            11) LISTA="$SPECS_PARTE_11" ;;
             *) echo "::error::parte ${{ matrix.parte }} sem lista"; exit 1 ;;
           esac
           # Falha alto se a variável vier vazia: sem isto, um typo no nome faria
@@ -2237,7 +2263,7 @@ jobs:
       # A prova das três telas do roteador deve existir também quando o teste
       # passa. Apenas capturas sintéticas deste teste, sem traces ou credenciais.
       - name: Guardar prova visual do roteador JEV
-        if: ${{ !cancelled() && matrix.parte == 5 }}
+        if: ${{ !cancelled() && (matrix.parte == 5 || matrix.parte == 10) }}
         uses: actions/upload-artifact@v7
         with:
           name: jev-roteador-telas
@@ -2336,10 +2362,11 @@ jobs:
     if: always()
     needs: [e2e-alcance, e2e-parte]
     runs-on: ubuntu-latest
-    # Nenhuma permissão: este job só lê o resultado de `needs` e escreve o
-    # summary. Sem o bloco, o token herdaria o default do REPOSITÓRIO, que vive
-    # fora do repo e muda num clique.
-    permissions: {}
+    # Só o resultado de `needs` e o summary; `contents: read` existe porque o passo de
+    # cobertura abaixo faz checkout, e num repositório PRIVADO o checkout sem essa
+    # permissão falha com "repository not found" (no público o clone anônimo basta).
+    permissions:
+      contents: read
     steps:
       - name: Falhar se qualquer parte não passou
         env:
@@ -2416,7 +2443,7 @@ jobs:
                       dentro { exit }
                     ' .github/workflows/e2e.yml | grep -oE "[a-z0-9-]+\.spec\.ts" | sort -u; }
           NO_DISCO=$(ls tests/e2e/*.spec.ts | wc -l | tr -d " ")
-          RODOU=$( { bloco SPECS_PARTE_1; bloco SPECS_PARTE_2; bloco SPECS_PARTE_3; bloco SPECS_PARTE_4; bloco SPECS_PARTE_5; bloco SPECS_PARTE_6; } | sort -u | wc -l | tr -d " ")
+          RODOU=$( { bloco SPECS_PARTE_1; bloco SPECS_PARTE_2; bloco SPECS_PARTE_3; bloco SPECS_PARTE_4; bloco SPECS_PARTE_5; bloco SPECS_PARTE_6; bloco SPECS_PARTE_7; bloco SPECS_PARTE_8; bloco SPECS_PARTE_9; bloco SPECS_PARTE_10; bloco SPECS_PARTE_11; } | sort -u | wc -l | tr -d " ")
           FORA_LISTA=$(bloco FORA_DO_CI)
           FORA=$(echo "$FORA_LISTA" | grep -c . || true)
           # E o recorte passa a ter CONTROLE, não só um piso.

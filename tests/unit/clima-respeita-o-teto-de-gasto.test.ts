@@ -166,8 +166,6 @@ function snapshot(modo: "avisar" | "bloquear"): BudgetStatus {
     enforcement_mode: modo,
     enforcement_effective_at: ONTEM,
     enforcement_env: "on",
-    assistant_questions_per_user_day: 60,
-    assistant_questions_per_org_day: null,
     blocked_now: false,
     gasto_incompleto: false,
     current_period_start: "2026-10-01",

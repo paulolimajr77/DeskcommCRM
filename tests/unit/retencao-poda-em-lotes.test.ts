@@ -375,8 +375,8 @@ describe("podarHistorico — o laço de lotes", () => {
     };
     const r = await podarHistorico(db, {});
 
-    // 17 drenos: 15 pelo rpc + a mídia + a décima poda (o DELETE do admin).
-    expect(r.falhas).toHaveLength(17);
+    // 16 drenos: 14 pelo rpc + a mídia + a décima poda (o DELETE do admin).
+    expect(r.falhas).toHaveLength(16);
     expect(r.falhas.some((f) => f.includes("conversation_drafts"))).toBe(true);
     expect(r.falhas.some((f) => f.includes("fn_enfileirar_midia_vencida"))).toBe(true);
     expect(r.jobs_apagados).toBe(0);
@@ -430,8 +430,8 @@ describe("podarHistorico — o laço de lotes", () => {
     };
     const r = await podarHistorico(db, {});
 
-    // Só os 15 drenos do rpc falham nesta rodada (mídia e rascunhos vão bem).
-    expect(r.falhas).toHaveLength(15);
+    // Só os 14 drenos do rpc falham nesta rodada (mídia e rascunhos vão bem).
+    expect(r.falhas).toHaveLength(14);
     for (const f of r.falhas) expect(f.length).toBeLessThanOrEqual(300);
   });
 });
@@ -544,44 +544,6 @@ describe("a décima poda — o rascunho sugerido vencido (issue #1686)", () => {
   });
 });
 
-describe("a décima sétima poda — o expurgo do assistente (F3, migration 9005)", () => {
-  it("o cron CHAMA fn_expurgar_config_assistente_vencida, com 365 dias e o tamanho do lote", async () => {
-    const { db, chamadas } = bancoQueDevolve({ fila: [0], auditoria: [0] });
-    await podarHistorico(db, {});
-    const doAssistente = chamadas.filter((c) => c.nome === "fn_expurgar_config_assistente_vencida");
-    expect(doAssistente.length).toBeGreaterThanOrEqual(1);
-    expect(doAssistente[0]!.dias).toBe(365);
-    expect(doAssistente[0]!.limite).toBe(TAMANHO_DO_LOTE);
-  });
-
-  it("o que ela apaga entra no relatório e conta como efeito (a rodada audita)", async () => {
-    let lote = 0;
-    const db: PodaDb = {
-      async rpc(nome) {
-        if (nome === "fn_expurgar_config_assistente_vencida") return { data: lote++ === 0 ? 7 : 0, error: null };
-        return { data: 0, error: null };
-      },
-      async apagarRascunhos() {
-        return { data: 0, error: null };
-      },
-      async enfileirarMidia() {
-        return { data: { vencidas: 0, orfas: 0 }, error: null };
-      },
-    };
-    const r = await podarHistorico(db, {});
-    expect(r.config_assistente_apagada).toBe(7);
-    expect(r.falhas).toEqual([]);
-    expect(houveEfeito(r)).toBe(true);
-  });
-
-  it("falha no dreno do assistente é NOMEADA e não derruba as irmãs", async () => {
-    const { db } = bancoQueDevolve({ fila: [3], auditoria: [0], erroEm: ["fn_expurgar_config_assistente_vencida"] });
-    const r = await podarHistorico(db, {});
-    expect(r.jobs_apagados).toBe(3);
-    expect(r.falhas).toEqual([expect.stringContaining("fn_expurgar_config_assistente_vencida")]);
-  });
-});
-
 describe("houveEfeito — as duas direções", () => {
   const base = {
     jobs_apagados: 0,
@@ -654,7 +616,6 @@ describe("houveEfeito — as duas direções", () => {
     copias_enviadas_tem_resto: false,
     retencao_copias_enviadas_dias: 30,
     checkpoints_apagados: 0,
-    config_assistente_apagada: 0,
     lotes_checkpoints: 0,
     checkpoints_tem_resto: false,
     retencao_checkpoints_dias: 180,

@@ -56,10 +56,6 @@ vi.mock("@/components/shell/BarraDeProgressoNavegacao", () => ({
 // `tests/unit/rodape-ocupado-contrato.test.ts` cobra isso dela por arquivo, mais
 // `components/shell/BarraInferior.celular.test.tsx`, que prova a regra da tela.
 vi.mock("@/components/shell/BarraInferior", () => ({ BarraInferior: () => null }));
-// O painel do assistente (T8) também mora na casca, e também não é o assunto: ele
-// chama `useRouter` do App Router, que não existe nesta árvore de teste. A prova
-// de que ele respeita `--rodape-ocupado` é de `assistente-painel-lateral.test.tsx`.
-vi.mock("@/components/assistente/PainelDoAssistente", () => ({ PainelDoAssistente: () => null }));
 vi.mock("@/hooks/atendimento/useSinalDePresenca", () => ({ useSinalDePresenca: () => {} }));
 vi.mock("@/hooks/notifications/useInboundMessageAlerts", () => ({
   useInboundMessageAlerts: () => {},

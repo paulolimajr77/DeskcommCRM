@@ -3235,6 +3235,10 @@ export const DICIONARIO: Traducoes = {
   "Erro ao salvar": { es: "Error al guardar" },
   "Agent default": { es: "Agente predeterminado" },
   "Criado em": { es: "Creado el" },
+  "Nome na agenda do celular": { es: "Nombre en la agenda del celular" },
+  "Só a equipe vê. Para usar em mensagens, copie para o nome.": {
+    es: "Solo lo ve el equipo. Para usarlo en mensajes, cópialo al nombre.",
+  },
   "Geral": { es: "General" },
   "Descrição interna do agent": { es: "Descripción interna del agente" },
   "Agent ativo": { es: "Agente activo" },
@@ -3885,24 +3889,6 @@ export const DICIONARIO: Traducoes = {
   },
   "Orçamento de IA": { es: "Presupuesto de IA" },
   "Orçamento mensal de IA": { es: "Presupuesto mensual de IA" },
-  "Perguntas ao assistente": { es: "Preguntas al asistente" },
-  "Cada pergunta ao assistente usa a chave de IA da organização. O limite em dinheiro, acima, continua valendo por cima destes.": {
-    es: "Cada pregunta al asistente usa la clave de IA de la organización. El límite en dinero, arriba, sigue siendo válido por encima de estos.",
-  },
-  "Por pessoa, por dia": { es: "Por persona, por día" },
-  "Por organização, por dia": { es: "Por organización, por día" },
-  "Sem limite": { es: "Sin límite" },
-  "Deixe vazio para sem limite": { es: "Déjalo vacío para sin límite" },
-  "Inteiro entre 1 e 10.000": { es: "Número entero entre 1 y 10.000" },
-  "Inteiro entre 1 e 100.000": { es: "Número entero entre 1 y 100.000" },
-  "perguntas por pessoa por dia": { es: "preguntas por persona por día" },
-  "por organização por dia": { es: "por organización por día" },
-  "Você chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
-    es: "Has alcanzado el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
-  },
-  "A organização chegou ao limite de perguntas de hoje. Peça a um administrador para ajustar em Uso de IA › Orçamento.": {
-    es: "La organización alcanzó el límite de preguntas de hoy. Pide a un administrador que lo ajuste en Uso de IA › Presupuesto.",
-  },
   "Para avisar ou parar no limite, ele precisa ser de pelo menos": {
     es: "Para avisar o detenerse en el límite, tiene que ser de al menos",
   },
@@ -9327,7 +9313,7 @@ export const DICIONARIO: Traducoes = {
   "Solicitação de dados": { es: "Solicitud de datos" },
   "Recebido em": { es: "Recibido el" },
   "às": { es: "a las" },
-  "Vence em": { es: "Vence en" },
+  "Vence em": { es: "Vence el" },
   "Relatório de exportação disponível (expira em 72h).": {
     es: "Informe de exportación disponible (expira en 72h).",
   },
@@ -9757,6 +9743,12 @@ export const DICIONARIO: Traducoes = {
   },
   "Esse convite expirou ou não é mais válido. Peça um novo a quem te convidou — esta instalação não aceita cadastro sem convite.": {
     es: "Esa invitación venció o ya no es válida. Pide una nueva a quien te invitó. Esta instalación no permite registrarse sin invitación.",
+  },
+  "Não conseguimos enviar o e-mail de confirmação, porque o envio de e-mails desta instalação não está configurado. Tentar de novo não resolve: avise quem convidou você.": {
+    es: "No pudimos enviar el correo de confirmación, porque el envío de correos de esta instalación no está configurado. Intentarlo de nuevo no lo resuelve: avisa a quien te invitó.",
+  },
+  "Não conseguimos enviar o e-mail de confirmação, porque o envio de e-mails desta instalação não está configurado. Tentar de novo não resolve: avise quem administra o sistema.": {
+    es: "No pudimos enviar el correo de confirmación, porque el envío de correos de esta instalación no está configurado. Intentarlo de nuevo no lo resuelve: avisa a quien administra el sistema.",
   },
   "Esta instalação aceita cadastro apenas por convite. Se você foi convidado, use o link que chegou no seu e-mail.": {
     es: "Esta instalación solo permite el registro por invitación. Si te invitaron, usa el enlace que llegó a tu correo.",
@@ -13672,17 +13664,6 @@ export const DICIONARIO: Traducoes = {
   "Quem vai decidir o caso pergunta e não recebe resposta — decide sem o contexto, ou larga o caso na fila.":
     { es: "Quien va a decidir el caso pregunta y no recibe respuesta: decide sin contexto o deja el caso en la fila." },
 
-  // ── Conversar com o assistente da empresa (F1b, ponto `assistente_chat`) ──
-  // Três textos do registro, no mesmo molde do `case_chat` acima: o teste
-  // `i18n-provedores-e-pontos.test.ts:32` cobra espanhol de rótulo, descrição e
-  // sintoma de todo ponto — sem entrada aqui, a tela em espanhol mostra
-  // português sem nenhum gate reclamar.
-  "Conversar com o assistente da empresa": { es: "Conversar con el asistente de la empresa" },
-  "Responde a perguntas de gestores e equipe sobre a operação — números, telas e guias — consultando só dados agregados pelas métricas oficiais. Para o administrador, monta rascunhos do agente e dos follow-ups e testa — sem publicar nada. Nunca fala com o cliente.":
-    { es: "Responde las preguntas de gestores y equipo sobre la operación — números, pantallas y guías — consultando solo datos agregados de las métricas oficiales. Para el administrador, prepara borradores del agente y de los seguimientos y los prueba — sin publicar nada. Nunca habla con el cliente." },
-  "Quem pergunta ao assistente não recebe a análise com inteligência: o chat volta às respostas prontas dos guias e a pessoa precisa consultar as telas por conta própria.":
-    { es: "Quien pregunta al asistente no recibe el análisis con inteligencia: el chat vuelve a las respuestas listas de las guías y la persona necesita consultar las pantallas por su cuenta." },
-
   // As de baixo são mensagens de ERRO DE ROTA, e `PASTAS_IGNORADAS` do gate de
   // espanhol inclui `api`: elas ficam FORA da catraca e entram aqui por
   // disciplina. Escrito para que a próxima pessoa saiba que a ausência de um
@@ -14301,6 +14282,8 @@ export const DICIONARIO: Traducoes = {
   "Verificar certificado": { es: "Verificar certificado" },
   "Preferir TLS": { es: "Preferir TLS" },
   "Sem TLS (rede local confiável)": { es: "Sin TLS (red local de confianza)" },
+  PostgreSQL: { es: "PostgreSQL" },
+  MySQL: { es: "MySQL" },
   "Nenhuma tabela liberada ainda. Marque acima, em “O que o assistente pode ver”, as que podem ser lidas.": {
     es: "Ninguna tabla habilitada todavía. Marca arriba, en “Qué puede ver el asistente”, las que se pueden leer.",
   },
@@ -14388,6 +14371,25 @@ export const DICIONARIO: Traducoes = {
   "O assistente ainda não enxerga nada deste banco.": { es: "El asistente aún no ve nada de esta base de datos." },
   "Escolher o que ele pode ler": { es: "Elegir qué puede leer" },
   "Conexão criada. Agora escolha o que o assistente pode ler.": { es: "Conexión creada. Ahora elige qué puede leer el asistente." },
+  "Este usuário do banco pode escrever. Crie um usuário só de leitura (apenas SELECT) para o assistente.": { es: "Este usuario de la base de datos puede escribir. Crea un usuario solo de lectura (únicamente SELECT) para el asistente." },
+  "Este usuário lê o banco inteiro. Libere só as tabelas e views que o assistente deve ver.": { es: "Este usuario lee toda la base de datos. Libera solo las tablas y vistas que el asistente debe ver." },
+  "Não consegui conferir os papéis deste usuário. Confirme que ele só lê.": { es: "No pude verificar los roles de este usuario. Confirma que solo lee." },
+  "Não consegui conferir os privilégios deste usuário. Confirme que ele só lê.": { es: "No pude verificar los privilegios de este usuario. Confirma que solo lee." },
+  "Tipo de banco": { es: "Tipo de base de datos" },
+  "O tipo de banco não muda depois de criado. Para trocar, apague a conexão e crie outra.": { es: "El tipo de base de datos no cambia una vez creado. Para cambiarlo, elimina la conexión y crea otra." },
+  "No MySQL, conecte com um usuário só de leitura (apenas SELECT). Se for um WordPress, crie uma view com os dados que o assistente deve ver.": { es: "En MySQL, conecta con un usuario solo de lectura (únicamente SELECT). Si es un WordPress, crea una vista con los datos que el asistente debe ver." },
+  "O teste passou, mas há um aviso sobre o usuário deste banco. Veja no cartão da conexão.": { es: "La prueba pasó, pero hay un aviso sobre el usuario de esta base de datos. Míralo en la tarjeta de la conexión." },
+  "Como criar um acesso só de leitura (guia rápido)": { es: "Cómo crear un acceso de solo lectura (guía rápida)" },
+  "Quem administra o banco de dados do cliente executa estes comandos nele. O CRM só precisa de um acesso que leia o que você quiser mostrar ao assistente, e nada além disso.": { es: "Quien administra la base de datos del cliente ejecuta estos comandos en ella. El CRM solo necesita un acceso que lea lo que quieras mostrar al asistente, y nada más." },
+  "Crie um usuário novo. Troque a senha por uma forte, que você não use em nenhum outro lugar.": { es: "Crea un usuario nuevo. Cambia la contraseña por una fuerte, que no uses en ningún otro lugar." },
+  "Se você souber o endereço (IP) do servidor do CRM, troque o % por ele: assim só esse servidor consegue entrar.": { es: "Si conoces la dirección (IP) del servidor del CRM, cambia el % por ella: así solo ese servidor puede entrar." },
+  "Crie uma view (uma tabela virtual) só com as colunas que o assistente pode ver, e libere somente ela. Troque os nomes em MAIÚSCULAS pelos do seu banco.": { es: "Crea una vista (una tabla virtual) solo con las columnas que el asistente puede ver, y libera únicamente esa. Cambia los nombres en MAYÚSCULAS por los de tu base de datos." },
+  "Não libere o banco inteiro: é assim que tabelas como a de senhas ficam de fora.": { es: "No liberes toda la base de datos: así es como tablas como la de contraseñas quedan afuera." },
+  "Volte aqui, conecte com esse usuário, clique em Testar e, na conexão criada, marque a view em «O que o assistente pode ver».": { es: "Vuelve aquí, conecta con ese usuario, haz clic en Probar y, en la conexión creada, marca la vista en «Qué puede ver el asistente»." },
+  "Quando o seu outro sistema guarda os dados num banco PostgreSQL ou MySQL, conecte-o aqui e o agente passa a responder com esses dados — pedido, assinatura, matrícula, saldo.": { es: "Si tu otro sistema guarda sus datos en una base PostgreSQL o MySQL, conéctala aquí y el agente podrá responder con esa información: pedidos, suscripciones, matrículas, saldo." },
+  "Conecte um banco de dados de outro sistema — o seu segundo CRM, um ERP, uma planilha num banco PostgreSQL ou MySQL — e o agente passa a consultá-lo em tempo real. A conexão é sempre somente leitura: nada que o agente faz altera o banco de origem.": {
+    es: "Conecta la base de datos de otro sistema (tu segundo CRM, un ERP, una hoja de cálculo en una base PostgreSQL o MySQL) y el agente podrá consultarla en tiempo real. La conexión es siempre de solo lectura: nada de lo que haga el agente modifica la base de origen.",
+  },
   // Frase inteira, e não "Ativada" seco: essa chave já existe neste arquivo,
   // de outra tela e no feminino (`Activada`) — reusá-la duplicaria a chave e
   // discordaria do gênero de `Recorrido`.
@@ -16189,46 +16191,6 @@ export const DICIONARIO: Traducoes = {
   "Nenhum negócio com este campo de data neste período.": {
     es: "Ningún negocio con este campo de fecha en este período.",
   },
-  // Assistente interno (spec 2026-10-14, F1): "Assistente" já existe em 14441.
-  "Conversar": { es: "Conversar" },
-  "Pergunte sobre a operação e monte configurações com aprovação.": {
-    es: "Pregunta sobre la operación y crea configuraciones con aprobación.",
-  },
-  "Pergunte sobre a operação e os guias. Na F1 ele responde resumos e trechos — a conversa com IA chega na F2.": {
-    es: "Pregunta sobre la operación y las guías. En la F1 responde resúmenes y fragmentos — la conversación con IA llega en la F2.",
-  },
-  "Pergunte sobre a operação ou os guias.": { es: "Pregunta sobre la operación o las guías." },
-  "Resumo da operação": { es: "Resumen de la operación" },
-  "Escreva sua pergunta...": { es: "Escribe tu pregunta..." },
-  "Não foi possível perguntar agora.": { es: "No fue posible preguntar ahora." },
-  // Assistente interno (F1b, T8): painel lateral, ícone do topo e item do ⌘K.
-  // "Conversas anteriores" já existe (10782).
-  "Conversar com o assistente": { es: "Conversar con el asistente" },
-  "Pergunte sobre a operação, os números e as telas do CRM.": {
-    es: "Pregunta sobre la operación, los números y las pantallas del CRM.",
-  },
-  "Ainda estou aprendendo a responder isso. Na F1 eu respondo resumos da operação e trechos dos guias — a conversa com IA chega na F2.": {
-    es: "Todavía estoy aprendiendo a responder eso. En la F1 respondo resúmenes de la operación y fragmentos de las guías — la conversación con IA llega en la F2.",
-  },
-  "Resumo da operação: ": { es: "Resumen de la operación: " },
-  "{conversas} conversas em atendimento, {leads} negócios abertos em {funis} funis.": {
-    es: "{conversas} conversaciones en atención, {leads} negocios abiertos en {funis} embudos.",
-  },
-  "Não foi possível listar.": { es: "No fue posible listar." },
-  "Não foi possível ler.": { es: "No fue posible leer." },
-  // Assistente interno (F1b, T7): o piso fixo e os três avisos de por que a IA não respondeu.
-  "Ainda não consegui responder isso. Posso mostrar um resumo da operação ou trechos dos guias.": {
-    es: "Todavía no pude responder eso. Puedo mostrar un resumen de la operación o fragmentos de las guías.",
-  },
-  "Conecte uma chave de IA em IA › Provedores para o assistente responder com inteligência.": {
-    es: "Conecta una clave de IA en IA › Proveedores para que el asistente responda con inteligencia.",
-  },
-  "O limite de gasto com IA foi atingido; por enquanto respondo só com resumos e guias.": {
-    es: "Se alcanzó el límite de gasto con IA; por ahora respondo solo con resúmenes y guías.",
-  },
-  "Não consegui usar a IA agora; respondi só com resumos e guias.": {
-    es: "No pude usar la IA ahora; respondí solo con resúmenes y guías.",
-  },
   // #2728 — o editor de campos do funil monta a condição de exibição.
   "Mostrar só quando:": { es: "Mostrar solo cuando:" },
   "Sempre mostrar": { es: "Mostrar siempre" },
@@ -16338,10 +16300,6 @@ export const DICIONARIO: Traducoes = {
   "A conversa abriu, mas a primeira mensagem não pôde ser enviada.": {
     es: "La conversación se abrió, pero el primer mensaje no se pudo enviar.",
   },
-  "Criado como rascunho": { es: "Creado como borrador" },
-  "Nada foi publicado.": { es: "No se publicó nada." },
-  "Abrir o agente": { es: "Abrir el agente" },
-  "Abrir o follow-up": { es: "Abrir el seguimiento" },
   "Tipo de fluxo": { es: "Tipo de flujo" },
   "O roteiro de atendimento não começou: o módulo Fluxos de atendimento está desligado nesta instalação.": {
     es: "El guion de atención no comenzó: el módulo Flujos de atención está desactivado en esta instalación.",
@@ -16451,98 +16409,6 @@ export const DICIONARIO: Traducoes = {
   "atualizado": { es: "actualizado" },
   "recusado": { es: "rechazado" },
   "Recusado.": { es: "Rechazado." },
-
-  // ── Fila de propostas do assistente (T21) ───────────────────────────────
-  // A aba do painel que o administrador usa para decidir. Os VALORES (nome de
-  // funil, id de agente, texto de memória) são DADO — não passam por aqui.
-  "Seções do assistente": { es: "Secciones del asistente" },
-  "Modelo dos auxiliares": { es: "Modelo de los asistentes" },
-  "criar": { es: "crear" },
-  "alterar": { es: "alterar" },
-  "arquivar": { es: "archivar" },
-  "definir ponto": { es: "definir punto" },
-  "definir padrão": { es: "definir predeterminado" },
-  "criar funil": { es: "crear pipeline" },
-  "criar etapa": { es: "crear etapa" },
-  "alterar etapa": { es: "alterar etapa" },
-  "Confirmar rejeição": { es: "Confirmar el rechazo" },
-  "Motivo da rejeição": { es: "Motivo del rechazo" },
-  "Motivo da rejeição (opcional)": { es: "Motivo del rechazo (opcional)" },
-  "Pedido por": { es: "Solicitado por" },
-  "um administrador": { es: "un administrador" },
-  "Venceu sem decisão.": { es: "Venció sin decisión." },
-  "Venceu sem aplicação.": { es: "Venció sin aplicarse." },
-  "Expirou sem decisão.": { es: "Expiró sin decisión." },
-  "Aplicada": { es: "Aplicada" },
-  "Rejeitada": { es: "Rechazada" },
-  "Ver também": { es: "Ver también" },
-  "Esperando decisão": { es: "Esperando decisión" },
-  "Aplicadas": { es: "Aplicadas" },
-  "Rejeitadas": { es: "Rechazadas" },
-  "Expiradas": { es: "Expiradas" },
-  "Todas as propostas": { es: "Todas las propuestas" },
-  "Carregando as propostas…": { es: "Cargando las propuestas…" },
-  "Nenhuma proposta nesta visão.": { es: "Ninguna propuesta en esta vista." },
-  "Não consegui carregar as propostas.": { es: "No pude cargar las propuestas." },
-  "Entre de novo para ver as propostas.": { es: "Vuelve a entrar para ver las propuestas." },
-  "Não foi possível concluir a ação.": { es: "No fue posible completar la acción." },
-  "Esta proposta já está sendo aplicada agora. Aguarde um instante.": {
-    es: "Esta propuesta ya se está aplicando ahora. Espera un momento.",
-  },
-  "A aplicação falhou no destino.": { es: "La aplicación falló en el destino." },
-  "O destino respondeu": { es: "El destino respondió" },
-  "sem resposta do destino": { es: "sin respuesta del destino" },
-  "A proposta continua aprovada — você pode tentar de novo.": {
-    es: "La propuesta sigue aprobada — puedes intentarlo de nuevo.",
-  },
-  "Nome do roteador": { es: "Nombre del router" },
-  "Agente de reserva": { es: "Agente de reserva" },
-  "nenhum": { es: "ninguno" },
-  "nenhuma": { es: "ninguna" },
-  "O roteador nasce ativo neste número de WhatsApp: ao aplicar, ele começa a rotear conversas.": {
-    es: "El router nace activo en este número de WhatsApp: al aplicarlo, empieza a enrutar conversas.",
-  },
-  "Intenções do roteador": { es: "Intenciones del router" },
-  "A lista nova substitui TODA a lista de intenções do roteador — confira as duas listas antes de aprovar.": {
-    es: "La lista nueva sustituye TODA la lista de intenciones del router — revisa las dos listas antes de aprobar.",
-  },
-  "Tipo de material": { es: "Tipo de material" },
-  "Perguntas frequentes (FAQ)": { es: "Preguntas frecuentes (FAQ)" },
-  "Documento de texto": { es: "Documento de texto" },
-  "pergunta com resposta": { es: "pregunta con respuesta" },
-  "perguntas com resposta": { es: "preguntas con respuesta" },
-  "O material nasce pronto para os agentes consultarem, assim que aplicado.": {
-    es: "El material nace listo para que los asistentes lo consulten, en cuanto se aplique.",
-  },
-  "Entrada da memória": { es: "Entrada de la memoria" },
-  "arquivada — sai do que os agentes consultam": { es: "archivada — sale de lo que los asistentes consultan" },
-  "Ponto de IA": { es: "Punto de IA" },
-  "A credencial (chave) que o ponto já usa é preservada — a proposta nunca escolhe credencial.": {
-    es: "La credencial (clave) que el punto ya usa se conserva — la propuesta nunca elige credencial.",
-  },
-  "Vale para todo ponto que não tem escolha própria — pode mudar vários pontos de uma vez.": {
-    es: "Vale para todo punto que no tiene elección propia — puede cambiar varios puntos de una vez.",
-  },
-  "Nome do funil": { es: "Nombre del pipeline" },
-  "Nova etapa": { es: "Nueva etapa" },
-  "Posição no funil": { es: "Posición en el pipeline" },
-  "posição": { es: "posición" },
-  "primeira do funil": { es: "primera del pipeline" },
-  "depois de outra etapa": { es: "después de otra etapa" },
-  "Seguro": { es: "Seguro" },
-  "Proposta não encontrada.": { es: "Propuesta no encontrada." },
-  "A proposta venceu (7 dias) e não pode mais ser aprovada.": {
-    es: "La propuesta venció (7 días) y ya no puede aprobarse.",
-  },
-  "A proposta venceu (7 dias) e não pode mais ser rejeitada.": {
-    es: "La propuesta venció (7 días) y ya no puede rechazarse.",
-  },
-  'A proposta está em outro estado — só uma "pendente" pode ser aprovada.': {
-    es: 'La propuesta está en otro estado — solo una "pendente" puede aprobarse.',
-  },
-  'A proposta está em outro estado — só uma "pendente" pode ser rejeitada.': {
-    es: 'La propuesta está en otro estado — solo una "pendente" puede rechazarse.',
-  },
   // #2041 — rodízio de atendentes na ação assign_owner.
   "Como atribuir": { es: "Cómo asignar" },
   "Um atendente fixo": { es: "Un asesor fijo" },
@@ -16590,127 +16456,6 @@ export const DICIONARIO: Traducoes = {
   "A resposta ia mostrar um produto que não foi encontrado no cadastro. Confira o produto e gere de novo.": { es: "La respuesta iba a mostrar un producto que no se encontró en el registro. Revisa el producto y genera de nuevo." },
   "A sugestão tentou usar uma ação que a prévia não reconhece. Gere de novo; se repetir, revise as ferramentas ligadas no agente.": { es: "La sugerencia intentó usar una acción que la previsualización no reconoce. Genera de nuevo; si se repite, revisa las herramientas activadas en el agente." },
   "A geração da sugestão falhou, ou o contexto da conversa não pôde ser montado. Tente de novo; se repetir, o motivo ficou registrado no servidor.": { es: "La generación de la sugerencia falló, o no se pudo armar el contexto de la conversación. Inténtalo de nuevo; si se repite, el motivo quedó registrado en el servidor." },
-  "Pode completar isto para mim:": { es: "¿Puedes completar esto por mí?:" },
-  "Agente publicado e ativo": { es: "Agente publicado y activo" },
-  "Auditoria": { es: "Auditoría" },
-  "Auditoria da empresa": { es: "Auditoría de la empresa" },
-  "Canal do WhatsApp conectado": { es: "Canal de WhatsApp conectado" },
-  "Carregando a auditoria…": { es: "Cargando la auditoría…" },
-  "Conhecimento (FAQ ou texto)": { es: "Conocimiento (FAQ o texto)" },
-  "Credencial de IA validada": { es: "Credencial de IA validada" },
-  "Da última vez: {antes} pendência(s); agora: {agora}.": { es: "La última vez: {antes} pendiente(s); ahora: {agora}." },
-  "Primeira rodada: {n} pendência(s).": { es: "Primera ronda: {n} pendiente(s)." },
-  "Entre de novo para ver a auditoria.": { es: "Vuelve a iniciar sesión para ver la auditoría." },
-  "Follow-up instalado": { es: "Seguimiento instalado" },
-  "Funil com etapas": { es: "Embudo con etapas" },
-  "Horário de atendimento": { es: "Horario de atención" },
-  "Há um agente de IA publicado e ativo nesta organização.": { es: "Hay un agente de IA publicado y activo en esta organización." },
-  "Há um agente em rascunho, mas ainda não foi publicado. Publicar é clique do administrador na tela do agente.": { es: "Hay un agente en borrador, pero aún no fue publicado. Publicar es un clic del administrador en la pantalla del agente." },
-  "Há um fluxo de follow-up instalado nesta organização.": { es: "Hay un flujo de seguimiento instalado en esta organización." },
-  "Há um funil com pelo menos uma etapa cadastrada.": { es: "Hay un embudo con al menos una etapa registrada." },
-  "Há um funil, mas ainda não tem etapas. Adicione a primeira etapa.": { es: "Hay un embudo, pero aún no tiene etapas. Agrega la primera etapa." },
-  "Há um número de WhatsApp conectado e em funcionamento.": { es: "Hay un número de WhatsApp conectado y en funcionamiento." },
-  "Há uma chave de provedor validada e ativa nesta organização.": { es: "Hay una clave de proveedor validada y activa en esta organización." },
-  "Há uma fonte de conhecimento cadastrada (FAQ ou documento).": { es: "Hay una fuente de conocimiento registrada (FAQ o documento)." },
-  "Nenhum retrato de auditoria ainda. Administrador: rode a auditoria.": { es: "Aún no hay ninguna foto de auditoría. Administrador: ejecuta la auditoría." },
-  "Não consegui carregar a auditoria.": { es: "No pude cargar la auditoría." },
-  "Não há agente de IA cadastrado. Crie um rascunho para começar.": { es: "No hay un agente de IA registrado. Crea un borrador para empezar." },
-  "Não há chave de provedor validada nesta organização. A IA não responde até alguém cadastrar uma chave em Credenciais.": { es: "No hay una clave de proveedor validada en esta organización. La IA no responde hasta que alguien registre una clave en Credenciales." },
-  "Não há follow-up instalado. Instale um modelo de follow-up para começar.": { es: "No hay seguimiento instalado. Instala un modelo de seguimiento para empezar." },
-  "Não há fonte de conhecimento cadastrada. Proponha uma FAQ ou um documento.": { es: "No hay una fuente de conocimiento registrada. Propón una FAQ o un documento." },
-  "Não há funil cadastrado. Crie um funil para organizar os negócios.": { es: "No hay un embudo registrado. Crea un embudo para organizar los negocios." },
-  "Não há um canal do WhatsApp conectado e em funcionamento. O assistente não responde clientes até alguém conectar o número em Conexões.": { es: "No hay un canal de WhatsApp conectado y en funcionamiento. El asistente no responde a los clientes hasta que alguien conecte el número en Conexiones." },
-  "Não há um roteador ativo para o número de WhatsApp. Crie um para começar a atender.": { es: "No hay un enrutador activo para el número de WhatsApp. Crea uno para empezar a atender." },
-  "Não se aplica": { es: "No aplica" },
-  "O número do WhatsApp já tem um roteador ativo.": { es: "El número de WhatsApp ya tiene un enrutador activo." },
-  "Pedir ao assistente": { es: "Pedir al asistente" },
-  "Posso completar": { es: "Puedo completar" },
-  "Preciso confirmar": { es: "Necesito confirmar" },
-  "Prontos": { es: "Listos" },
-  "Resolver": { es: "Resolver" },
-  "Rodar agora": { es: "Ejecutar ahora" },
-  "Rodar de novo": { es: "Ejecutar de nuevo" },
-  "Roteador do canal": { es: "Enrutador del canal" },
-  "Verificação não reconhecida.": { es: "Verificación no reconocida." },
-  "agente publicado": { es: "agente publicado" },
-  "canal do WhatsApp": { es: "canal de WhatsApp" },
-  "Não dá avaliar enquanto faltar {faltando} para ativar.": { es: "No se puede evaluar mientras falte {faltando} para activar." },
-  "Não dá criar o roteador enquanto faltar {faltando}.": { es: "No se puede crear el enrutador mientras falte {faltando}." },
-  "Aguardar antes de rodar a auditoria novamente (máximo 1 por minuto).": { es: "Espera antes de ejecutar la auditoría de nuevo (máximo 1 por minuto)." },
-  "Não consegui gravar o retrato da auditoria.": { es: "No pude guardar la foto de la auditoría." },
-  "Não consegui listar os retratos.": { es: "No pude listar las fotos." },
-  "Esta instalação não tem leitura de horário de atendimento configurável.": { es: "Esta instalación no tiene lectura de horario de atención configurable." },
-  "O que o assistente propôs": { es: "Lo que propuso el asistente" },
-  "As mudanças que o assistente de configuração sugeriu neste período e o que você fez com cada uma — é por aqui que se vê se as sugestões estão acertando.": { es: "Los cambios que el asistente de configuración sugirió en este período y lo que hiciste con cada uno: aquí se ve si las sugerencias están acertando." },
-  "Só quem administra a organização vê as propostas do assistente, porque elas podem trazer texto da sua operação.": { es: "Solo quien administra la organización ve las propuestas del asistente, porque pueden traer texto de tu operación." },
-  "Não conseguimos ler as propostas do assistente agora. Recarregue a página em alguns instantes.": { es: "No pudimos leer las propuestas del asistente ahora. Recarga la página en unos instantes." },
-  "O assistente não fez nenhuma proposta neste período. Quando ele sugerir uma mudança, ela aparece aqui com o que você decidiu.": { es: "El asistente no hizo ninguna propuesta en este período. Cuando sugiera un cambio, aparecerá aquí con lo que decidiste." },
-  "Propostas aprovadas, entre as que você decidiu": { es: "Propuestas aprobadas, entre las que decidiste" },
-  "Ainda não há proposta decidida neste período, então não dá para dizer se as sugestões estão acertando.": { es: "Aún no hay propuestas decididas en este período, así que no se puede decir si las sugerencias están acertando." },
-  "Das propostas que você aprovou ou recusou, quantas foram aprovadas. As que ainda esperam decisão não entram na conta.": { es: "De las propuestas que aprobaste o rechazaste, cuántas fueron aprobadas. Las que aún esperan decisión no cuentan." },
-  "Sugeridas": { es: "Sugeridas" },
-  "Aprovadas": { es: "Aprobadas" },
-  "Recusadas": { es: "Rechazadas" },
-  "Sem decisão": { es: "Sin decisión" },
-  "Aprovadas e não aplicadas": { es: "Aprobadas y sin aplicar" },
-  "Cada linha conta as propostas feitas neste período. Aprovar não muda nada sozinho: a mudança só vale quando é aplicada.": { es: "Cada fila cuenta las propuestas hechas en este período. Aprobar no cambia nada por sí solo: el cambio solo vale cuando se aplica." },
-
-  // ─── o chat único: comandos com barra e a decisão na conversa ──────────────
-  // (18/10/2026) As três abas viraram uma conversa só; tudo abaixo é texto NOVO
-  // da superfície nova: o menu de comandos, o cartão de proposta com Aplicar/Não,
-  // o cartão de checkup e o anúncio de pendências na abertura do painel.
-  "Comandos": { es: "Comandos" },
-  "Conversas abertas": { es: "Conversaciones abiertas" },
-  "Negócios novos hoje": { es: "Negocios nuevos hoy" },
-  "Agendamentos de hoje": { es: "Citas de hoy" },
-  "Mensagens sem resposta": { es: "Mensajes sin respuesta" },
-  "Pendências de configuração": { es: "Pendientes de configuración" },
-  "Resumo de hoje": { es: "Resumen de hoy" },
-  "Pendências agora": { es: "Pendientes ahora" },
-  "Não consegui ler agora.": { es: "No pude leerlo ahora." },
-  "Peça a um gerente.": { es: "Pídeselo a un gerente." },
-  "Nenhuma auditoria feita ainda.": { es: "Todavía no se hizo ninguna auditoría." },
-  "Rodei a auditoria da configuração.": { es: "Ejecuté la auditoría de la configuración." },
-  "Esta é a última auditoria da configuração.": { es: "Esta es la última auditoría de la configuración." },
-  "Primeira rodada de auditoria.": { es: "Primera ronda de auditoría." },
-  "Ainda não há retrato da configuração e não consegui rodar um agora.": { es: "Todavía no hay una foto de la configuración y no pude ejecutar una ahora." },
-  "Ainda não há retrato da configuração. Peça a um administrador para rodar o checkup.": { es: "Todavía no hay una foto de la configuración. Pídele a un administrador que ejecute el chequeo." },
-  "Carregando a mudança…": { es: "Cargando el cambio…" },
-  "Tem 1 mudança esperando você.": { es: "Tienes 1 cambio esperándote." },
-  "Tem {n} mudanças esperando você.": { es: "Tienes {n} cambios esperándote." },
-  "Não apliquei: nada mudou.": { es: "No lo apliqué: nada cambió." },
-  "Pronto:": { es: "Listo:" },
-  "Pronto: a mudança foi aplicada.": { es: "Listo: el cambio se aplicó." },
-  "Nenhuma mudança esperando decisão.": { es: "Ningún cambio esperando decisión." },
-  "Não consegui ler as mudanças esperando decisão agora.": { es: "No pude leer los cambios que esperan decisión ahora." },
-  "Este comando é só para administradores: as mudanças de configuração são decididas por quem administra a empresa.": { es: "Este comando es solo para administradores: los cambios de configuración los decide quien administra la empresa." },
-  "Comandos disponíveis:": { es: "Comandos disponibles:" },
-  "Você também pode pedir em português: \"quantas conversas estão sem resposta?\" ou \"pode criar um follow-up de recompra?\".": { es: "También puedes pedir en portugués: \"¿cuántas conversaciones están sin respuesta?\" o \"¿puedes crear un seguimiento de recompra?\"." },
-  "Conversa nova.": { es: "Conversación nueva." },
-  "Conversas abertas, negócios novos hoje, agendamentos de hoje, mensagens sem resposta e pendências de configuração.": { es: "Conversaciones abiertas, negocios nuevos hoy, citas de hoy, mensajes sin respuesta y pendientes de configuración." },
-  "Roda a auditoria da configuração e mostra o que está pronto e o que falta.": { es: "Ejecuta la auditoría de la configuración y muestra lo que está listo y lo que falta." },
-  "Mostra as mudanças que esperam a sua decisão.": { es: "Muestra los cambios que esperan tu decisión." },
-  "Lista os comandos e exemplos de pedidos.": { es: "Lista los comandos y ejemplos de pedidos." },
-  "Começa uma conversa nova, sem apagar o histórico.": { es: "Empieza una conversación nueva, sin borrar el historial." },
-  "A instalação tem uma chave de IA própria, e o atendimento usa essa chave.": { es: "La instalación tiene una clave de IA propia, y la atención usa esa clave." },
-  "Há um agente de IA publicado e ativo, com chave de IA utilizável nesta organização.": { es: "Hay un agente de IA publicado y activo, con una clave de IA utilizable en esta organización." },
-  "Há um agente publicado, mas ele não chegou com provedor definido e não há chave de IA validada. Cadastre uma chave para a IA responder.": { es: "Hay un agente publicado, pero no llegó con proveedor definido y no hay una clave de IA validada. Registra una clave para que la IA responda." },
-  "Há um agente publicado com o provedor {provedor}, mas não há chave validada desse provedor (nem a chave da instalação). A IA não responde até alguém cadastrar a chave.": { es: "Hay un agente publicado con el proveedor {provedor}, pero no hay una clave validada de ese proveedor (ni la clave de la instalación). La IA no responde hasta que alguien registre la clave." },
-  // Botão de áudio do chat do assistente
-  "Muitas transcrições seguidas. Tente em um minuto.": { es: "Demasiadas transcripciones seguidas. Inténtalo en un minuto." },
-  "O áudio é grande demais.": { es: "El audio es demasiado grande." },
-  "Envie o áudio gravado.": { es: "Envía el audio grabado." },
-  "Esse tipo de áudio não é aceito.": { es: "Ese tipo de audio no es aceptado." },
-  "O áudio veio vazio.": { es: "El audio llegó vacío." },
-  "O áudio veio vazio. Tente gravar de novo.": { es: "El audio llegó vacío. Intenta grabar de nuevo." },
-  "A transcrição precisa de uma chave da OpenAI em Credenciais.": { es: "La transcripción necesita una clave de OpenAI en Credenciales." },
-  "Não ouvi fala nesse áudio. Tente gravar de novo.": { es: "No escuché voz en ese audio. Intenta grabar de nuevo." },
-  "O serviço de transcrição da instalação não foi aceito como destino. Avise quem administra.": { es: "El servicio de transcripción de la instalación no fue aceptado como destino. Avisa a quien administra." },
-  "Não consegui transcrever agora. Tente de novo.": { es: "No pude transcribir ahora. Inténtalo de nuevo." },
-  "A transcrição demorou demais. Tente de novo.": { es: "La transcripción tardó demasiado. Inténtalo de nuevo." },
-  "Este navegador não grava áudio.": { es: "Este navegador no graba audio." },
-  "Libere o microfone no navegador para gravar.": { es: "Permite el micrófono en el navegador para grabar." },
-  "Parar a gravação": { es: "Detener la grabación" },
 };
 
 /**

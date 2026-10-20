@@ -19,10 +19,6 @@ export interface BudgetPatch {
   enforcement_mode?: "off" | "avisar" | "bloquear";
   /** Renuncia às 72h de carência ao armar a parada. */
   confirmar_imediato?: boolean;
-  /** Limite de perguntas por pessoa, por dia (padrão 60). */
-  assistant_questions_per_user_day?: number;
-  /** Limite de perguntas por organização, por dia (null = sem limite). */
-  assistant_questions_per_org_day?: number | null;
 }
 
 interface SingleResponse {
@@ -74,12 +70,6 @@ export function useUpdateBudget() {
           // vem do servidor — otimizá-lo aqui seria a tela inventar uma data.
           ...(patch.enforcement_mode !== undefined
             ? { enforcement_mode: patch.enforcement_mode }
-            : {}),
-          ...(patch.assistant_questions_per_user_day !== undefined
-            ? { assistant_questions_per_user_day: patch.assistant_questions_per_user_day }
-            : {}),
-          ...(patch.assistant_questions_per_org_day !== undefined
-            ? { assistant_questions_per_org_day: patch.assistant_questions_per_org_day }
             : {}),
         };
         qc.setQueryData(aiBudgetQueryKey, optimistic);

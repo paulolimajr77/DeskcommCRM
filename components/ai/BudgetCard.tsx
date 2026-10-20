@@ -254,19 +254,6 @@ export function BudgetCard({ initialData, isAdmin }: Props) {
           </span>
         </div>
       </div>
-
-      <div className="mt-4 border-t pt-3">
-        <p className="text-xs text-muted-foreground">
-          {t("Assistente")}: <strong>{status.assistant_questions_per_user_day}</strong>{" "}
-          {t("perguntas por pessoa por dia")}
-          {status.assistant_questions_per_org_day !== null && (
-            <>
-              {" "}
-              · <strong>{status.assistant_questions_per_org_day}</strong> {t("por organização por dia")}
-            </>
-          )}
-        </p>
-      </div>
     </Card>
   );
 }
@@ -334,12 +321,6 @@ function EditBudgetDialog({ status }: { status: BudgetStatus }) {
   const [thresholdPct, setThresholdPct] = useState<number>(status.alarm_threshold_pct);
   const [modo, setModo] = useState<Modo>(status.enforcement_mode);
   const [imediato, setImediato] = useState(false);
-  const [questionsPerUserDay, setQuestionsPerUserDay] = useState<string>(
-    String(status.assistant_questions_per_user_day || 60),
-  );
-  const [questionsPerOrgDay, setQuestionsPerOrgDay] = useState<string>(
-    status.assistant_questions_per_org_day ? String(status.assistant_questions_per_org_day) : "",
-  );
 
   useEffect(() => {
     if (open) {
@@ -347,10 +328,6 @@ function EditBudgetDialog({ status }: { status: BudgetStatus }) {
       setThresholdPct(status.alarm_threshold_pct);
       setModo(status.enforcement_mode);
       setImediato(false);
-      setQuestionsPerUserDay(String(status.assistant_questions_per_user_day || 60));
-      setQuestionsPerOrgDay(
-        status.assistant_questions_per_org_day ? String(status.assistant_questions_per_org_day) : "",
-      );
     }
   }, [open, status]);
 
@@ -385,28 +362,15 @@ function EditBudgetDialog({ status }: { status: BudgetStatus }) {
     ? clamp(Math.round(thresholdPct), 50, 99)
     : status.alarm_threshold_pct;
 
-  // Validação dos limites de perguntas
-  const userQuestionsDigitado = questionsPerUserDay.trim();
-  const userQuestionsValor = userQuestionsDigitado === "" ? Number.NaN : Number(userQuestionsDigitado);
-  const userQuestionsValido = Number.isInteger(userQuestionsValor) && userQuestionsValor >= 1 && userQuestionsValor <= 10000;
-
-  const orgQuestionsDigitado = questionsPerOrgDay.trim();
-  const orgQuestionsValor = orgQuestionsDigitado === "" ? null : Number(orgQuestionsDigitado);
-  const orgQuestionsValido =
-    orgQuestionsValor === null || (Number.isInteger(orgQuestionsValor) && orgQuestionsValor >= 1 && orgQuestionsValor <= 100000);
-
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!centsValidos || tetoInsuficiente || !userQuestionsValido || !orgQuestionsValido) return;
+    if (!centsValidos || tetoInsuficiente) return;
     update.mutate(
       {
         enforcement_mode: modo,
         monthly_limit_cents: centsDigitados,
         alarm_threshold_pct: limiarEfetivo,
         ...(armando && imediato ? { confirmar_imediato: true } : {}),
-        ...(userQuestionsValido ? { assistant_questions_per_user_day: userQuestionsValor } : {}),
-        ...(orgQuestionsValido && orgQuestionsValor !== null ? { assistant_questions_per_org_day: orgQuestionsValor } : {}),
-        ...(orgQuestionsDigitado === "" ? { assistant_questions_per_org_day: null } : {}),
       },
       { onSuccess: () => setOpen(false) },
     );
@@ -479,58 +443,6 @@ function EditBudgetDialog({ status }: { status: BudgetStatus }) {
             />
           </div>
 
-          <div className="space-y-3 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-            <h3 className="text-sm font-semibold">{t("Perguntas ao assistente")}</h3>
-            <p className="text-xs text-muted-foreground">
-              {t(
-                "Cada pergunta ao assistente usa a chave de IA da organização. O limite em dinheiro, acima, continua valendo por cima destes.",
-              )}
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="questions-per-user">{t("Por pessoa, por dia")}</Label>
-                <Input
-                  id="questions-per-user"
-                  type="number"
-                  min={1}
-                  max={10000}
-                  step={1}
-                  value={questionsPerUserDay}
-                  onChange={(e) => setQuestionsPerUserDay(e.target.value)}
-                  aria-invalid={!userQuestionsValido}
-                />
-                {!userQuestionsValido && questionsPerUserDay.trim() !== "" && (
-                  <p className="text-xs text-destructive">
-                    {t("Inteiro entre 1 e 10.000")}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="questions-per-org">
-                  {t("Por organização, por dia")} <span className="text-muted-foreground">({t("vazio")} = {t("Sem limite")})</span>
-                </Label>
-                <Input
-                  id="questions-per-org"
-                  type="number"
-                  min={1}
-                  max={100000}
-                  step={1}
-                  value={questionsPerOrgDay}
-                  onChange={(e) => setQuestionsPerOrgDay(e.target.value)}
-                  placeholder={t("Deixe vazio para sem limite")}
-                  aria-invalid={!orgQuestionsValido}
-                />
-                {!orgQuestionsValido && questionsPerOrgDay.trim() !== "" && (
-                  <p className="text-xs text-destructive">
-                    {t("Inteiro entre 1 e 100.000")}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <Label htmlFor="limit-usd">{t("Limite mensal (US$)")}</Label>
             <Input
@@ -594,7 +506,7 @@ function EditBudgetDialog({ status }: { status: BudgetStatus }) {
             >
               {t("Cancelar")}
             </Button>
-            <Button type="submit" disabled={update.isPending || !centsValidos || tetoInsuficiente || !userQuestionsValido || !orgQuestionsValido}>
+            <Button type="submit" disabled={update.isPending || !centsValidos || tetoInsuficiente}>
               {update.isPending ? t("Salvando...") : t("Salvar")}
             </Button>
           </DialogFooter>

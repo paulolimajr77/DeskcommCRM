@@ -149,4 +149,18 @@ describe("propor_mudanca", () => {
     });
     expect(saida).toEqual({ ok: false, motivo: "parametro_invalido" });
   });
+
+  it("prospecting com action start é recusada com acao_nao_liberada e não grava proposta", async () => {
+    const { ferramentas, coletor } = montarParaTeste("admin");
+    const saida = await chamar(ferramentas, "propor_mudanca", {
+      porta: "prospecting",
+      metodo: "POST",
+      corpo: { action: "start" },
+      resumo: "Acelerar prospecção",
+      motivo: "Queremos mais empresas na fila",
+    });
+    expect(saida).toEqual({ ok: false, motivo: "acao_nao_liberada" });
+    expect(mockChamarRota).not.toHaveBeenCalled();
+    expect(coletor.acoes.some((a) => a.tipo === "proposta")).toBe(false);
+  });
 });

@@ -18,6 +18,7 @@ import {
   casaComPrefixo,
   escritaPermitida,
   portaDeLeituraPermitida,
+  acaoPermitida,
 } from "./regras";
 describe("casaComPrefixo", () => {
   it("id igual ao prefixo sem barra é verdadeiro", () => {
@@ -221,9 +222,13 @@ describe("escritaPermitida", () => {
   });
 
   it("nenhuma entrada de ESCRITA_PERMITIDA casa com proibidos de escrita", () => {
-    const rx = /(send|enviar|dispatch|disparar|invite|convite|role|members\/.*remove|revoke|unblock|publish|credential|token)/i;
+    const rx = /(send|enviar|dispatch|disparar|invite|convite|role|members\/.*remove|revoke|unblock|credential|token)/i;
+    const portasPublicacao = ["ai/agents/:id/publish", "ai/followup-flows/:id/publish"];
     for (const e of ESCRITA_PERMITIDA) {
       expect(e.porta).not.toMatch(rx);
+      if (/publish/i.test(e.porta)) {
+        expect(portasPublicacao).toContain(e.porta);
+      }
     }
   });
 
@@ -272,5 +277,45 @@ describe("CARREGADORES_DE_ESCRITA", () => {
     for (const porta of Object.keys(CARREGADORES_DE_ESCRITA)) {
       expect(ESCRITA_PERMITIDA.some((e) => e.porta === porta)).toBe(true);
     }
+  });
+});
+
+describe("acaoPermitida", () => {
+  it("porta sem acoes libera qualquer corpo", () => {
+    expect(acaoPermitida("ai/agents", "POST", { qualquer: 1 })).toBe(true);
+    expect(acaoPermitida("ai/agents", "POST", null)).toBe(true);
+  });
+
+  it("prospecting aceita as quatro acoes liberadas", () => {
+    for (const action of ["adjust_pace", "pause", "select", "select_in_queue"]) {
+      expect(acaoPermitida("prospecting", "POST", { action })).toBe(true);
+    }
+  });
+
+  it("prospecting recusa start, resume, configure, discard_unselected, search, vazio e null", () => {
+    for (const action of ["start", "resume", "configure", "discard_unselected", "search"]) {
+      expect(acaoPermitida("prospecting", "POST", { action })).toBe(false);
+    }
+    expect(acaoPermitida("prospecting", "POST", {})).toBe(false);
+    expect(acaoPermitida("prospecting", "POST", null)).toBe(false);
+  });
+
+  it("a porta de publicar agente aceita porque nao restringe acoes", () => {
+    expect(acaoPermitida("ai/agents/:id/publish", "POST", { qualquer: 1 })).toBe(true);
+    expect(acaoPermitida("ai/agents/:id/publish", "POST", null)).toBe(true);
+  });
+
+  it("a porta de publicar follow-up aceita porque nao restringe acoes", () => {
+    expect(acaoPermitida("ai/followup-flows/:id/publish", "POST", { qualquer: 1 })).toBe(true);
+    expect(acaoPermitida("ai/followup-flows/:id/publish", "POST", null)).toBe(true);
+  });
+
+  it("escritaPermitida aceita as duas portas de publicar", () => {
+    expect(escritaPermitida("ai/agents/:id/publish", "POST")).toBe(true);
+    expect(escritaPermitida("ai/followup-flows/:id/publish", "POST")).toBe(true);
+  });
+
+  it("campaigns/:id PATCH continua proibida", () => {
+    expect(escritaPermitida("campaigns/:id", "PATCH")).toBe(false);
   });
 });

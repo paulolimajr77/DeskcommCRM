@@ -119,7 +119,7 @@ export async function instalarModeloDeFollowup(
     followup: { id: corpo.id, nome: corpo.name, estado: "rascunho" },
     aviso:
       "Rascunho criado. Para disparar sozinho, um agente PUBLICADO precisa ter este follow-up " +
-      "ligado em Agente › Follow-up, e publicar o follow-up é clique do administrador.",
+      "ligado em Agente › Follow-up, e publicar o follow-up é proposta do assistente: o administrador aprova no chat.",
   };
 }
 
@@ -128,7 +128,7 @@ export function criarInstalarModeloDeFollowup(entrada: EntradaDasFerramentas): T
     description:
       "Instala um modelo de follow-up como RASCUNHO (nada publicado, ninguém atende). " +
       "`model_id` do catálogo, `etapa_id` (obrigatório só para modelo que dispara por etapa) e " +
-      "`nome` (opcional, para renomear). Publicar o follow-up e ligá-lo a um agente são passos da tela.",
+      "`nome` (opcional, para renomear). Publicar o follow-up é proposta do assistente: o administrador aprova no chat; ligá-lo a um agente é passo da tela.",
     inputSchema: esquemaDeEntrada,
     execute: protegida(
       "instalar_modelo_de_followup",

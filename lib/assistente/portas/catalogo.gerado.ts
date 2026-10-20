@@ -3720,5 +3720,23 @@ export const CARREGADORES_DE_ESCRITA: Record<string, () => Promise<Record<string
       PATCH: mod.PATCH,
     };
   },
+  "prospecting": async () => {
+    const mod = await import("@/app/api/v1/prospecting/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "ai/agents/:id/publish": async () => {
+    const mod = await import("@/app/api/v1/ai/agents/[id]/publish/route");
+    return {
+      POST: mod.POST,
+    };
+  },
+  "ai/followup-flows/:id/publish": async () => {
+    const mod = await import("@/app/api/v1/ai/followup-flows/[id]/publish/route");
+    return {
+      POST: mod.POST,
+    };
+  },
 };
 

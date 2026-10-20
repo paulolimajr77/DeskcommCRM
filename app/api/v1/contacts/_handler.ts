@@ -16,6 +16,7 @@ import { audit } from "@/lib/audit";
 import { traduzir } from "@/lib/i18n/dicionario";
 import type { Idioma } from "@/lib/i18n/idiomas";
 import { roleAtLeast } from "@/lib/auth/types";
+import { FUSO_PADRAO } from "@/lib/tempo/fusos";
 import { canonicalPhoneBR, phoneLookupVariants } from "@/lib/channels/phone-variants";
 import { encontrarContatoPorTelefone } from "@/lib/channels/contato-por-telefone";
 import { camposCpfParaGravar, hashCpf } from "@/lib/contacts/cpf";
@@ -59,6 +60,92 @@ function decodeCursor(raw: string): CursorPayload | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * O fuso da organização para cálculo de aniversário, com falha aberta no padrão.
+ * Nunca lança: se o banco estiver atrás do código ou o fuso for inválido,
+ * segue com `FUSO_PADRAO` (mesmo valor do default da coluna `organizations.timezone`).
+ */
+async function fusoDaOrgParaAniversario(
+  supabase: SB,
+  organizationId: string,
+): Promise<string> {
+  const { data } = await supabase
+    .from("organizations")
+    .select("timezone")
+    .eq("id", organizationId)
+    .maybeSingle();
+  const tz = data?.timezone ?? null;
+  return tz && /^[A-Za-z]/.test(tz) ? tz : FUSO_PADRAO;
+}
+
+/**
+ * { mes, dia } de uma data instant, lida no fuso IANA informado.
+ */
+function diaMesNoFuso(instante: Date, timeZone: string): {
+  mes: number;
+  dia: number;
+  ano: number;
+} {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instante);
+  const get = (tipo: string): number =>
+    Number(partes.find((p) => p.type === tipo)?.value ?? 0);
+  return { mes: get("month"), dia: get("day"), ano: get("year") };
+}
+
+/**
+ * Lista de valores de `birthday_md` (mes*100 + dia) que batem com o período,
+ * calculados no fuso da organização.
+ *
+ * - "hoje": o dia de hoje no fuso da org.
+ * - "semana": segunda a domingo da semana atual no fuso da org (atravessa o ano).
+ * - "mes": todos os dias do mês atual no fuso da org.
+ *
+ * 29/02 em ano não bissexto entra em 28/02: se o dia calculado for 28/02 e o ano
+ * não for bissexto, também inclui 229 (29/02).
+ */
+function valoresBirthdayMd(
+  periodo: "hoje" | "semana" | "mes",
+  timeZone: string,
+): number[] {
+  const agora = new Date();
+  const hoje = diaMesNoFuso(agora, timeZone);
+  const anoBissexto = (hoje.ano % 4 === 0 && hoje.ano % 100 !== 0) || hoje.ano % 400 === 0;
+  const valores: number[] = [];
+
+  const pushDia = (m: number, d: number) => {
+    valores.push(m * 100 + d);
+    // 29/02 em ano não bissexto: aparece em 28/02.
+    if (m === 2 && d === 28 && !anoBissexto) valores.push(229);
+  };
+
+  if (periodo === "hoje") {
+    pushDia(hoje.mes, hoje.dia);
+  } else if (periodo === "mes") {
+    const ultimoDia = new Date(hoje.ano, hoje.mes, 0).getDate();
+    for (let d = 1; d <= ultimoDia; d++) pushDia(hoje.mes, d);
+  } else {
+    // semana: segunda a domingo da semana atual, no calendário do fuso da org.
+    // Tudo em UTC para não depender do fuso da máquina; mês/dia vêm de
+    // diaMesNoFuso sobre o resultado (já no calendário da org).
+    const hojeDate = new Date(Date.UTC(hoje.ano, hoje.mes - 1, hoje.dia, 12, 0, 0));
+    const dow = hojeDate.getUTCDay(); // domingo=0, segunda=1, ... sábado=6
+    const segundaOffset = dow === 0 ? -6 : 1 - dow;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(hojeDate);
+      d.setUTCDate(hojeDate.getUTCDate() + segundaOffset + i);
+      const { mes: m, dia: diaDia } = diaMesNoFuso(d, timeZone);
+      pushDia(m, diaDia);
+    }
+  }
+
+  return valores;
 }
 
 function actorAuditPayload(actor: Actor): {
@@ -263,6 +350,13 @@ export async function listContactsHandler(
   // construiu — e o MCP search herdaria o furo junto.
   if (q.pessoais) query = query.eq("is_personal", true);
   else query = query.eq("is_personal", false);
+
+  // Filtro de aniversário por período, no fuso da organização.
+  if (q.aniversario) {
+    const timeZone = await fusoDaOrgParaAniversario(supabase, ctx.organization_id);
+    const valores = valoresBirthdayMd(q.aniversario, timeZone);
+    query = query.in("birthday_md", valores);
+  }
 
   if (q.cursor) {
     const c = decodeCursor(q.cursor);

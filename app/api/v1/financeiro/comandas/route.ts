@@ -11,6 +11,7 @@
  * e `requireRole` é só a borda de autenticação.
  */
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
 import type { NextRequest } from "next/server";
 
@@ -29,6 +30,9 @@ export const dynamic = "force-dynamic";
 const LIMITE_PADRAO = 50;
 const LIMITE_MAXIMO = 200;
 
+/** `contact_id` de filtro na listagem de comandas (opcional): uuid, inválido → 400. */
+const contactIdFiltroSchema = z.string().uuid("contact_id deve ser um uuid válido").optional();
+
 export async function GET(req: NextRequest): Promise<Response> {
   const requestId = randomUUID();
   // #1907 item 4 — comanda é MÓDULO DE TABELA: sem `modulos_instalados` a
@@ -42,6 +46,20 @@ export async function GET(req: NextRequest): Promise<Response> {
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const limite = Math.min(Number(url.searchParams.get("limit")) || LIMITE_PADRAO, LIMITE_MAXIMO);
+
+  const contactIdRaw = url.searchParams.get("contact_id") ?? undefined;
+  const contactIdParsed = contactIdFiltroSchema.safeParse(
+    contactIdRaw === "" ? undefined : contactIdRaw,
+  );
+  if (!contactIdParsed.success) {
+    return fail(
+      "validation_failed",
+      contactIdParsed.error.issues[0]?.message ?? "contact_id inválido",
+      400,
+      { requestId },
+    );
+  }
+  const contactId = contactIdParsed.data;
 
   const supabase = await createClient();
   let q = supabase
@@ -57,6 +75,10 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   if (status === "open" || status === "finalized" || status === "cancelled") {
     q = q.eq("status", status);
+  }
+
+  if (contactId) {
+    q = q.eq("contact_id", contactId);
   }
 
   const { data, error } = await q;

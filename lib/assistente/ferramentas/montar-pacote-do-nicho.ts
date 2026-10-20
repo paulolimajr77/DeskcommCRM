@@ -144,7 +144,7 @@ function montarFalta(
   for (const observacao of nicho.followups.observacoes) {
     falta.push(`Falta: ${observacao}`);
   }
-  falta.push("Falta: publicar o agente (clique do administrador)");
+  falta.push("Falta: publicar o agente (proposta do assistente; o administrador aprova no chat)");
   falta.push("Falta: ligar cada follow-up publicado ao agente em Agente › Follow-up");
   falta.push("Falta: conectar canal e conferir a chave de IA: PRECISO CONFIRMAR");
   for (const pergunta of nicho.faq) {

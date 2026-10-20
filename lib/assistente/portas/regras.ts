@@ -57,6 +57,34 @@ export function escritaPermitida(
   );
 }
 
+/**
+ * Verdadeiro quando a ação do corpo está liberada para a porta.
+ *
+ * - Se a entrada de ESCRITA_PERMITIDA não tem `acoes`, devolve `true`.
+ * - Se tem, devolve `true` só quando `corpo` é objeto (não array, não null)
+ *   e `corpo.action` é string presente em `acoes`. Sem `action` ou com valor
+ *   fora da lista, devolve `false`.
+ */
+export function acaoPermitida(
+  porta: string,
+  metodo: Metodo,
+  corpo: unknown,
+): boolean {
+  const entrada = ESCRITA_PERMITIDA.find(
+    (e) => e.porta === porta && e.metodo === metodo,
+  );
+  if (!entrada || !entrada.acoes) return true;
+  if (
+    typeof corpo !== "object" ||
+    corpo === null ||
+    Array.isArray(corpo)
+  ) {
+    return false;
+  }
+  const action = (corpo as Record<string, unknown>).action;
+  return typeof action === "string" && entrada.acoes.includes(action);
+}
+
 // Reexporta as listas para consumo por outros módulos e testes.
 export {
   AREAS_SO_LEITURA,

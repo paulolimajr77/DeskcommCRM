@@ -263,7 +263,7 @@ export function criarRascunhoDeAgente(entrada: EntradaDasFerramentas): Tool {
       "`pacotes` (quais jornadas ligar: atender, vender, reter, escalar, organizar, evoluir — " +
       "padrão só vender), `funis` e `materiais` (ids da organização, opcionais). " +
       "Provedor, modelo e chave vêm da configuração da empresa, e o resultado traz o botão " +
-      "para abrir o agente. Publicar é sempre clique do administrador.",
+      "para abrir o agente. Publicar é proposta do assistente: o administrador aprova no chat.",
     inputSchema: esquemaDeEntrada,
     execute: protegida("criar_rascunho_de_agente", esquemaDeEntrada, async ({ nome, descricao, prompt, pacotes, funis, materiais }) => {
       const resultado = await criarAgenteRascunho({ nome, descricao, prompt, pacotes, funis, materiais });

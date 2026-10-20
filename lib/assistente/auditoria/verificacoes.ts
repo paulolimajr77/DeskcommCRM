@@ -294,7 +294,7 @@ function lerFunilEtapas(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaAudit
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. agente_publicado — posso_completar (publicar é do humano)
+// 4. agente_publicado — posso_completar (publicar é proposta do assistente; o administrador aprova no chat)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -365,7 +365,7 @@ function lerAgentePublicado(t: Tradutor, leitura: LeituraDeVerificacao): ItemDaA
     estado: "posso_completar",
     por_que:
       temRascunho
-        ? t("Há um agente em rascunho, mas ainda não foi publicado. Publicar é clique do administrador na tela do agente.")
+        ? t("Há um agente em rascunho, mas ainda não foi publicado. Publicar é proposta do assistente: o administrador aprova no chat.")
         : t("Não há agente de IA cadastrado. Crie um rascunho para começar."),
     dados: { quantidade: leitura.agentes.length },
     onde_resolver: "/app/ai/agents",

@@ -294,6 +294,23 @@ describe("o guardrail 2 — ESPINHA (nenhuma escrita a partir de proposta que n�
     expect(chamarRotaPorDentro).not.toHaveBeenCalled();
     expect(estado.consultas.some((c) => c.sql.includes("set status = 'aplicada'"))).toBe(false);
   });
+
+  it("proposta de prospecting com action start é recusada com acao_nao_liberada e o destino nunca é chamado", async () => {
+    estado.linhaAtual = linha({
+      kind: "acao",
+      payload: { porta: "prospecting", metodo: "POST", corpo: { action: "start" } },
+      risk: "atencao",
+      status: "aprovada",
+    });
+
+    const resposta = await post(PROPOSTA_ID);
+
+    expect(resposta.status).toBe(409);
+    const json = (await resposta.json()) as { error: { code: string } };
+    expect(json.error.code).toBe("acao_nao_liberada");
+    expect(chamarRotaPorDentro).not.toHaveBeenCalled();
+    expect(estado.consultas.some((c) => c.sql.includes("set status = 'aplicada'"))).toBe(false);
+  });
 });
 
 describe("a trava consultiva", () => {

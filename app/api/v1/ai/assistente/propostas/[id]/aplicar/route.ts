@@ -39,7 +39,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { chamarRotaPorDentro, type HandlerDeRota } from "@/lib/assistente/metricas/chamar-rota";
 import { abrirPorta } from "@/lib/assistente/portas/abrir";
-import { escritaPermitida } from "@/lib/assistente/portas/regras";
+import { acaoPermitida, escritaPermitida } from "@/lib/assistente/portas/regras";
 import { UUID_DA_PROPOSTA } from "@/lib/assistente/propostas/decisao";
 import { destinoDaOperacao, type DestinoDaOperacao } from "@/lib/assistente/propostas/operacoes";
 import { ESQUEMA_DO_PAYLOAD_POR_TIPO } from "@/lib/assistente/propostas/payload";
@@ -226,6 +226,11 @@ async function aplicarComTrava(
     // de novo antes de escrever qualquer coisa no destino.
     if (!escritaPermitida(p.porta, p.metodo)) {
       return fail("porta_nao_liberada", t("Esta porta não libera esse método de escrita."), 409, { requestId });
+    }
+    // Quando a porta restringe quais ações aceita (ex.: prospecting), recusa
+    // corpos sem action ou com action fora da lista liberada.
+    if (!acaoPermitida(p.porta, p.metodo, p.corpo)) {
+      return fail("acao_nao_liberada", t("Esta ação não está liberada para essa porta."), 409, { requestId });
     }
     const aberto = await abrirPorta(p.porta, p.metodo, p.valores ?? {});
     if (!aberto) {

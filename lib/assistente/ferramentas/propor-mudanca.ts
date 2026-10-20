@@ -7,6 +7,7 @@ import { abrirPorta } from "@/lib/assistente/portas/abrir";
 import { CAMINHOS, FONTES } from "./proposta-comum";
 import { anotarCartaoDeProposta } from "./tipos";
 import {
+  acaoPermitida,
   escritaPermitida,
   portaDeLeituraPermitida,
 } from "@/lib/assistente/portas/regras";
@@ -30,6 +31,11 @@ async function proporMudanca(
   // Exige escrita permitida.
   if (!escritaPermitida(e.porta, e.metodo)) {
     return { ok: false, motivo: "porta_nao_liberada" };
+  }
+  // Quando a porta restringe quais ações aceita (ex.: prospecting), recusa
+  // corpos sem action ou com action fora da lista liberada.
+  if (!acaoPermitida(e.porta, e.metodo, e.corpo)) {
+    return { ok: false, motivo: "acao_nao_liberada" };
   }
 
   // Para PATCH/PUT, lê o "antes" pela porta GET com o mesmo id.

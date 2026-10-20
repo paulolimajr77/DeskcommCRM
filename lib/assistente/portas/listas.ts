@@ -106,7 +106,7 @@ export const AREAS_SO_LEITURA: readonly string[] = [
 ] as const;
 
 /**
- * Porta branca de escrita. Preenchida com os 26 pares aprovados pelo Paulo.
+ * Porta branca de escrita. Preenchida com os 29 pares aprovados pelo Paulo.
  * Cada entrada deve existir no `CATALOGO_DE_PORTAS` com aquele método.
  * Nenhum DELETE entra aqui.
  */
@@ -114,6 +114,7 @@ export const ESCRITA_PERMITIDA: readonly {
   porta: string;
   metodo: "POST" | "PATCH" | "PUT";
   descricao: string;
+  acoes?: readonly string[];
 }[] = [
   { porta: "ai/agents", metodo: "POST", descricao: "criar agente" },
   { porta: "ai/agents/:id", metodo: "PATCH", descricao: "alterar agente" },
@@ -141,4 +142,13 @@ export const ESCRITA_PERMITIDA: readonly {
   { porta: "agenda/configuracao", metodo: "PATCH", descricao: "alterar configuração da agenda" },
   { porta: "campaign-templates", metodo: "POST", descricao: "criar rascunho de campanha" },
   { porta: "campaign-templates/:id", metodo: "PATCH", descricao: "alterar rascunho de campanha" },
+  // `prospecting` aceita ajustar a campanha de prospecção, mas só as ações que
+  // NÃO iniciam conversa nem gravam/apagam nada por conta própria:
+  // - start e resume enviam mensagem a quem nunca falou com a empresa (fora);
+  // - configure grava chave (fora);
+  // - discard_unselected apaga empresas não selecionadas (fora);
+  // - search gasta crédito da pesquisa (fora).
+  { porta: "prospecting", metodo: "POST", descricao: "ajustar campanha de prospecção (ritmo, pausa, seleção de empresas)", acoes: ["adjust_pace", "pause", "select", "select_in_queue"] },
+  { porta: "ai/agents/:id/publish", metodo: "POST", descricao: "publicar agente" },
+  { porta: "ai/followup-flows/:id/publish", metodo: "POST", descricao: "publicar follow-up" },
 ] as const;

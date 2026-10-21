@@ -70,7 +70,6 @@ export function AuditoriaDoSite({
       status,
       followUpsEnviados: 0,
     },
-    t,
   );
   return (
     <div className="mt-3 space-y-3 border-t pt-3">
@@ -89,7 +88,7 @@ export function AuditoriaDoSite({
       {site.problemas.length > 0 && (
         <ul className="list-disc space-y-1 pl-4 text-xs">
           {site.problemas.map((problema) => (
-            <li key={problema}>{descreverProblema(problema, t)}</li>
+            <li key={problema}>{descreverProblema(problema)}</li>
           ))}
         </ul>
       )}

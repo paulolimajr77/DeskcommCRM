@@ -16572,7 +16572,6 @@ export const DICIONARIO: Traducoes = {
   "sem sinal de atualização há anos": { es: "sin señales de actualización desde hace años" },
   "página segura puxando itens inseguros (partes podem nem carregar)": { es: "página segura que carga elementos inseguros (algunas partes pueden ni cargar)" },
   "sem botão de WhatsApp": { es: "sin botón de WhatsApp" },
-  "sem telefone clicável": { es: "sin teléfono en el que se pueda hacer clic" },
   "sem e-mail de contato": { es: "sin correo de contacto" },
   "sem link para redes sociais": { es: "sin enlace a redes sociales" },
   "sem endereço ou mapa": { es: "sin dirección ni mapa" },

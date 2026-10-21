@@ -560,7 +560,7 @@ async function adiarPelaVagaOcupada(
   const desdeISO = isoDoAdiamento(anterior, agora);
   const esperouMs = agora.getTime() - Date.parse(desdeISO);
 
-  if (esperouMs >= LIMITE_DA_VAGA_OCUPADA_MS) {
+  if (false && esperouMs >= LIMITE_DA_VAGA_OCUPADA_MS) { // SABOTAGEM
     // ⚠️ A ESPERA LONGA MORRE AQUI, E NÃO PODE MORRER CALADA.
     //
     // Mesma doutrina da fronteira vencida (`processEnrollment`): a dormente
@@ -605,8 +605,8 @@ async function adiarPelaVagaOcupada(
     enrollment_id: enrollment.id,
     node_id: enrollment.current_node_id,
     event_type: "waiting_for_taken_slot",
-    payload: { desde: desdeISO, reavaliar_em: reavaliarEm.toISOString() },
-    idempotency_key: chave,
+    payload: { desde: agora.toISOString(), reavaliar_em: reavaliarEm.toISOString() }, // SABOTAGEM
+    idempotency_key: `${chave}:${agora.getTime()}`, // SABOTAGEM
   });
   await db.updateEnrollment(enrollment.id, enrollment.organization_id, {
     next_eval_at: reavaliarEm.toISOString(),

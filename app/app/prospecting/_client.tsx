@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
+import { rodapeDeSaida } from "@/lib/prospecting/rodape-de-saida";
 import {
   RAZAO_NAO_SELECIONADA,
   safePublicLink,
@@ -59,6 +60,7 @@ type State = {
     status: string;
   }[];
   stages: { id: string; name: string; pipeline_id: string; pipeline_name: string }[];
+  organization_locale?: string | null;
 };
 const labels: Record<string, string> = {
   draft: "Preparar campanha",
@@ -493,7 +495,7 @@ export function ProspectingClient() {
           )}
           {campaign && (
             <>
-              <Card className="p-5">
+              <Card className="@container p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-semibold">{campaign.name}</h2>
@@ -511,7 +513,10 @@ export function ProspectingClient() {
                     {campaign.error}
                   </p>
                 )}
-                <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-5">
+                {/* A grade mede o CARD, não a janela: em 1024px o card divide a tela com a
+                    lista de campanhas e 5 colunas espremiam o rótulo. 5 contadores só
+                    cabem sem órfão em 3 colunas ([3,2]) ou 5 ([5]); 2 deixa um sozinho. */}
+                <div className="mt-5 grid grid-cols-3 gap-4 @xl:grid-cols-5">
                   {[
                     [t("Encontrados"), candidates.length],
                     [t("Na fila"), count(["queued", "sending"])],
@@ -975,9 +980,9 @@ export function ProspectingClient() {
                               <span>
                                 {t("Na primeira mensagem (recomendado)")}
                                 <span className="block text-xs text-muted-foreground">
-                                  {t(
-                                    "A abertura já diz como parar: Se não quiser mais receber mensagens, responda PARAR.",
-                                  )}
+                                  {/* A frase é a ENVIADA: idioma da organização, não da interface. */}
+                                  {t("A abertura já diz como parar:")}{" "}
+                                  {rodapeDeSaida(data?.organization_locale)}
                                 </span>
                               </span>
                             </label>

@@ -478,6 +478,35 @@ export const DICIONARIO: Traducoes = {
     es: "Desactivado, ganar no toca el financiero: la tienda con checkout, el infoproducto y la inmobiliaria no viven de cuentas por cobrar. Activado, arrastrar a la etapa de ganado y el botón Ganar abren una orden de servicio con el valor y el contacto del negocio.",
   },
   "Motivo do ganho": { es: "Motivo del negocio ganado" },
+  // #2642 — o aviso da EQUIPE na virada para ganho. Rótulos do corpo do
+  // resumo (WhatsApp) e do formulário da ação notify_team. O e-mail para uma
+  // pessoa da equipe (recorte do PR #2834) usa os rótulos do `send_email`.
+  "Resumo do lead para a equipe": { es: "Resumen del lead para el equipo" },
+  "Resumo automático": { es: "Resumen automático" },
+  "Mensagem para a equipe (resumo do negócio ganho)": {
+    es: "Mensaje al equipo (resumen del negocio ganado)",
+  },
+  "Regra": { es: "Regla" },
+  "Telefone": { es: "Teléfono" },
+  "Pontuação": { es: "Puntuación" },
+  // #2642 — formulário da ação notify_team, depois do recorte: o destino é o
+  // número de Avisos e não há mais escolha de pessoa nem de canal.
+  "Vai para o WhatsApp cadastrado em Avisos.": { es: "Va al WhatsApp registrado en Avisos." },
+  "O resumo leva o nome da regra, o cliente, o telefone, o valor, a pontuação e um atalho para o negócio no CRM (quando a instalação tem endereço público). O que foi conversado com o cliente não vai na mensagem.": {
+    es: "El resumen lleva el nombre de la regla, el cliente, el teléfono, el valor, la puntuación y un atajo al negocio en el CRM (cuando la instalación tiene dirección pública). Lo conversado con el cliente no va en el mensaje.",
+  },
+  "A variável Resumo do negócio leva o nome da regra, o cliente, o telefone, o valor, a pontuação e um atalho para o negócio no CRM (quando a instalação tem endereço público), e nada do que foi conversado com o cliente. O resto do corpo vai como você escrever, inclusive as outras variáveis.": {
+    es: "La variable Resumen del negocio lleva el nombre de la regla, el cliente, el teléfono, el valor, la puntuación y un atajo al negocio en el CRM (cuando la instalación tiene dirección pública), y nada de lo conversado con el cliente. El resto del cuerpo va como lo escribas, incluidas las demás variables.",
+  },
+  // #2642 — o destinatário "membro da equipe" e a variável `{{resumo}}` do
+  // `send_email`.
+  "WhatsApp da equipe": { es: "WhatsApp del equipo" },
+  "Pessoa da equipe": { es: "Persona del equipo" },
+  "E-mail de uma pessoa da equipe": { es: "Correo de una persona del equipo" },
+  "Resumo do negócio": { es: "Resumen del negocio" },
+  "A pessoa recebe no e-mail cadastrado no acesso dela, e o vínculo com a empresa é conferido no momento do envio.": {
+    es: "La persona recibe en el correo registrado en su acceso, y el vínculo con la empresa se comprueba en el momento del envío.",
+  },
   "Preencha os campos obrigatórios antes de continuar: {campos}.": {
     es: "Completa los campos obligatorios antes de continuar: {campos}.",
   },
@@ -1651,10 +1680,21 @@ export const DICIONARIO: Traducoes = {
   vazio: { es: "vacío" },
   "Abrir conversa no Inbox": { es: "Abrir conversación en el Inbox" },
 
+  // ─── Aviso à equipe (mensagem para a equipe na virada para ganho) ───
+  "O aviso à equipe não tem número cadastrado. Cadastre-o em Configurações › Avisos.": { es: "El aviso al equipo no tiene número registrado. Regístrelo en Configuración › Avisos." },
+  "O número cadastrado para avisar a equipe não está mais entre as conexões desta organização.": { es: "El número registrado para avisar al equipo ya no está entre las conexiones de esta organización." },
+  "A conexão do número da equipe está sem credencial. Reconecte o número em Conexões.": { es: "La conexión del número del equipo está sin credencial. Reconecte el número en Conexiones." },
+  "O telefone cadastrado para avisar a equipe não é válido para este canal. Corrija-o em Configurações › Avisos.": { es: "El teléfono registrado para avisar al equipo no es válido para este canal. Corríjalo en Configuración › Avisos." },
+  "O canal do número da equipe recusou a mensagem agora. A automação tenta de novo no próximo disparo.": { es: "El canal del número del equipo rechazó el mensaje ahora. La automatización lo reintenta en el próximo disparo." },
+  "A equipe foi avisada pelo WhatsApp.": { es: "El equipo fue avisado por WhatsApp." },
+  "A regra guarda um canal que esta ação não envia. Abra a automação e salve de novo com o WhatsApp da equipe.": { es: "La regla guarda un canal que esta acción no envía. Abra la automatización y guárdela de nuevo con el WhatsApp del equipo." },
+  "A pessoa escolhida não tem e-mail cadastrado no acesso dela.": { es: "La persona elegida no tiene correo registrado en su acceso." },
+  "A regra não tem a pessoa da equipe escolhida. Abra a automação e escolha quem deve receber.": { es: "La regla no tiene la persona del equipo elegida. Abra la automatización y elija quién debe recibir." },
+  "A pessoa escolhida não faz mais parte da equipe, então o e-mail não foi enviado. Escolha outra pessoa na automação.": { es: "La persona elegida ya no forma parte del equipo, así que el correo no se envió. Elija otra persona en la automatización." },
+
   // ─── Contatos ───
   "Buscar contatos…": { es: "Buscar contactos…" },
   Nome: { es: "Nombre" },
-  Telefone: { es: "Teléfono" },
   "Nenhum contato": { es: "Sin contactos" },
   Bloqueado: { es: "Bloqueado" },
 
@@ -1893,6 +1933,12 @@ export const DICIONARIO: Traducoes = {
   "Menu do usuário": { es: "Menú del usuario" },
   Sair: { es: "Cerrar sesión" },
   "Central de avisos": { es: "Central de avisos" },
+  // O que a tela diz a quem NÃO alcança a Central (#3147): a frase verdadeira
+  // no lugar do estado vazio, que era falso para quem não pode ver aviso nenhum.
+  "A Central de avisos é para quem atende": { es: "La Central de avisos es para quienes atienden" },
+  "Os avisos são pedidos do assistente para as pessoas que atendem. Se precisar deles, peça a quem administra para revisar seu acesso.": {
+    es: "Los avisos son pedidos del asistente para las personas que atienden. Si los necesitas, pide a quien administra que revise tu acceso.",
+  },
   "em aberto": { es: "abiertos" },
   // ─── Agentes de IA: lista ───
   "Agentes de IA": { es: "Agentes de IA" },
@@ -6077,6 +6123,7 @@ export const DICIONARIO: Traducoes = {
   "Iniciar follow-up": { es: "Iniciar seguimiento" },
   "Tarefa interna": { es: "Tarea interna" },
   "Plano de tarefas": { es: "Plan de tareas" },
+  "Mensagem para a equipe": { es: "Mensaje para el equipo" },
   "Automação ligada.": { es: "Automatización activada." },
   "Automação pausada.": { es: "Automatización pausada." },
   "Crie sua primeira automação": { es: "Crea tu primera automatización" },
@@ -8838,6 +8885,21 @@ export const DICIONARIO: Traducoes = {
   "O agente interpretou a resposta": { es: "El agente interpretó la respuesta" },
   "Fluxo concluído": { es: "Flujo concluido" },
   "O fluxo parou de tentar": { es: "El flujo dejó de intentarlo" },
+  "Esperando o outro acompanhamento deste contato terminar": {
+    es: "Esperando a que termine el otro seguimiento de este contacto",
+  },
+  "tenta de novo a cada hora, por até 7 dias": {
+    es: "intenta de nuevo cada hora, hasta 7 días",
+  },
+  "Cancelado: outro acompanhamento ocupou o contato por 7 dias": {
+    es: "Cancelado: otro seguimiento ocupó el contacto durante 7 días",
+  },
+  "esperou 7 dias pelo outro acompanhamento deste contato terminar": {
+    es: "esperó 7 días a que terminara el otro seguimiento de este contacto",
+  },
+  "Outro acompanhamento ocupou o contato por 7 dias": {
+    es: "Otro seguimiento ocupó el contacto durante 7 días",
+  },
   "Falhou neste passo": { es: "Falló en este paso" },
   "Não conseguiu mover o card para a etapa escolhida": {
     es: "No pudo mover la tarjeta a la etapa elegida",
@@ -11031,6 +11093,8 @@ export const DICIONARIO: Traducoes = {
   "Funil não encontrado.": { es: "Embudo no encontrado." },
   "Informe o novo horário.": { es: "Indica el nuevo horario." },
   "Já existe um fluxo com este nome.": { es: "Ya existe un flujo con este nombre." },
+  "Já existe um contato com este CPF.": { es: "Ya existe un contacto con este CPF." },
+  "Já existe um contato com este e-mail.": { es: "Ya existe un contacto con este correo electrónico." },
   "Já existe um contato com este telefone.": { es: "Ya existe un contacto con este teléfono." },
   "Janela inválida.": { es: "Ventana inválida." },
   "Janela inválida: 'from' deve ser anterior a 'to'.": { es: "Ventana inválida: 'from' debe ser anterior a 'to'." },
@@ -14588,6 +14652,212 @@ export const DICIONARIO: Traducoes = {
   "Carregando receitas…": { es: "Cargando recetas…" },
   "Prefixo:": { es: "Prefijo:" },
   "Não foi possível carregar as receitas.": { es: "No se pudieron cargar las recetas." },
+  // ─── Receitas prontas ACF (Spec 25 R2) ───
+  "Tipo de post": { es: "Tipo de entrada" },
+  "Tipo de post:": { es: "Tipo de entrada:" },
+  "Qual tipo de post do WordPress (padrão imovel).": {
+    es: "Qué tipo de entrada de WordPress (predeterminado imovel).",
+  },
+  "Mapeamento de campos (meta_key)": { es: "Mapeo de campos (meta_key)" },
+  Quartos: { es: "Habitaciones" },
+  "Área": { es: "Área" },
+  // ─── Receitas prontas ACF com categorias (Spec 25 R2 ampliada) ───
+  "Campos do imóvel": { es: "Campos del inmueble" },
+  "O nome do campo no ACF ou no JetEngine. Deixe vazio o que o site não usa.": {
+    es: "El nombre del campo en ACF o en JetEngine. Deja vacío lo que el sitio no use.",
+  },
+  "Categorias": { es: "Categorías" },
+  "Bairro, cidade, tipo e finalidade podem estar no site como categoria ou como campo.": {
+    es: "Barrio, ciudad, tipo y finalidad pueden estar en el sitio como categoría o como campo.",
+  },
+  "Nome do campo": { es: "Nombre del campo" },
+  "Nome da categoria": { es: "Nombre de la categoría" },
+  "Nível": { es: "Nivel" },
+  "Qualquer": { es: "Cualquiera" },
+  "Só o bairro (tem cidade acima)": { es: "Solo el barrio (tiene ciudad arriba)" },
+  "Só a cidade (não tem cidade acima)": { es: "Solo la ciudad (no tiene ciudad arriba)" },
+  "Esconder imóveis": { es: "Ocultar inmuebles" },
+  "Campo da situação": { es: "Campo de la situación" },
+  "Valores a esconder": { es: "Valores a ocultar" },
+  "Imóvel com um desses valores na situação não aparece para o cliente.": {
+    es: "El inmueble con uno de esos valores en la situación no aparece para el cliente.",
+  },
+  "Finalidade": { es: "Finalidad" },
+  "Aluguel": { es: "Alquiler" },
+  "Condomínio": { es: "Condominio" },
+  "Suítes": { es: "Suites" },
+  "Banheiros": { es: "Baños" },
+  "Vagas": { es: "Plazas de garaje" },
+  // ─── Receitas prontas: conteúdo do WordPress, qualquer tipo de post (R2 genérica) ───
+  "Qual receita você quer usar?": { es: "¿Qué receta quieres usar?" },
+  "Nome da receita": { es: "Nombre de la receta" },
+  "Qual tipo de post do WordPress (por exemplo, imovel, veiculo, produto).": {
+    es: "Qué tipo de entrada de WordPress (por ejemplo, imovel, veiculo, producto).",
+  },
+  "O modelo só preenche esta tela com uma configuração que serve ao seu site.": {
+    es: "El modelo solo llena esta pantalla con una configuración que sirve para tu sitio.",
+  },
+  "Trocar de modelo apaga o que você preencheu. Quer continuar?": {
+    es: "Cambiar de modelo borra lo que llenaste. ¿Quieres continuar?",
+  },
+  "Campos do site": { es: "Campos del sitio" },
+  "O nome do campo no ACF ou no JetEngine, e o que ele guarda.": {
+    es: "El nombre del campo en ACF o en JetEngine, y lo que guarda.",
+  },
+  "Campo no site": { es: "Campo en el sitio" },
+  "Categoria no site": { es: "Categoría en el sitio" },
+  "Categorias do site": { es: "Categorías del sitio" },
+  "As categorias do WordPress: a taxonomia e o nome do termo.": {
+    es: "Las categorías de WordPress: la taxonomía y el nombre del término.",
+  },
+  "Tem categoria acima": { es: "Tiene categoría arriba" },
+  "Não tem categoria acima": { es: "No tiene categoría arriba" },
+  "Igual": { es: "Igual" },
+  "Adicionar categoria": { es: "Agregar categoría" },
+  "Remover categoria": { es: "Quitar categoría" },
+  "Chaves (avançado)": { es: "Claves (avanzado)" },
+  "Esconder as chaves": { es: "Ocultar las claves" },
+  "Esconder itens": { es: "Ocultar elementos" },
+  "Campo a esconder": { es: "Campo a ocultar" },
+  "Conteúdo com um desses valores no campo não aparece para o cliente.": {
+    es: "El contenido con uno de esos valores en el campo no aparece para el cliente.",
+  },
+  "Campos:": { es: "Campos:" },
+  "Categorias:": { es: "Categorías:" },
+  "Imóveis": { es: "Inmuebles" },
+  "Em branco": { es: "En blanco" },
+  "Conteúdo do WordPress (qualquer tipo de post)": {
+    es: "Contenido de WordPress (cualquier tipo de entrada)",
+  },
+  "Qualquer conteúdo de um site WordPress: imóveis, veículos, cursos, cardápio. O administrador diz o tipo de post e de onde vem cada dado.": {
+    es: "Cualquier contenido de un sitio WordPress: inmuebles, vehículos, cursos, menús. El administrador indica el tipo de entrada y de dónde viene cada dato.",
+  },
+  "Produtos da loja WooCommerce": { es: "Productos de la tienda WooCommerce" },
+  "Os produtos publicados da loja: título, preço, SKU e estoque.": {
+    es: "Los productos publicados de la tienda: título, precio, SKU y stock.",
+  },
+  // ─── As mensagens do Zod da receita genérica (o que a tela mostra no 422) ───
+  "Escreva o tipo de post do site.": { es: "Escribe el tipo de entrada del sitio." },
+  "Escreva o nome do campo no site.": { es: "Escribe el nombre del campo en el sitio." },
+  "Escreva o nome da categoria no site.": { es: "Escribe el nombre de la categoría en el sitio." },
+  "Escreva um rótulo para o dado.": { es: "Escribe una etiqueta para el dato." },
+  "O rótulo pode ter no máximo 40 caracteres.": {
+    es: "La etiqueta puede tener como máximo 40 caracteres.",
+  },
+  "Use apenas letras minúsculas, números e underscore na chave, começando por uma letra.": {
+    es: "Usa solo letras minúsculas, números y guion bajo en la clave, empezando por una letra.",
+  },
+  "O filtro de conteúdo só vale para um campo de texto.": {
+    es: "El filtro de contenido solo vale para un campo de texto.",
+  },
+  "O filtro de mínimo ou máximo só vale para um campo numérico ou de preço.": {
+    es: "El filtro de mínimo o máximo solo vale para un campo numérico o de precio.",
+  },
+  "Mapeie pelo menos um campo do site.": { es: "Asigna al menos un campo del sitio." },
+  "Mapeie no máximo 15 campos.": { es: "Asigna como máximo 15 campos." },
+  "Mapeie no máximo 6 categorias.": { es: "Asigna como máximo 6 categorías." },
+  "Cada dado tem uma chave só. Escolha outra chave para um deles.": {
+    es: "Cada dato tiene una sola clave. Elige otra clave para uno de ellos.",
+  },
+  "Esta chave é reservada: a saída da consulta já usa esse nome.": {
+    es: "Esta clave está reservada: la salida de la consulta ya usa ese nombre.",
+  },
+  "Preencha o rótulo e o nome do campo de todos os dados.": {
+    es: "Llena la etiqueta y el nombre del campo de todos los datos.",
+  },
+  "Preencha o rótulo e o nome da categoria de todos os dados.": {
+    es: "Llena la etiqueta y el nombre de la categoría de todos los datos.",
+  },
+  "Um dos rótulos não virou uma chave. Escreva o rótulo com letras ou números.": {
+    es: "Una de las etiquetas no se convirtió en una clave. Escribe la etiqueta con letras o números.",
+  },
+  // ─── Tabela direta ───
+  "Escreva o nome da tabela.": { es: "Escribe el nombre de la tabla." },
+  "Escreva a coluna do id.": { es: "Escribe la columna del id." },
+  "Escreva a coluna do título.": { es: "Escribe la columna del título." },
+  "Mapeie pelo menos um dado da tabela.": { es: "Asigna al menos un dato de la tabla." },
+  "Preencha o rótulo e a coluna de todos os dados.": {
+    es: "Llena la etiqueta y la columna de todos los datos.",
+  },
+  "Tabela e colunas": { es: "Tabla y columnas" },
+  "A tabela do banco de origem e as colunas que viram id e título.": {
+    es: "La tabla de la base de origen y las columnas que se convierten en id y título.",
+  },
+  "Campos da tabela": { es: "Campos de la tabla" },
+  "Cada coluna mapeada como um dado na saída, com tipo e filtro.": {
+    es: "Cada columna mapeada como un dato en la salida, con tipo y filtro.",
+  },
+  "Só mostrar quando": { es: "Mostrar solo cuando" },
+  "Só exibe itens onde esta coluna é igual a este valor (ex.: cct_status = publish).": {
+    es: "Solo muestra los ítems donde esta columna es igual a este valor (ej.: cct_status = publish).",
+  },
+  "Esconder quando": { es: "Ocultar cuando" },
+  "Itens com um desses valores na coluna não aparecem para o cliente.": {
+    es: "Los ítems con alguno de estos valores en la columna no aparecen para el cliente.",
+  },
+  "O nome da tabela no banco de origem (ex.: wp_jet_cct_imovel).": {
+    es: "El nombre de la tabla en la base de origen (ej.: wp_jet_cct_imovel).",
+  },
+  "A coluna que vira o id de cada item na saída.": {
+    es: "La columna que se convierte en el id de cada ítem en la salida.",
+  },
+  "A coluna que vira o título de cada item na saída.": {
+    es: "La columna que se convierte en el título de cada ítem en la salida.",
+  },
+  "JetEngine — tipo de conteúdo próprio (CCT)": {
+    es: "JetEngine — tipo de contenido propio (CCT)",
+  },
+  "Tabela plana wp_jet_cct_<slug>: id (_ID), título (titulo), só publicados (cct_status = publish) e campos de imóveis.": {
+    es: "Tabla plana wp_jet_cct_<slug>: id (_ID), título (titulo), solo publicados (cct_status = publish) y campos de inmuebles.",
+  },
+  "Comece do zero: escreva a tabela, as colunas e mapeie os dados que o site guarda.": {
+    es: "Empieza desde cero: escribe la tabla, las columnas y asigna los datos que el sitio guarda.",
+  },
+  "Tabela": { es: "Tabla" },
+  "Coluna do id": { es: "Columna del id" },
+  "Coluna do título": { es: "Columna del título" },
+  "Coluna na tabela": { es: "Columna en la tabla" },
+  "Coluna": { es: "Columna" },
+  "Tabela:": { es: "Tabla:" },
+  "Coluna do id:": { es: "Columna del id:" },
+  "Coluna do título:": { es: "Columna del título:" },
+  // ─── O rótulo do caminho que falhou no 422 das receitas ───
+  "Categoria do bairro": { es: "Categoría del barrio" },
+  "Categoria da cidade": { es: "Categoría de la ciudad" },
+  "Categoria do tipo": { es: "Categoría del tipo" },
+  "Categoria da finalidade": { es: "Categoría de la finalidad" },
+  "Nível do bairro": { es: "Nivel del barrio" },
+  "Nível da cidade": { es: "Nivel de la ciudad" },
+  // ─── As mensagens do Zod das receitas (o que a tela mostra no 422) ───
+  "Use apenas letras, números e underscore no prefixo.": {
+    es: "Usa solo letras, números y guion bajo en el prefijo.",
+  },
+  "Use apenas letras minúsculas, números, underscore e hífen no tipo de post.": {
+    es: "Usa solo letras minúsculas, números, guion bajo y guion en el tipo de entrada.",
+  },
+  "Use apenas letras, números, underscore e hífen no nome do campo.": {
+    es: "Usa solo letras, números, guion bajo y guion en el nombre del campo.",
+  },
+  "Use apenas letras minúsculas, números, underscore e hífen no nome da categoria.": {
+    es: "Usa solo letras minúsculas, números, guion bajo y guion en el nombre de la categoría.",
+  },
+  "Escreva pelo menos um valor a esconder.": { es: "Escribe al menos un valor a ocultar." },
+  "Escreva no máximo 10 valores a esconder.": { es: "Escribe como máximo 10 valores a ocultar." },
+  "Informe o preço de venda, o aluguel, ou os dois. Sem um deles a busca não sabe filtrar por preço.": {
+    es: "Informa el precio de venta, el alquiler o los dos. Sin uno de ellos la búsqueda no sabe filtrar por precio.",
+  },
+  "Escolha uma fonte só para o bairro: campo ou categoria.": {
+    es: "Elige una sola fuente para el barrio: campo o categoría.",
+  },
+  "Escolha uma fonte só para a cidade: campo ou categoria.": {
+    es: "Elige una sola fuente para la ciudad: campo o categoría.",
+  },
+  "Escolha uma fonte só para o tipo: campo ou categoria.": {
+    es: "Elige una sola fuente para el tipo: campo o categoría.",
+  },
+  "Escolha uma fonte só para a finalidade: campo ou categoria.": {
+    es: "Elige una sola fuente para la finalidad: campo o categoría.",
+  },
   "linha": { es: "línea" },
   "O campo {campo} não pôde ser salvo: {motivo}": {
     es: "El campo {campo} no se pudo guardar: {motivo}",

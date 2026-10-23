@@ -717,7 +717,7 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
             if (row.status === "won" || row.status === "lost") comNegocioEncerrado.add(row.contact_id);
             else comNegocioVivo.add(row.contact_id);
           }
-          if (linhas.length < PAGINA_DE_INSCRICOES) break;
+          break;
         }
       }
       return new Set([...comNegocioEncerrado].filter((id) => !comNegocioVivo.has(id)));

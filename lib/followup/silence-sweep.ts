@@ -720,7 +720,7 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
           if (linhas.length < PAGINA_DE_INSCRICOES) break;
         }
       }
-      return new Set([...comNegocioEncerrado].filter((id) => !comNegocioVivo.has(id)));
+      return comNegocioEncerrado;
     },
 
     async loadContatosSemRespostaDaEquipe(orgId, contactIds) {

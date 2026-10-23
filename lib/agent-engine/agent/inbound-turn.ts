@@ -79,6 +79,8 @@ import {
   PASTA_DE_TESTE_DE_MIDIA,
   type FotoParaEnvio,
 } from './fotos-do-produto';
+import { descreverSemQuery } from './imagem-por-url';
+import { baixarImagemSegura, guardarImagemNaConversa } from './baixar-imagem-segura';
 import { enqueueJob, rescheduleJob, type JobRow, type Queryable } from '../queue/queue';
 import {
   applyLeadStateUpdate,
@@ -120,6 +122,7 @@ import {
   buildHandoffSummary,
   detectAmbiguousOptOut,
   detectHumanHandoffRequest,
+  ehRespostaDeRobo,
   isLeadInHandoff,
   performHumanHandoff,
 } from './human-handoff';
@@ -194,7 +197,7 @@ import { isStatusSendable } from '../../channels/meta/template-binding';
 import { capabilitiesOf } from '@/lib/channels/capabilities';
 import { renderTemplateBody } from '@/lib/channels/meta/render-template';
 import { esperarComoHumano, manterDigitando } from './atraso-humano';
-import { instrucaoDeBolhas, sendInBubbles, splitForSend } from './split-message';
+import { instrucaoDeBolhas, OK_KINDS, sendInBubbles, splitForSend } from './split-message';
 import { formatarParaWhatsApp } from './formato-whatsapp';
 import type { DisclosureMode } from '../guardrails/disclosure/template';
 import { decidePromise } from '../guardrails/promise/engine';
@@ -213,6 +216,11 @@ import {
 } from '@/lib/escalacao/briefing-da-passagem';
 import { diffCheckpoint } from '@/lib/leads/checkpoint-diff';
 import { CORRECAO_DO_TURNO_MUDO, turnoMudoPedeCorrecao } from './turno-mudo';
+import {
+  desfechoSemCandidato,
+  previaPedeCorrecaoDoTurnoMudo,
+  tetoDePassosAtingido,
+} from './desfecho-da-previa';
 import { criarTravaDeDuplicata } from './near-dup';
 import { vetoReason } from '@/lib/leads/veto-activity';
 import { corposEnviadosDesdeUltimaInbound } from './memoria-envio';
@@ -338,6 +346,15 @@ export const AGENT_TOOL_DEFS = {
         .describe(
           'código de um produto do catálogo (o `codigo` de crm_search_products) que tem `fotos`: ' +
             'as fotos dele vão junto, e o texto vira a legenda da primeira',
+        ),
+      imagem_url: z
+        .string()
+        .url()
+        .optional()
+        .describe(
+          'URL https de UMA imagem (jpg, png ou webp) que veio de um resultado de ferramenta (ex.: uma ' +
+            'receita do banco externo). Vai como foto, e o texto vira a legenda. Nunca invente URL. ' +
+            'Não use junto com produto_codigo.',
         ),
     }),
   },
@@ -1123,6 +1140,51 @@ export function blocosDeAgendaResidentes(toolIds: readonly string[]): string[] {
 }
 
 /**
+ * O INTERESSE DO CLIENTE NUM ITEM DO BANCO EXTERNO, residente (Spec 25, R5c).
+ *
+ * ─── O que faltava, medido ──────────────────────────────────────────────────
+ *
+ * Numa imobiliária montada do zero no espelho (22/10/2026), o agente mostrou o
+ * imóvel e, no turno seguinte ("tenho interesse nesse"), escreveu "seu interesse
+ * está registrado" SEM chamar nada — três vezes, em três configurações. A
+ * orientação que `crm_consultar_receita` devolve ("abra o negócio com
+ * crm_create_lead…") vive no RESULTADO daquele turno, e resultado de ferramenta
+ * não acompanha a conversa: no turno em que o cliente escolhe, o agente só tem o
+ * prompt, as `description` das ferramentas e o que está escrito nas mensagens.
+ *
+ * Por isso o ensino mora aqui, no mesmo lugar do da agenda: residente, a cada
+ * turno. E é CONDICIONAL: nomear ferramenta que o agente não tem faz o modelo
+ * tentar chamá-la, então o bloco só entra com as DUAS pontas (consultar o banco
+ * externo e abrir o negócio).
+ *
+ * Ensino, não garantia: o funil e a etapa saem da receita
+ * (`completarDestinoDoNegocio`), e o escopo de funil do agente segue julgando.
+ */
+const INTERESSE_EXTERNO_SYSTEM_BLOCK =
+  '## Banco de dados externo — o cliente escolheu um item\n' +
+  'Quando você mostrar itens vindos de `crm_consultar_receita`, escreva ao lado de cada um o código ' +
+  'dele (cód. = o campo `id` da linha): é por ele que você acha o item no turno seguinte.\n' +
+  'Quando o cliente disser que tem interesse em UM item que você mostrou, chame `crm_create_lead` ' +
+  'NESTE turno, ANTES de responder, com o `contact_id` desta conversa, um `title` com o nome do item e ' +
+  '`referencia_externa` = `<receita>:<código>` (a receita é o campo `receita` da instância que a ' +
+  'consulta devolveu, por exemplo `wordpress-conteudo`; se não estiver à mão, chame `crm_consultar_receita` ' +
+  'com `acao: "listar"` para ver). NÃO informe `pipeline_id` nem `stage_id`: o sistema usa o funil e a ' +
+  'etapa que a empresa configurou para essa receita.\n' +
+  'Só diga ao cliente que o interesse foi registrado DEPOIS de `crm_create_lead` responder com sucesso. ' +
+  'Escrever "registrei" sem ter chamado a ferramenta é o defeito. Se ela responder que a receita não ' +
+  'tem funil configurado, passe a conversa para a equipe e diga ao cliente que a equipe dará continuidade.';
+
+/**
+ * O bloco do interesse num item do banco externo — a decisão num lugar só, testável.
+ * A régua é o que o agente TEM: as duas ferramentas que o texto nomeia.
+ */
+export function blocosDeInteresseExternoResidentes(toolIds: readonly string[]): string[] {
+  return toolIds.includes('crm_consultar_receita') && toolIds.includes('crm_create_lead')
+    ? [INTERESSE_EXTERNO_SYSTEM_BLOCK]
+    : [];
+}
+
+/**
  * Tools de agenda cuja EXECUÇÃO neste turno arma o `agendaStallGate` (before-send.ts) —
  * ver o wrap no loop de montagem das tools MCP, mais abaixo.
  */
@@ -1651,6 +1713,10 @@ export async function deteccoesDeterministicasDoAssistido(
   let optedOutThisTurn = false;
   let lgpd: AvisoDeEscalacaoOpts['lgpd'];
   let contextoLido = false;
+  // O histórico lido vive FORA do try: é dele que a guarda do menu de robô
+  // (issue 3106) tira as marcas de automação. Sem contexto lido ele fica vazio,
+  // e a guarda devolve "é de gente" — o lado seguro (a passagem é irrevogável).
+  let historicoDoTurno: readonly LeadContextMessage[] = [];
   try {
     const abertura = await getLeadContext(
       pool,
@@ -1666,6 +1732,7 @@ export async function deteccoesDeterministicasDoAssistido(
     if (abertura.ok) {
       contextoLido = true;
       inboundsPendentes = inboundsNaoRespondidos(abertura.context.messages);
+      historicoDoTurno = abertura.context.messages;
       optedOutThisTurn = abertura.context.contact.is_blocked;
       lgpd = abertura.lgpd;
     } else {
@@ -1739,10 +1806,17 @@ export async function deteccoesDeterministicasDoAssistido(
     'motivo' | 'optedOutThisTurn' | 'lgpd'
   > => resto;
 
+  // A GUARDA DO MENU DE ROBÔ (issue 3106): o casamento determinístico não passa
+  // a conversa quando o que casou é fala de automação — menu numerado, mensagem
+  // que se declara robô, ou a saudação que chega segundos depois do nosso disparo
+  // (ver `ehRespostaDeRobo`). Aqui o turno segue para o rascunho do assistido, que
+  // é o desenho do autor da issue: quem lê a mensagem é o modelo, e ele sabe
+  // reconhecer robô. A palavra-chave CONFIGURADA na tela não passa pela guarda: é
+  // escolha de quem opera o agente, e não a regra que esta issue corrige.
   if (
     inboundsPendentes.some(
       (texto) =>
-        detectHumanHandoffRequest(texto) ||
+        (detectHumanHandoffRequest(texto) && !ehRespostaDeRobo(texto, historicoDoTurno)) ||
         matchesHandoffKeyword(texto, agent.handoffKeywords),
     )
   ) {
@@ -2407,6 +2481,7 @@ async function executarTurnoDoAgente(
   // testada (o bloco da cadeia nomeia `crm_list_event_types`, e nomear
   // ferramenta ausente faz o modelo tentar chamá-la).
   if (agentConfig !== null) blocosResidentes.push(...blocosDeAgendaResidentes(agentConfig.toolIds));
+  if (agentConfig !== null) blocosResidentes.push(...blocosDeInteresseExternoResidentes(agentConfig.toolIds));
   if (preview)
     blocosResidentes.push(
       'MODO PRÉVIA: proponha a resposta com send_message. Operações são propostas separadas; nunca diga que executou uma proposta. Nenhum envio real acontece.',
@@ -2508,11 +2583,20 @@ async function executarTurnoDoAgente(
   const mensagemDoJob =
     currentInboundText ?? latestInboundSignal(openingContext.context.messages);
   const inboundsPendentes = inboundsNaoRespondidos(openingContext.context.messages);
+  // A GUARDA DO MENU DE ROBÔ (issue 3106): o casamento determinístico segue
+  // existindo, mas NÃO passa a conversa quando o que casou é fala de automação do
+  // outro lado — menu de opções numeradas ("4 - Falar com um atendente"), mensagem
+  // que se declara robô, ou saudação que chega segundos depois do NOSSO disparo de
+  // Prospecção/campanha (`ehRespostaDeRobo`). Nesses casos o turno segue para o
+  // MODELO, que vê a mensagem e já sabe reconhecer robô — o desenho do autor da
+  // issue. A guarda roda aqui, no mesmo ponto onde a detecção sempre rodou (antes
+  // do modelo e sem gastar token quando ela barra).
   if (
     !preview &&
     inboundsPendentes.some(
       (texto) =>
-        detectHumanHandoffRequest(texto) ||
+        (detectHumanHandoffRequest(texto) &&
+          !ehRespostaDeRobo(texto, openingContext.context.messages)) ||
         (agentConfig !== null && matchesHandoffKeyword(texto, agentConfig.handoffKeywords)),
     )
   ) {
@@ -3356,7 +3440,7 @@ async function executarTurnoDoAgente(
     }),
     send_message: tool({
       ...AGENT_TOOL_DEFS.send_message,
-      execute: async ({ body: corpoDoModelo, produto_codigo }) => {
+      execute: async ({ body: corpoDoModelo, produto_codigo, imagem_url }) => {
         tentativasDeEnvio += 1;
         // O texto sai no formato do WhatsApp — sem `\n` literal nem
         // `**negrito**` de Markdown na tela do cliente. Antes de qualquer gate,
@@ -3506,6 +3590,18 @@ async function executarTurnoDoAgente(
         // ele segue inteiramente síncrono do `checar` até a reserva.
         let fotosDoProduto: FotoParaEnvio[] = [];
         let fotosQueFaltaram = 0;
+        // Foto por URL (`imagem_url`, Spec 25 R4): só uma das duas formas de foto vale
+        // por mensagem — `produto_codigo` e `imagem_url` juntos são recusados abaixo.
+        const temImagemPorUrl = imagem_url !== undefined && imagem_url.trim() !== '';
+        let motivoFotoRecusada: string | null = null;
+        let fotoUrlEnviada = false;
+        // Rastro `foto_enviada`: marca quando a foto por URL (já guardada na conversa) de fato saiu.
+        // `fotosDoProduto` leva UMA das duas fontes (exclusivas, ver o bloco abaixo): a foto do
+        // catálogo ou a foto por URL; o teto de envios e a legenda valem para as duas.
+        const marcarFoto = <R extends { kind: string }>(resultado: R): R => {
+          if (temImagemPorUrl && OK_KINDS.has(resultado.kind)) fotoUrlEnviada = true;
+          return resultado;
+        };
         try {
           dupTrava.reservar(body);
           // RESPOSTA OBSOLETA: o cliente escreveu de novo enquanto este turno pensava.
@@ -3541,6 +3637,51 @@ async function executarTurnoDoAgente(
                   'NÃO chame send_message de novo neste turno — encerre agora. O próximo turno lê a conversa inteira e responde a tudo de uma vez.',
               },
             };
+          }
+          // Duas fotos na mesma mensagem não existem: `produto_codigo` (catálogo, copiado
+          // para a conversa) e `imagem_url` (resultado de ferramenta, sem cópia). Erro de
+          // ENSINO — nada sai; a reserva é liberada como nos outros retornos antes da cadeia.
+          const temFotoDoCatalogo = produto_codigo !== undefined && produto_codigo.trim() !== '';
+          if (temFotoDoCatalogo && temImagemPorUrl) {
+            dupTrava.liberar(body);
+            return {
+              ok: false,
+              error: {
+                code: 'imagem_e_produto_juntos',
+                message:
+                  'Use imagem_url OU produto_codigo, não os dois na mesma mensagem. Mande de novo só com um deles.',
+              },
+            };
+          }
+          // Foto por URL (Spec 25 R4, opção A): mesma regra de fora do lock, só fora da
+          // prévia. O CRM baixa a imagem com a própria rede (IP validado, sem redirect,
+          // teto de 5 MB, conteúdo conferido), guarda no Storage da conversa e manda ao
+          // canal só o storagePath. Qualquer falha: a mensagem segue só com texto (D7) e o
+          // motivo volta ao modelo; o log leva host + caminho, nunca a query.
+          if (temImagemPorUrl && !preview) {
+            const url = (imagem_url ?? '').trim();
+            let motivo: string | null = null;
+            const baixada = await baixarImagemSegura(url);
+            if (!baixada.ok) {
+              motivo = baixada.motivo;
+            } else {
+              const guardada = await guardarImagemNaConversa(createAdminClient(), {
+                tenantId,
+                conversationId: input.conversationId,
+                bytes: baixada.bytes,
+                mime: baixada.mime,
+              });
+              if (guardada.ok) fotosDoProduto = [{ storagePath: guardada.storagePath, mime: guardada.mime }];
+              else motivo = guardada.motivo;
+            }
+            if (motivo !== null) {
+              motivoFotoRecusada = motivo;
+              runLog.warn('imagem_url recusada — a mensagem sai só com texto', {
+                job_id: job?.id ?? null,
+                imagem: descreverSemQuery(url),
+                motivo,
+              });
+            }
           }
           // A foto do produto (ideia de @vgamkt, #1130): preparada ANTES da cadeia e
           // fora do lock do número — a cópia no Storage é rede. Código errado volta
@@ -3756,7 +3897,7 @@ async function executarTurnoDoAgente(
                     sleep,
                     jitter,
                     restantes: () => maxSendsPerTurn - seq,
-                    enviarFoto: (foto, legenda) => enviar(legenda, foto),
+                    enviarFoto: (foto, legenda) => enviar(legenda, foto).then(marcarFoto),
                     enviarTexto: (texto) =>
                       sendInBubbles(texto, {
                         enabled: agentConfig?.splitMessages ?? false,
@@ -3953,6 +4094,10 @@ async function executarTurnoDoAgente(
                 status: 'enviada',
                 message_id: outcome.messageId,
                 ...(produto_codigo !== undefined ? { fotos_enviadas: fotosDoProduto.length } : {}),
+                // Rastro da foto por URL (Spec 25 R4): `foto_enviada` diz se a foto saiu;
+                // `foto_recusada` diz por que não foi buscada (formato ou guarda de rede).
+                ...(temImagemPorUrl ? { foto_enviada: fotoUrlEnviada } : {}),
+                ...(motivoFotoRecusada !== null ? { foto_recusada: motivoFotoRecusada } : {}),
                 ...(fotosQueFaltaram > 0
                   ? {
                       aviso: `${fotosQueFaltaram} foto(s) do produto não puderam ser enviadas; o texto foi. Não diga ao cliente que mandou essas fotos.`,
@@ -5000,20 +5145,46 @@ async function executarTurnoDoAgente(
     // Erro da chamada de correção propaga e o job falha na fila (retry /
     // dead-letter visível). As condições são as do próprio pedido
     // (turno-mudo.ts): razões legítimas de silêncio nem chegam a corrigir.
+    // #3093 — a PRÉVIA DO RASCUNHO pede a MESMA correção quando o modelo deixou
+    // TEXTO SOLTO (escreveu a resposta fora do `send_message` e encerrou). Em
+    // produção essa é a causa nº 3 da issue: o `turno-mudo.ts` pede uma correção
+    // e o cliente acaba atendido. A prévia tinha `!preview` na condição, então o
+    // texto solto morria no `no_candidate` e o painel não podia dizer se houve
+    // decisão ou parada. Aqui a prévia do rascunho roda a MESMA correção, UMA
+    // vez, com a mesma conversa e as mesmas ferramentas — e, sem candidato depois
+    // dela, o que resta é a decisão (o CORRECAO_DO_TURNO_MUDO autoriza o modelo a
+    // encerrar sem chamar nada, doutrina do #2938).
+    //
+    // Só o rascunho ASSISTIDO: a prévia de TESTE (sandbox) mostra o que o agente
+    // produziu e uma segunda chamada esconderia o defeito que ela existe para
+    // revelar. Só com texto solto: silêncio sem texto é decisão já tomada, e
+    // pedir de novo pagaria uma chamada de modelo para ouvir a mesma coisa.
     let correcaoTruncou = false;
+    // A correção também pode gastar o teto dela (3 passos) só em consultas: na
+    // prévia isso é a mesma falha do teto da primeira chamada, não decisão.
+    let tetoNaCorrecao = false;
     const correcaoDoTurnoMudoPedida =
-      !preview &&
-      liveJob().kind === 'inbound_turn' &&
-      turnoMudoPedeCorrecao({
-        tentativasDeEnvio,
-        enviadas: outcomes.length,
-        turnoDescartado,
-        passouParaAEquipe,
-        capDeEnvio: capDeEnvioAtingido(),
-      });
+      preview?.kind === 'assisted'
+        ? previaPedeCorrecaoDoTurnoMudo({
+            textoEscrito: turn.result.text,
+            candidatos: preview.result.candidates.length,
+            tentativasDeEnvio,
+          })
+        : !preview &&
+          liveJob().kind === 'inbound_turn' &&
+          turnoMudoPedeCorrecao({
+            tentativasDeEnvio,
+            enviadas: outcomes.length,
+            turnoDescartado,
+            passouParaAEquipe,
+            capDeEnvio: capDeEnvioAtingido(),
+          });
     if (correcaoDoTurnoMudoPedida) {
       runLog.warn('turno terminou sem mensagem ao cliente — pedindo UMA correção', {
-        job_id: liveJob().id,
+        // `liveJob()` LANÇA na prévia (`preview_operational_job_forbidden`, #2996):
+        // o rascunho vai sem id de job, e o log segue honesto.
+        job_id: job?.id ?? null,
+        previa: preview?.kind ?? null,
       });
       const pedidoDeCorrecao: ModelMessage = { role: 'user', content: CORRECAO_DO_TURNO_MUDO };
       const correcao = await runModelCall(
@@ -5024,7 +5195,7 @@ async function executarTurnoDoAgente(
           leadId: leadId || null,
           jobId: job?.id,
           agentId: agentConfig?.agentId ?? null,
-          purpose: 'agent_turn',
+          purpose: preview ? 'agent_preview' : 'agent_turn',
           system,
           messages: [...openingMessages, ...turn.result.responseMessages, pedidoDeCorrecao],
           tools,
@@ -5044,6 +5215,11 @@ async function executarTurnoDoAgente(
       // Sinal de FALHA da correção: terminou no teto de tokens. Silêncio com
       // finishReason normal (stop/tool-calls) é resposta escolhida, não defeito.
       correcaoTruncou = correcao.result.finishReason === 'length';
+      tetoNaCorrecao = tetoDePassosAtingido({
+        passosUsados: correcao.result.steps?.length ?? 0,
+        maxSteps: Math.min(maxSteps, 3),
+        finishReason: correcao.result.finishReason,
+      });
       mensagensDoTurno = [...mensagensDoTurno, pedidoDeCorrecao, ...correcao.result.responseMessages];
       if (runError !== null) throw runError;
       if (outcomes.some((o) => o.kind === 'failed')) {
@@ -5224,13 +5400,31 @@ async function executarTurnoDoAgente(
     // turno. Aqui o lead já recebeu resposta, mas a conversa ficaria sem
     // checkpoint e sem dono, e o próximo inbound cairia no mesmo bloqueio, agora
     // sem nada tendo mudado no meio.
-    // Prévia sem candidato e sem impedimento: quem opera precisa saber que o agente não propôs nada.
+    // Prévia sem candidato e sem impedimento: quem opera precisa saber POR QUE.
+    //
+    // #3093 — o mesmo `no_candidate` cobria decisão e falha da geração, e o
+    // painel não podia dizer ao atendente se o agente decidiu não responder ou se
+    // a geração parou no meio. A decisão mora em `desfecho-da-previa.ts` (pura,
+    // testável) e devolve o código da CAUSA: `output_truncated` (o mesmo nome do
+    // log do turno real), `max_steps_exhausted` (o teto de `max_steps`) ou
+    // `no_candidate` — que depois desta separação significa só a DECISÃO de não
+    // responder. `null` quando há candidato ou quando um impedimento já explica
+    // o desfecho (veto, mídia, ferramenta desconhecida).
     const avisarSemCandidato = (p: NonNullable<typeof preview>): void => {
-      if (p.result.candidates.length === 0 && p.result.impediments.length === 0)
-        p.result.impediments.push({
-          code: 'no_candidate',
-          message: 'O agente não propôs uma resposta. Revise o cenário ou a configuração.',
-        });
+      const desfecho = desfechoSemCandidato({
+        candidatos: p.result.candidates.length,
+        impedimentos: p.result.impediments.length,
+        // A correção que termina truncada ou no teto dela é FALHA, não decisão
+        // — a produção trata o mesmo sinal como `correction_truncated_failed`.
+        saidaTruncada: saidaTruncada || correcaoTruncou,
+        tetoDePassosAtingido:
+          tetoDePassosAtingido({
+            passosUsados: turn.result.steps?.length ?? 0,
+            maxSteps,
+            finishReason: turn.result.finishReason,
+          }) || tetoNaCorrecao,
+      });
+      if (desfecho !== null) p.result.impediments.push(desfecho);
     };
     // ⚠️ RASCUNHO (modo assistido) não fecha o turno com checkpoint. O checkpoint
     // da prévia não é gravado (a prévia retorna antes do `insertCheckpoint`, logo

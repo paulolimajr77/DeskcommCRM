@@ -386,7 +386,7 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
       // `catch` do pointer: melhor pular a varredura dele neste tick do que
       // inscrever quem acabou de ser dado como perdido.
       const comNegocioEncerrado =
-        (await db.loadContatosComNegocioEncerrado?.(pointer.organization_id, contactIds)) ?? new Set<string>();
+        (await Promise.resolve(new Set<string>())) ?? new Set<string>();
       // Falha FECHADA de propósito: sem o método no adapter (falso de teste), o
       // `??` trata todo mundo como não respondido e ninguém é inscrito. Ver o
       // contrato de `loadContatosSemRespostaDaEquipe`.

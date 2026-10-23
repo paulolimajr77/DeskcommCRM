@@ -414,10 +414,6 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
           summary.skipped_human_owned++;
           continue;
         }
-        if (comNegocioEncerrado.has(contactId)) {
-          summary.skipped_negocio_encerrado++;
-          continue;
-        }
         // Antes do cooldown: não é throttle de tempo, é "este contato nunca
         // devia ter sido considerado". A dívida é NOSSA, não dele.
         if (semRespostaDaEquipe.has(contactId)) {

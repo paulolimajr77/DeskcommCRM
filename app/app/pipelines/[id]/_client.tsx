@@ -57,10 +57,13 @@ export function PipelinePageClient({
   funis: Array<{ id: string; name: string }>;
 }) {
   const t = useT();
-  const { data, isLoading, error, pulses, realtimeStatus, seguranca } = useBoard(pipelineId);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { data, isLoading, error, pulses, realtimeStatus, seguranca } = useBoard(
+    pipelineId,
+    searchParams.get("lead"),
+  );
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
   const setFilters = useCallback(
     (next: LeadFilters) => {
@@ -249,6 +252,9 @@ export function PipelinePageClient({
           // #1751: o quadro é a lista que o diálogo confere ANTES de criar —
           // é ela que faz o aviso de negócio duplicado existir sem rede.
           leads={data.leads}
+          // #3038: os campos que a etapa exige são preenchidos no PRÓPRIO
+          // formulário — a lista sai do `settings` que o quadro já tem em mãos.
+          settings={data.pipeline.settings}
         />
       )}
       <FilterBar
